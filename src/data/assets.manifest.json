@@ -1,0 +1,20 @@
+{
+  "assets": [
+    { "id": "logo-monarchs", "type": "image", "url": "assets/logos/monarchs.png" },
+    { "id": "logo-funk", "type": "image", "url": "assets/logos/funk.png" },
+    { "id": "logo-snappers", "type": "image", "url": "assets/logos/snappers.png" },
+    { "id": "logo-marauders", "type": "image", "url": "assets/logos/marauders.png" },
+    { "id": "logo-metros", "type": "image", "url": "assets/logos/metros.png" },
+    { "id": "logo-kestrals", "type": "image", "url": "assets/logos/kestrals.png" },
+    { "id": "logo-gilas", "type": "image", "url": "assets/logos/gilas.png" },
+    { "id": "logo-hustlers", "type": "image", "url": "assets/logos/hustlers.png" },
+    { "id": "logo-threshers", "type": "image", "url": "assets/logos/threshers.png" },
+    { "id": "logo-bullies", "type": "image", "url": "assets/logos/bullies.png", "pending": "higgsfield-task16" },
+    { "id": "branding-square", "type": "image", "url": "assets/branding/logo-square.png" },
+    { "id": "branding-poster", "type": "image", "url": "assets/branding/logo-poster.png" },
+    { "id": "video-splash", "type": "video", "url": "assets/video/splash-intro.mp4" },
+    { "id": "video-intro-monarchs", "type": "video", "url": "assets/video/intro-monarchs.mp4", "pending": "higgsfield-task16" },
+    { "id": "video-intro-snappers", "type": "video", "url": "assets/video/intro-snappers.mp4", "pending": "higgsfield-task16" },
+    { "id": "music-theme", "type": "audio", "url": "assets/audio/theme-red-rubber-felony.mp3" }
+  ]
+}

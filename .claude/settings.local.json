@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"require\\('sharp'\\)\\('public/assets/branding/logo-square.png'\\).metadata\\(\\).then\\(m=>console.log\\('logo:',m.width+'x'+m.height,m.format\\)\\)\")",
+      "Bash(node scripts/gen-icons.mjs)"
+    ]
+  }
+}

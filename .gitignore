@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.DS_Store
+*.local
+.env
+.env.*
+
+.playwright-mcp/
+*.jpeg
+*.png.tmp
+
+# old sprite-sheet art — superseded by GLB chars + matchup PNGs (132MB, unused by the game)
+public/assets/sprites/
+# one-off test artifacts
+eleven-test.mp3
+public/voice-samples.html
+public/assets/audio/samples/

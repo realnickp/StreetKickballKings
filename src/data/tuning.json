@@ -1,0 +1,57 @@
+{
+  "match": { "innings": 5, "outsPerHalf": 3 },
+  "pitch": {
+    "types": {
+      "fastball":   { "speedMph": [80, 90], "durScale": 1.0,  "curveM": 0,    "ease": 1.0, "bounce": 0 },
+      "curveLeft":  { "speedMph": [64, 74], "durScale": 1.15, "curveM": -2.2, "ease": 1.0, "bounce": 0 },
+      "curveRight": { "speedMph": [64, 74], "durScale": 1.15, "curveM": 2.2,  "ease": 1.0, "bounce": 0 },
+      "changeup":   { "speedMph": [52, 60], "durScale": 1.5,  "curveM": 0,    "ease": 0.5, "bounce": 0 },
+      "bouncy":     { "speedMph": [58, 66], "durScale": 1.2,  "curveM": 0,    "ease": 1.0, "bounce": 1.4 }
+    },
+    "plateDistanceM": 12,
+    "trace": { "tolerance": 0.16, "speedFastMs": 600, "speedSlowMs": 2600 },
+    "quality": { "weakSpeedFactor": 0.6, "maxWildM": 1.4, "minBreakFactor": 0.4 }
+  },
+  "kick": {
+    "perfectWindowMs": 38,
+    "goodWindowMs": 140,
+    "okWindowMs": 270,
+    "power":   { "PERFECT": 1.0, "GOOD": 0.78, "OK": 0.55, "FOUL": 0.3 },
+    "loftDeg": { "PERFECT": 42, "GOOD": 38, "OK": 24, "FOUL": 55 },
+    "maxBallSpeedMs": 24,
+    "aimSpreadDeg": 52,
+    "aiAimDeg": 30
+  },
+  "running": {
+    "baseSpeedMs": 3.5,
+    "maxSpeedMs": 7.5,
+    "speedPerTapHz": 0.9,
+    "tapWindowMs": 1000,
+    "jukeOffsetM": 1.2,
+    "jukeCooldownMs": 600,
+    "basePathM": 16
+  },
+  "throwing": {
+    "throwSpeedMs": 22,
+    "pegHitRadiusM": 0.55,
+    "aiThrowErrorM": { "Rookie": 1.2, "Street": 0.6, "King": 0.25 }
+  },
+  "fielding": {
+    "dragSpeedMs": 11.0,
+    "scoopRadiusM": 2.6,
+    "leadTimeS": 0.28,
+    "catchCircleStartM": 2.8,
+    "catchCircleMs": 900,
+    "coverCatchRadiusM": 4.5
+  },
+  "special": {
+    "meterMax": 100,
+    "gain": { "PERFECT": 35, "catch": 25, "peg": 30, "homerun": 40 },
+    "powerMult": 1.35
+  },
+  "ai": {
+    "Rookie": { "kickTimingErrMs": [70, 560], "fieldReactMs": 550, "jukeChance": 0.15 },
+    "Street": { "kickTimingErrMs": [40, 460], "fieldReactMs": 350, "jukeChance": 0.4 },
+    "King":   { "kickTimingErrMs": [22, 340], "fieldReactMs": 200, "jukeChance": 0.7 }
+  }
+}

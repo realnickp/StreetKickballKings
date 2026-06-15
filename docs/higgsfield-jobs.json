@@ -1,0 +1,105 @@
+{
+  "batch1-core": {
+    "images": {
+      "bullies-logo-a": "db23351f-512c-439a-97ab-a6a7e7209277",
+      "bullies-logo-b": "70b0352d-f3b1-4377-a3c6-575fcbb777d6",
+      "asphalt-texture": "5bf62e41-da50-449a-92e5-dd9aa62aa2cc",
+      "skyline-panorama": "9c94f816-dfac-43ac-9f16-7b8c119adefe",
+      "graffiti-sheet": "d8ff0287-4c81-4a26-9499-0f4244c9ffeb"
+    },
+    "videos": {
+      "intro-monarchs": "d4448a98-8df7-496d-84cb-2dc5ac0c99a2",
+      "intro-snappers": "47ea8b85-4329-4bb8-b33f-bec1855f2717"
+    },
+    "audio": "vo x7, sfx x4, match-beat — all downloaded"
+  },
+  "batch2-sprites": {
+    "pose-sheets": {
+      "monarchs-1": "a26ca333-7185-4b91-b613-9f088291ca48",
+      "monarchs-2": "d7069595-6daf-43eb-be09-207f870b1e82",
+      "snappers-1": "7fbf8f90-20ce-4bee-8ada-b9eaaab785db",
+      "snappers-2": "f2c58e01-8e2f-4f08-b57f-a4bae9ee2496"
+    },
+    "run-sheets": {
+      "monarchs-1-run": "1ab282de-e11d-44d1-ad67-2fb96d82243e",
+      "monarchs-2-run": "7f1b029d-c72f-49a6-94c4-40e8b8e54f88",
+      "snappers-1-run": "f682c916-023a-4af1-9069-a561dd33075e",
+      "snappers-2-run": "f7b5f2d7-121c-42a1-a8fa-88f36cf19f6c"
+    }
+  },
+  "batch3-cutscenes-v2-CURRENT": {
+    "style-anchor-keyframe": "4d685d3a-2945-408e-948a-b9a14ee7c24f",
+    "keyframes": {
+      "crowned": "4d685d3a-2945-408e-948a-b9a14ee7c24f",
+      "robbed-v2": "dd77f1b7-a07a-471d-b046-06ec452128aa",
+      "pegged-v3": "e01a549c-4afb-4264-9df5-3252bc4e81c5",
+      "cointoss-v2": "5f073149-08ff-4c48-8300-f80c955a7f93"
+    },
+    "videos": {
+      "cut-crowned-monarchs": "3a5f2dcc-c5d6-4b0e-b4e7-8a7f3a5f6602",
+      "cut-robbed": "3038d532-accb-4ce7-946b-7ffb1d647dc6",
+      "cut-cointoss": "85d642da-7cf0-42fd-afcf-2d3815411ebd",
+      "cut-pegged": "2de6cb53-67f5-48a3-9ff4-2fa9edcdf61d"
+    },
+    "superseded": {
+      "note": "v1 videos had baseball gloves/wrong styles — replaced",
+      "old-crowned-monarchs-vertical-kick": "0884cbc4-f7b5-4431-8991-47a4f2c30406",
+      "old-crowned-snappers": "a4e83178-70b1-440b-9641-d0f285473e10",
+      "old-robbed-baseball-glove": "9f6457c1-ba27-4a2b-85bc-93b9f9c3e1a0",
+      "old-pegged-pixar": "c67b6ff8-4f85-48a3-844a-ccf27d95644d",
+      "old-cointoss-three-hands": "9505ba5d-567b-4d89-84f6-9ed7677c6dcd"
+    }
+  },
+  "batch4-audio-hiphop-vo": {
+    "note": "Hip-hop in-match beats + expanded announcer VO variety. Music=sonilo_music (.m4a, 30s loopable). VO=inworld_text_to_speech (.wav). Voices: Vinny/Tyler/Nate (en) rotated for variety. All downloaded to public/assets/audio/{music,vo}/.",
+    "music": {
+      "in-match-beat-1": "6efbefec-8351-4e19-b605-1b806ac9caa2",
+      "in-match-beat-2": "9a4d12a6-2622-4d41-a8cc-5d21ab2b83a0"
+    },
+    "vo": {
+      "crowned-1": "841410ae-b4ae-4dda-9b49-ace4448e5e8b",
+      "crowned-2": "c679213f-bcf0-49be-97f4-a8b98f2563b8",
+      "crowned-3": "92bce213-36e9-48f7-9a5a-1302fa0d95ce",
+      "caught-1": "01cc9d16-24c0-415b-adaf-30f40f0a873c",
+      "caught-2": "b867f3dc-05a8-4102-b432-6746aa07dd34",
+      "caught-3": "4e2354fb-fd3e-4e6e-8eb1-450648af0bee",
+      "pegged-1": "16e264a0-2631-47a8-92c3-1a6f0ccfd191",
+      "pegged-2": "acadeef5-4c82-482b-9600-85cae4b40321",
+      "pegged-3": "8f321f62-4641-49a4-b3c8-d5557f4e8aea",
+      "strike-1": "2ea74064-432a-4797-9a59-9b0a20689b00",
+      "strike-2": "e4fdb920-8a92-41ea-ab8a-975fa9f3c50b",
+      "strike-3": "5e08b5de-558e-49e9-bb7d-26ac41acbd71",
+      "safe-1": "d53608ad-fcc8-4dba-917f-e7d99e60703d",
+      "safe-2": "42cc4eee-21f3-4d65-b7a5-0f27c87a8e44",
+      "safe-3": "149b38d8-ddf5-409b-b28e-0230b0526393",
+      "playball-1": "66f4b4c0-e9d9-47a3-a3f9-1769da48146e",
+      "playball-2": "45e503a4-c930-4545-87f0-7f414192b9ab",
+      "playball-3": "13efd30e-b518-4cba-b6ae-76f7e9468c00",
+      "gameover-1": "5db4436a-31e2-48e9-b828-6188d0bebc6b",
+      "gameover-2": "0662c1ed-3953-4ed0-bfc3-38f3a2d93abe",
+      "gameover-3": "2c4a4122-6fd4-4b49-81c7-9efd4a552ba0"
+    }
+  },
+  "batch5-intro-videos-remaining8-CURRENT": {
+    "note": "seedance_2_0, 9:16 portrait, 8s, 720p, generate_audio on (videos have sound). Per-team colors/city/genre + kickball art rules (red rubber head-size ball, bare-hands catch, painted street diamond). Bullies/Marauders/Gilas first attempts hit ip_detected (trademarked game-title phrase in prompt) and were re-run with cleaned prompts. Monarchs+Snappers intros already existed from batch1.",
+    "videos": {
+      "intro-bullies": "004b1e37-e153-401c-b34b-37baa8673cf6",
+      "intro-funk": "633c9d7d-3a49-44fc-ae49-6cb1bd6f199b",
+      "intro-marauders": "ed74d7fb-e550-4b8d-be0b-2b5e8b4f28dc",
+      "intro-metros": "719cd309-2e41-407f-8849-718a5a8941be",
+      "intro-kestrals": "1072ca5a-2941-478e-bf98-4e4e8fb582ff",
+      "intro-gilas": "5c245b2e-41a5-47dc-9031-252d5a9a640a",
+      "intro-hustlers": "2a9817c1-9466-4e35-9ecc-4fe845fdeae6",
+      "intro-threshers": "25a32c29-ba17-4f0d-8ba5-3b00e41ae509"
+    },
+    "ip_detected-superseded": {
+      "bullies-v1": "13149dee-b820-4112-ac23-3dbb64c31f8b",
+      "marauders-v1": "e03fbf16-282c-4f12-ad86-4cf79329064f",
+      "gilas-v1": "b70f55cb-84a1-4d0d-852b-276bcc51e574"
+    }
+  },
+  "todo-next-batch": [
+    "crowned cutscene for Snappers (green keyframe via style anchor)",
+    "team anthems x10 (genre-matched)"
+  ]
+}

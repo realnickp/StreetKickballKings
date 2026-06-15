@@ -1,0 +1,25 @@
+{
+  "fields": [
+    {
+      "id": "blacktop",
+      "label": "The Blacktop",
+      "homeTeam": "bullies",
+      "fenceM": 42,
+      "fenceHeightM": 4.0,
+      "flavor": "none",
+      "sky": "day",
+      "palette": { "ground": "#3c3f44", "lines": "#e8e6df", "fence": "#9aa0a6", "wall": "#7a4a32" },
+      "textures": { "ground": "assets/textures/asphalt.png", "skyline": "assets/textures/skyline.png" },
+      "status": "ready"
+    },
+    { "id": "subway-yard", "label": "Subway Yard", "homeTeam": "snappers", "fenceM": 40, "flavor": "trains", "sky": "sodium-night", "status": "phase3" },
+    { "id": "block-party", "label": "The Block Party", "homeTeam": "funk", "fenceM": 36, "flavor": "hydrant", "sky": "dusk", "status": "phase3" },
+    { "id": "neon-night-court", "label": "Neon Night Court", "homeTeam": "hustlers", "fenceM": 38, "flavor": "wet-reflections", "sky": "neon-night", "status": "phase3" },
+    { "id": "boardwalk-kings", "label": "Boardwalk Kings", "homeTeam": "threshers", "fenceM": 39, "flavor": "gulls", "sky": "golden-hour", "status": "phase3" },
+    { "id": "the-underpass", "label": "The Underpass", "homeTeam": "metros", "fenceM": 37, "flavor": "echo", "sky": "shaft-light", "status": "phase3" },
+    { "id": "rubber-yard", "label": "The Rubber Yard", "homeTeam": "marauders", "fenceM": 41, "flavor": "smoke", "sky": "overcast", "status": "phase3" },
+    { "id": "winter-classic", "label": "Winter Classic", "homeTeam": "kestrals", "fenceM": 38, "flavor": "snow", "sky": "winter", "status": "phase3" },
+    { "id": "scorchyard", "label": "The Scorchyard", "homeTeam": "gilas", "fenceM": 42, "flavor": "heat-haze", "sky": "desert-sunset", "status": "phase3" },
+    { "id": "the-crown", "label": "The Crown", "homeTeam": "monarchs", "fenceM": 40, "flavor": "fireworks", "sky": "stadium-night", "status": "phase3" }
+  ]
+}

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#13151c" />
+    <title>Street Kickball Kings</title>
+    <!-- installable / add-to-home-screen (PWA) -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" href="/icons/icon-192.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Kickball Kings" />
+  </head>
+  <body>
+    <!-- portrait phone frame: fills the screen on mobile, letterboxed on desktop -->
+    <div id="stage">
+      <canvas id="game-canvas"></canvas>
+      <div id="ui-root"></div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,115 @@
+{
+  "voices": [
+    "tony",
+    "carter"
+  ],
+  "events": {
+    "playball": [
+      "playball_0.mp3",
+      "playball_1.mp3",
+      "playball_2.mp3"
+    ],
+    "robbed": [
+      "robbed_0.mp3",
+      "robbed_1.mp3",
+      "robbed_2.mp3",
+      "robbed_3.mp3"
+    ],
+    "pegged": [
+      "pegged_0.mp3",
+      "pegged_1.mp3",
+      "pegged_2.mp3",
+      "pegged_3.mp3"
+    ],
+    "forced": [
+      "forced_0.mp3",
+      "forced_1.mp3",
+      "forced_2.mp3"
+    ],
+    "safe": [
+      "safe_0.mp3",
+      "safe_1.mp3",
+      "safe_2.mp3"
+    ],
+    "strike": [
+      "strike_0.mp3",
+      "strike_1.mp3",
+      "strike_2.mp3"
+    ],
+    "foul": [
+      "foul_0.mp3",
+      "foul_1.mp3"
+    ],
+    "pickle": [
+      "pickle_0.mp3",
+      "pickle_1.mp3"
+    ],
+    "doubleplay": [
+      "doubleplay_0.mp3",
+      "doubleplay_1.mp3",
+      "doubleplay_2.mp3"
+    ],
+    "tripleplay": [
+      "tripleplay_0.mp3",
+      "tripleplay_1.mp3"
+    ],
+    "gameover": [
+      "gameover_0.mp3",
+      "gameover_1.mp3"
+    ]
+  },
+  "crowned": {
+    "he": [
+      "crowned_he_0.mp3",
+      "crowned_he_1.mp3",
+      "crowned_he_2.mp3"
+    ],
+    "she": [
+      "crowned_she_0.mp3",
+      "crowned_she_1.mp3",
+      "crowned_she_2.mp3"
+    ]
+  },
+  "teams": {
+    "monarchs": [
+      "team_monarchs_0.mp3",
+      "team_monarchs_1.mp3"
+    ],
+    "snappers": [
+      "team_snappers_0.mp3",
+      "team_snappers_1.mp3"
+    ],
+    "bullies": [
+      "team_bullies_0.mp3",
+      "team_bullies_1.mp3"
+    ],
+    "funk": [
+      "team_funk_0.mp3",
+      "team_funk_1.mp3"
+    ],
+    "marauders": [
+      "team_marauders_0.mp3",
+      "team_marauders_1.mp3"
+    ],
+    "metros": [
+      "team_metros_0.mp3",
+      "team_metros_1.mp3"
+    ],
+    "kestrals": [
+      "team_kestrals_0.mp3",
+      "team_kestrals_1.mp3"
+    ],
+    "gilas": [
+      "team_gilas_0.mp3",
+      "team_gilas_1.mp3"
+    ],
+    "hustlers": [
+      "team_hustlers_0.mp3",
+      "team_hustlers_1.mp3"
+    ],
+    "threshers": [
+      "team_threshers_0.mp3",
+      "team_threshers_1.mp3"
+    ]
+  }
+}
