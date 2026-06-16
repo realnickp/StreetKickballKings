@@ -16,7 +16,7 @@
     "perfectWindowMs": 38,
     "goodWindowMs": 140,
     "okWindowMs": 270,
-    "power":   { "PERFECT": 1.0, "GOOD": 0.78, "OK": 0.55, "FOUL": 0.3 },
+    "power":   { "PERFECT": 0.85, "GOOD": 0.7, "OK": 0.52, "FOUL": 0.3 },
     "loftDeg": { "PERFECT": 42, "GOOD": 38, "OK": 24, "FOUL": 55 },
     "maxBallSpeedMs": 24,
     "aimSpreadDeg": 52,

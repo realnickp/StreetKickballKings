@@ -405,6 +405,7 @@ export class MatchScene {
   attemptKick(aimSpec, tapTime) {
     if (this.kicked || this.phase !== 'PITCH') return;
     this.kicked = true;
+    this.kickWasSpecial = false; // only a consumed crown kick may leave the park
     // AI passes its intended errMs directly; the human's comes from release timing
     const errMs = aimSpec.errMs !== undefined ? aimSpec.errMs : (tapTime - this.pitchArrival) * 1000;
     const judged = judgeKick(errMs, this.tuning);
@@ -420,6 +421,7 @@ export class MatchScene {
       const sp = this.special.consume();
       if (sp) {
         powerMult = sp.powerMult;
+        this.kickWasSpecial = true; // armed full meter consumed → this kick can be a homer
         this.bus.emit('cine:special', { label: sp.label, kicker: this.kicker });
       }
       this.specialArmed = false;
@@ -1426,8 +1428,9 @@ export class MatchScene {
       this.updateDefense(dt);
 
       const dist = Math.hypot(this.ball.pos.x, this.ball.pos.z);
-      // a homer must clear the wall IN THE AIR (containment bounces shorter balls back)
-      if (!this.hrFired && dist >= this.fenceM - 0.3 && this.ball.pos.y > this.fenceTopY * 0.8 && this.ball.bounces === 0) {
+      // a homer must clear the wall IN THE AIR (containment bounces shorter balls
+      // back) AND be a crown super-kick — ordinary perfect contact stays in the park
+      if (!this.hrFired && this.kickWasSpecial && dist >= this.fenceM - 0.3 && this.ball.pos.y > this.fenceTopY * 0.8 && this.ball.bounces === 0) {
         this.homer();
       }
       // dead-ball safety net

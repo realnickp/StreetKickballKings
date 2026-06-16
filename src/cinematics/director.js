@@ -1,10 +1,11 @@
-// CinematicDirector: in-play moments (homer, catch, peg, crushed kick) are
-// rendered IN-ENGINE as motion-comic panels — the real play frozen and snapped
-// into a 2D comic frame (ink lines, posterized color, halftone, speed lines,
-// spray-paint stamp). Flat sprites read as intentional comic art, and the panel
-// always matches the actual play because it IS the play. Pre-rendered Higgsfield
-// VIDEO is reserved for fixed-context set pieces (splash, team intros, coin
-// toss, championship) handled by the screen layer, not here.
+// CinematicDirector: in-play moments (homer, catch, peg, crushed kick) play as
+// clean broadcast REPLAYS — the real 3D play in slow motion, cut to a front-on
+// hero angle with a gentle dolly-in, a soft bloom/grade lift, and a single
+// lower-third broadcast banner ("HOME RUN!", "ROBBED!", "PEGGED!"). No comic
+// shader, no halftone, no spray-paint stamp — the moment IS the play, framed
+// like a highlight reel. Pre-rendered Higgsfield VIDEO is reserved for
+// fixed-context set pieces (splash, team intros, coin toss, championship)
+// handled by the screen layer, not here.
 // Every cinematic is tap-skippable ('cine:skip' on the bus).
 import * as THREE from 'three';
 import { BallFx } from './fx.js';
@@ -57,7 +58,7 @@ export class CinematicDirector {
     if (this.engine.fx.gradePass) this.engine.fx.gradePass.uniforms.caAmount.value = 0.0004;
     const ball = this.getBall?.();
     if (ball?.mesh) ball.mesh.visible = true; // restore after any panel that hid it
-    this.hud.showSpeedLines(false);
+    this.hud.hideBanner();
     this.bus.emit('cine:done');
   }
 
@@ -118,44 +119,50 @@ export class CinematicDirector {
   }
 
   /**
-   * Build a hero-shot camera framing for a subject sprite (which billboards to
-   * face the camera, so any side angle reads as a clean front-on hero shot).
-   * Returns an onUpdate(k) that slow-pushes in over the panel.
+   * Frame a subject for a front-on hero replay: drop the camera in FRONT of the
+   * subject (home-plate / +z side) at eye level, turn the subject to face the
+   * lens (procedural chars have a real front), and slow-dolly in over the panel.
+   * Returns an onUpdate(k) that runs the push-in.
    */
-  heroFraming(subject) {
+  cineFraming(subject) {
     const p = subject.group.position.clone();
+    const offX = 1.1; // a touch off-axis so it reads as a camera angle, not a mugshot
+    // turn the subject to face where the camera will sit (yawTo convention: atan2(dx,dz))
+    subject.faceYaw = Math.atan2(offX, 4.0);
     return (k) => {
-      const dist = 3.6 - k * 0.6; // gentle push-in
+      const dist = 4.0 - k * 0.9; // gentle dolly-in across the panel
       this.cam(
-        new THREE.Vector3(p.x + 1.3, 1.7, p.z + dist),
-        new THREE.Vector3(p.x, 1.05, p.z),
+        new THREE.Vector3(p.x + offX, 1.75, p.z + dist),
+        new THREE.Vector3(p.x, 1.15, p.z),
       );
     };
   }
 
   /**
-   * Snap an in-play moment into a comic panel.
-   * @param {{panels: {subject, dur, freeze?, stamp?, stampKind?, anim?}[], vo?, stampKind}} cfg
+   * Play an in-play moment as a clean slow-motion broadcast replay.
+   * @param {{panels: {subject, dur, freeze?, anim?, banner?, bannerKind?}[],
+   *          vo?, sound?, banner?, bannerKind?, hideBall?}} cfg
    */
-  comicMoment({ panels, vo, sound = 'bassdrop', hideBall = false }) {
-    this.bus.emit('sfx', sound);
+  cinematicMoment({ panels, vo, sound, banner, bannerKind, hideBall = false }) {
+    if (sound) this.bus.emit('sfx', sound);
     if (vo) this.bus.emit('vo', vo);
     this.bus.emit('sfx', 'crowd-cheer');
-    this.engine.shake(0.4);
-    // a caught ball sits on the fielder's billboard and covers it — hide it for the panel
+    this.engine.shake(0.3);
+    // a caught ball sits on the fielder and covers them — hide it for the replay
     if (hideBall) { const ball = this.getBall?.(); if (ball?.mesh) ball.mesh.visible = false; }
 
-    const steps = panels.map((panel) => {
-      const frame = this.heroFraming(panel.subject);
+    const steps = panels.map((panel, idx) => {
+      const frame = this.cineFraming(panel.subject);
       return {
         dur: panel.dur,
         onStart: () => {
-          this.engine.setComic(1);
-          this.engine.timeScale = panel.freeze ? 0.02 : 0.55; // freeze impacts, let dances breathe
-          this.engine.fx.bloomPass.strength = 0.5;
-          this.hud.showSpeedLines(true, panel.stampKind);
+          // true slow-mo (not a hard freeze) + a soft cinematic grade — no comic shader
+          this.engine.timeScale = panel.freeze ? 0.32 : 0.6;
+          this.engine.fx.bloomPass.strength = 0.78;
+          if (this.engine.fx.gradePass) this.engine.fx.gradePass.uniforms.caAmount.value = 0.0012;
           if (panel.anim) panel.subject.animator.play(panel.anim);
-          if (panel.stamp) this.hud.stamp(panel.stamp, panel.stampKind);
+          const b = panel.banner ?? (idx === 0 ? banner : null);
+          if (b) this.hud.banner(b, panel.bannerKind ?? bannerKind);
         },
         onUpdate: (k) => frame(k),
       };
@@ -166,34 +173,40 @@ export class CinematicDirector {
   crowned({ kicker }) {
     const dance = DANCES[this.danceIdx % DANCES.length];
     this.danceIdx += 1;
-    this.comicMoment({
+    this.cinematicMoment({
       vo: { event: 'crowned', gender: kicker.gender }, // he/she-aware home-run call
-      panels: [{ subject: kicker, dur: 2.4, freeze: false, anim: dance, stamp: 'CROWNED!', stampKind: 'crowned' }],
+      banner: 'HOME RUN!', bannerKind: 'homer',
+      panels: [{ subject: kicker, dur: 2.6, freeze: false, anim: dance }],
     });
   }
 
   robbed({ fielder, kicker }) {
-    this.comicMoment({
+    this.cinematicMoment({
       vo: 'robbed',
       hideBall: true,
+      banner: 'ROBBED!', bannerKind: 'robbed',
       panels: [
-        { subject: fielder, dur: 1.3, freeze: true, anim: 'catch', stamp: 'ROBBED!', stampKind: 'robbed' },
-        { subject: kicker, dur: 1.3, freeze: true, anim: 'dejected', stampKind: 'robbed' },
+        { subject: fielder, dur: 1.5, freeze: true, anim: 'catch' },   // the snag, frozen at full reach
+        { subject: kicker, dur: 1.1, freeze: false, anim: 'dejected' }, // cut to the gutted kicker
       ],
     });
   }
 
   pegged({ runner }) {
-    this.comicMoment({
+    this.cinematicMoment({
       vo: 'pegged',
       sound: 'peg', // real ball-on-body impact
-      panels: [{ subject: runner, dur: 1.6, freeze: true, anim: 'stumble', stamp: 'PEGGED!', stampKind: 'pegged' }],
+      banner: 'PEGGED!', bannerKind: 'pegged',
+      panels: [{ subject: runner, dur: 1.6, freeze: true, anim: 'stumble' }],
     });
   }
 
-  special({ label, kicker }) {
-    this.hud.stamp(label + '!', 'crowned');
+  special() {
+    // The crown super-kick flows straight into live play — keep it to FEEL
+    // (boom + shake). perfectKick() carries the fire/slow-mo; the homer replay,
+    // if it clears, owns the banner. No lingering overlay to fight those.
     this.bus.emit('sfx', 'bassdrop');
+    this.engine.shake(0.4);
   }
 
   /**

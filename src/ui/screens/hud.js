@@ -270,6 +270,23 @@ export class Hud {
     this.speedLines.classList.toggle('show', !!on);
   }
 
+  /**
+   * Clean lower-third broadcast banner for cinematic replays (HOME RUN / ROBBED
+   * / PEGGED). Replaces the old spiky center stamp. `kind` colours it
+   * (homer = gold, robbed = teal, pegged = red).
+   */
+  banner(text, kind) {
+    let b = this.cineBanner;
+    if (!b) { b = this.cineBanner = document.createElement('div'); b.className = 'cine-banner'; this.el.appendChild(b); }
+    b.textContent = text;
+    b.className = `cine-banner ${kind || ''}`;
+    void b.offsetWidth; // reflow so the slide-up transition re-fires each time
+    b.classList.add('show');
+  }
+  hideBanner() {
+    if (this.cineBanner) this.cineBanner.classList.remove('show');
+  }
+
   destroy() {
     this.el.remove();
   }
