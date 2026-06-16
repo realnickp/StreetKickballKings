@@ -178,6 +178,8 @@ export function buildField(fieldData, scene) {
     backdrop.position.set(0, bdBottom + bdH / 2, 0);
     root.add(backdrop);
     handles.backdrop = backdrop;
+    handles.backdropTopY = bdBottom + bdH; // where the seamless sky-cap continues from
+    handles.backdropR = bdR;
   } else {
 
   // --- skyline + buildings beyond the fence (fallback when no backdrop) -------
@@ -226,7 +228,9 @@ export function buildField(fieldData, scene) {
   handles.updateCrowd = () => {}; // backdrop motion comes from its own looping video
 
   // --- sky + lighting ----------------------------------------------------------
-  // A generated full-sky dome when the field defines one, else the canvas gradient.
+  // Far sphere dome for the zenith, PLUS a same-radius "sky cap" cylinder that
+  // continues the backdrop's own sky straight up with no parallax — so the rich
+  // sky goes high enough and the join is seamless and natural (no design change).
   const skyMap = fieldData.textures?.sky
     ? new THREE.TextureLoader().load(fieldData.textures.sky, (t) => { t.colorSpace = THREE.SRGBColorSpace; })
     : makeSkyGradient(fieldData.sky);
@@ -237,9 +241,20 @@ export function buildField(fieldData, scene) {
   root.add(sky);
   handles.sky = sky;
 
-  // No hard colour band where the backdrop ends and the dome begins: sample the
-  // TOP of the backdrop image and retint the dome to match its own sky. (Fields
-  // with an explicit `textures.sky` keep their painted dome.)
+  let skyCap = null;
+  if (handles.backdropR && !fieldData.textures?.sky) {
+    const capH = 220;
+    skyCap = new THREE.Mesh(
+      new THREE.CylinderGeometry(handles.backdropR + 0.4, handles.backdropR + 0.4, capH, 64, 1, true, 0, Math.PI * 2),
+      new THREE.MeshBasicMaterial({ map: skyMap, side: THREE.BackSide, fog: false }),
+    );
+    skyCap.position.set(0, handles.backdropTopY - 1 + capH / 2, 0); // overlaps the backdrop top a hair
+    root.add(skyCap);
+    handles.skyCap = skyCap;
+  }
+
+  // Sample the VERY TOP of the backdrop image and continue that exact sky upward
+  // on the cap (seamless) and the dome — no hard colour band, looks natural.
   if (fieldData.textures?.backdrop && !fieldData.textures?.sky) {
     const img = new Image();
     img.onload = () => {
@@ -247,13 +262,14 @@ export function buildField(fieldData, scene) {
         const cw = 24, ch = 6;
         const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
         const c2 = cv.getContext('2d');
-        c2.drawImage(img, 0, 0, img.width, Math.max(1, Math.floor(img.height * 0.1)), 0, 0, cw, ch);
+        c2.drawImage(img, 0, 0, img.width, Math.max(1, Math.floor(img.height * 0.05)), 0, 0, cw, ch);
         const d = c2.getImageData(0, 0, cw, ch).data;
         let r = 0, g = 0, b = 0, n = 0;
         for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
-        sky.material.map = makeDomeGradient(Math.round(r / n), Math.round(g / n), Math.round(b / n));
-        sky.material.needsUpdate = true;
-      } catch (e) { /* keep the fallback dome */ }
+        r = Math.round(r / n); g = Math.round(g / n); b = Math.round(b / n);
+        if (skyCap) { skyCap.material.map = makeSkyCapGradient(r, g, b); skyCap.material.needsUpdate = true; }
+        sky.material.map = makeDomeGradient(r, g, b); sky.material.needsUpdate = true;
+      } catch (e) { /* keep the fallback */ }
     };
     img.src = fieldData.textures.backdrop;
   }
@@ -299,6 +315,20 @@ function makeDomeGradient(r, g, b) {
     const grd = ctx.createLinearGradient(0, 0, 0, h);
     grd.addColorStop(0, `rgb(${cl(r * 0.80)},${cl(g * 0.80)},${cl(b * 0.82)})`); // zenith, a touch deeper
     grd.addColorStop(1, `rgb(${cl(r * 1.04)},${cl(g * 1.04)},${cl(b * 1.04)})`); // horizon ≈ backdrop sky
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, w, h);
+  });
+}
+
+// Sky-cap gradient for the same-radius continuation cylinder: its BOTTOM exactly
+// matches the backdrop's top sky (seamless join), deepening gently toward the top.
+function makeSkyCapGradient(r, g, b) {
+  const cl = (v) => Math.max(0, Math.min(255, Math.round(v)));
+  return canvasTexture(64, 256, (ctx, w, h) => {
+    const grd = ctx.createLinearGradient(0, 0, 0, h);
+    grd.addColorStop(0, `rgb(${cl(r * 0.62)},${cl(g * 0.64)},${cl(b * 0.70)})`); // high sky (cylinder top), deeper
+    grd.addColorStop(0.5, `rgb(${cl(r * 0.86)},${cl(g * 0.87)},${cl(b * 0.90)})`);
+    grd.addColorStop(1, `rgb(${r},${g},${b})`); // cylinder bottom = exact backdrop top edge
     ctx.fillStyle = grd;
     ctx.fillRect(0, 0, w, h);
   });
