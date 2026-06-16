@@ -237,6 +237,27 @@ export function buildField(fieldData, scene) {
   root.add(sky);
   handles.sky = sky;
 
+  // No hard colour band where the backdrop ends and the dome begins: sample the
+  // TOP of the backdrop image and retint the dome to match its own sky. (Fields
+  // with an explicit `textures.sky` keep their painted dome.)
+  if (fieldData.textures?.backdrop && !fieldData.textures?.sky) {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const cw = 24, ch = 6;
+        const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+        const c2 = cv.getContext('2d');
+        c2.drawImage(img, 0, 0, img.width, Math.max(1, Math.floor(img.height * 0.1)), 0, 0, cw, ch);
+        const d = c2.getImageData(0, 0, cw, ch).data;
+        let r = 0, g = 0, b = 0, n = 0;
+        for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
+        sky.material.map = makeDomeGradient(Math.round(r / n), Math.round(g / n), Math.round(b / n));
+        sky.material.needsUpdate = true;
+      } catch (e) { /* keep the fallback dome */ }
+    };
+    img.src = fieldData.textures.backdrop;
+  }
+
   const lp = SKY_PRESETS[fieldData.sky] ?? SKY_PRESETS.day;
   const hemi = new THREE.HemisphereLight(lp.hemiSky, lp.hemiGround, lp.hemiI);
   root.add(hemi);
@@ -267,6 +288,20 @@ function canvasTexture(w, h, draw) {
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
+}
+
+// A subtle vertical sky dome built around one colour (sampled from a backdrop's
+// own sky): a touch deeper at the zenith, matching the backdrop edge at the
+// horizon so the join is invisible.
+function makeDomeGradient(r, g, b) {
+  const cl = (v) => Math.max(0, Math.min(255, Math.round(v)));
+  return canvasTexture(64, 256, (ctx, w, h) => {
+    const grd = ctx.createLinearGradient(0, 0, 0, h);
+    grd.addColorStop(0, `rgb(${cl(r * 0.80)},${cl(g * 0.80)},${cl(b * 0.82)})`); // zenith, a touch deeper
+    grd.addColorStop(1, `rgb(${cl(r * 1.04)},${cl(g * 1.04)},${cl(b * 1.04)})`); // horizon ≈ backdrop sky
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, w, h);
+  });
 }
 
 function makeAsphaltTexture(baseColor) {
