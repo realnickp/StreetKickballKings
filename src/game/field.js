@@ -133,23 +133,23 @@ export function buildField(fieldData, scene) {
   const hasBackdrop = !!(fieldData.textures?.backdrop || fieldData.textures?.backdropVideo);
   if (hasBackdrop) {
     const tuneTex = (t) => { t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; t.repeat.set(2, 1); };
-    const mat = new THREE.MeshBasicMaterial({ side: THREE.BackSide, fog: false });
-    // Instant still poster, then swap to the looping video once it can play
-    // (robust if the clip is slow to load or missing).
-    if (fieldData.textures?.backdrop) {
-      mat.map = new THREE.TextureLoader().load(fieldData.textures.backdrop, tuneTex);
-    }
+    // Put the still poster IN the material from the start (so it actually renders),
+    // then swap to the looping video once it really starts playing. Robust if the
+    // clip is slow, blocked by autoplay policy, or missing — the still stays up.
+    const stillTex = fieldData.textures?.backdrop
+      ? new THREE.TextureLoader().load(fieldData.textures.backdrop, tuneTex)
+      : null;
+    const mat = new THREE.MeshBasicMaterial({ map: stillTex, side: THREE.BackSide, fog: false });
     if (fieldData.textures?.backdropVideo) {
       const video = document.createElement('video');
       video.src = fieldData.textures.backdropVideo;
       video.loop = true; video.muted = true; video.autoplay = true; video.playsInline = true;
       video.setAttribute('playsinline', ''); video.setAttribute('muted', '');
       const kick = () => { video.play().catch(() => {}); };
-      video.addEventListener('canplay', () => {
+      video.addEventListener('playing', () => {
         const v = new THREE.VideoTexture(video);
         tuneTex(v);
         mat.map = v; mat.needsUpdate = true;
-        kick();
       }, { once: true });
       kick();
       window.addEventListener('pointerdown', kick, { once: true }); // mobile autoplay may need a gesture
