@@ -101,12 +101,14 @@ export function scoreTrace(stroke, pattern, opts = {}) {
   // completion: how much of the shape's extent the player actually drew
   const completion = Math.min(1, pathLength(usr) / (pathLength(pat) || 1));
 
-  // speed: mild bonus for a brisk (but not frantic) trace
+  // speed: how briskly the shape was drawn — a big part of pitch quality now
   const fast = opts.speedFastMs ?? 600;
   const slow = opts.speedSlowMs ?? 2600;
   const dur = opts.durMs ?? slow;
   const speed = Math.max(0, Math.min(1, (slow - dur) / (slow - fast)));
 
-  const quality = completion * (0.5 + 0.4 * accuracy + 0.1 * speed);
+  // Pitch quality = how WELL you traced (accuracy) AND how FAST (speed), both
+  // heavily weighted, gated by completion. Clean+fast ≈ nasty; sloppy or slow ≈ meatball.
+  const quality = completion * (0.18 + 0.45 * accuracy + 0.37 * speed);
   return { quality: Math.max(0, Math.min(1, quality)), completion, accuracy, speed };
 }

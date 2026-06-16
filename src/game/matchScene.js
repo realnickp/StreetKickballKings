@@ -318,9 +318,15 @@ export class MatchScene {
     this.camTarget = CAM.kick;
     this.hud.showPitchSelect(false);
     this.hud.hidePattern();
-    this.hud.hint('SWIPE UP TO KICK!');
+    this.hud.hint('SLIDE TO LINE UP — FLICK UP TO KICK');
+    this.kicker.group.position.x = 0; // start centred; you slide left/right to line up
     this.pitch = pickPitch(this.tuning);
-    this.servePitch(this.pitch, /*aiKicks=*/false);
+    // varied plate location so you must move the kicker to line up the incoming
+    // ball (kept modest — curves already add up to ~2.2m of lateral, and the
+    // kicker can slide ±3.4m, so curve + location stays reachable)
+    const locX = (Math.random() - 0.5) * 1.6; // ±0.8m
+    this.pitchLocX = locX;
+    this.servePitch(this.pitch, /*aiKicks=*/false, locX);
   }
 
   // ---------- PITCH role: you pick a pitch + trace its pattern ----------
@@ -364,7 +370,7 @@ export class MatchScene {
     const speedMph = Math.round(def.speedMph[1] * (Q.weakSpeedFactor + (1 - Q.weakSpeedFactor) * q));
     const curveM = def.curveM * (Q.minBreakFactor + (1 - Q.minBreakFactor) * q);
     const wildX = (1 - q) * Q.maxWildM * (Math.random() - 0.5) * 2; // sloppy = off-target
-    this.pitch = { id, speedMph, curveM, ease: def.ease, bounce: def.bounce };
+    this.pitch = { id, speedMph, curveM, ease: def.ease, bounce: def.bounce, q }; // q drives AI kick difficulty
     this.phase = 'PITCH';
     this.hud.hint('');
     this.servePitch(this.pitch, /*aiKicks=*/true, wildX);
@@ -408,13 +414,24 @@ export class MatchScene {
     this.kickWasSpecial = false; // only a consumed crown kick may leave the park
     // AI passes its intended errMs directly; the human's comes from release timing
     const errMs = aimSpec.errMs !== undefined ? aimSpec.errMs : (tapTime - this.pitchArrival) * 1000;
-    const judged = judgeKick(errMs, this.tuning);
+
+    // Player kick: lining the kicker up under the ball matters as much as timing.
+    // Fold the lateral miss into an effective error (1m off ≈ 175ms) and let the
+    // positioning bias the aim (you reach across to pull it). AI path has no align.
+    let effErr = Math.abs(errMs);
+    let aimDeg = aimSpec.aimDeg;
+    if (aimSpec.align) {
+      const alignErr = this.kicker.group.position.x - this.ball.pos.x;
+      effErr = Math.abs(errMs) + Math.abs(alignErr) * 175;
+      aimDeg = Math.max(-this.tuning.kick.aimSpreadDeg, Math.min(this.tuning.kick.aimSpreadDeg, -alignErr * 22));
+    }
     this.hud.hideRing();
 
-    if (Math.abs(errMs) > this.tuning.kick.okWindowMs * 1.6) {
+    if (effErr > this.tuning.kick.okWindowMs * 1.6) {
       this.strike('WHIFF!');
       return;
     }
+    const judged = judgeKick(Math.sign(errMs || 1) * effErr, this.tuning);
 
     let powerMult = 1;
     if (this.kickingIsPlayer() && this.specialArmed) {
@@ -426,7 +443,7 @@ export class MatchScene {
       }
       this.specialArmed = false;
     }
-    const launch = launchParams(judged, { ...aimSpec, powerMult }, this.tuning);
+    const launch = launchParams(judged, { ...aimSpec, ...(aimDeg != null ? { aimDeg } : {}), powerMult }, this.tuning);
     this.judged = judged;
     this.launchSpec = launch;
 
@@ -931,7 +948,7 @@ export class MatchScene {
    *  this is the main "not every ball is caught" lever. Player catches if they got there. */
   catchSkill() {
     if (this.playerControlled) return 1.0;
-    return { Rookie: 0.6, Street: 0.78, King: 0.9 }[this.difficulty] ?? 0.78;
+    return { Rookie: 0.5, Street: 0.66, King: 0.84 }[this.difficulty] ?? 0.66;
   }
 
   /** The chaser tries to catch a fly or scoop a grounder once it's on the ball. */
@@ -943,8 +960,12 @@ export class MatchScene {
 
     if (this.isFly && this.ball.bounces === 0 && !this.ball.onGround &&
         this.ball.vel.y < 0 && this.ball.pos.y < 2.6 && ballDist < this.catchRadius()) {
-      // roll the catch ONCE per fly — if the AI muffs it, the ball drops in for a hit
-      if (this.catchRoll === null || this.catchRoll === undefined) this.catchRoll = Math.random() < this.catchSkill();
+      // roll the catch ONCE per fly — if the AI muffs it, the ball drops in for a hit.
+      // Stretched catches (ball near the edge of reach) drop more — positioning matters.
+      if (this.catchRoll === null || this.catchRoll === undefined) {
+        const reach = Math.min(1, ballDist / this.catchRadius()); // 0 = right on it … 1 = at full stretch
+        this.catchRoll = Math.random() < this.catchSkill() * (1 - 0.4 * reach);
+      }
       if (this.catchRoll) { c.animator.play('catch'); return this.catchOut(c); }
       // muffed: fall through, let it drop and play on as a grounder
     }
@@ -1252,7 +1273,28 @@ export class MatchScene {
     this.ballControlled = true;
   }
 
+  /** Map a horizontal screen x to the kicker's lateral position (the line-up control). */
+  aimKicker(screenX) {
+    const rect = this.engine.renderer.domElement.getBoundingClientRect();
+    const nx = rect.width ? (screenX - rect.left) / rect.width : 0.5;
+    const KMAX = 3.4;
+    this.kicker.group.position.x = Math.max(-KMAX, Math.min(KMAX, (nx - 0.5) * 2 * KMAX));
+  }
+
   onDrag(e) {
+    // KICK role: slide the kicker left/right to line up under the incoming ball;
+    // a sharp upward flick fires the kick (alignment = where you left the kicker).
+    if (this.phase === 'PITCH' && this.kickingIsPlayer() && !this.kicked) {
+      if (e.dy > -16) this.aimKicker(e.x); // horizontal-ish move repositions; a sharp up move doesn't drift it
+      this.flickBuf = this.flickBuf ?? [];
+      const now = e.t ?? performance.now();
+      this.flickBuf.push({ y: e.y, t: now });
+      while (this.flickBuf.length && this.flickBuf[0].t < now - 160) this.flickBuf.shift();
+      let maxY = -Infinity;
+      for (const p of this.flickBuf) maxY = Math.max(maxY, p.y);
+      if (maxY - e.y > 48) { this.flickBuf = []; this.attemptKick({ align: true }, this.elapsed); }
+      return;
+    }
     // PITCH role: draw the live trace as the player follows the pattern
     if (this.phase === 'PITCH_TRACE') {
       this.traceBuf.push({ x: e.x, y: e.y });
@@ -1270,6 +1312,11 @@ export class MatchScene {
   }
 
   onSwipe(e) {
+    // KICK role: an up-swipe also fires the kick (line-up = current kicker position)
+    if (this.phase === 'PITCH' && this.kickingIsPlayer() && !this.kicked && e.dir === 'up') {
+      this.attemptKick({ align: true }, this.elapsed);
+      return;
+    }
     // juke while running (left/right only)
     if (this.phase === 'LIVE' && this.kickingIsPlayer() && (e.dir === 'left' || e.dir === 'right')) {
       const lead = this.leadRunner();
@@ -1277,17 +1324,12 @@ export class MatchScene {
     }
   }
 
-  /** Pointer release — the swipe-to-kick trigger (a pure tap = straight, center). */
+  /** Pointer release — backup kick trigger: a release that flicked upward kicks
+   *  (a flat/horizontal release was just repositioning the kicker). */
   onUp(e) {
     if (this.cinematicLock) return;
-    if (this.phase === 'PITCH' && this.kickingIsPlayer() && !this.kicked) {
-      let aimDeg = 0;
-      let bunt = false;
-      if (e.travel > 18) {
-        aimDeg = Math.atan2(e.dx, -e.dy) * 180 / Math.PI; // 0 = up, + = right field
-        if (e.dy > 24) bunt = true;                        // a downward flick bunts
-      }
-      this.attemptKick({ aimDeg, bunt }, this.elapsed);
+    if (this.phase === 'PITCH' && this.kickingIsPlayer() && !this.kicked && e.dy < -26 && e.travel > 22) {
+      this.attemptKick({ align: true }, this.elapsed);
     }
   }
 
@@ -1411,7 +1453,7 @@ export class MatchScene {
       const remain = this.pitchArrival - this.elapsed;
       const total = this.tuning.pitch.plateDistanceM / (this.pitch.speedMph * 0.12);
       const progress = Math.max(0, remain / total);
-      const anchor = this.worldToScreen(new THREE.Vector3(0, 0.5, 0.2));
+      const anchor = this.worldToScreen(this.ball.pos); // ring rides the incoming ball — line up + time it
       this.hud.ringAt(anchor.x, anchor.y, progress);
       if (remain < (-this.tuning.kick.okWindowMs / 1000) * 1.6 && !this.kicked) {
         this.kicked = true;
@@ -1420,8 +1462,9 @@ export class MatchScene {
       }
     }
 
-    if (this.phase === 'KICK_ANIM' && this.kicker) {
-      // step the kicker toward the incoming ball so the foot actually meets it
+    if (this.phase === 'KICK_ANIM' && this.kicker && !this.kickingIsPlayer()) {
+      // AI kicker auto-steps onto the ball so the foot meets it. The PLAYER kicker
+      // stays where they lined it up — a blown line-up should look like a real miss.
       const tx = Math.max(-1.9, Math.min(1.9, this.ball.pos.x));
       const k = this.kicker.group.position;
       k.x += (tx - k.x) * Math.min(1, rawDt * 9);

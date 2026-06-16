@@ -16,18 +16,22 @@ export function pickPitch(tuning, rng = Math.random) {
  */
 export function aiKickError(difficulty, tuning, pitch, rng = Math.random) {
   const ai = tuning.ai[difficulty];
-  // Every so often the CPU just flat-out whiffs (a real strikeout chance for variety).
-  if (rng() < (ai.whiffChance ?? 0)) {
+  // Pitch quality (0..1) is the DOMINANT lever: a nasty pitch (well + fast traced)
+  // makes the CPU flail; a wobbler meatball gets crushed. Falls back to 0.5 when
+  // there's no quality info (e.g. the AI's own pitches), staying backward-compatible.
+  const q = Math.max(0, Math.min(1, pitch?.q ?? 0.5));
+  // A good pitch induces real swing-and-miss; a meatball almost never does.
+  const whiff = (ai.whiffChance ?? 0) + q * 0.30;
+  if (rng() < whiff) {
     return (rng() < 0.5 ? -1 : 1) * (tuning.kick.okWindowMs * 1.6 + 30 + rng() * 120);
   }
-  // Otherwise the timing error is small enough to USUALLY land a fair kick — the CPU
-  // should put the ball in PLAY most pitches, with a few fouls. A good pitch nudges
-  // it up a touch (gentle, so curves aren't impossible).
   const [lo, hi] = ai.kickTimingErrMs;
   let mag = lo + rng() * (hi - lo);
+  // quality scales the timing error hard: q=0 → 0.45x (easy meatball), q=1 → 2.0x (nasty)
+  mag *= 0.45 + q * 1.55;
   if (pitch) {
-    const speedF = 1 + Math.max(0, (pitch.speedMph - 72) / 150);          // ~+0.12 at 90mph
-    const breakF = 1 + Math.min(0.15, Math.abs(pitch.curveM ?? 0) * 0.07); // up to +0.15
+    const speedF = 1 + Math.max(0, (pitch.speedMph - 72) / 150);
+    const breakF = 1 + Math.min(0.18, Math.abs(pitch.curveM ?? 0) * 0.08);
     mag *= speedF * breakF;
   }
   return rng() < 0.5 ? -mag : mag;
