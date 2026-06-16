@@ -48,10 +48,11 @@ export function aiWantsPeg(difficulty, rng = Math.random) {
   return rng() < chance;
 }
 
-/** Synthetic mash rate for AI runners (taps/sec). */
+/** Synthetic mash rate for AI runners (taps/sec). Kept modest so the CPU doesn't
+ *  blaze around the bases faster than a human can realistically mash. */
 export function aiMashRate(difficulty, rng = Math.random) {
-  const base = { Rookie: 2.5, Street: 4, King: 5.5 }[difficulty] ?? 4;
-  return base + rng() * 1.5;
+  const base = { Rookie: 1.0, Street: 1.8, King: 2.8 }[difficulty] ?? 1.8;
+  return base + rng() * 1.2;
 }
 
 /** Does the AI runner juke when a peg is incoming? */

@@ -134,14 +134,15 @@ export function buildField(fieldData, scene) {
   //     skyline + 2D crowd layers. -------------------------------------------
   const hasBackdrop = !!(fieldData.textures?.backdrop || fieldData.textures?.backdropVideo);
   if (hasBackdrop) {
-    // 3× horizontal wrap (ODD) keeps centre field seam-free (the wrap seam sits
-    // behind home) and keeps people/buildings from stretching wide. Vertical crop
-    // drops the closest/lowest crowd row so the fans read as a thinner band over
-    // the fence (a distant stadium crowd) instead of full looming bodies.
+    // MIRRORED horizontal wrap + EVEN repeat = a fully SEAMLESS ring: the panorama
+    // reflects at every boundary (including the cylinder's own wrap point), so
+    // there is no hard edge anywhere — the non-tileable image can't show a seam.
+    // Vertical crop drops the lowest crowd row so the fans read as a thinner band
+    // over the fence (a distant stadium crowd) instead of full looming bodies.
     const tuneTex = (t) => {
       t.colorSpace = THREE.SRGBColorSpace;
-      t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
-      t.repeat.set(3, 0.82); t.offset.y = 0.18;
+      t.wrapS = THREE.MirroredRepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
+      t.repeat.set(4, 0.82); t.offset.y = 0.18;
     };
     // Put the still poster IN the material from the start (so it actually renders),
     // then swap to the looping video once it really starts playing. Robust if the

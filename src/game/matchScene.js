@@ -573,6 +573,7 @@ export class MatchScene {
       state: 'running',
       decideT: 0,
       forced: false,
+      advanceArmed: false, // a held runner won't steal on until you ease off + re-mash
       aiRate: aiMashRate(this.difficulty),
     };
   }
@@ -665,7 +666,8 @@ export class MatchScene {
           } else {
             r.state = 'held';
             r.heldAt = r.targetBase;
-            r.decideT = 0.9; // window to run THROUGH the bag (human reaction + render latency)
+            r.advanceArmed = false; // STOP on the bag — ease off the taps + re-mash to steal on
+            r.decideT = 1.4; // window in which a deliberate re-mash can send you to the next bag
             r.char.group.position.copy(this.basePos(r.heldAt)).add(new THREE.Vector3(0.4, 0, 0.4));
             this.faceTo(r.char, this.basePos(Math.min(r.heldAt + 1, 3))); // poised to take the next bag
             r.char.animator.play('idle');
@@ -673,16 +675,20 @@ export class MatchScene {
         }
       } else if (r.state === 'held' && r.heldAt < 3) {
         r.decideT -= dt;
+        if (this.kickingIsPlayer()) {
+          if (rate < 1.0) r.advanceArmed = true;     // eased off the gas → ready to be sent on
+          if (!this.ballControlled) r.decideT = 1.4; // keep the send-window open while the ball is loose
+        }
         // a teammate running into my bag forces me off it — vacate or we stack
         const mustVacate = this.runners.some(o =>
           o !== r && o.state === 'running' && o.targetBase === r.heldAt);
-        // HUMAN offense: keep pushing as long as the ball isn't thrown / the play
-        // isn't dead, so a hard-tapping runner can chain 1st→2nd→3rd→home on a live ball.
+        // HUMAN: only chain to the next bag on a DELIBERATE re-mash (advanceArmed) — so the
+        // mashing that GOT you to the bag can't blow you past it into a tag/force out.
         // AI offense: a bold lead runner (1st/2nd) will gamble for the next bag right
         // after the D secures it (until the ball is fully controlled) — that's what
         // creates a pickle the human defender can throw on; otherwise the AI holds.
         const aggressive = this.kickingIsPlayer()
-          ? (rate > CONTINUE_RATE && !this.throwing && !this.playFinalized)
+          ? (r.advanceArmed && rate > CONTINUE_RATE && !this.throwing && !this.playFinalized)
           : (!this.ballControlled && r.aiRate > 4.2 && this.landDist > 24 && r.heldAt <= 1);
         const wantsGo = mustVacate || (r.decideT > 0 && aggressive);
         if (wantsGo) {
