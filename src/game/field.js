@@ -127,20 +127,25 @@ export function buildField(fieldData, scene) {
   }
 
   // --- skyline + buildings beyond the fence ----------------------------------
-  let skylineTex;
+  let skylineTex, skylineH = 46, skylineY = 14;
   if (fieldData.textures?.skyline) {
     skylineTex = new THREE.TextureLoader().load(fieldData.textures.skyline, (t) => { t.colorSpace = THREE.SRGBColorSpace; });
     skylineTex.wrapS = THREE.RepeatWrapping;
-    skylineTex.repeat.set(3, 0.82); // tile around the ring; crop the panorama's court floor
-    skylineTex.offset.y = 0.18;
+    // Crop to just the BUILDINGS: drop the panorama's court floor (bottom) AND its
+    // baked-in sky (top) so the city silhouette sits clean against the sky dome —
+    // no double-sky seam. A shorter, lower cylinder keeps the buildings on the horizon.
+    skylineTex.repeat.set(3, 0.56);
+    skylineTex.offset.y = 0.15;
+    skylineH = 30;
+    skylineY = 7;
   } else {
     skylineTex = makeSkylineTexture();
   }
   const skyline = new THREE.Mesh(
-    new THREE.CylinderGeometry(110, 110, 46, 48, 1, true, 0, Math.PI * 2),
+    new THREE.CylinderGeometry(110, 110, skylineH, 48, 1, true, 0, Math.PI * 2),
     new THREE.MeshBasicMaterial({ map: skylineTex, side: THREE.BackSide, fog: false, transparent: true }),
   );
-  skyline.position.set(0, 14, -20);
+  skyline.position.set(0, skylineY, -20);
   root.add(skyline);
   handles.skyline = skyline;
 
@@ -161,94 +166,56 @@ export function buildField(fieldData, scene) {
     }
   }
 
-  // --- crowd: sideline bleachers + a packed grandstand ring beyond the fence --
-  // Every fan is one instance in a SINGLE InstancedMesh (one draw call), and each
-  // seat carries its own facing (faceY) so sideline fans look across the lines
-  // while the outfield grandstand all faces home. R / fh are the fence radius and
-  // height declared with the outfield fence above.
-  const standMat = new THREE.MeshStandardMaterial({ color: palette.stand ?? '#2b333d', roughness: 0.92 });
-  const crowdColors = ['#e0701a', '#1d8ac4', '#f5b312', '#c8102e', '#2e5944', '#d9d9d9', '#7a4a32', '#444a55', '#b5651d', '#3e8e7e'];
-  const seats = [];
-  const dummy = new THREE.Object3D();
+  // --- crowd: real fans as illustrated sprite-art bleachers (2D, not 3D pills) --
+  // A generated crowd panorama mapped onto LOW stand bands: one wrapping just
+  // beyond the outfield fence, plus the sideline bleachers. The bands are kept
+  // SHORT so the city skyline still rises above the fans. Per-panel UVs sample a
+  // random horizontal slice (hides the tiling) and crop the court strip off the
+  // bottom of the source image so only the rows of people show.
+  const crowdTex = new THREE.TextureLoader().load('assets/textures/crowd.png', (t) => { t.colorSpace = THREE.SRGBColorSpace; });
+  crowdTex.wrapS = crowdTex.wrapT = THREE.RepeatWrapping;
+  const crowdMat = new THREE.MeshBasicMaterial({ map: crowdTex, side: THREE.DoubleSide, fog: false });
+  const crowdPanel = (width, height, metresPerTile = 16) => {
+    const g = new THREE.PlaneGeometry(width, height);
+    const uv = g.attributes.uv;
+    const offU = Math.random();
+    const repU = Math.max(0.6, width / metresPerTile);
+    for (let k = 0; k < uv.count; k++) {
+      uv.setX(k, uv.getX(k) * repU + offU);   // random horizontal slice, tiled around the arc
+      uv.setY(k, uv.getY(k) * 0.74 + 0.25);   // crop the court/ball off the image bottom
+    }
+    uv.needsUpdate = true;
+    return new THREE.Mesh(g, crowdMat);
+  };
+
+  // low grandstand of fans wrapping the outfield, just beyond the fence, facing
+  // home — short enough that the skyline shows above the back row
+  const standH = 6.0;
+  const standR = R + 1.2;
+  const cArcStart = -Math.PI / 4, cArcEnd = Math.PI + Math.PI / 4, cSeg = 16;
+  for (let i = 0; i < cSeg; i++) {
+    const a0 = cArcStart + ((cArcEnd - cArcStart) * i) / cSeg;
+    const a1 = cArcStart + ((cArcEnd - cArcStart) * (i + 1)) / cSeg;
+    const p0 = new THREE.Vector3(Math.cos(a0) * standR, 0, -Math.abs(Math.sin(a0)) * standR);
+    const p1 = new THREE.Vector3(Math.cos(a1) * standR, 0, -Math.abs(Math.sin(a1)) * standR);
+    const width = p0.distanceTo(p1) + 0.3;
+    const panel = crowdPanel(width, standH);
+    const mid = p0.clone().add(p1).multiplyScalar(0.5);
+    panel.position.set(mid.x, standH / 2, mid.z);
+    panel.lookAt(0, standH / 2, 0);
+    root.add(panel);
+  }
 
   // sideline bleachers down the 1st/3rd-base lines near home
   for (const sign of [1, -1]) {
-    for (let row = 0; row < 4; row++) {
-      const bench = new THREE.Mesh(new THREE.BoxGeometry(16, 0.5, 1.5), standMat);
-      bench.position.set(sign * (16 + row * 1.6), 0.5 + row * 0.95, 1 + row * 0.5);
-      bench.rotation.y = sign * -Math.PI / 14;
-      root.add(bench);
-    }
-  }
-  for (let i = 0; i < 120; i++) {
-    const sign = i % 2 === 0 ? 1 : -1;
-    const row = i % 4;
-    const x = sign * (16 + row * 1.6) + (Math.random() - 0.5) * 14;
-    const z = 1 + row * 0.5 + (Math.random() - 0.5) * 1.0;
-    const y = 1.15 + row * 0.95;
-    seats.push({ x, y, z, faceY: sign * -Math.PI / 2 + (Math.random() - 0.5) * 0.5, phase: Math.random() * Math.PI * 2 });
+    const strip = crowdPanel(26, 5.4, 20);
+    strip.position.set(sign * 18, 2.7, -7);
+    strip.rotation.y = sign * -Math.PI / 2.4;
+    root.add(strip);
   }
 
-  // outfield grandstand: tiers of fans packed in beyond the fence, all the way
-  // around the outfield arc, cheering toward home. Uses the fence arc math so the
-  // bowl lines up with the wall (outfield lives on the -Z half: -|sin| * r).
-  const ofArcStart = -Math.PI / 4, ofArcEnd = Math.PI + Math.PI / 4;
-  const ofTiers = 6, ofPerTier = 48;
-  // dark stadium back wall so the crowd reads as seated stands, not floating
-  const wallR = R + ofTiers * 1.9 + 3;
-  const wallH = fh + ofTiers * 1.25 + 2;
-  const wseg = 18;
-  for (let i = 0; i < wseg; i++) {
-    const a0 = ofArcStart + ((ofArcEnd - ofArcStart) * i) / wseg;
-    const a1 = ofArcStart + ((ofArcEnd - ofArcStart) * (i + 1)) / wseg;
-    const p0 = new THREE.Vector3(Math.cos(a0) * wallR, 0, -Math.abs(Math.sin(a0)) * wallR);
-    const p1 = new THREE.Vector3(Math.cos(a1) * wallR, 0, -Math.abs(Math.sin(a1)) * wallR);
-    const width = p0.distanceTo(p1) + 0.4;
-    const panel = new THREE.Mesh(new THREE.PlaneGeometry(width, wallH), standMat);
-    const mid = p0.clone().add(p1).multiplyScalar(0.5);
-    panel.position.set(mid.x, wallH / 2, mid.z);
-    panel.lookAt(0, wallH / 2, 0);
-    root.add(panel);
-  }
-  for (let i = 0; i < ofTiers * ofPerTier; i++) {
-    const tier = i % ofTiers;
-    const a = ofArcStart + (ofArcEnd - ofArcStart) * ((Math.floor(i / ofTiers) + Math.random() * 0.9) / ofPerTier);
-    const rr = R + 2.2 + tier * 1.9 + (Math.random() - 0.5) * 0.8;
-    const x = Math.cos(a) * rr;
-    const z = -Math.abs(Math.sin(a)) * rr;
-    const y = fh * 0.5 + tier * 1.25 + 0.6;
-    seats.push({ x, y, z, faceY: Math.atan2(-x, -z), phase: Math.random() * Math.PI * 2 }); // face home
-  }
-
-  const bodyGeo = new THREE.CapsuleGeometry(0.22, 0.5, 2, 6);
-  const crowd = new THREE.InstancedMesh(bodyGeo, new THREE.MeshLambertMaterial(), seats.length);
-  for (let i = 0; i < seats.length; i++) {
-    const s = seats[i];
-    dummy.position.set(s.x, s.y, s.z);
-    dummy.rotation.set(0, s.faceY, 0);
-    dummy.updateMatrix();
-    crowd.setMatrixAt(i, dummy.matrix);
-    crowd.setColorAt(i, new THREE.Color(crowdColors[i % crowdColors.length]));
-  }
-  crowd.instanceMatrix.needsUpdate = true;
-  root.add(crowd);
-  handles.crowd = crowd;
-  handles.crowdSeats = seats;
-  handles.crowdEnergy = 0; // 0 idle … 1 going wild; matchScene/cinematics drive this
-
-  // bounce the whole bowl — subtle at rest, jumping when energy spikes
-  handles.updateCrowd = (elapsed) => {
-    for (let i = 0; i < seats.length; i++) {
-      const s = seats[i];
-      const amp = 0.05 + handles.crowdEnergy * 0.4;
-      const bounce = Math.abs(Math.sin(elapsed * (3 + handles.crowdEnergy * 6) + s.phase)) * amp;
-      dummy.position.set(s.x, s.y + bounce, s.z);
-      dummy.rotation.set(0, s.faceY, 0);
-      dummy.updateMatrix();
-      crowd.setMatrixAt(i, dummy.matrix);
-    }
-    crowd.instanceMatrix.needsUpdate = true;
-  };
+  handles.crowdEnergy = 0; // 0 idle … 1 going wild; read by audio/FX
+  handles.updateCrowd = () => {}; // sprite-art crowd is static; no per-frame work
 
   // --- sky + lighting ----------------------------------------------------------
   // A generated full-sky dome when the field defines one, else the canvas gradient.
