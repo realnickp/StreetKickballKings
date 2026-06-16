@@ -15,13 +15,19 @@ export function pickPitch(tuning, rng = Math.random) {
  * the CPU foul and whiff more (pitch is optional → backward compatible).
  */
 export function aiKickError(difficulty, tuning, pitch, rng = Math.random) {
-  const [lo, hi] = tuning.ai[difficulty].kickTimingErrMs;
+  const ai = tuning.ai[difficulty];
+  // Every so often the CPU just flat-out whiffs (a real strikeout chance for variety).
+  if (rng() < (ai.whiffChance ?? 0)) {
+    return (rng() < 0.5 ? -1 : 1) * (tuning.kick.okWindowMs * 1.6 + 30 + rng() * 120);
+  }
+  // Otherwise the timing error is small enough to USUALLY land a fair kick — the CPU
+  // should put the ball in PLAY most pitches, with a few fouls. A good pitch nudges
+  // it up a touch (gentle, so curves aren't impossible).
+  const [lo, hi] = ai.kickTimingErrMs;
   let mag = lo + rng() * (hi - lo);
   if (pitch) {
-    // gentle: a good pitch nudges the error up (more fouls/whiffs) but the CPU still
-    // makes contact most of the time — combined multiplier tops out around 1.5x
-    const speedF = 1 + Math.max(0, (pitch.speedMph - 72) / 110);          // ~+0.16 at 90mph
-    const breakF = 1 + Math.min(0.30, Math.abs(pitch.curveM ?? 0) * 0.13); // up to +0.30
+    const speedF = 1 + Math.max(0, (pitch.speedMph - 72) / 150);          // ~+0.12 at 90mph
+    const breakF = 1 + Math.min(0.15, Math.abs(pitch.curveM ?? 0) * 0.07); // up to +0.15
     mag *= speedF * breakF;
   }
   return rng() < 0.5 ? -mag : mag;
