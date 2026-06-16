@@ -50,8 +50,8 @@
     "powerMult": 1.35
   },
   "ai": {
-    "Rookie": { "kickTimingErrMs": [28, 340], "whiffChance": 0.10, "fieldReactMs": 420, "jukeChance": 0.15 },
-    "Street": { "kickTimingErrMs": [18, 290], "whiffChance": 0.06, "fieldReactMs": 250, "jukeChance": 0.4 },
-    "King":   { "kickTimingErrMs": [12, 220], "whiffChance": 0.03, "fieldReactMs": 140, "jukeChance": 0.7 }
+    "Rookie": { "kickTimingErrMs": [28, 340], "whiffChance": 0.10, "fieldReactMs": 470, "jukeChance": 0.15 },
+    "Street": { "kickTimingErrMs": [18, 290], "whiffChance": 0.06, "fieldReactMs": 320, "jukeChance": 0.4 },
+    "King":   { "kickTimingErrMs": [12, 220], "whiffChance": 0.03, "fieldReactMs": 200, "jukeChance": 0.7 }
   }
 }

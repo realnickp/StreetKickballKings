@@ -482,7 +482,7 @@ export class MatchScene {
     }
 
     this.landDist = Math.hypot(lp.x, lp.z);
-    this.isFly = this.pred.apex > 2.4; // liners/pop-ups are catchable too, not just high arcs
+    this.isFly = this.pred.apex > 2.8; // only genuine pop-ups/arcs are catch-outs; low liners play on
     this.phase = 'LIVE';
     this.liveStart = this.elapsed;
     this.hrFired = false;
@@ -773,6 +773,7 @@ export class MatchScene {
     this.throwing = false;
     this.ballControlled = false;
     this.defenseHasBall = false; // flips true once a fielder secures the ball
+    this.catchRoll = null;       // fresh catch-skill roll for this batted ball
 
     const ranked = [...def].sort((a, b) =>
       a.group.position.distanceTo(this.pred.point) - b.group.position.distanceTo(this.pred.point));
@@ -895,8 +896,15 @@ export class MatchScene {
   }
 
   catchRadius() {
-    if (this.playerControlled) return 2.1;
-    return { Rookie: 1.9, Street: 2.2, King: 2.5 }[this.difficulty] ?? 2.2;
+    if (this.playerControlled) return 2.0;
+    return { Rookie: 1.5, Street: 1.7, King: 2.0 }[this.difficulty] ?? 1.7;
+  }
+
+  /** Chance the AI actually SQUEEZES a reachable fly (real fielders drop some) —
+   *  this is the main "not every ball is caught" lever. Player catches if they got there. */
+  catchSkill() {
+    if (this.playerControlled) return 1.0;
+    return { Rookie: 0.6, Street: 0.78, King: 0.9 }[this.difficulty] ?? 0.78;
   }
 
   /** The chaser tries to catch a fly or scoop a grounder once it's on the ball. */
@@ -907,9 +915,11 @@ export class MatchScene {
     c.faceYaw = Math.atan2(this.ball.pos.x - c.group.position.x, this.ball.pos.z - c.group.position.z);
 
     if (this.isFly && this.ball.bounces === 0 && !this.ball.onGround &&
-        this.ball.vel.y < 0 && this.ball.pos.y < 2.9 && ballDist < this.catchRadius()) {
-      c.animator.play('catch');
-      return this.catchOut(c);
+        this.ball.vel.y < 0 && this.ball.pos.y < 2.6 && ballDist < this.catchRadius()) {
+      // roll the catch ONCE per fly — if the AI muffs it, the ball drops in for a hit
+      if (this.catchRoll === null || this.catchRoll === undefined) this.catchRoll = Math.random() < this.catchSkill();
+      if (this.catchRoll) { c.animator.play('catch'); return this.catchOut(c); }
+      // muffed: fall through, let it drop and play on as a grounder
     }
     if ((this.ball.onGround || this.ball.bounces > 0) && ballDist < (this.tuning.fielding.scoopRadiusM ?? 2.0)) {
       this.possessBall(c);
