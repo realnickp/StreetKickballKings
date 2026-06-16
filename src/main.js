@@ -205,10 +205,12 @@ async function bootFlow() {
     await showLogoClash(playerTeam, opponentTeam);
 
     const chars = await charsPromise;
+    // Play at the HOME team's (opponent's) city field so each team's stadium shows.
+    const homeField = fieldsData.fields.find(f => f.id === opponentTeam.homeField) ?? blacktop;
     ctx.scene = new MatchScene({
       engine, input, bus, chars,
       teams: { home: opponentTeam, away: playerTeam },
-      fieldData: blacktop,
+      fieldData: homeField,
       tuning,
       difficulty: params.get('diff') ?? 'Street',
       playerSide: 'away',

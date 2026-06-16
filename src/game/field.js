@@ -132,27 +132,33 @@ export function buildField(fieldData, scene) {
   //     skyline + 2D crowd layers. -------------------------------------------
   const hasBackdrop = !!(fieldData.textures?.backdrop || fieldData.textures?.backdropVideo);
   if (hasBackdrop) {
-    let bdTex;
+    const tuneTex = (t) => { t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; t.repeat.set(2, 1); };
+    const mat = new THREE.MeshBasicMaterial({ side: THREE.BackSide, fog: false });
+    // Instant still poster, then swap to the looping video once it can play
+    // (robust if the clip is slow to load or missing).
+    if (fieldData.textures?.backdrop) {
+      mat.map = new THREE.TextureLoader().load(fieldData.textures.backdrop, tuneTex);
+    }
     if (fieldData.textures?.backdropVideo) {
       const video = document.createElement('video');
       video.src = fieldData.textures.backdropVideo;
       video.loop = true; video.muted = true; video.autoplay = true; video.playsInline = true;
       video.setAttribute('playsinline', ''); video.setAttribute('muted', '');
       const kick = () => { video.play().catch(() => {}); };
+      video.addEventListener('canplay', () => {
+        const v = new THREE.VideoTexture(video);
+        tuneTex(v);
+        mat.map = v; mat.needsUpdate = true;
+        kick();
+      }, { once: true });
       kick();
-      window.addEventListener('pointerdown', kick, { once: true }); // autoplay may need a gesture
-      bdTex = new THREE.VideoTexture(video);
+      window.addEventListener('pointerdown', kick, { once: true }); // mobile autoplay may need a gesture
       handles.backdropVideo = video;
-    } else {
-      bdTex = new THREE.TextureLoader().load(fieldData.textures.backdrop, (t) => { t.colorSpace = THREE.SRGBColorSpace; });
     }
-    bdTex.colorSpace = THREE.SRGBColorSpace;
-    bdTex.wrapS = THREE.RepeatWrapping;
-    bdTex.repeat.set(2, 1); // wrap the panorama twice so people/buildings keep their proportions
     const bdH = 34, bdR = 48, bdBottom = -2; // sized so the fans sit just beyond the fence
     const backdrop = new THREE.Mesh(
       new THREE.CylinderGeometry(bdR, bdR, bdH, 80, 1, true, 0, Math.PI * 2),
-      new THREE.MeshBasicMaterial({ map: bdTex, side: THREE.BackSide, fog: false }),
+      mat,
     );
     backdrop.position.set(0, bdBottom + bdH / 2, 0);
     root.add(backdrop);
@@ -330,19 +336,29 @@ function makeSkylineTexture() {
   });
 }
 
+// Per-sky-type dome gradient (zenith -> horizon) so the sliver of sky above each
+// city's backdrop matches its mood. Keyed by fields.json `sky`.
+const SKY_DOME = {
+  'day':           ['#2f6fce', '#6ea4e4', '#aecdf0', '#dcebf6'],
+  'sodium-night':  ['#0e1326', '#241a2a', '#3a2a22', '#5a3a24'],
+  'dusk':          ['#1f2350', '#4a3a78', '#a85a7a', '#e08a5a'],
+  'neon-night':    ['#0c0f2a', '#1b1f4a', '#2a2060', '#3a2a70'],
+  'golden-hour':   ['#2a5a9a', '#7a9ad0', '#f0c070', '#ffd9a0'],
+  'shaft-light':   ['#2a3340', '#4a5560', '#8a93a0', '#c0c8d0'],
+  'overcast':      ['#8a909a', '#a8aeb6', '#c2c6cc', '#d6d9dd'],
+  'winter':        ['#9fb4cc', '#c2d2e2', '#dde8f2', '#eef4fa'],
+  'desert-sunset': ['#2a3a7a', '#7a4a8a', '#e07a4a', '#ffb060'],
+  'stadium-night': ['#0a1024', '#161e3e', '#22305a', '#2e3e6e'],
+};
+
 function makeSkyGradient(skyType) {
   return canvasTexture(512, 512, (ctx, w, h) => {
     const g = ctx.createLinearGradient(0, 0, 0, h);
-    if (skyType === 'day') {
-      g.addColorStop(0, '#2f6fce');   // deep zenith blue
-      g.addColorStop(0.45, '#6ea4e4');
-      g.addColorStop(0.78, '#aecdf0');
-      g.addColorStop(1, '#dcebf6');   // pale horizon — matches the skyline panorama's sky
-    } else {
-      g.addColorStop(0, '#141a2e');
-      g.addColorStop(0.7, '#2a2746');
-      g.addColorStop(1, '#3a2e4f');
-    }
+    const [s0, s1, s2, s3] = SKY_DOME[skyType] ?? SKY_DOME.day;
+    g.addColorStop(0, s0);     // zenith
+    g.addColorStop(0.45, s1);
+    g.addColorStop(0.78, s2);
+    g.addColorStop(1, s3);     // horizon
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, w, h);
 
