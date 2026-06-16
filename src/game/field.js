@@ -12,19 +12,21 @@ export const FIELD_LAYOUT = {
   pitcher: new THREE.Vector3(0, 0, -12),
 };
 
-// Per-sky lighting so every city reads as its own time-of-day (hemisphere sky/
-// ground tint + sun colour/intensity). Keyed by fields.json `sky`.
+// Per-sky lighting. Every field is FLOODLIT bright enough to clearly read the
+// players and court (night stadiums use lights, they aren't dim) — mood comes
+// from light COLOUR, not darkness. ACES tone-mapping + the vignette eat a lot of
+// low light, so intensities stay high across the board. Keyed by fields.json `sky`.
 const SKY_PRESETS = {
-  'day':           { hemiSky: '#cfe0ff', hemiGround: '#6a655e', sun: '#fff2dd', sunI: 2.0, hemiI: 1.25 },
-  'sodium-night':  { hemiSky: '#3a3550', hemiGround: '#2a2620', sun: '#ffb066', sunI: 1.1, hemiI: 0.7 },
-  'dusk':          { hemiSky: '#ffb98a', hemiGround: '#4a3f4a', sun: '#ff9d6b', sunI: 1.6, hemiI: 1.0 },
-  'neon-night':    { hemiSky: '#2a2f5a', hemiGround: '#241a30', sun: '#8a78ff', sunI: 1.1, hemiI: 0.85 },
-  'golden-hour':   { hemiSky: '#ffd9a0', hemiGround: '#5a4632', sun: '#ffb867', sunI: 2.0, hemiI: 1.2 },
-  'shaft-light':   { hemiSky: '#9fb0c4', hemiGround: '#3a3a3f', sun: '#fff0d6', sunI: 1.7, hemiI: 0.85 },
-  'overcast':      { hemiSky: '#b8bcc2', hemiGround: '#5a5650', sun: '#d8d4cc', sunI: 1.1, hemiI: 1.3 },
-  'winter':        { hemiSky: '#dce8f5', hemiGround: '#9aa6b0', sun: '#eaf2ff', sunI: 1.6, hemiI: 1.4 },
-  'desert-sunset': { hemiSky: '#ffae73', hemiGround: '#6b4a36', sun: '#ff8a4d', sunI: 2.0, hemiI: 1.15 },
-  'stadium-night': { hemiSky: '#2e3358', hemiGround: '#22202c', sun: '#ffffff', sunI: 1.9, hemiI: 0.95 },
+  'day':           { hemiSky: '#cfe0ff', hemiGround: '#7a756a', sun: '#fff4e0', sunI: 2.1, hemiI: 1.35, amb: '#5b6172', ambI: 0.25 },
+  'sodium-night':  { hemiSky: '#6a6486', hemiGround: '#4a4030', sun: '#ffd6a0', sunI: 2.3, hemiI: 1.3,  amb: '#5a4f46', ambI: 0.4 },
+  'dusk':          { hemiSky: '#b3a3c6', hemiGround: '#5a4f55', sun: '#ffcaa0', sunI: 2.1, hemiI: 1.35, amb: '#5a5260', ambI: 0.35 },
+  'neon-night':    { hemiSky: '#7e7cba', hemiGround: '#403a58', sun: '#d2c4ff', sunI: 2.1, hemiI: 1.3,  amb: '#4a4670', ambI: 0.4 },
+  'golden-hour':   { hemiSky: '#d2e2f2', hemiGround: '#6a5642', sun: '#ffd9a0', sunI: 2.2, hemiI: 1.35, amb: '#6a5a4a', ambI: 0.3 },
+  'shaft-light':   { hemiSky: '#b4c0cc', hemiGround: '#52525a', sun: '#fff2dd', sunI: 2.1, hemiI: 1.25, amb: '#56565e', ambI: 0.3 },
+  'overcast':      { hemiSky: '#cdd2d8', hemiGround: '#6a665e', sun: '#e8e4dc', sunI: 1.8, hemiI: 1.7,  amb: '#888c92', ambI: 0.35 },
+  'winter':        { hemiSky: '#dde8f5', hemiGround: '#aab4c0', sun: '#f4f8ff', sunI: 2.1, hemiI: 1.7,  amb: '#9aa6b4', ambI: 0.35 },
+  'desert-sunset': { hemiSky: '#d6b6c6', hemiGround: '#7a5642', sun: '#ffc88e', sunI: 2.2, hemiI: 1.35, amb: '#6a544a', ambI: 0.3 },
+  'stadium-night': { hemiSky: '#868eba', hemiGround: '#42424f', sun: '#ffffff', sunI: 2.5, hemiI: 1.35, amb: '#4a4a5a', ambI: 0.4 },
 };
 
 export function buildField(fieldData, scene) {
@@ -132,7 +134,9 @@ export function buildField(fieldData, scene) {
   //     skyline + 2D crowd layers. -------------------------------------------
   const hasBackdrop = !!(fieldData.textures?.backdrop || fieldData.textures?.backdropVideo);
   if (hasBackdrop) {
-    const tuneTex = (t) => { t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; t.repeat.set(2, 1); };
+    // 3× horizontal wrap (ODD): keeps centre field seam-free (the wrap seam sits
+    // behind home) and keeps the people/buildings from being stretched wide.
+    const tuneTex = (t) => { t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; t.repeat.set(3, 1); };
     // Put the still poster IN the material from the start (so it actually renders),
     // then swap to the looping video once it really starts playing. Robust if the
     // clip is slow, blocked by autoplay policy, or missing — the still stays up.
@@ -225,6 +229,8 @@ export function buildField(fieldData, scene) {
   const lp = SKY_PRESETS[fieldData.sky] ?? SKY_PRESETS.day;
   const hemi = new THREE.HemisphereLight(lp.hemiSky, lp.hemiGround, lp.hemiI);
   root.add(hemi);
+  // a small ambient floor so ACES tone-mapping never crushes the court to black
+  root.add(new THREE.AmbientLight(lp.amb ?? '#55585f', lp.ambI ?? 0.3));
   const sun = new THREE.DirectionalLight(lp.sun, lp.sunI);
   sun.position.set(28, 40, 18);
   sun.castShadow = true;
