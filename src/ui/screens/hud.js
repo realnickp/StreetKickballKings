@@ -178,6 +178,18 @@ export class Hud {
     });
   }
 
+  /** Live banners of what each base-runner is doing (lead/most-urgent first). */
+  setRunnerAlerts(alerts) {
+    let box = this.runnerAlerts;
+    if (!box) { box = this.runnerAlerts = document.createElement('div'); box.className = 'runner-alerts'; this.el.appendChild(box); }
+    box.replaceChildren(...alerts.map((a) => {
+      const d = document.createElement('div');
+      d.className = 'runner-alert' + (a.urgent ? ' urgent' : '');
+      d.textContent = a.text;
+      return d;
+    }));
+  }
+
   setSpecial(fill, ready, armed, label) {
     this.specialBtn.style.setProperty('--fill', Math.round(fill));
     this.specialBtn.classList.toggle('ready', ready);

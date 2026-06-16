@@ -583,6 +583,22 @@ export class MatchScene {
     return lead;
   }
 
+  /** On-screen banners of what each base-runner is doing (so you know where to throw). */
+  updateRunnerAlerts() {
+    if (this.phase !== 'LIVE') { this.hud.setRunnerAlerts([]); return; } // only during the live play
+    const running = this.runners.filter((r) => r.state === 'running' && r.targetBase >= 0 && r.targetBase <= 3);
+    if (!running.length) { this.hud.setRunnerAlerts([]); return; }
+    running.sort((a, b) => (b.targetBase - a.targetBase) || (b.sim.progressM - a.sim.progressM));
+    const SAY = {
+      0: 'RUNNER TO 1ST',
+      1: 'RUNNER STEALING 2ND',
+      2: 'RUNNER STEALING 3RD',
+      3: 'RUNNER HEADING HOME!',
+    };
+    const alerts = running.slice(0, 3).map((r) => ({ text: SAY[r.targetBase], urgent: r.targetBase === 3 }));
+    this.hud.setRunnerAlerts(alerts);
+  }
+
   runnerWorldPos(r) {
     const from = r.fromBase === -1 ? FIELD_LAYOUT.home : this.basePos(r.fromBase);
     const to = this.basePos(r.targetBase);
@@ -693,6 +709,7 @@ export class MatchScene {
     const someoneAdvancing = this.runners.some(r =>
       r.state === 'running' ||
       (r.state === 'held' && r.heldAt < 3 && r.decideT > 0 && stillPushing));
+    this.updateRunnerAlerts(); // keep the "runner heading home / stealing 3rd" banners live
     if (!this.playFinalized && this.ballControlled && !someoneAdvancing) {
       this.finalizePlay(this.playOuts ?? 0, this.lastOutReason);
     }
@@ -703,6 +720,7 @@ export class MatchScene {
     if (this.playFinalized) return;
     this.playFinalized = true;
     this.phase = 'RESOLVE';
+    this.hud.setRunnerAlerts([]); // play's over — clear the runner banners
 
     // multi-out play — call it out big
     if (outsAdded >= 2) {
@@ -1086,6 +1104,37 @@ export class MatchScene {
     this.after(0.55, () => { if (holder.hasBall && !this.playFinalized) this.aiThrowDecision(holder); });
   }
 
+  /**
+   * After EVERY throw resolves: if a runner is still advancing, keep the play
+   * alive. AI pursues itself; the PLAYER gets the throw pad back (controlling
+   * whoever now has the ball) so you can keep gunning runners down until the
+   * play is truly over. If nobody's advancing, settle so the play finalizes.
+   */
+  afterThrow() {
+    if (this.playFinalized || this.phase === 'RESOLVE') return;
+    if (!this.runners.some((r) => r.state === 'running')) { this.ballControlled = true; return; }
+    if (!this.playerControlled) return this.aiContinue();
+    // PLAYER defense: make sure a fielder has the ball, then re-arm the throw pad
+    let holder = this.fielders?.find((f) => f.char.hasBall)?.char;
+    if (!holder) {
+      holder = this.nearestFielderTo(this.ball.pos);
+      if (!holder) { this.ballControlled = true; return; }
+      holder.hasBall = true;
+      this.ball.place(holder.group.position.clone().setY(1.1));
+      this.ball.mode = 'idle';
+    }
+    this.activeFielder = holder;
+    this.chaser = holder;
+    this.defenseHasBall = true;
+    this.ballControlled = false;
+    this.marker.visible = false;
+    this.hud.showThrowPad(true);
+    this.hud.highlightBestBase(this.recommendedThrowBase());
+    this.showBaseRings(true);
+    this.hud.hint('THROW TO THE BAG TO GET HIM!');
+    this.after(6, () => { if (holder.hasBall && !this.playFinalized && !this.throwing) this.ballControlled = true; });
+  }
+
   showBaseRings(on) {
     for (const r of this.baseRings) r.visible = on;
   }
@@ -1132,7 +1181,7 @@ export class MatchScene {
           if (hit) this.runnerOut(lead, 'pegged');
           else { this.bus.emit('sfx', 'dodge'); this.hud.stamp('JUKED!', 'robbed'); }
         }
-        this.aiContinue(); // AI: keep finishing the play (re-field a miss, chase the next runner)
+        this.afterThrow(); // keep the play alive if a runner is still going
       });
       return;
     }
@@ -1172,20 +1221,18 @@ export class MatchScene {
       }
       if (caught && live && victim.forced && res.out) {
         this.runnerOut(victim, 'forced');
-        if (!this.tryDoublePlay(base)) { this.ballControlled = true; this.aiContinue(); } // turn two, or keep chasing
+        if (!this.tryDoublePlay(base)) this.afterThrow(); // turn two, or keep chasing the next runner
       } else if (caught && live && !victim.forced) {
         this.startRundown(victim, base); // can't force him — trap him in a pickle
       } else if (!caught) {
         // nobody covering — the throw sails to an empty bag: runner's safe, ball loose
         this.ball.place(basePt.clone().setY(0.3));
         this.ball.mode = 'idle';
-        this.ballControlled = true;
         this.hud.stamp('NOBODY COVERING!', 'robbed');
         this.bus.emit('vo', 'safe');
-        this.aiContinue();
+        this.afterThrow();
       } else {
-        this.ballControlled = true; // caught, but the runner beat it / not forced-out — safe
-        this.aiContinue(); // ...still chase any OTHER runner trying to take the next bag
+        this.afterThrow(); // caught but safe — still go after any OTHER advancing runner
       }
     });
   }

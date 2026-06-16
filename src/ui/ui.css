@@ -435,6 +435,20 @@ body { display: flex; align-items: center; justify-content: center; }
 .pitch-grade.good { color: var(--gold); }
 .pitch-grade.weak { color: var(--muted); }
 
+/* live runner-activity banners (top, under the scoreboard) — who's running where */
+.runner-alerts {
+  position: absolute; top: calc(94px + env(safe-area-inset-top)); left: 50%;
+  transform: translateX(-50%); z-index: 8; width: 100%;
+  display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none;
+}
+.runner-alert {
+  font-family: var(--marker); font-size: 15px; letter-spacing: .5px; color: #fff;
+  background: rgba(8, 9, 13, .72); border-radius: 9px; padding: 3px 13px;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, .5); white-space: nowrap;
+}
+.runner-alert.urgent { background: rgba(215, 38, 61, .92); animation: alertPulse .6s ease-in-out infinite; }
+@keyframes alertPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
+
 .skip-hint {
   position: absolute;
   bottom: calc(18px + env(safe-area-inset-bottom));
