@@ -146,50 +146,89 @@ export function buildField(fieldData, scene) {
     }
   }
 
-  // --- bleachers + instanced crowd -------------------------------------------
-  const bleacherMat = new THREE.MeshStandardMaterial({ color: '#3a6b8a', roughness: 0.8 });
+  // --- crowd: sideline bleachers + a packed grandstand ring beyond the fence --
+  // Every fan is one instance in a SINGLE InstancedMesh (one draw call), and each
+  // seat carries its own facing (faceY) so sideline fans look across the lines
+  // while the outfield grandstand all faces home. R / fh are the fence radius and
+  // height declared with the outfield fence above.
+  const standMat = new THREE.MeshStandardMaterial({ color: palette.stand ?? '#2b333d', roughness: 0.92 });
+  const crowdColors = ['#e0701a', '#1d8ac4', '#f5b312', '#c8102e', '#2e5944', '#d9d9d9', '#7a4a32', '#444a55', '#b5651d', '#3e8e7e'];
+  const seats = [];
+  const dummy = new THREE.Object3D();
+
+  // sideline bleachers down the 1st/3rd-base lines near home
   for (const sign of [1, -1]) {
-    for (let row = 0; row < 3; row++) {
-      const bench = new THREE.Mesh(new THREE.BoxGeometry(14, 0.5, 1.4), bleacherMat);
-      bench.position.set(sign * (16 + row * 1.5), 0.5 + row * 0.9, 2 + row * 0.4);
+    for (let row = 0; row < 4; row++) {
+      const bench = new THREE.Mesh(new THREE.BoxGeometry(16, 0.5, 1.5), standMat);
+      bench.position.set(sign * (16 + row * 1.6), 0.5 + row * 0.95, 1 + row * 0.5);
       bench.rotation.y = sign * -Math.PI / 14;
       root.add(bench);
     }
   }
-
-  const crowdCount = 140;
-  const bodyGeo = new THREE.CapsuleGeometry(0.22, 0.5, 2, 6);
-  const crowdMat = new THREE.MeshLambertMaterial();
-  const crowd = new THREE.InstancedMesh(bodyGeo, crowdMat, crowdCount);
-  const dummy = new THREE.Object3D();
-  const crowdColors = ['#e0701a', '#1d8ac4', '#f5b312', '#c8102e', '#2e5944', '#d9d9d9', '#7a4a32', '#444a55'];
-  const crowdSeats = [];
-  for (let i = 0; i < crowdCount; i++) {
+  for (let i = 0; i < 120; i++) {
     const sign = i % 2 === 0 ? 1 : -1;
-    const row = Math.floor(Math.random() * 3);
-    const x = sign * (16 + row * 1.5 + (Math.random() - 0.5) * 0.6);
-    const z = 2 + row * 0.4 + (Math.random() - 0.5) * 1.0;
-    const y = 1.1 + row * 0.9;
-    dummy.position.set(x + (Math.random() - 0.5) * 12 * 0.9, y, z);
-    dummy.rotation.y = sign * -Math.PI / 2 + (Math.random() - 0.5) * 0.6;
+    const row = i % 4;
+    const x = sign * (16 + row * 1.6) + (Math.random() - 0.5) * 14;
+    const z = 1 + row * 0.5 + (Math.random() - 0.5) * 1.0;
+    const y = 1.15 + row * 0.95;
+    seats.push({ x, y, z, faceY: sign * -Math.PI / 2 + (Math.random() - 0.5) * 0.5, phase: Math.random() * Math.PI * 2 });
+  }
+
+  // outfield grandstand: tiers of fans packed in beyond the fence, all the way
+  // around the outfield arc, cheering toward home. Uses the fence arc math so the
+  // bowl lines up with the wall (outfield lives on the -Z half: -|sin| * r).
+  const ofArcStart = -Math.PI / 4, ofArcEnd = Math.PI + Math.PI / 4;
+  const ofTiers = 6, ofPerTier = 48;
+  // dark stadium back wall so the crowd reads as seated stands, not floating
+  const wallR = R + ofTiers * 1.9 + 3;
+  const wallH = fh + ofTiers * 1.25 + 2;
+  const wseg = 18;
+  for (let i = 0; i < wseg; i++) {
+    const a0 = ofArcStart + ((ofArcEnd - ofArcStart) * i) / wseg;
+    const a1 = ofArcStart + ((ofArcEnd - ofArcStart) * (i + 1)) / wseg;
+    const p0 = new THREE.Vector3(Math.cos(a0) * wallR, 0, -Math.abs(Math.sin(a0)) * wallR);
+    const p1 = new THREE.Vector3(Math.cos(a1) * wallR, 0, -Math.abs(Math.sin(a1)) * wallR);
+    const width = p0.distanceTo(p1) + 0.4;
+    const panel = new THREE.Mesh(new THREE.PlaneGeometry(width, wallH), standMat);
+    const mid = p0.clone().add(p1).multiplyScalar(0.5);
+    panel.position.set(mid.x, wallH / 2, mid.z);
+    panel.lookAt(0, wallH / 2, 0);
+    root.add(panel);
+  }
+  for (let i = 0; i < ofTiers * ofPerTier; i++) {
+    const tier = i % ofTiers;
+    const a = ofArcStart + (ofArcEnd - ofArcStart) * ((Math.floor(i / ofTiers) + Math.random() * 0.9) / ofPerTier);
+    const rr = R + 2.2 + tier * 1.9 + (Math.random() - 0.5) * 0.8;
+    const x = Math.cos(a) * rr;
+    const z = -Math.abs(Math.sin(a)) * rr;
+    const y = fh * 0.5 + tier * 1.25 + 0.6;
+    seats.push({ x, y, z, faceY: Math.atan2(-x, -z), phase: Math.random() * Math.PI * 2 }); // face home
+  }
+
+  const bodyGeo = new THREE.CapsuleGeometry(0.22, 0.5, 2, 6);
+  const crowd = new THREE.InstancedMesh(bodyGeo, new THREE.MeshLambertMaterial(), seats.length);
+  for (let i = 0; i < seats.length; i++) {
+    const s = seats[i];
+    dummy.position.set(s.x, s.y, s.z);
+    dummy.rotation.set(0, s.faceY, 0);
     dummy.updateMatrix();
     crowd.setMatrixAt(i, dummy.matrix);
     crowd.setColorAt(i, new THREE.Color(crowdColors[i % crowdColors.length]));
-    crowdSeats.push({ x: dummy.position.x, y, z, phase: Math.random() * Math.PI * 2 });
   }
   crowd.instanceMatrix.needsUpdate = true;
   root.add(crowd);
   handles.crowd = crowd;
-  handles.crowdSeats = crowdSeats;
+  handles.crowdSeats = seats;
   handles.crowdEnergy = 0; // 0 idle … 1 going wild; matchScene/cinematics drive this
 
-  // bounce the crowd — subtle at rest, jumping when energy spikes
+  // bounce the whole bowl — subtle at rest, jumping when energy spikes
   handles.updateCrowd = (elapsed) => {
-    for (let i = 0; i < crowdCount; i++) {
-      const seat = crowdSeats[i];
-      const amp = 0.05 + handles.crowdEnergy * 0.35;
-      dummy.position.set(seat.x, seat.y + Math.abs(Math.sin(elapsed * (3 + handles.crowdEnergy * 6) + seat.phase)) * amp, seat.z);
-      dummy.rotation.y = (seat.x > 0 ? -1 : 1) * Math.PI / 2;
+    for (let i = 0; i < seats.length; i++) {
+      const s = seats[i];
+      const amp = 0.05 + handles.crowdEnergy * 0.4;
+      const bounce = Math.abs(Math.sin(elapsed * (3 + handles.crowdEnergy * 6) + s.phase)) * amp;
+      dummy.position.set(s.x, s.y + bounce, s.z);
+      dummy.rotation.set(0, s.faceY, 0);
       dummy.updateMatrix();
       crowd.setMatrixAt(i, dummy.matrix);
     }
