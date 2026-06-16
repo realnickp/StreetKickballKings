@@ -264,11 +264,28 @@ export function buildField(fieldData, scene) {
         const c2 = cv.getContext('2d');
         c2.drawImage(img, 0, 0, img.width, Math.max(1, Math.floor(img.height * 0.05)), 0, 0, cw, ch);
         const d = c2.getImageData(0, 0, cw, ch).data;
-        let r = 0, g = 0, b = 0, n = 0;
-        for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
-        r = Math.round(r / n); g = Math.round(g / n); b = Math.round(b / n);
-        if (skyCap) { skyCap.material.map = makeSkyCapGradient(r, g, b); skyCap.material.needsUpdate = true; }
-        sky.material.map = makeDomeGradient(r, g, b); sky.material.needsUpdate = true;
+        // Use the DARKER pixels of the strip so bright fireworks / floodlights /
+        // lit windows don't skew the sky colour brighter than it really is.
+        const px = [];
+        for (let i = 0; i < d.length; i += 4) {
+          px.push([d[i], d[i + 1], d[i + 2], 0.3 * d[i] + 0.59 * d[i + 1] + 0.11 * d[i + 2]]);
+        }
+        px.sort((a, b2) => a[3] - b2[3]);
+        const dark = px.slice(0, Math.max(1, Math.floor(px.length * 0.6)));
+        let r = 0, g = 0, b = 0;
+        for (const p of dark) { r += p[0]; g += p[1]; b += p[2]; }
+        r = Math.round(r / dark.length); g = Math.round(g / dark.length); b = Math.round(b / dark.length);
+        // Never crush the upper sky to black: lift a dark sky toward a deep
+        // night-blue so it reads as a real night sky, not an empty black void.
+        // Luminance-based so bright skies are untouched and fireworks/floodlights
+        // in the sample can't fool it into staying black.
+        const lum = 0.3 * r + 0.59 * g + 0.11 * b;
+        const t = Math.min(1, Math.max(0, (74 - lum) / 74));
+        const lr = Math.round(r + (38 - r) * t);
+        const lg = Math.round(g + (52 - g) * t);
+        const lb = Math.round(b + (104 - b) * t);
+        if (skyCap) { skyCap.material.map = makeSkyCapGradient([r, g, b], [lr, lg, lb]); skyCap.material.needsUpdate = true; }
+        sky.material.map = makeDomeGradient(lr, lg, lb); sky.material.needsUpdate = true;
       } catch (e) { /* keep the fallback */ }
     };
     img.src = fieldData.textures.backdrop;
@@ -320,15 +337,16 @@ function makeDomeGradient(r, g, b) {
   });
 }
 
-// Sky-cap gradient for the same-radius continuation cylinder: its BOTTOM exactly
-// matches the backdrop's top sky (seamless join), deepening gently toward the top.
-function makeSkyCapGradient(r, g, b) {
+// Sky-cap gradient for the same-radius continuation cylinder. Bottom = the exact
+// backdrop top edge (seamless join); it eases up to the `lift` colour (a deep but
+// never-black sky) and only gently deepens above that. `raw`/`lift` are [r,g,b].
+function makeSkyCapGradient(raw, lift) {
   const cl = (v) => Math.max(0, Math.min(255, Math.round(v)));
   return canvasTexture(64, 256, (ctx, w, h) => {
     const grd = ctx.createLinearGradient(0, 0, 0, h);
-    grd.addColorStop(0, `rgb(${cl(r * 0.62)},${cl(g * 0.64)},${cl(b * 0.70)})`); // high sky (cylinder top), deeper
-    grd.addColorStop(0.5, `rgb(${cl(r * 0.86)},${cl(g * 0.87)},${cl(b * 0.90)})`);
-    grd.addColorStop(1, `rgb(${r},${g},${b})`); // cylinder bottom = exact backdrop top edge
+    grd.addColorStop(0, `rgb(${cl(raw[0])},${cl(raw[1])},${cl(raw[2])})`);                           // bottom = backdrop top (seamless)
+    grd.addColorStop(0.08, `rgb(${cl(lift[0])},${cl(lift[1])},${cl(lift[2])})`);                     // quickly up to the sky colour
+    grd.addColorStop(1, `rgb(${cl(lift[0] * 0.92)},${cl(lift[1] * 0.93)},${cl(lift[2] * 0.95)})`);   // high sky (top), gently deeper
     ctx.fillStyle = grd;
     ctx.fillRect(0, 0, w, h);
   });
