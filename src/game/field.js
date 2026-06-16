@@ -12,6 +12,21 @@ export const FIELD_LAYOUT = {
   pitcher: new THREE.Vector3(0, 0, -12),
 };
 
+// Per-sky lighting so every city reads as its own time-of-day (hemisphere sky/
+// ground tint + sun colour/intensity). Keyed by fields.json `sky`.
+const SKY_PRESETS = {
+  'day':           { hemiSky: '#cfe0ff', hemiGround: '#6a655e', sun: '#fff2dd', sunI: 2.0, hemiI: 1.25 },
+  'sodium-night':  { hemiSky: '#3a3550', hemiGround: '#2a2620', sun: '#ffb066', sunI: 1.1, hemiI: 0.7 },
+  'dusk':          { hemiSky: '#ffb98a', hemiGround: '#4a3f4a', sun: '#ff9d6b', sunI: 1.6, hemiI: 1.0 },
+  'neon-night':    { hemiSky: '#2a2f5a', hemiGround: '#241a30', sun: '#8a78ff', sunI: 1.1, hemiI: 0.85 },
+  'golden-hour':   { hemiSky: '#ffd9a0', hemiGround: '#5a4632', sun: '#ffb867', sunI: 2.0, hemiI: 1.2 },
+  'shaft-light':   { hemiSky: '#9fb0c4', hemiGround: '#3a3a3f', sun: '#fff0d6', sunI: 1.7, hemiI: 0.85 },
+  'overcast':      { hemiSky: '#b8bcc2', hemiGround: '#5a5650', sun: '#d8d4cc', sunI: 1.1, hemiI: 1.3 },
+  'winter':        { hemiSky: '#dce8f5', hemiGround: '#9aa6b0', sun: '#eaf2ff', sunI: 1.6, hemiI: 1.4 },
+  'desert-sunset': { hemiSky: '#ffae73', hemiGround: '#6b4a36', sun: '#ff8a4d', sunI: 2.0, hemiI: 1.15 },
+  'stadium-night': { hemiSky: '#2e3358', hemiGround: '#22202c', sun: '#ffffff', sunI: 1.9, hemiI: 0.95 },
+};
+
 export function buildField(fieldData, scene) {
   const root = new THREE.Group();
   root.name = `field-${fieldData.id}`;
@@ -236,15 +251,21 @@ export function buildField(fieldData, scene) {
   };
 
   // --- sky + lighting ----------------------------------------------------------
+  // A generated full-sky dome when the field defines one, else the canvas gradient.
+  const skyMap = fieldData.textures?.sky
+    ? new THREE.TextureLoader().load(fieldData.textures.sky, (t) => { t.colorSpace = THREE.SRGBColorSpace; })
+    : makeSkyGradient(fieldData.sky);
   const sky = new THREE.Mesh(
-    new THREE.SphereGeometry(240, 24, 12),
-    new THREE.MeshBasicMaterial({ map: makeSkyGradient(fieldData.sky), side: THREE.BackSide, fog: false }),
+    new THREE.SphereGeometry(240, 32, 16),
+    new THREE.MeshBasicMaterial({ map: skyMap, side: THREE.BackSide, fog: false }),
   );
   root.add(sky);
+  handles.sky = sky;
 
-  const hemi = new THREE.HemisphereLight('#cfe0ff', '#6a655e', 1.25);
+  const lp = SKY_PRESETS[fieldData.sky] ?? SKY_PRESETS.day;
+  const hemi = new THREE.HemisphereLight(lp.hemiSky, lp.hemiGround, lp.hemiI);
   root.add(hemi);
-  const sun = new THREE.DirectionalLight('#fff2dd', 2.0);
+  const sun = new THREE.DirectionalLight(lp.sun, lp.sunI);
   sun.position.set(28, 40, 18);
   sun.castShadow = true;
   sun.shadow.mapSize.set(1024, 1024);

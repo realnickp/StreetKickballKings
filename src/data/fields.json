@@ -9,7 +9,7 @@
       "flavor": "none",
       "sky": "day",
       "palette": { "ground": "#3c3f44", "lines": "#e8e6df", "fence": "#9aa0a6", "wall": "#7a4a32" },
-      "textures": { "ground": "assets/textures/asphalt.png", "skyline": "assets/textures/skyline.png" },
+      "textures": { "ground": "assets/textures/asphalt.png", "skyline": "assets/textures/skyline.png", "sky": "assets/textures/sky-blacktop.png" },
       "status": "ready"
     },
     { "id": "subway-yard", "label": "Subway Yard", "homeTeam": "snappers", "fenceM": 40, "flavor": "trains", "sky": "sodium-night", "status": "phase3" },
