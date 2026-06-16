@@ -198,6 +198,7 @@ export class MatchScene {
     this.hud.setScore(s.score);
     this.hud.setInning(s.inning, s.half, s.outs);
     this.hud.setBases(s.bases);
+    this.hud.showSpecial(this.kickingIsPlayer()); // crown super-kick is ONLY for when you're kicking
     this.hud.setSpecial(this.special.value, this.special.ready, this.specialArmed, this.teams[this.playerSide].special.label);
   }
   worldToScreen(v) {

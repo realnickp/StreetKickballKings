@@ -197,9 +197,15 @@ export class Hud {
     if (label) this.specialBtn.title = label;
   }
 
-  /** Show/hide the 5-pitch picker (PITCH role). */
+  /** The crown super-kick button only belongs in the KICK role — hide it on defense. */
+  showSpecial(show) {
+    this.specialBtn.classList.toggle('hidden', !show);
+  }
+
+  /** Show/hide the 5-pitch picker (PITCH role). Lifts the hint above the buttons. */
   showPitchSelect(on) {
     this.pitchSelect.classList.toggle('show', !!on);
+    this.hintEl.classList.toggle('above-pitch', !!on);
   }
 
   /**

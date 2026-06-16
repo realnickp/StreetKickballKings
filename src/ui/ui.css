@@ -206,6 +206,8 @@ body { display: flex; align-items: center; justify-content: center; }
   opacity: 0;
 }
 .action-hint.show { opacity: 1; }
+/* when the pitch picker is up, lift the hint ABOVE the two button rows so it isn't hidden behind them */
+.action-hint.above-pitch { bottom: calc(150px + env(safe-area-inset-bottom)); font-size: 19px; }
 @keyframes hintPulse {
   0%, 100% { transform: translateX(-50%) scale(1); }
   50% { transform: translateX(-50%) scale(1.08); }
@@ -325,6 +327,7 @@ body { display: flex; align-items: center; justify-content: center; }
 .pattern-pad .pat-end { fill: var(--orange); filter: drop-shadow(0 0 6px rgba(240,127,29,.9)); }
 
 /* special move button */
+.special-btn.hidden { display: none; } /* hidden on defense — only shows when you're kicking */
 .special-btn {
   position: absolute;
   right: 14px;
