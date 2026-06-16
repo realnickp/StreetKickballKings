@@ -482,7 +482,7 @@ export class MatchScene {
     }
 
     this.landDist = Math.hypot(lp.x, lp.z);
-    this.isFly = this.pred.apex > 3.2;
+    this.isFly = this.pred.apex > 2.4; // liners/pop-ups are catchable too, not just high arcs
     this.phase = 'LIVE';
     this.liveStart = this.elapsed;
     this.hrFired = false;
@@ -895,8 +895,8 @@ export class MatchScene {
   }
 
   catchRadius() {
-    if (this.playerControlled) return 1.75;
-    return { Rookie: 1.25, Street: 1.45, King: 1.7 }[this.difficulty] ?? 1.45;
+    if (this.playerControlled) return 2.1;
+    return { Rookie: 1.9, Street: 2.2, King: 2.5 }[this.difficulty] ?? 2.2;
   }
 
   /** The chaser tries to catch a fly or scoop a grounder once it's on the ball. */
@@ -907,7 +907,7 @@ export class MatchScene {
     c.faceYaw = Math.atan2(this.ball.pos.x - c.group.position.x, this.ball.pos.z - c.group.position.z);
 
     if (this.isFly && this.ball.bounces === 0 && !this.ball.onGround &&
-        this.ball.vel.y < 0 && this.ball.pos.y < 2.4 && ballDist < this.catchRadius()) {
+        this.ball.vel.y < 0 && this.ball.pos.y < 2.9 && ballDist < this.catchRadius()) {
       c.animator.play('catch');
       return this.catchOut(c);
     }
@@ -1034,22 +1034,46 @@ export class MatchScene {
     }
   }
 
-  /** AI throws to a force-out base if there is one, else pegs the nearest runner. */
+  /** What the AI does with the ball: force out → cut off the lead runner → peg. */
   aiThrowDecision(fielder) {
     if (!fielder.hasBall || this.playFinalized || this.phase === 'RESOLVE') return;
+    // 1) a force out is available → fire to the lead forced bag
     const forcedBase = this.recommendedThrowBase();
     if (forcedBase !== null && !(aiWantsPeg(this.difficulty) && this.landDist < 24)) {
       return this.throwBall(fielder, { base: forcedBase });
     }
-    // No force out available: if a NON-forced runner is caught in flight toward a
-    // bag, throw there to start a rundown (pickle) instead of an easy peg.
-    const trapped = this.runners.find(r =>
-      r.state === 'running' && !r.forced && r.targetBase >= 0 && r.targetBase <= 2 &&
-      r.sim.progressM > this.tuning.running.basePathM * 0.25 &&
-      r.sim.progressM < this.tuning.running.basePathM * 0.85);
-    if (trapped) return this.throwBall(fielder, { base: trapped.targetBase });
-    if (this.pegTarget()) return this.throwBall(fielder, { peg: true });
+    // 2) go after the lead runner who's STILL ADVANCING — peg him if he's close,
+    //    otherwise cut him off at the bag he's headed to (he must retreat → pickle)
+    const lead = this.leadRunner();
+    if (lead) {
+      const toRunner = fielder.group.position.distanceTo(this.runnerWorldPos(lead).p);
+      if (toRunner < 5.5) return this.throwBall(fielder, { peg: true });
+      return this.throwBall(fielder, { base: lead.targetBase });
+    }
     return this.throwBall(fielder, { base: 0 }); // nobody live — flip to first to end it
+  }
+
+  /**
+   * AI defense FINISHES the play. After every throw resolves, if a runner is still
+   * advancing, keep making plays — re-field a loose ball, throw to cut off the lead
+   * runner, work the rundown — until everyone is OUT or HELD. (No more strolling home.)
+   */
+  aiContinue() {
+    if (this.playerControlled || this.playFinalized || this.phase === 'RESOLVE') return;
+    if (!this.runners.some((r) => r.state === 'running')) { this.ballControlled = true; return; }
+    let holder = this.fielders?.find((f) => f.char.hasBall)?.char;
+    if (!holder) {
+      // ball got loose (e.g. a missed peg) — the nearest fielder backs it up
+      holder = this.nearestFielderTo(this.ball.pos);
+      if (!holder) { this.ballControlled = true; return; }
+      holder.hasBall = true;
+      this.ball.place(holder.group.position.clone().setY(1.1));
+      this.ball.mode = 'idle';
+    }
+    this.chaser = holder;
+    this.defenseHasBall = true;
+    this.ballControlled = false;
+    this.after(0.55, () => { if (holder.hasBall && !this.playFinalized) this.aiThrowDecision(holder); });
   }
 
   showBaseRings(on) {
@@ -1093,11 +1117,12 @@ export class MatchScene {
         if (lead.state !== 'running') { // runner already reached a bag — no peg
           this.bus.emit('sfx', 'catchpop');
           this.hud.stamp('SAFE!', 'robbed');
-          return;
+        } else {
+          const hit = resolvePeg({ throwDistM: 0, runnerLateralM: lead.sim.lateral }, this.tuning).hit;
+          if (hit) this.runnerOut(lead, 'pegged');
+          else { this.bus.emit('sfx', 'dodge'); this.hud.stamp('JUKED!', 'robbed'); }
         }
-        const hit = resolvePeg({ throwDistM: 0, runnerLateralM: lead.sim.lateral }, this.tuning).hit;
-        if (hit) this.runnerOut(lead, 'pegged');
-        else { this.bus.emit('sfx', 'dodge'); this.hud.stamp('JUKED!', 'robbed'); }
+        this.aiContinue(); // AI: keep finishing the play (re-field a miss, chase the next runner)
       });
       return;
     }
@@ -1137,7 +1162,7 @@ export class MatchScene {
       }
       if (caught && live && victim.forced && res.out) {
         this.runnerOut(victim, 'forced');
-        if (!this.tryDoublePlay(base)) this.ballControlled = true; // relay to turn two/three
+        if (!this.tryDoublePlay(base)) { this.ballControlled = true; this.aiContinue(); } // turn two, or keep chasing
       } else if (caught && live && !victim.forced) {
         this.startRundown(victim, base); // can't force him — trap him in a pickle
       } else if (!caught) {
@@ -1147,8 +1172,10 @@ export class MatchScene {
         this.ballControlled = true;
         this.hud.stamp('NOBODY COVERING!', 'robbed');
         this.bus.emit('vo', 'safe');
+        this.aiContinue();
       } else {
         this.ballControlled = true; // caught, but the runner beat it / not forced-out — safe
+        this.aiContinue(); // ...still chase any OTHER runner trying to take the next bag
       }
     });
   }
