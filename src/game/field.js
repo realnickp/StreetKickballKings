@@ -134,9 +134,15 @@ export function buildField(fieldData, scene) {
   //     skyline + 2D crowd layers. -------------------------------------------
   const hasBackdrop = !!(fieldData.textures?.backdrop || fieldData.textures?.backdropVideo);
   if (hasBackdrop) {
-    // 3× horizontal wrap (ODD): keeps centre field seam-free (the wrap seam sits
-    // behind home) and keeps the people/buildings from being stretched wide.
-    const tuneTex = (t) => { t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; t.repeat.set(3, 1); };
+    // 3× horizontal wrap (ODD) keeps centre field seam-free (the wrap seam sits
+    // behind home) and keeps people/buildings from stretching wide. Vertical crop
+    // drops the closest/lowest crowd row so the fans read as a thinner band over
+    // the fence (a distant stadium crowd) instead of full looming bodies.
+    const tuneTex = (t) => {
+      t.colorSpace = THREE.SRGBColorSpace;
+      t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
+      t.repeat.set(3, 0.82); t.offset.y = 0.18;
+    };
     // Put the still poster IN the material from the start (so it actually renders),
     // then swap to the looping video once it really starts playing. Robust if the
     // clip is slow, blocked by autoplay policy, or missing — the still stays up.
@@ -159,9 +165,13 @@ export function buildField(fieldData, scene) {
       window.addEventListener('pointerdown', kick, { once: true }); // mobile autoplay may need a gesture
       handles.backdropVideo = video;
     }
-    const bdH = 34, bdR = 48, bdBottom = -2; // sized so the fans sit just beyond the fence
+    // Backdrop sizing (overridable per-field via fieldData.backdropGeo). Pushed
+    // well back beyond the fence so the crowd reads as a distant stadium ring,
+    // not looming right on top of the court.
+    const bg = fieldData.backdropGeo ?? {};
+    const bdR = bg.r ?? 76, bdH = bg.h ?? 44, bdBottom = bg.bottom ?? -2;
     const backdrop = new THREE.Mesh(
-      new THREE.CylinderGeometry(bdR, bdR, bdH, 80, 1, true, 0, Math.PI * 2),
+      new THREE.CylinderGeometry(bdR, bdR, bdH, 96, 1, true, 0, Math.PI * 2),
       mat,
     );
     backdrop.position.set(0, bdBottom + bdH / 2, 0);
