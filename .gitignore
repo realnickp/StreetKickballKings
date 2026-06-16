@@ -15,3 +15,7 @@ public/assets/sprites/
 eleven-test.mp3
 public/voice-samples.html
 public/assets/audio/samples/
+
+# stray root-level screenshots / logs
+/*.png
+*.log
