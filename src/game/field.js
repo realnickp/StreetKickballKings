@@ -126,7 +126,40 @@ export function buildField(fieldData, scene) {
     root.add(side);
   }
 
-  // --- skyline + buildings beyond the fence ----------------------------------
+  // --- backdrop: ONE cohesive Higgsfield-designed scene (fans + city + sky),
+  //     animated as a looping video, in the SAME stylized-realistic 3D render
+  //     style as the players. Wraps the field and replaces the old stitched
+  //     skyline + 2D crowd layers. -------------------------------------------
+  const hasBackdrop = !!(fieldData.textures?.backdrop || fieldData.textures?.backdropVideo);
+  if (hasBackdrop) {
+    let bdTex;
+    if (fieldData.textures?.backdropVideo) {
+      const video = document.createElement('video');
+      video.src = fieldData.textures.backdropVideo;
+      video.loop = true; video.muted = true; video.autoplay = true; video.playsInline = true;
+      video.setAttribute('playsinline', ''); video.setAttribute('muted', '');
+      const kick = () => { video.play().catch(() => {}); };
+      kick();
+      window.addEventListener('pointerdown', kick, { once: true }); // autoplay may need a gesture
+      bdTex = new THREE.VideoTexture(video);
+      handles.backdropVideo = video;
+    } else {
+      bdTex = new THREE.TextureLoader().load(fieldData.textures.backdrop, (t) => { t.colorSpace = THREE.SRGBColorSpace; });
+    }
+    bdTex.colorSpace = THREE.SRGBColorSpace;
+    bdTex.wrapS = THREE.RepeatWrapping;
+    bdTex.repeat.set(2, 1); // wrap the panorama twice so people/buildings keep their proportions
+    const bdH = 34, bdR = 48, bdBottom = -2; // sized so the fans sit just beyond the fence
+    const backdrop = new THREE.Mesh(
+      new THREE.CylinderGeometry(bdR, bdR, bdH, 80, 1, true, 0, Math.PI * 2),
+      new THREE.MeshBasicMaterial({ map: bdTex, side: THREE.BackSide, fog: false }),
+    );
+    backdrop.position.set(0, bdBottom + bdH / 2, 0);
+    root.add(backdrop);
+    handles.backdrop = backdrop;
+  } else {
+
+  // --- skyline + buildings beyond the fence (fallback when no backdrop) -------
   let skylineTex, skylineH = 46, skylineY = 14;
   if (fieldData.textures?.skyline) {
     skylineTex = new THREE.TextureLoader().load(fieldData.textures.skyline, (t) => { t.colorSpace = THREE.SRGBColorSpace; });
@@ -166,56 +199,10 @@ export function buildField(fieldData, scene) {
     }
   }
 
-  // --- crowd: real fans as illustrated sprite-art bleachers (2D, not 3D pills) --
-  // A generated crowd panorama mapped onto LOW stand bands: one wrapping just
-  // beyond the outfield fence, plus the sideline bleachers. The bands are kept
-  // SHORT so the city skyline still rises above the fans. Per-panel UVs sample a
-  // random horizontal slice (hides the tiling) and crop the court strip off the
-  // bottom of the source image so only the rows of people show.
-  const crowdTex = new THREE.TextureLoader().load('assets/textures/crowd.png', (t) => { t.colorSpace = THREE.SRGBColorSpace; });
-  crowdTex.wrapS = crowdTex.wrapT = THREE.RepeatWrapping;
-  const crowdMat = new THREE.MeshBasicMaterial({ map: crowdTex, side: THREE.DoubleSide, fog: false });
-  const crowdPanel = (width, height, metresPerTile = 16) => {
-    const g = new THREE.PlaneGeometry(width, height);
-    const uv = g.attributes.uv;
-    const offU = Math.random();
-    const repU = Math.max(0.6, width / metresPerTile);
-    for (let k = 0; k < uv.count; k++) {
-      uv.setX(k, uv.getX(k) * repU + offU);   // random horizontal slice, tiled around the arc
-      uv.setY(k, uv.getY(k) * 0.74 + 0.25);   // crop the court/ball off the image bottom
-    }
-    uv.needsUpdate = true;
-    return new THREE.Mesh(g, crowdMat);
-  };
-
-  // low grandstand of fans wrapping the outfield, just beyond the fence, facing
-  // home — short enough that the skyline shows above the back row
-  const standH = 6.0;
-  const standR = R + 1.2;
-  const cArcStart = -Math.PI / 4, cArcEnd = Math.PI + Math.PI / 4, cSeg = 16;
-  for (let i = 0; i < cSeg; i++) {
-    const a0 = cArcStart + ((cArcEnd - cArcStart) * i) / cSeg;
-    const a1 = cArcStart + ((cArcEnd - cArcStart) * (i + 1)) / cSeg;
-    const p0 = new THREE.Vector3(Math.cos(a0) * standR, 0, -Math.abs(Math.sin(a0)) * standR);
-    const p1 = new THREE.Vector3(Math.cos(a1) * standR, 0, -Math.abs(Math.sin(a1)) * standR);
-    const width = p0.distanceTo(p1) + 0.3;
-    const panel = crowdPanel(width, standH);
-    const mid = p0.clone().add(p1).multiplyScalar(0.5);
-    panel.position.set(mid.x, standH / 2, mid.z);
-    panel.lookAt(0, standH / 2, 0);
-    root.add(panel);
   }
 
-  // sideline bleachers down the 1st/3rd-base lines near home
-  for (const sign of [1, -1]) {
-    const strip = crowdPanel(26, 5.4, 20);
-    strip.position.set(sign * 18, 2.7, -7);
-    strip.rotation.y = sign * -Math.PI / 2.4;
-    root.add(strip);
-  }
-
-  handles.crowdEnergy = 0; // 0 idle … 1 going wild; read by audio/FX
-  handles.updateCrowd = () => {}; // sprite-art crowd is static; no per-frame work
+  handles.crowdEnergy = 0; // read by audio/FX
+  handles.updateCrowd = () => {}; // backdrop motion comes from its own looping video
 
   // --- sky + lighting ----------------------------------------------------------
   // A generated full-sky dome when the field defines one, else the canvas gradient.
