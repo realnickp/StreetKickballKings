@@ -638,6 +638,19 @@ export class MatchScene {
       ? this.input.tapRate(500, performance.now())
       : 0;
 
+    // A runner who crosses paths with a fielder HOLDING the ball is tagged out —
+    // no throw/peg needed; running into the ball-carrier in the basepath is an out.
+    const holder = this.fieldingChars().find((c) => c.hasBall);
+    if (holder && !this.throwing) {
+      const TAG2 = 1.35 * 1.35;
+      for (const r of this.runners) {
+        if (r.state !== 'running') continue;
+        const dx = r.char.group.position.x - holder.group.position.x;
+        const dz = r.char.group.position.z - holder.group.position.z;
+        if (dx * dx + dz * dz < TAG2) this.runnerOut(r, 'tag');
+      }
+    }
+
     for (const r of this.runners) {
       if (r.state === 'running') {
         const useRate = isPlayerOffense ? rate : r.aiRate;
@@ -1360,8 +1373,8 @@ export class MatchScene {
       if (!this.kickingIsPlayer()) this.special.add('peg');
     } else {
       this.bus.emit('sfx', 'catchpop');
-      this.bus.emit('vo', 'forced'); // out at the bag
-      this.hud.stamp('OUT!', 'pegged');
+      this.bus.emit('vo', 'forced'); // out call
+      this.hud.stamp(reason === 'tag' ? 'TAGGED OUT!' : 'OUT!', 'pegged');
     }
     // Do NOT finalize here — the kicker/other runners may still be live. The
     // natural play-end (ball controlled + nobody running) records the outs.

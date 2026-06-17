@@ -25,6 +25,46 @@ export function teamKits(primary) {
     ? { dark: primary, light: _mix(primary, [255, 255, 255], 0.62) }
     : { light: primary, dark: _mix(primary, [12, 14, 20], 0.55) };
 }
+const _hue = (r, g, b) => {
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  if (d === 0) return 0;
+  let h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  h *= 60; return h < 0 ? h + 360 : h;
+};
+const _lumv = (r, g, b) => 0.299 * r + 0.587 * g + 0.114 * b;
+
+/** Recolor a player image's UNIFORM (the team-primary-hued pixels) to a kit colour,
+ *  preserving the baked shading. Same-origin canvas, so no CORS taint. */
+function recolorUniform(srcUrl, primaryHex, kitHex, onReady) {
+  const im = new Image();
+  im.onload = () => {
+    try {
+      const c = document.createElement('canvas');
+      c.width = im.naturalWidth; c.height = im.naturalHeight;
+      const cx = c.getContext('2d');
+      cx.drawImage(im, 0, 0);
+      if (kitHex.toLowerCase() !== primaryHex.toLowerCase()) {
+        const data = cx.getImageData(0, 0, c.width, c.height); const px = data.data;
+        const [pr, pg, pb] = _hx(primaryHex); const ph = _hue(pr, pg, pb); const pL = _lumv(pr, pg, pb) || 1;
+        const [kr, kg, kb] = _hx(kitHex);
+        for (let i = 0; i < px.length; i += 4) {
+          if (px[i + 3] < 24) continue; // transparent
+          const r = px[i], g = px[i + 1], b = px[i + 2];
+          const mx = Math.max(r, g, b), mn = Math.min(r, g, b); const s = mx === 0 ? 0 : (mx - mn) / mx;
+          if (s < 0.2) continue; // grey/white/near-neutral — not the coloured kit
+          let dh = Math.abs(_hue(r, g, b) - ph); if (dh > 180) dh = 360 - dh;
+          if (dh > 40) continue; // different hue (skin, shoes…) — leave it
+          const shade = Math.min(1.5, _lumv(r, g, b) / pL); // keep this pixel's relative shading
+          px[i] = Math.min(255, kr * shade); px[i + 1] = Math.min(255, kg * shade); px[i + 2] = Math.min(255, kb * shade);
+        }
+        cx.putImageData(data, 0, 0);
+      }
+      onReady(c.toDataURL());
+    } catch { onReady(srcUrl); }
+  };
+  im.onerror = () => onReady(null);
+  im.src = srcUrl;
+}
 
 // ---------- TITLE ----------
 export function TitleScreen(ctx) {
@@ -103,12 +143,15 @@ export function TeamSelectScreen(ctx) {
             <span class="m-city"></span>
             <div class="m-stats"></div>
           </div>
-          <div class="m-kit"><button class="kit-toggle"><i class="kit-swatch"></i><span class="kit-label"></span></button></div>
           <div class="m-players">
             <img class="m-player woman" alt="" />
             <img class="m-player man" alt="" />
           </div>
-          <div class="m-cycle"><button class="prev" aria-label="prev">‹</button><button class="next" aria-label="next">›</button></div>
+          <div class="m-cycle">
+            <button class="prev" aria-label="prev">‹</button>
+            <button class="kit-toggle"><i class="kit-swatch"></i><span class="kit-label"></span></button>
+            <button class="next" aria-label="next">›</button>
+          </div>
         </div>`;
 
       const s = el(`
@@ -143,8 +186,11 @@ export function TeamSelectScreen(ctx) {
         // a man + a woman, each in the team's uniform (logo on the jersey)
         const setImg = (img, src, fallback) => {
           img.style.visibility = 'visible';
-          img.onerror = () => { if (fallback && img.src.indexOf(fallback) < 0) img.src = fallback; else img.style.visibility = 'hidden'; };
-          img.src = src;
+          recolorUniform(src, t.colors.primary, kc, (url) => {
+            if (url) { img.src = url; return; }
+            if (fallback) recolorUniform(fallback, t.colors.primary, kc, (u2) => { if (u2) img.src = u2; else img.style.visibility = 'hidden'; });
+            else img.style.visibility = 'hidden';
+          });
         };
         setImg(w.querySelector('.m-player.man'), `assets/players/${t.id}-man.png`, `assets/players/${t.id}.png`);
         setImg(w.querySelector('.m-player.woman'), `assets/players/${t.id}-woman.png`);

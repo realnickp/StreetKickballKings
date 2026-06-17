@@ -524,14 +524,15 @@ body { display: flex; align-items: center; justify-content: center; }
 
 /* team-select: let horizontal swipes register as gestures (not browser pans) */
 .matchup-screen, .m-side { touch-action: none; }
-/* uniform kit toggle + swatch */
-.m-kit { position: relative; z-index: 3; margin: 4px auto 0; }
-.kit-toggle {
-  display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
-  background: rgba(8, 9, 13, .6); border: 2px solid var(--c1, #2e3344); border-radius: 11px;
-  padding: 4px 10px; font-family: var(--marker); font-size: 12px; letter-spacing: 1px; color: #fff;
+/* uniform kit toggle (lives in the bottom cycle row, between the arrows) */
+.m-cycle { align-items: center; }
+.m-cycle .kit-toggle {
+  width: auto; height: 34px; border-radius: 11px;
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  background: rgba(8, 9, 13, .82); border: 2px solid var(--c1, #2e3344);
+  padding: 0 10px; font-family: var(--marker); font-size: 11px; letter-spacing: .5px; color: #fff; white-space: nowrap;
 }
-.kit-swatch { width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid rgba(255,255,255,.65); background: var(--c1, #888); }
+.kit-swatch { width: 15px; height: 15px; border-radius: 4px; border: 1.5px solid rgba(255,255,255,.7); background: var(--c1, #888); flex: 0 0 auto; }
 
 @keyframes beatBounce { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
 .bounce-beat { animation: beatBounce .632s ease-in-out infinite; } /* 95 BPM */
