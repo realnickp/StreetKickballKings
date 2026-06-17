@@ -582,7 +582,7 @@ body { display: flex; align-items: center; justify-content: center; }
 .daily-card small { flex: 1; font-weight: 600; color: var(--muted); font-size: 12px; }
 .daily-card b { color: var(--teal); }
 
-/* team select — Madden/2K matchup: YOU (left) vs RIVAL (right) */
+/* team select — Madden/2K matchup: AWAY (left) vs HOME (right) */
 .matchup-screen { gap: 6px; justify-content: flex-start; padding: 8px 12px calc(14px + env(safe-area-inset-bottom)); }
 .matchup-screen .screen-title { font-size: 26px; margin: 4px 0 2px; }
 .matchup { position: relative; width: 100%; flex: 1; min-height: 0; display: flex; overflow: hidden; border-radius: 16px; }
@@ -617,7 +617,8 @@ body { display: flex; align-items: center; justify-content: center; }
   position: absolute; bottom: 36px; left: 50%; transform: translateX(-50%);
   width: 100%; height: 50%; z-index: 2;
 }
-.m-side.home .m-players { transform: translateX(-50%) scaleX(-1); }
+/* home side is NOT mirrored — scaleX(-1) flipped the jersey logos backwards */
+.m-side.home .m-players { transform: translateX(-50%); }
 .m-player {
   position: absolute; bottom: 0; left: 50%; width: auto; object-fit: contain;
   object-position: bottom; filter: drop-shadow(0 10px 14px rgba(0,0,0,.55));

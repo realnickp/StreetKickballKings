@@ -181,9 +181,11 @@ export class CinematicDirector {
   }
 
   robbed({ fielder, kicker }) {
+    // ball stays VISIBLE — matchScene.carryHeldBall() keeps it in the fielder's
+    // glove, so the snag reads as a real catch (was hidden because it used to sit
+    // at the body centre and cover them).
     this.cinematicMoment({
       vo: 'robbed',
-      hideBall: true,
       banner: 'ROBBED!', bannerKind: 'robbed',
       panels: [
         { subject: fielder, dur: 1.5, freeze: true, anim: 'catch' },   // the snag, frozen at full reach

@@ -97,13 +97,15 @@ export function MenuScreen(ctx) {
   };
 }
 
-// ---------- TEAM SELECT (Madden-style matchup: YOU on the left, RIVAL on the
-//            right, each a full standing player; cycle each side, then play) ----------
+// ---------- TEAM SELECT (Madden-style matchup: AWAY on the left, HOME on the
+//            right, each a full standing player; cycle each side, then play.
+//            You control the AWAY team; the match is played at the HOME team's
+//            home field — so picking the HOME side chooses the stadium.) ----------
 export function TeamSelectScreen(ctx) {
   return {
     mount(root) {
       const ready = ctx.data.teams.filter(t => t.status === 'ready');
-      const sel = { away: 0, home: Math.min(1, ready.length - 1) }; // away = YOU, home = RIVAL
+      const sel = { away: 0, home: Math.min(1, ready.length - 1) }; // away = you, home = their field
       const kit = { away: 'dark', home: 'light' }; // default contrasting kits (one dark, one light)
 
       const sideHtml = (side, tag) => `
@@ -130,8 +132,8 @@ export function TeamSelectScreen(ctx) {
         <div class="screen matchup-screen">
           <h1 class="screen-title">SET THE MATCHUP</h1>
           <div class="matchup">
-            ${sideHtml('away', 'YOU')}
-            ${sideHtml('home', 'RIVAL')}
+            ${sideHtml('away', 'AWAY')}
+            ${sideHtml('home', 'HOME')}
             <div class="m-vs">VS</div>
           </div>
           <div class="matchup-foot">
@@ -209,7 +211,7 @@ export function TeamSelectScreen(ctx) {
           away: kitFor(ready[sel.away], kit.away).hex,
           home: kitFor(ready[sel.home], kit.home).hex,
         };
-        ctx.startMatchFlow(ready[sel.away], ready[sel.home], kits); // away = player's team, home = rival
+        ctx.startMatchFlow(ready[sel.away], ready[sel.home], kits); // away = you, home = opponent (their field)
       });
 
       render('away');

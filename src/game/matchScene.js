@@ -28,6 +28,11 @@ const DEFENSE_SPOTS = [
 
 // base index: 0=1st, 1=2nd, 2=3rd, 3=home
 const BASE_KEYS = ['first', 'second', 'third', 'home'];
+
+// scratch vectors for snapping a held ball into the holder's hands (no per-frame alloc)
+const _ballHand = new THREE.Vector3();
+const _foreL = new THREE.Vector3();
+const _foreR = new THREE.Vector3();
 const CAM = {
   // KICK role: low behind home, the pitch rolls AT you so you read the timing
   kick: { pos: new THREE.Vector3(0, 3.4, 8.0), look: new THREE.Vector3(0, 1.2, -12) },
@@ -168,6 +173,34 @@ export class MatchScene {
   }
   fieldingChars() {
     return this.chars[this.match.fieldingSide()];
+  }
+  /** Keep a caught/held ball visibly IN the holder's hands every frame — so you
+   *  SEE it after a catch (gameplay AND the replay cinematic) and while a baseman
+   *  holds it, instead of it sitting at the body centre. Tracks the animated
+   *  forearm bones when present (so it rides the raised glove on a snag), else a
+   *  facing-based offset. No-op when nobody is holding or the ball is in flight. */
+  carryHeldBall() {
+    const holder = this.fieldingChars().find((c) => c.hasBall);
+    if (!holder || this.ball.mode === 'flying' || this.ball.mode === 'rolling-pitch') return;
+    const yaw = holder.group.rotation.y;
+    const L = holder.animator?.b?.LForeArm, R = holder.animator?.b?.RForeArm;
+    if (L && R) {
+      L.updateWorldMatrix(true, false); R.updateWorldMatrix(true, false);
+      L.getWorldPosition(_foreL); R.getWorldPosition(_foreR);
+      _ballHand.copy(_foreL).add(_foreR).multiplyScalar(0.5);   // between the two hands
+      _ballHand.x += Math.sin(yaw) * 0.30; _ballHand.z += Math.cos(yaw) * 0.30; // into the palms
+      _ballHand.y += 0.08;
+    } else {
+      const p = holder.group.position; // fallback: right-hand offset from the body, chest height
+      _ballHand.set(
+        p.x + Math.sin(yaw) * 0.32 + Math.cos(yaw) * 0.16,
+        1.2,
+        p.z + Math.cos(yaw) * 0.32 - Math.sin(yaw) * 0.16,
+      );
+    }
+    this.ball.mesh.position.copy(_ballHand);
+    this.ball.vel.set(0, 0, 0);
+    this.ball.mode = 'idle';
   }
   teamShort(side) {
     return this.teams[side].name.split(' ').pop();
@@ -1453,6 +1486,9 @@ export class MatchScene {
         c.group.rotation.y += d * Math.min(1, rawDt * 11);
       }
     }
+
+    // a caught/held ball rides the holder's hands (after the chars are posed)
+    this.carryHeldBall();
 
     for (const timer of [...this.timers]) {
       timer.t -= rawDt;
