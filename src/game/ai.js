@@ -20,20 +20,25 @@ export function aiKickError(difficulty, tuning, pitch, rng = Math.random) {
   // makes the CPU flail; a wobbler meatball gets crushed. Falls back to 0.5 when
   // there's no quality info (e.g. the AI's own pitches), staying backward-compatible.
   const q = Math.max(0, Math.min(1, pitch?.q ?? 0.5));
-  // A good pitch induces real swing-and-miss; a meatball almost never does.
-  const whiff = (ai.whiffChance ?? 0) + q * 0.30;
+  // A nasty pitch should mostly produce WEAK contact (foul / soft grounder), not a
+  // whiff — the CPU still kicks it, just badly. Only a SMALL extra whiff chance on
+  // top pitches keeps the occasional swing-and-miss.
+  const whiff = (ai.whiffChance ?? 0) + q * 0.10;
   if (rng() < whiff) {
     return (rng() < 0.5 ? -1 : 1) * (tuning.kick.okWindowMs * 1.6 + 30 + rng() * 120);
   }
   const [lo, hi] = ai.kickTimingErrMs;
   let mag = lo + rng() * (hi - lo);
-  // quality scales the timing error hard: q=0 → 0.45x (easy meatball), q=1 → 2.0x (nasty)
-  mag *= 0.45 + q * 1.55;
+  // quality widens the timing error: q=0 → 0.6x (meatball, crushed), q=1 → 1.5x (nasty)
+  mag *= 0.6 + q * 0.9;
   if (pitch) {
     const speedF = 1 + Math.max(0, (pitch.speedMph - 72) / 150);
     const breakF = 1 + Math.min(0.18, Math.abs(pitch.curveM ?? 0) * 0.08);
     mag *= speedF * breakF;
   }
+  // Cap it so pitch quality ALONE can't force a whiff — keep the kick in play
+  // (fair-to-weak). Whiffs come from the small explicit roll above, not from here.
+  mag = Math.min(mag, tuning.kick.okWindowMs * 1.45);
   return rng() < 0.5 ? -mag : mag;
 }
 
