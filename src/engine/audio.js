@@ -44,6 +44,7 @@ export class AudioBus {
     this.buffers = new Map();
     this.musicSrc = null;
     this.ambienceSrc = null;
+    this.userVol = { master: 1, music: 1, sfx: 1 }; // sound-editor volumes (0..1)
     this.announcer = null;   // pre-rendered ElevenLabs pack manifest
     this.annVoice = null;    // the booth voice chosen for the current match
     this._lastVo = {};       // per-pool memory for non-repeating lines
@@ -85,11 +86,21 @@ export class AudioBus {
   ensureCtx() {
     if (!this.ctx) {
       this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      // master → destination; each channel routes level-gain → user-gain → master
+      // so ducking can drive the level while the sound editor drives the user gain.
+      this.master = this.ctx.createGain();
+      this.master.gain.value = this.userVol.master;
+      this.master.connect(this.ctx.destination);
       this.gains = {};
+      this.userGains = {};
       for (const ch of ['music', 'sfx', 'vo']) {
-        const g = this.ctx.createGain();
-        g.connect(this.ctx.destination);
-        this.gains[ch] = g;
+        const lvl = this.ctx.createGain();
+        const usr = this.ctx.createGain();
+        usr.gain.value = ch === 'vo' ? 1 : this.userVol[ch];
+        lvl.connect(usr);
+        usr.connect(this.master);
+        this.gains[ch] = lvl;
+        this.userGains[ch] = usr;
       }
       this.gains.music.gain.value = 0.65;
       this.gains.sfx.gain.value = 0.9;
@@ -98,6 +109,16 @@ export class AudioBus {
     if (this.ctx.state === 'suspended') this.ctx.resume();
     return this.ctx;
   }
+
+  /** Sound editor: set a channel's user volume (0..1). ch = 'master' | 'music' | 'sfx'. */
+  setVolume(ch, v) {
+    v = Math.max(0, Math.min(1, v));
+    this.userVol[ch] = v;
+    if (!this.ctx) return; // applied on the next ensureCtx()
+    if (ch === 'master') this.master.gain.value = v;
+    else if (this.userGains?.[ch]) this.userGains[ch].gain.value = v;
+  }
+  getVolume(ch) { return this.userVol[ch] ?? 1; }
 
   async buffer(url) {
     if (this.buffers.has(url)) return this.buffers.get(url);

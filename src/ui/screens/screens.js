@@ -46,6 +46,7 @@ export function MenuScreen(ctx) {
       const title = xp >= 2000 ? 'KING' : xp >= 1200 ? 'LEGEND' : xp >= 600 ? 'BALLER' : xp >= 250 ? 'HUSTLER' : 'ROOKIE';
       const s = el(`
         <div class="screen menu-screen">
+          <button class="menu-settings" aria-label="sound settings">🔊</button>
           <div class="profile-strip">
             <div class="profile-id">
               <div class="pfp">👑</div>
@@ -67,6 +68,7 @@ export function MenuScreen(ctx) {
         ctx.bus.emit('sfx', 'scratch');
         ctx.router.go('teamSelect');
       });
+      s.querySelector('.menu-settings').addEventListener('pointerdown', (e) => { e.stopPropagation(); ctx.showSettings?.(); });
     },
   };
 }
@@ -145,6 +147,15 @@ export function TeamSelectScreen(ctx) {
         const w = s.querySelector(`.m-side.${side}`);
         w.querySelector('.prev').addEventListener('pointerdown', (e) => { e.stopPropagation(); cycle(side, -1); });
         w.querySelector('.next').addEventListener('pointerdown', (e) => { e.stopPropagation(); cycle(side, 1); });
+        // swipe left/right on a side to cycle that team (not just the arrows)
+        let sx = null, sy = null;
+        w.addEventListener('pointerdown', (e) => { sx = e.clientX; sy = e.clientY; });
+        w.addEventListener('pointerup', (e) => {
+          if (sx == null) return;
+          const dx = e.clientX - sx, dy = e.clientY - sy;
+          if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.4) cycle(side, dx < 0 ? 1 : -1);
+          sx = null;
+        });
       }
       s.querySelectorAll('.m-intro').forEach((b) =>
         b.addEventListener('pointerdown', () => playVideo(ready[sel[b.dataset.side]].introVideo)));

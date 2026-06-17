@@ -19,6 +19,15 @@ import fieldsData from './data/fields.json';
 import teamsData from './data/teams.json';
 import tuning from './data/tuning.json';
 
+// ---------- uniform colour helpers (light/dark kits so teams don't clash) ----------
+const hexToRgb = (h) => { h = h.replace('#', ''); return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]; };
+const rgbToHex = (r, g, b) => '#' + [r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+const lum = (hex) => { const [r, g, b] = hexToRgb(hex); return (0.299 * r + 0.587 * g + 0.114 * b) / 255; };
+const mix = (hex, target, t) => { const [r, g, b] = hexToRgb(hex); return rgbToHex(r + (target[0] - r) * t, g + (target[1] - g) * t, b + (target[2] - b) * t); };
+/** A uniform for `hex` that contrasts in brightness with `vsHex`, keeping its hue. */
+const contrastUniform = (hex, vsHex) =>
+  lum(vsHex) < 0.5 ? mix(hex, [255, 255, 255], 0.6) : mix(hex, [12, 14, 20], 0.55);
+
 const canvas = document.getElementById('game-canvas');
 const uiRoot = document.getElementById('ui-root');
 const stage = document.getElementById('stage') ?? document.body;
@@ -155,6 +164,54 @@ async function bootFlow() {
   router.register('coinToss', CoinTossScreen);
   router.register('postGame', PostGameScreen);
 
+  // ---------- pause button + pause/sound overlay ----------
+  const pauseBtn = document.createElement('button');
+  pauseBtn.className = 'pause-btn';
+  pauseBtn.textContent = '❚❚';
+  pauseBtn.style.display = 'none';
+  stage.appendChild(pauseBtn);
+
+  const overlay = document.createElement('div');
+  overlay.className = 'pause-overlay';
+  overlay.innerHTML = `
+    <div class="pause-card">
+      <h2 class="pause-title">PAUSED</h2>
+      <div class="sound-editor">
+        <label><span>MASTER</span><input type="range" min="0" max="100" data-vol="master"></label>
+        <label><span>MUSIC</span><input type="range" min="0" max="100" data-vol="music"></label>
+        <label><span>SFX</span><input type="range" min="0" max="100" data-vol="sfx"></label>
+      </div>
+      <button class="p-resume">RESUME</button>
+      <button class="p-menu">MAIN MENU</button>
+    </div>`;
+  stage.appendChild(overlay);
+  // the overlay swallows pointer events so taps on it never reach the game input
+  for (const ev of ['pointerdown', 'pointermove', 'pointerup']) overlay.addEventListener(ev, (e) => e.stopPropagation());
+
+  // load saved sound-editor volumes into the engine + sliders
+  for (const ch of ['master', 'music', 'sfx']) {
+    const v = save.get('vol_' + ch, 1);
+    audio.setVolume(ch, v);
+    overlay.querySelector(`[data-vol="${ch}"]`).value = Math.round(v * 100);
+  }
+  overlay.querySelectorAll('[data-vol]').forEach((sl) => {
+    sl.addEventListener('input', () => { const ch = sl.dataset.vol, v = sl.value / 100; audio.setVolume(ch, v); save.set('vol_' + ch, v); });
+  });
+
+  const showOverlay = (mode) => {
+    overlay.classList.add('show');
+    overlay.querySelector('.pause-title').textContent = mode === 'pause' ? 'PAUSED' : 'SOUND';
+    overlay.querySelector('.p-menu').style.display = mode === 'pause' ? '' : 'none';
+    overlay.querySelector('.p-resume').textContent = mode === 'pause' ? 'RESUME' : 'CLOSE';
+    if (mode === 'pause') engine.paused = true;
+  };
+  const hideOverlay = () => { overlay.classList.remove('show'); engine.paused = false; };
+  pauseBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); showOverlay('pause'); });
+  overlay.querySelector('.p-resume').addEventListener('pointerdown', (e) => { e.stopPropagation(); hideOverlay(); });
+  overlay.querySelector('.p-menu').addEventListener('pointerdown', (e) => { e.stopPropagation(); hideOverlay(); backToMenu(); });
+  ctx.setMatchActive = (on) => { pauseBtn.style.display = on ? 'flex' : 'none'; if (!on) hideOverlay(); };
+  ctx.showSettings = () => showOverlay('settings');
+
   // "TAP IN" gate gives us the user gesture, so the splash plays WITH the theme
   if (!params.has('nosplash')) {
     await new Promise((resolve) => {
@@ -188,9 +245,13 @@ async function bootFlow() {
 
     // Build the world in parallel with the intro so there's no dead wait at the end.
     if (ctx.scene) ctx.scene.destroy();
+    // Contrasting kits so the two teams never clash: the player keeps their colour,
+    // the opponent wears a light/dark variant that contrasts in brightness.
+    const awayColor = playerTeam.colors.primary;
+    const homeColor = contrastUniform(opponentTeam.colors.primary, awayColor);
     const charsPromise = (async () => ({
-      home: await buildTeamCharsGlb(opponentTeam),
-      away: await buildTeamCharsGlb(playerTeam),
+      home: await buildTeamCharsGlb(opponentTeam, homeColor),
+      away: await buildTeamCharsGlb(playerTeam, awayColor),
     }))();
 
     // INTRO SEQUENCE: kill the theme (so it doesn't fight each video's own music).
@@ -221,14 +282,15 @@ async function bootFlow() {
     ctx.director = ctx.director ?? new CinematicDirector({ engine, bus, hud: ctx.scene.hud, getBall: () => ctx.scene.ball });
     ctx.director.hud = ctx.scene.hud;
 
-    audio.stopMusic();
+    audio.stopMusic();      // silence game music so the coin-toss video's own audio plays clean
     audio.ambience(true);
-    audio.music('beat');
     router.go('coinToss', { scene: ctx.scene, director: ctx.director, playerSide: 'away' });
   }
 
   function beginMatch(firstKick) {
     uiRoot.querySelectorAll('.screen').forEach(s => s.remove());
+    audio.music('beat'); // game music starts AFTER the coin toss — no clash with its video audio
+    ctx.setMatchActive?.(true);
     ctx.scene.startMatch(firstKick);
   }
 
@@ -237,6 +299,7 @@ async function bootFlow() {
   }
 
   function backToMenu() {
+    ctx.setMatchActive?.(false);
     if (ctx.scene) { ctx.scene.destroy(); ctx.scene = null; }
     audio.ambience(false);
     audio.music('theme');
@@ -244,6 +307,7 @@ async function bootFlow() {
   }
 
   bus.on('matchOver', ({ winner, score }) => {
+    ctx.setMatchActive?.(false);
     router.go('postGame', {
       winner, score,
       playerSide: 'away',

@@ -138,6 +138,7 @@ export function createEngine(canvas) {
     camera,
     composer,
     timeScale: 1,
+    paused: false, // when true the frame callbacks (gameplay) freeze but we keep rendering
     fx: { bloomPass, gradePass, comicPass },
     baseBloom: 0.35,
     onFrame(cb) {
@@ -188,8 +189,11 @@ export function createEngine(canvas) {
 
     // a throwing frame callback must NEVER freeze the whole game (skip render /
     // other callbacks). Isolate each one so the loop always survives + renders.
-    for (const cb of [...frameCbs]) {
-      try { cb(dt, rawDt); } catch (e) { console.error('[skk] frame callback error (recovered):', e); }
+    // When paused, skip gameplay callbacks entirely but keep rendering the scene.
+    if (!engine.paused) {
+      for (const cb of [...frameCbs]) {
+        try { cb(dt, rawDt); } catch (e) { console.error('[skk] frame callback error (recovered):', e); }
+      }
     }
 
     if (engine.shakeAmt > 0.001) {

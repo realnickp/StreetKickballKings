@@ -340,10 +340,12 @@ const ARCHETYPES = [
 const FALLBACK_MODEL = '/assets/models/monarchs-23.glb';
 const FEMALE_ARCHETYPES = new Set([2, 5]); // arch-braids, arch-twists
 
-/** Build a full team of detailed GLB characters, recolored to the team's primary. */
-export async function buildTeamCharsGlb(team) {
+/** Build a full team of detailed GLB characters, recolored to a uniform colour
+ *  (defaults to the team's primary; pass `uniformColor` for a light/dark kit so
+ *  two teams don't clash). */
+export async function buildTeamCharsGlb(team, uniformColor) {
   const roster = team.roster ?? [];
-  const primary = team.colors?.primary;
+  const primary = uniformColor ?? team.colors?.primary;
   const out = [];
   for (let i = 0; i < roster.length; i++) {
     const p = roster[i];
