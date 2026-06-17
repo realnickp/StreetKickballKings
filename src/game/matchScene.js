@@ -395,6 +395,7 @@ export class MatchScene {
     this.kicked = false;
 
     if (aiKicks) {
+      this.kicker.group.position.x = 0; // start centred so the CPU visibly slides to line up
       // The full error drives the JUDGE (whiff/foul/contact). But cap WHEN the AI
       // actually swings to ±0.45s of arrival so a big miss never leaves the ball
       // just sitting there (which reads as "frozen"). NaN-guarded so it can't hang.
@@ -953,15 +954,15 @@ export class MatchScene {
   }
 
   catchRadius() {
-    if (this.playerControlled) return 2.0;
-    return { Rookie: 1.5, Street: 1.7, King: 2.0 }[this.difficulty] ?? 1.7;
+    if (this.playerControlled) return 2.2;
+    return { Rookie: 1.9, Street: 2.1, King: 2.4 }[this.difficulty] ?? 2.1;
   }
 
   /** Chance the AI actually SQUEEZES a reachable fly (real fielders drop some) —
    *  this is the main "not every ball is caught" lever. Player catches if they got there. */
   catchSkill() {
     if (this.playerControlled) return 1.0;
-    return { Rookie: 0.5, Street: 0.66, King: 0.84 }[this.difficulty] ?? 0.66;
+    return { Rookie: 0.62, Street: 0.8, King: 0.92 }[this.difficulty] ?? 0.8;
   }
 
   /** The chaser tries to catch a fly or scoop a grounder once it's on the ball. */
@@ -977,7 +978,7 @@ export class MatchScene {
       // Stretched catches (ball near the edge of reach) drop more — positioning matters.
       if (this.catchRoll === null || this.catchRoll === undefined) {
         const reach = Math.min(1, ballDist / this.catchRadius()); // 0 = right on it … 1 = at full stretch
-        this.catchRoll = Math.random() < this.catchSkill() * (1 - 0.4 * reach);
+        this.catchRoll = Math.random() < this.catchSkill() * (1 - 0.25 * reach);
       }
       if (this.catchRoll) { c.animator.play('catch'); return this.catchOut(c); }
       // muffed: fall through, let it drop and play on as a grounder
@@ -1473,6 +1474,14 @@ export class MatchScene {
         this.strike('TOO LATE!');
         this.hud.hideRing();
       }
+    }
+
+    if (this.phase === 'PITCH' && !this.kickingIsPlayer() && this.kicker && !this.kicked) {
+      // CPU kicker slides toward the incoming ball to line up — just like the
+      // player does — so you SEE it move into position before the kick (with lag).
+      const tx = Math.max(-3.4, Math.min(3.4, this.ball.pos.x));
+      const k = this.kicker.group.position;
+      k.x += (tx - k.x) * Math.min(1, rawDt * 5.5);
     }
 
     if (this.phase === 'KICK_ANIM' && this.kicker && !this.kickingIsPlayer()) {
