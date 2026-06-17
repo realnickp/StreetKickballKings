@@ -14,56 +14,28 @@ const statBar = (label, v) => `
     <div class="stat-bar"><i style="width:${v * 10}%"></i></div>
   </div>`;
 
-// ---- uniform kit colours (light/dark so teams don't clash) ----
-const _hx = (h) => { h = h.replace('#', ''); return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]; };
-const _toHex = (r, g, b) => '#' + [r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
-const _lum = (h) => { const [r, g, b] = _hx(h); return (0.299 * r + 0.587 * g + 0.114 * b) / 255; };
-const _mix = (h, t, a) => { const [r, g, b] = _hx(h); return _toHex(r + (t[0] - r) * a, g + (t[1] - g) * a, b + (t[2] - b) * a); };
-/** A team's two kits: its signature colour + a contrasting light/dark variant. */
-export function teamKits(primary) {
-  return _lum(primary) < 0.5
-    ? { dark: primary, light: _mix(primary, [255, 255, 255], 0.62) }
-    : { light: primary, dark: _mix(primary, [12, 14, 20], 0.55) };
-}
-const _hue = (r, g, b) => {
-  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
-  if (d === 0) return 0;
-  let h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
-  h *= 60; return h < 0 ? h + 360 : h;
+// ---- per-team kits ----------------------------------------------------------
+// Every team has a DARK and a LIGHT uniform, and each is a REAL generated image
+// (the signature colour + a contrasting alt), so teams never clash. The toggle
+// just swaps which image is shown — NO runtime canvas tinting. `img` is the
+// filename suffix ('' = base signature image, '-alt' = the generated contrast
+// kit); `hex` drives the in-game 3D uniform so the preview matches the match.
+const KITS = {
+  monarchs:  { dark: { hex: '#16161A', img: '-alt' }, light: { hex: '#F5B312', img: '' } },
+  snappers:  { dark: { hex: '#2E5944', img: '' }, light: { hex: '#ECE5D2', img: '-alt' } },
+  bullies:   { dark: { hex: '#D7263D', img: '' }, light: { hex: '#F2F2F2', img: '-alt' } },
+  funk:      { dark: { hex: '#1B2553', img: '' }, light: { hex: '#F4E3B2', img: '-alt' } },
+  marauders: { dark: { hex: '#1C1C1C', img: '-alt' }, light: { hex: '#E0701A', img: '' } },
+  metros:    { dark: { hex: '#2B2D4F', img: '' }, light: { hex: '#F4F4F0', img: '-alt' } },
+  kestrals:  { dark: { hex: '#2C3035', img: '-alt' }, light: { hex: '#A8D8EA', img: '' } },
+  gilas:     { dark: { hex: '#5A2A1F', img: '-alt' }, light: { hex: '#E8772E', img: '' } },
+  hustlers:  { dark: { hex: '#1D8AC4', img: '' }, light: { hex: '#F1F4F8', img: '-alt' } },
+  threshers: { dark: { hex: '#7A2417', img: '' }, light: { hex: '#EAD9A6', img: '-alt' } },
 };
-const _lumv = (r, g, b) => 0.299 * r + 0.587 * g + 0.114 * b;
-
-/** Recolor a player image's UNIFORM (the team-primary-hued pixels) to a kit colour,
- *  preserving the baked shading. Same-origin canvas, so no CORS taint. */
-function recolorUniform(srcUrl, primaryHex, kitHex, onReady) {
-  const im = new Image();
-  im.onload = () => {
-    try {
-      const c = document.createElement('canvas');
-      c.width = im.naturalWidth; c.height = im.naturalHeight;
-      const cx = c.getContext('2d');
-      cx.drawImage(im, 0, 0);
-      if (kitHex.toLowerCase() !== primaryHex.toLowerCase()) {
-        const data = cx.getImageData(0, 0, c.width, c.height); const px = data.data;
-        const [pr, pg, pb] = _hx(primaryHex); const ph = _hue(pr, pg, pb); const pL = _lumv(pr, pg, pb) || 1;
-        const [kr, kg, kb] = _hx(kitHex);
-        for (let i = 0; i < px.length; i += 4) {
-          if (px[i + 3] < 24) continue; // transparent
-          const r = px[i], g = px[i + 1], b = px[i + 2];
-          const mx = Math.max(r, g, b), mn = Math.min(r, g, b); const s = mx === 0 ? 0 : (mx - mn) / mx;
-          if (s < 0.2) continue; // grey/white/near-neutral — not the coloured kit
-          let dh = Math.abs(_hue(r, g, b) - ph); if (dh > 180) dh = 360 - dh;
-          if (dh > 40) continue; // different hue (skin, shoes…) — leave it
-          const shade = Math.min(1.5, _lumv(r, g, b) / pL); // keep this pixel's relative shading
-          px[i] = Math.min(255, kr * shade); px[i + 1] = Math.min(255, kg * shade); px[i + 2] = Math.min(255, kb * shade);
-        }
-        cx.putImageData(data, 0, 0);
-      }
-      onReady(c.toDataURL());
-    } catch { onReady(srcUrl); }
-  };
-  im.onerror = () => onReady(null);
-  im.src = srcUrl;
+/** Resolve a team's kit for a tone ('dark'|'light'), falling back to the team's
+ *  signature colour + base image for any team missing from the map. */
+export function kitFor(team, tone) {
+  return KITS[team.id]?.[tone] ?? { hex: team.colors.primary, img: '' };
 }
 
 // ---------- TITLE ----------
@@ -173,8 +145,8 @@ export function TeamSelectScreen(ctx) {
       const render = (side) => {
         const t = ready[sel[side]];
         const w = s.querySelector(`.m-side.${side}`);
-        const kc = teamKits(t.colors.primary)[kit[side]];
-        w.style.setProperty('--c1', kc); // accent + kit swatch reflect the chosen uniform
+        const k = kitFor(t, kit[side]);
+        w.style.setProperty('--c1', k.hex); // accent + kit swatch reflect the chosen uniform
         w.style.setProperty('--c2', t.colors.secondary);
         w.querySelector('.kit-label').textContent = kit[side] === 'dark' ? 'DARK KIT' : 'LIGHT KIT';
         w.querySelector('.m-logo').src = t.logo;
@@ -183,17 +155,18 @@ export function TeamSelectScreen(ctx) {
         const avg = (k) => t.roster.reduce((a, p) => a + p.stats[k], 0) / t.roster.length;
         w.querySelector('.m-stats').innerHTML =
           statBar('PWR', avg('power')) + statBar('SPD', avg('speed')) + statBar('ARM', avg('arm')) + statBar('GLV', avg('glove'));
-        // a man + a woman, each in the team's uniform (logo on the jersey)
-        const setImg = (img, src, fallback) => {
+        // a man + a woman, each shown in the SELECTED kit — REAL images, no tint.
+        const setImg = (img, base) => {
           img.style.visibility = 'visible';
-          recolorUniform(src, t.colors.primary, kc, (url) => {
-            if (url) { img.src = url; return; }
-            if (fallback) recolorUniform(fallback, t.colors.primary, kc, (u2) => { if (u2) img.src = u2; else img.style.visibility = 'hidden'; });
-            else img.style.visibility = 'hidden';
-          });
+          const signature = `assets/players/${base}.png`;
+          img.onerror = () => { // alt kit missing -> signature image -> generic team image
+            img.onerror = () => { img.onerror = null; img.src = `assets/players/${t.id}.png`; };
+            img.src = signature;
+          };
+          img.src = `assets/players/${base}${k.img}.png`;
         };
-        setImg(w.querySelector('.m-player.man'), `assets/players/${t.id}-man.png`, `assets/players/${t.id}.png`);
-        setImg(w.querySelector('.m-player.woman'), `assets/players/${t.id}-woman.png`);
+        setImg(w.querySelector('.m-player.man'), `${t.id}-man`);
+        setImg(w.querySelector('.m-player.woman'), `${t.id}-woman`);
       };
 
       const cycle = (side, dir) => {
@@ -233,8 +206,8 @@ export function TeamSelectScreen(ctx) {
       s.querySelector('.m-start').addEventListener('pointerdown', () => {
         ctx.bus.emit('sfx', 'bassdrop');
         const kits = {
-          away: teamKits(ready[sel.away].colors.primary)[kit.away],
-          home: teamKits(ready[sel.home].colors.primary)[kit.home],
+          away: kitFor(ready[sel.away], kit.away).hex,
+          home: kitFor(ready[sel.home], kit.home).hex,
         };
         ctx.startMatchFlow(ready[sel.away], ready[sel.home], kits); // away = player's team, home = rival
       });
