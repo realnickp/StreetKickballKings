@@ -14,6 +14,18 @@ const statBar = (label, v) => `
     <div class="stat-bar"><i style="width:${v * 10}%"></i></div>
   </div>`;
 
+// ---- uniform kit colours (light/dark so teams don't clash) ----
+const _hx = (h) => { h = h.replace('#', ''); return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]; };
+const _toHex = (r, g, b) => '#' + [r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+const _lum = (h) => { const [r, g, b] = _hx(h); return (0.299 * r + 0.587 * g + 0.114 * b) / 255; };
+const _mix = (h, t, a) => { const [r, g, b] = _hx(h); return _toHex(r + (t[0] - r) * a, g + (t[1] - g) * a, b + (t[2] - b) * a); };
+/** A team's two kits: its signature colour + a contrasting light/dark variant. */
+export function teamKits(primary) {
+  return _lum(primary) < 0.5
+    ? { dark: primary, light: _mix(primary, [255, 255, 255], 0.62) }
+    : { light: primary, dark: _mix(primary, [12, 14, 20], 0.55) };
+}
+
 // ---------- TITLE ----------
 export function TitleScreen(ctx) {
   return {
@@ -80,6 +92,7 @@ export function TeamSelectScreen(ctx) {
     mount(root) {
       const ready = ctx.data.teams.filter(t => t.status === 'ready');
       const sel = { away: 0, home: Math.min(1, ready.length - 1) }; // away = YOU, home = RIVAL
+      const kit = { away: 'dark', home: 'light' }; // default contrasting kits (one dark, one light)
 
       const sideHtml = (side, tag) => `
         <div class="m-side ${side}">
@@ -90,6 +103,7 @@ export function TeamSelectScreen(ctx) {
             <span class="m-city"></span>
             <div class="m-stats"></div>
           </div>
+          <div class="m-kit"><button class="kit-toggle"><i class="kit-swatch"></i><span class="kit-label"></span></button></div>
           <div class="m-players">
             <img class="m-player woman" alt="" />
             <img class="m-player man" alt="" />
@@ -116,8 +130,10 @@ export function TeamSelectScreen(ctx) {
       const render = (side) => {
         const t = ready[sel[side]];
         const w = s.querySelector(`.m-side.${side}`);
-        w.style.setProperty('--c1', t.colors.primary);
+        const kc = teamKits(t.colors.primary)[kit[side]];
+        w.style.setProperty('--c1', kc); // accent + kit swatch reflect the chosen uniform
         w.style.setProperty('--c2', t.colors.secondary);
+        w.querySelector('.kit-label').textContent = kit[side] === 'dark' ? 'DARK KIT' : 'LIGHT KIT';
         w.querySelector('.m-logo').src = t.logo;
         w.querySelector('.m-name').textContent = t.name;
         w.querySelector('.m-city').textContent = t.city.toUpperCase() + ' · ' + t.musicGenre.toUpperCase();
@@ -147,21 +163,34 @@ export function TeamSelectScreen(ctx) {
         const w = s.querySelector(`.m-side.${side}`);
         w.querySelector('.prev').addEventListener('pointerdown', (e) => { e.stopPropagation(); cycle(side, -1); });
         w.querySelector('.next').addEventListener('pointerdown', (e) => { e.stopPropagation(); cycle(side, 1); });
-        // swipe left/right on a side to cycle that team (not just the arrows)
-        let sx = null, sy = null;
-        w.addEventListener('pointerdown', (e) => { sx = e.clientX; sy = e.clientY; });
-        w.addEventListener('pointerup', (e) => {
-          if (sx == null) return;
-          const dx = e.clientX - sx, dy = e.clientY - sy;
-          if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.4) cycle(side, dx < 0 ? 1 : -1);
-          sx = null;
+        // tap the kit chip to flip this team's light/dark uniform
+        w.querySelector('.kit-toggle').addEventListener('pointerdown', (e) => {
+          e.stopPropagation();
+          kit[side] = kit[side] === 'dark' ? 'light' : 'dark';
+          ctx.bus.emit('sfx', 'juke');
+          render(side);
         });
+        // swipe left/right on a side to cycle that team (fires on move, capture-safe)
+        let sx = null, sy = null, swiped = false;
+        w.addEventListener('pointerdown', (e) => { sx = e.clientX; sy = e.clientY; swiped = false; try { w.setPointerCapture(e.pointerId); } catch {} });
+        w.addEventListener('pointermove', (e) => {
+          if (sx == null || swiped) return;
+          const dx = e.clientX - sx, dy = e.clientY - sy;
+          if (Math.abs(dx) > 38 && Math.abs(dx) > Math.abs(dy)) { swiped = true; cycle(side, dx < 0 ? 1 : -1); }
+        });
+        const endSwipe = () => { sx = null; };
+        w.addEventListener('pointerup', endSwipe);
+        w.addEventListener('pointercancel', endSwipe);
       }
       s.querySelectorAll('.m-intro').forEach((b) =>
         b.addEventListener('pointerdown', () => playVideo(ready[sel[b.dataset.side]].introVideo)));
       s.querySelector('.m-start').addEventListener('pointerdown', () => {
         ctx.bus.emit('sfx', 'bassdrop');
-        ctx.startMatchFlow(ready[sel.away], ready[sel.home]); // away = player's team, home = rival
+        const kits = {
+          away: teamKits(ready[sel.away].colors.primary)[kit.away],
+          home: teamKits(ready[sel.home].colors.primary)[kit.home],
+        };
+        ctx.startMatchFlow(ready[sel.away], ready[sel.home], kits); // away = player's team, home = rival
       });
 
       render('away');

@@ -230,7 +230,7 @@ async function bootFlow() {
   // dev: jump straight to a screen for screenshots, e.g. ?nosplash&go=teamSelect
   if (params.has('go')) router.go(params.get('go'));
 
-  async function startMatchFlow(playerTeam, opponentTeam) {
+  async function startMatchFlow(playerTeam, opponentTeam, kits) {
     ctx.playerTeam = playerTeam;
     ctx.opponentTeam = opponentTeam;
 
@@ -245,10 +245,10 @@ async function bootFlow() {
 
     // Build the world in parallel with the intro so there's no dead wait at the end.
     if (ctx.scene) ctx.scene.destroy();
-    // Contrasting kits so the two teams never clash: the player keeps their colour,
-    // the opponent wears a light/dark variant that contrasts in brightness.
-    const awayColor = playerTeam.colors.primary;
-    const homeColor = contrastUniform(opponentTeam.colors.primary, awayColor);
+    // Use the kits chosen in team select; otherwise default to contrasting kits so
+    // the two teams never clash (player keeps their colour, opponent gets a variant).
+    const awayColor = kits?.away ?? playerTeam.colors.primary;
+    const homeColor = kits?.home ?? contrastUniform(opponentTeam.colors.primary, awayColor);
     const charsPromise = (async () => ({
       home: await buildTeamCharsGlb(opponentTeam, homeColor),
       away: await buildTeamCharsGlb(playerTeam, awayColor),
