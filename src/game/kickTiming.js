@@ -63,3 +63,14 @@ export function launchParams(judged, opts, tuning) {
     directionDeg: base + timingBias,
   };
 }
+
+/**
+ * A player kick can leave the park only when the power meter is locked in the
+ * sweet zone AND the kicker was lined up under the ball. Both axes required.
+ * @param {{power01:number, alignErrM:number}} k
+ * @returns {boolean}
+ */
+export function isHrEligible({ power01, alignErrM }, tuning) {
+  const c = tuning.kick;
+  return power01 >= c.hrPower && alignErrM <= c.hrAlignM;
+}

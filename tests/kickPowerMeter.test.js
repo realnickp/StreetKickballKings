@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { powerFromError, launchParams, judgeKick } from '../src/game/kickTiming.js';
+import { powerFromError, launchParams, judgeKick, isHrEligible } from '../src/game/kickTiming.js';
 import tuning from '../src/data/tuning.json';
 
 describe('powerFromError', () => {
@@ -27,5 +27,17 @@ describe('launchParams speed scales with power01', () => {
     const k = tuning.kick;
     const expected = k.baseBallSpeedMs + k.power.PERFECT * (k.maxBallSpeedMs - k.baseBallSpeedMs);
     expect(ai.speed).toBeCloseTo(expected, 5);
+  });
+});
+
+describe('isHrEligible', () => {
+  it('true only when both the meter is in the sweet zone AND the kicker is aligned', () => {
+    expect(isHrEligible({ power01: 0.95, alignErrM: 0.3 }, tuning)).toBe(true);
+  });
+  it('false when power is below the sweet zone', () => {
+    expect(isHrEligible({ power01: 0.85, alignErrM: 0.1 }, tuning)).toBe(false);
+  });
+  it('false when the kicker is not lined up', () => {
+    expect(isHrEligible({ power01: 1.0, alignErrM: 1.2 }, tuning)).toBe(false);
   });
 });
