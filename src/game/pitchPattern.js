@@ -7,14 +7,25 @@
 // The HUD flips y to screen space when it draws them.
 
 export const PITCH_PATTERNS = {
-  fastball:   [{ x: 0.5, y: 0 }, { x: 0.5, y: 1 }],                                              // straight up
-  curveLeft:  [{ x: 0.5, y: 0 }, { x: 0.5, y: 0.55 }, { x: 0.18, y: 1 }],                        // up, hook left
-  curveRight: [{ x: 0.5, y: 0 }, { x: 0.5, y: 0.55 }, { x: 0.82, y: 1 }],                        // up, hook right
-  changeup:   [{ x: 0.3, y: 0 }, { x: 0.62, y: 0.34 }, { x: 0.38, y: 0.66 }, { x: 0.7, y: 1 }],  // smooth S
+  // HEAT — straight, vertical lines (small lateral variation so they read distinct)
+  fastball:   [{ x: 0.5, y: 0 }, { x: 0.5, y: 1 }],                                              // dead straight up
+  riser:      [{ x: 0.5, y: 0 }, { x: 0.48, y: 0.5 }, { x: 0.57, y: 1 }],                         // straight, leans late
+  fourSeam:   [{ x: 0.5, y: 0 }, { x: 0.5, y: 0.5 }, { x: 0.5, y: 1 }],                           // dead straight
+  highCheese: [{ x: 0.5, y: 0 }, { x: 0.52, y: 0.5 }, { x: 0.5, y: 1 }],                          // tall straight
+  // BREAK — up then hook
+  curveLeft:  [{ x: 0.5, y: 0 }, { x: 0.5, y: 0.55 }, { x: 0.18, y: 1 }],                         // up, hook left
+  curveRight: [{ x: 0.5, y: 0 }, { x: 0.5, y: 0.55 }, { x: 0.82, y: 1 }],                         // up, hook right
+  slurve:     [{ x: 0.5, y: 0 }, { x: 0.5, y: 0.45 }, { x: 0.26, y: 0.8 }, { x: 0.12, y: 1 }],    // sweeping hook left
+  backdoor:   [{ x: 0.5, y: 0 }, { x: 0.5, y: 0.6 }, { x: 0.68, y: 0.85 }, { x: 0.86, y: 1 }],    // late hook right
+  // JUNK — loopy / wiggly / off-speed
+  changeup:   [{ x: 0.3, y: 0 }, { x: 0.62, y: 0.34 }, { x: 0.38, y: 0.66 }, { x: 0.7, y: 1 }],   // smooth S
   bouncy:     [{ x: 0.3, y: 0 }, { x: 0.62, y: 0.25 }, { x: 0.35, y: 0.5 }, { x: 0.65, y: 0.75 }, { x: 0.4, y: 1 }], // zigzag
+  eephus:     [{ x: 0.36, y: 0 }, { x: 0.62, y: 0.45 }, { x: 0.56, y: 0.82 }, { x: 0.42, y: 1 }], // lobbing arc
+  knuckle:    [{ x: 0.5, y: 0 }, { x: 0.38, y: 0.25 }, { x: 0.6, y: 0.5 }, { x: 0.4, y: 0.75 }, { x: 0.58, y: 1 }], // wobble
 };
 
 // Display order + presentation (label + button color) for the pitch picker.
+// Legacy flat menu (kept for back-compat tests); the HUD now uses PITCH_FAMILY_MENU.
 export const PITCH_MENU = [
   { id: 'fastball',   label: 'FASTBALL',    color: '#e6483d' },
   { id: 'curveLeft',  label: 'LEFT CURVE',  color: '#3b7dd8' },
@@ -22,6 +33,27 @@ export const PITCH_MENU = [
   { id: 'changeup',   label: 'CHANGEUP',    color: '#56c06a' },
   { id: 'bouncy',     label: 'BOUNCY',      color: '#b06ad0' },
 ];
+
+// Three pitch families; each picker button rolls a random variant from its family.
+export const PITCH_FAMILIES = {
+  HEAT:  ['fastball', 'riser', 'fourSeam', 'highCheese'],
+  BREAK: ['curveLeft', 'curveRight', 'slurve', 'backdoor'],
+  JUNK:  ['changeup', 'bouncy', 'eephus', 'knuckle'],
+};
+
+// Display order + presentation for the 3-button family picker.
+export const PITCH_FAMILY_MENU = [
+  { id: 'HEAT',  label: 'HEAT',  color: '#e6483d' },
+  { id: 'BREAK', label: 'BREAK', color: '#3b7dd8' },
+  { id: 'JUNK',  label: 'JUNK',  color: '#b06ad0' },
+];
+
+/** Pick a random variant pitch id from a family (returns null for unknown family). */
+export function pickVariant(family, rng = Math.random) {
+  const ids = PITCH_FAMILIES[family];
+  if (!ids || !ids.length) return null;
+  return ids[Math.floor(rng() * ids.length)];
+}
 
 const RESAMPLE_N = 24;
 

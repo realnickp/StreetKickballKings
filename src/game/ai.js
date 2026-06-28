@@ -42,6 +42,11 @@ export function aiKickError(difficulty, tuning, pitch, rng = Math.random) {
   return rng() < 0.5 ? -mag : mag;
 }
 
+/** Does the CPU ignite this pitch? Per-difficulty chance lives in tuning.pitch.cpuFireChance. */
+export function aiThrowsFire(difficulty, tuning, rng = Math.random) {
+  return rng() < (tuning.pitch.cpuFireChance?.[difficulty] ?? 0);
+}
+
 /** AI aim choice — slight pull tendency, occasional bunt on King. */
 export function aiAim(difficulty, rng = Math.random) {
   const r = rng();
