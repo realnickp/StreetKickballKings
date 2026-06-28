@@ -338,7 +338,7 @@ export function buildField(fieldData, scene) {
   // players and ball so they pop off the crowd ring (a broadcast separation cue).
   // Accent only — casts no shadow, modest intensity — tinted with the preset's sky
   // hue so it reads cool or warm to match the field's mood. Aims at home (origin).
-  const rim = new THREE.DirectionalLight(lp.hemiSky, 0.8);
+  const rim = new THREE.DirectionalLight(lp.hemiSky, 0.28);
   rim.position.set(-20, 30, -40);
   rim.castShadow = false;
   root.add(rim);
