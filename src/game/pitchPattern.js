@@ -7,21 +7,21 @@
 // The HUD flips y to screen space when it draws them.
 
 export const PITCH_PATTERNS = {
-  // HEAT — straight, vertical lines (small lateral variation so they read distinct)
+  // HEAT — quick, straight strokes but in DISTINCT directions so each reads/feels different.
   fastball:   [{ x: 0.5, y: 0 }, { x: 0.5, y: 1 }],                                              // dead straight up
-  riser:      [{ x: 0.5, y: 0 }, { x: 0.48, y: 0.5 }, { x: 0.57, y: 1 }],                         // straight, leans late
-  fourSeam:   [{ x: 0.5, y: 0 }, { x: 0.5, y: 0.5 }, { x: 0.5, y: 1 }],                           // dead straight
-  highCheese: [{ x: 0.5, y: 0 }, { x: 0.52, y: 0.5 }, { x: 0.5, y: 1 }],                          // tall straight
-  // BREAK — up then hook
-  curveLeft:  [{ x: 0.5, y: 0 }, { x: 0.5, y: 0.55 }, { x: 0.18, y: 1 }],                         // up, hook left
-  curveRight: [{ x: 0.5, y: 0 }, { x: 0.5, y: 0.55 }, { x: 0.82, y: 1 }],                         // up, hook right
-  slurve:     [{ x: 0.5, y: 0 }, { x: 0.5, y: 0.45 }, { x: 0.26, y: 0.8 }, { x: 0.12, y: 1 }],    // sweeping hook left
-  backdoor:   [{ x: 0.5, y: 0 }, { x: 0.5, y: 0.6 }, { x: 0.68, y: 0.85 }, { x: 0.86, y: 1 }],    // late hook right
-  // JUNK — loopy / wiggly / off-speed
-  changeup:   [{ x: 0.3, y: 0 }, { x: 0.62, y: 0.34 }, { x: 0.38, y: 0.66 }, { x: 0.7, y: 1 }],   // smooth S
-  bouncy:     [{ x: 0.3, y: 0 }, { x: 0.62, y: 0.25 }, { x: 0.35, y: 0.5 }, { x: 0.65, y: 0.75 }, { x: 0.4, y: 1 }], // zigzag
-  eephus:     [{ x: 0.36, y: 0 }, { x: 0.62, y: 0.45 }, { x: 0.56, y: 0.82 }, { x: 0.42, y: 1 }], // lobbing arc
-  knuckle:    [{ x: 0.5, y: 0 }, { x: 0.38, y: 0.25 }, { x: 0.6, y: 0.5 }, { x: 0.4, y: 0.75 }, { x: 0.58, y: 1 }], // wobble
+  riser:      [{ x: 0.28, y: 0 }, { x: 0.72, y: 1 }],                                            // diagonal up-right
+  fourSeam:   [{ x: 0.72, y: 0 }, { x: 0.28, y: 1 }],                                            // diagonal up-left
+  highCheese: [{ x: 0.5, y: 0 }, { x: 0.5, y: 0.68 }, { x: 0.78, y: 1 }],                        // up, snap right at the top
+  // BREAK — big pronounced hooks/arcs in different directions.
+  curveLeft:  [{ x: 0.5, y: 0 }, { x: 0.56, y: 0.55 }, { x: 0.14, y: 1 }],                       // up, hard hook left
+  curveRight: [{ x: 0.5, y: 0 }, { x: 0.44, y: 0.55 }, { x: 0.86, y: 1 }],                       // up, hard hook right
+  slurve:     [{ x: 0.74, y: 0 }, { x: 0.46, y: 0.5 }, { x: 0.18, y: 1 }],                       // sweeping C-arc, right→left
+  backdoor:   [{ x: 0.5, y: 0 }, { x: 0.26, y: 0.42 }, { x: 0.5, y: 0.72 }, { x: 0.82, y: 1 }],  // reverse-S, left then back right
+  // JUNK — loopy / wiggly / off-speed, the most exaggerated shapes.
+  changeup:   [{ x: 0.3, y: 0 }, { x: 0.66, y: 0.34 }, { x: 0.34, y: 0.66 }, { x: 0.7, y: 1 }],  // smooth S
+  bouncy:     [{ x: 0.28, y: 0 }, { x: 0.74, y: 0.25 }, { x: 0.28, y: 0.5 }, { x: 0.74, y: 0.75 }, { x: 0.38, y: 1 }], // sharp zigzag
+  eephus:     [{ x: 0.4, y: 0 }, { x: 0.74, y: 0.42 }, { x: 0.58, y: 0.82 }, { x: 0.26, y: 1 }], // big looping arch over the top
+  knuckle:    [{ x: 0.5, y: 0 }, { x: 0.36, y: 0.2 }, { x: 0.62, y: 0.4 }, { x: 0.4, y: 0.6 }, { x: 0.6, y: 0.8 }, { x: 0.46, y: 1 }], // tight wobble
 };
 
 // Display order + presentation (label + button color) for the pitch picker.

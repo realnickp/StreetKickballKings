@@ -29,8 +29,10 @@ export function aiKickError(difficulty, tuning, pitch, rng = Math.random) {
   }
   const [lo, hi] = ai.kickTimingErrMs;
   let mag = lo + rng() * (hi - lo);
-  // quality widens the timing error: q=0 → 0.6x (meatball, crushed), q=1 → 1.5x (nasty)
-  mag *= 0.6 + q * 0.9;
+  // quality widens the timing error: q=0 → 0.55x (meatball, crushed), q=1 → 1.05x (nasty).
+  // Capped near 1x so a great pitch makes the CPU flail to WEAK/foul contact, not auto-foul
+  // every pitch — a nasty HEAT was pushing error past the foul line ~100% of the time.
+  mag *= 0.55 + q * 0.5;
   if (pitch) {
     const speedF = 1 + Math.max(0, (pitch.speedMph - 72) / 150);
     const breakF = 1 + Math.min(0.18, Math.abs(pitch.curveM ?? 0) * 0.08);
