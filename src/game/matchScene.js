@@ -5,7 +5,7 @@
 // exact field outcome via applyOutcome().
 import * as THREE from 'three';
 import { MatchEngine } from './matchState.js';
-import { judgeKick, launchParams } from './kickTiming.js';
+import { judgeKick, launchParams, powerFromError, isHrEligible } from './kickTiming.js';
 import { mashSpeed, humanRunSpeed, RunnerSim } from './baseRunning.js';
 import { resolveBaseThrow, resolvePeg } from './throwing.js';
 import { SpecialMeter } from './specialMoves.js';
@@ -445,7 +445,9 @@ export class MatchScene {
   attemptKick(aimSpec, tapTime) {
     if (this.kicked || this.phase !== 'PITCH') return;
     this.kicked = true;
-    this.kickWasSpecial = false; // only a consumed crown kick may leave the park
+    this.kickWasSpecial = false;
+    this.kickHrEligible = false;
+    const isPlayerKick = this.kickingIsPlayer();
     // AI passes its intended errMs directly; the human's comes from release timing
     const errMs = aimSpec.errMs !== undefined ? aimSpec.errMs : (tapTime - this.pitchArrival) * 1000;
 
@@ -454,12 +456,16 @@ export class MatchScene {
     // positioning bias the aim (you reach across to pull it). AI path has no align.
     let effErr = Math.abs(errMs);
     let aimDeg = aimSpec.aimDeg;
+    let alignErrM = 0;
     if (aimSpec.align) {
       const alignErr = this.kicker.group.position.x - this.ball.pos.x;
-      effErr = Math.abs(errMs) + Math.abs(alignErr) * 175;
+      alignErrM = Math.abs(alignErr);
+      effErr = Math.abs(errMs) + alignErrM * 175;
       aimDeg = Math.max(-this.tuning.kick.aimSpreadDeg, Math.min(this.tuning.kick.aimSpreadDeg, -alignErr * 22));
     }
     this.hud.hideRing();
+    this.hud.hidePowerMeter();
+    const power01 = isPlayerKick ? powerFromError(errMs, this.tuning) : null;
 
     if (effErr > this.tuning.kick.okWindowMs * 1.6) {
       this.strike('WHIFF!');
@@ -477,7 +483,16 @@ export class MatchScene {
       }
       this.specialArmed = false;
     }
-    const launch = launchParams(judged, { ...aimSpec, ...(aimDeg != null ? { aimDeg } : {}), powerMult }, this.tuning);
+    // HR gate: a player kick leaves the park on a sweet-zone meter lock AND a lined-up
+    // kicker — OR a consumed crown super-kick (kept as a bonus path).
+    this.kickHrEligible = isPlayerKick && (
+      isHrEligible({ power01, alignErrM }, this.tuning) || this.kickWasSpecial
+    );
+    const launch = launchParams(
+      judged,
+      { ...aimSpec, ...(aimDeg != null ? { aimDeg } : {}), powerMult, ...(power01 != null ? { power01 } : {}) },
+      this.tuning,
+    );
     this.judged = judged;
     this.launchSpec = launch;
 
@@ -1509,7 +1524,14 @@ export class MatchScene {
         this.kicked = true;
         this.strike('TOO LATE!');
         this.hud.hideRing();
+        this.hud.hidePowerMeter();
       }
+    }
+
+    if (this.phase === 'PITCH' && this.kickingIsPlayer() && !this.kicked && this.pitchArrival != null) {
+      // Power peaks (1.0) exactly at plate arrival, then falls — same curve the kick samples.
+      const errNow = (this.elapsed - this.pitchArrival) * 1000;
+      this.hud.setPowerMarker(powerFromError(errNow, this.tuning));
     }
 
     if (this.phase === 'PITCH' && !this.kickingIsPlayer() && this.kicker && !this.kicked) {
@@ -1537,7 +1559,7 @@ export class MatchScene {
       const dist = Math.hypot(this.ball.pos.x, this.ball.pos.z);
       // a homer must clear the wall IN THE AIR (containment bounces shorter balls
       // back) AND be a crown super-kick — ordinary perfect contact stays in the park
-      if (!this.hrFired && this.kickWasSpecial && dist >= this.fenceM - 0.3 && this.ball.pos.y > this.fenceTopY * 0.8 && this.ball.bounces === 0) {
+      if (!this.hrFired && this.kickHrEligible && dist >= this.fenceM - 0.3 && this.ball.pos.y > this.fenceTopY * 0.8 && this.ball.bounces === 0) {
         this.homer();
       }
       // dead-ball safety net
