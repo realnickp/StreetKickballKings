@@ -156,8 +156,10 @@ export function createEngine(canvas) {
   function rebuildChain() {
     composer.passes.length = 0;
     composer.addPass(renderPass);
-    // AO sits right after the scene render, before bloom — high quality only (mobile skips)
-    if (quality === 'high' && aoPass) composer.addPass(aoPass);
+    // AO disabled: GTAO produced big dark halo-discs under players and a black box
+    // around the fast-moving ball. The env map + sun shadows already ground the scene;
+    // revisit with a properly tuned (much smaller radius) pass later.
+    // if (quality === 'high' && aoPass) composer.addPass(aoPass);
     composer.addPass(bloomPass);
     if (quality === 'high') composer.addPass(gradePass);
     composer.addPass(comicPass); // cheap when amount=0; director ramps it
