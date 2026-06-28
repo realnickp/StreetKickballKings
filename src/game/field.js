@@ -322,12 +322,16 @@ export function buildField(fieldData, scene) {
   const sun = new THREE.DirectionalLight(lp.sun, lp.sunI);
   sun.position.set(28, 40, 18);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(1024, 1024);
-  sun.shadow.camera.left = -45;
-  sun.shadow.camera.right = 45;
-  sun.shadow.camera.top = 45;
-  sun.shadow.camera.bottom = -45;
+  // Higher-res map + a tighter frustum (±38 still covers the ~42m fence play near home)
+  // = crisper contact shadows. Bias pair kills shadow acne and peter-panning.
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.left = -38;
+  sun.shadow.camera.right = 38;
+  sun.shadow.camera.top = 38;
+  sun.shadow.camera.bottom = -38;
   sun.shadow.camera.far = 120;
+  sun.shadow.bias = -0.0004;
+  sun.shadow.normalBias = 0.02;
   root.add(sun);
 
   // Rim / back light from behind-above the play: skims the tops and edges of the
