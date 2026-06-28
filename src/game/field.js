@@ -152,7 +152,9 @@ export function buildField(fieldData, scene) {
     const tuneTex = (t) => {
       t.colorSpace = THREE.SRGBColorSpace;
       t.wrapS = THREE.MirroredRepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
-      t.repeat.set(4, 0.82); t.offset.y = 0.18;
+      // Fewer horizontal tiles = bigger fans, far less obvious cloning. Still EVEN so the
+      // mirrored ring stays seamless at every boundary (including the cylinder wrap point).
+      t.repeat.set(2, 0.82); t.offset.y = 0.18;
     };
     // Put the still poster IN the material from the start (so it actually renders),
     // then swap to the looping video once it really starts playing. Robust if the
@@ -161,6 +163,9 @@ export function buildField(fieldData, scene) {
       ? new THREE.TextureLoader().load(fieldData.textures.backdrop, tuneTex)
       : null;
     const mat = new THREE.MeshBasicMaterial({ map: stillTex, side: THREE.BackSide, fog: false });
+    // Gently knock the backdrop down from full-bright so the crowd ring reads as a
+    // distant lit stand sitting BEHIND the action, not glowing wallpaper.
+    mat.color.setScalar(0.85);
     if (fieldData.textures?.backdropVideo) {
       const video = document.createElement('video');
       video.src = fieldData.textures.backdropVideo;
@@ -302,6 +307,14 @@ export function buildField(fieldData, scene) {
   }
 
   const lp = SKY_PRESETS[fieldData.sky] ?? SKY_PRESETS.day;
+
+  // Light exponential fog tinted toward the horizon sky so the midground/outfield
+  // recedes into the backdrop (a real depth cue). The backdrop + sky materials carry
+  // fog:false, so only the FIELD geometry and players haze with distance — never the
+  // sky/crowd. Density kept low so the infield stays crisp and un-greyed.
+  const fogColor = (SKY_DOME[fieldData.sky] ?? SKY_DOME.day)[3];
+  scene.fog = new THREE.FogExp2(new THREE.Color(fogColor), 0.006);
+
   const hemi = new THREE.HemisphereLight(lp.hemiSky, lp.hemiGround, lp.hemiI);
   root.add(hemi);
   // a small ambient floor so ACES tone-mapping never crushes the court to black
