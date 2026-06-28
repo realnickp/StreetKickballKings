@@ -326,6 +326,35 @@ body { display: flex; align-items: center; justify-content: center; }
 .pattern-pad .pat-start { fill: #43e06a; filter: drop-shadow(0 0 6px rgba(67,224,106,.9)); }
 .pattern-pad .pat-end { fill: var(--orange); filter: drop-shadow(0 0 6px rgba(240,127,29,.9)); }
 
+/* PITCH role: trace countdown bar (sits just below the pattern pad) */
+.trace-timer {
+  position: absolute;
+  left: 50%;
+  bottom: calc(104px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(70cqw, 260px);
+  height: 1.5cqh;
+  min-height: 9px;
+  background: rgba(8, 10, 14, .72);
+  border: 2px solid rgba(255, 255, 255, .18);
+  border-radius: 999px;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity .12s ease;
+  pointer-events: none;
+  z-index: 6;
+}
+.trace-timer.show { opacity: 1; }
+.trace-timer .tt-fill {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 100%;
+  background: linear-gradient(to right, #f5a623, #e6483d);
+  border-radius: 999px;
+  transition: width .08s linear;
+}
+.trace-timer .tt-fill.low { background: #e6483d; }
+
 /* special move button */
 .special-btn.hidden { display: none; } /* hidden on defense — only shows when you're kicking */
 .special-btn {
@@ -800,3 +829,45 @@ body { display: flex; align-items: center; justify-content: center; }
   background: rgba(255, 255, 255, .06);
 }
 .pause-card .p-resume { background: var(--gold, #f5b312); color: #15110a; border-color: var(--gold, #f5b312); }
+.power-meter {
+  position: absolute;
+  right: 3cqw;
+  bottom: 22cqh;
+  width: 7cqw;
+  height: 34cqh;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+  z-index: 6;
+}
+.power-meter.show { opacity: 1; }
+.power-meter .pm-track {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: rgba(8, 10, 14, 0.72);
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+}
+.power-meter .pm-sweet {
+  position: absolute;
+  left: 0; right: 0;
+  bottom: 90%; height: 10%;
+  background: rgba(255, 215, 64, 0.30);
+  border-top: 1px solid rgba(255, 215, 64, 0.9);
+  border-bottom: 1px solid rgba(255, 215, 64, 0.9);
+}
+.power-meter .pm-fill {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 0%;
+  background: linear-gradient(to top, #2bd1c4, #f5a623, #e6483d);
+}
+.power-meter .pm-marker {
+  position: absolute;
+  left: -8%; right: -8%;
+  height: 3px;
+  bottom: 0%;
+  background: #fff;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.9);
+}

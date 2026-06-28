@@ -5,12 +5,13 @@
 // exact field outcome via applyOutcome().
 import * as THREE from 'three';
 import { MatchEngine } from './matchState.js';
-import { judgeKick, launchParams } from './kickTiming.js';
+import { judgeKick, launchParams, powerFromError, isHrEligible } from './kickTiming.js';
 import { mashSpeed, humanRunSpeed, RunnerSim } from './baseRunning.js';
 import { resolveBaseThrow, resolvePeg } from './throwing.js';
 import { SpecialMeter } from './specialMoves.js';
-import { pickPitch, aiKickError, aiAim, aiWantsPeg, aiMashRate, aiJukes } from './ai.js';
-import { PITCH_PATTERNS, scoreTrace } from './pitchPattern.js';
+import { pickPitch, aiKickError, aiAim, aiWantsPeg, aiMashRate, aiJukes, aiThrowsFire } from './ai.js';
+import { PITCH_PATTERNS, PITCH_FAMILIES, pickVariant, scoreTrace } from './pitchPattern.js';
+import { igniteBall, douseBall } from '../cinematics/fx.js';
 import { Ball } from './ball.js';
 import { buildField, FIELD_LAYOUT } from './field.js';
 import { Hud } from '../ui/screens/hud.js';
@@ -353,13 +354,22 @@ export class MatchScene {
     this.hud.hidePattern();
     this.hud.hint('SLIDE TO LINE UP — FLICK UP TO KICK');
     this.kicker.group.position.x = 0; // start centred; you slide left/right to line up
+    this._kickerPrevX = 0; // reset stride tracker so the recenter isn't read as a slide
     this.pitch = pickPitch(this.tuning);
     // varied plate location so you must move the kicker to line up the incoming
     // ball (kept modest — curves already add up to ~2.2m of lateral, and the
     // kicker can slide ±3.4m, so curve + location stays reachable)
     const locX = (Math.random() - 0.5) * 1.6; // ±0.8m
     this.pitchLocX = locX;
+    // The CPU may throw a FIRE pitch at the human — narrows the kick window (Step 4).
+    this.pitch.fire = aiThrowsFire(this.difficulty, this.tuning);
+    if (this.pitch.fire) { igniteBall(this.ball); this.hud.fireBadge(true); }
     this.servePitch(this.pitch, /*aiKicks=*/false, locX);
+  }
+
+  /** Fire pitches shrink the human's sweet zone + speed the meter sweep via one knob. */
+  kickWindowScale() {
+    return this.pitch?.fire ? this.tuning.pitch.fireKickWindowScale : 1;
   }
 
   // ---------- PITCH role: you pick a pitch + trace its pattern ----------
@@ -370,43 +380,52 @@ export class MatchScene {
     this.hud.hidePitch();
     this.hud.hideRing();
     this.hud.showPitchSelect(true);
-    this.hud.hint('PICK YOUR PITCH');
+    this.hud.hint('PICK A PITCH TYPE');
   }
 
-  onPitchSelect(id) {
-    if (this.phase !== 'PITCH_SELECT' || !PITCH_PATTERNS[id]) return;
-    this.selectedPitch = id;
+  onPitchSelect(familyId) {
+    if (this.phase !== 'PITCH_SELECT' || !PITCH_FAMILIES[familyId]) return;
+    this.selectedPitch = pickVariant(familyId);
     this.traceBuf = [];
+    this.traceExpired = false;
     this.hud.showPitchSelect(false);
-    this.hud.showPattern(PITCH_PATTERNS[id]);
+    this.hud.showPattern(PITCH_PATTERNS[this.selectedPitch]);
     this.hud.updateTrace([]);
+    // start the trace countdown — trace it before the bar empties or it's a wobbler
+    this.traceStartedAt = this.elapsed;
+    this.traceDeadline = this.elapsed + this.tuning.pitch.traceTimerMs / 1000;
+    this.hud.showTraceTimer();
     this.phase = 'PITCH_TRACE';
-    this.hud.hint('TRACE IT!');
+    this.hud.hint('TRACE IT — FAST!');
   }
 
   onStroke(e) {
     if (this.phase !== 'PITCH_TRACE') return;
+    this.hud.hideTraceTimer();
     const t = this.tuning.pitch.trace;
     const res = scoreTrace(e.points, PITCH_PATTERNS[this.selectedPitch], {
       tolerance: t.tolerance, durMs: e.dur, speedFastMs: t.speedFastMs, speedSlowMs: t.speedSlowMs,
     });
     this.hud.hidePattern();
-    const label = res.quality > 0.85 ? 'NASTY!' : res.quality > 0.6 ? 'GOOD HEAT' : 'WOBBLER';
+    const fire = res.quality >= this.tuning.pitch.fireQualityThreshold;
+    const label = fire ? 'NASTY!' : res.quality > 0.6 ? 'GOOD HEAT' : 'WOBBLER';
     this.hud.pitchGrade(label, res.quality > 0.6); // small top badge, not a big center stamp
-    this.throwPlayerPitch(this.selectedPitch, res.quality);
+    this.throwPlayerPitch(this.selectedPitch, res.quality, fire);
+    if (fire) this.hud.fireBadge(true);
   }
 
   /** Build a quality-scaled pitch from the player's trace and serve it; AI kicks. */
-  throwPlayerPitch(id, q) {
+  throwPlayerPitch(id, q, fire = false) {
     const def = this.tuning.pitch.types[id];
     const Q = this.tuning.pitch.quality;
     const speedMph = Math.round(def.speedMph[1] * (Q.weakSpeedFactor + (1 - Q.weakSpeedFactor) * q));
     const curveM = def.curveM * (Q.minBreakFactor + (1 - Q.minBreakFactor) * q);
     const wildX = (1 - q) * Q.maxWildM * (Math.random() - 0.5) * 2; // sloppy = off-target
-    this.pitch = { id, speedMph, curveM, ease: def.ease, bounce: def.bounce, q }; // q drives AI kick difficulty
+    this.pitch = { id, speedMph, curveM, ease: def.ease, bounce: def.bounce, q, fire }; // q drives AI kick difficulty
     this.phase = 'PITCH';
     this.hud.hint('');
     this.servePitch(this.pitch, /*aiKicks=*/true, wildX);
+    if (fire) igniteBall(this.ball);
   }
 
   /** Shared ball serve for both roles. */
@@ -429,6 +448,7 @@ export class MatchScene {
 
     if (aiKicks) {
       this.kicker.group.position.x = 0; // start centred so the CPU visibly slides to line up
+      this._kickerPrevX = 0; // reset stride tracker so the recenter isn't read as a slide
       // The full error drives the JUDGE (whiff/foul/contact). But cap WHEN the AI
       // actually swings to ±0.45s of arrival so a big miss never leaves the ball
       // just sitting there (which reads as "frozen"). NaN-guarded so it can't hang.
@@ -445,7 +465,10 @@ export class MatchScene {
   attemptKick(aimSpec, tapTime) {
     if (this.kicked || this.phase !== 'PITCH') return;
     this.kicked = true;
-    this.kickWasSpecial = false; // only a consumed crown kick may leave the park
+    douseBall(this.ball); // contact made — clear the fire look
+    this.kickWasSpecial = false;
+    this.kickHrEligible = false;
+    const isPlayerKick = this.kickingIsPlayer();
     // AI passes its intended errMs directly; the human's comes from release timing
     const errMs = aimSpec.errMs !== undefined ? aimSpec.errMs : (tapTime - this.pitchArrival) * 1000;
 
@@ -454,12 +477,18 @@ export class MatchScene {
     // positioning bias the aim (you reach across to pull it). AI path has no align.
     let effErr = Math.abs(errMs);
     let aimDeg = aimSpec.aimDeg;
+    let alignErrM = 0;
     if (aimSpec.align) {
       const alignErr = this.kicker.group.position.x - this.ball.pos.x;
-      effErr = Math.abs(errMs) + Math.abs(alignErr) * 175;
+      alignErrM = Math.abs(alignErr);
+      effErr = Math.abs(errMs) + alignErrM * 175;
       aimDeg = Math.max(-this.tuning.kick.aimSpreadDeg, Math.min(this.tuning.kick.aimSpreadDeg, -alignErr * 22));
     }
     this.hud.hideRing();
+    this.hud.hidePowerMeter();
+    // Fire pitch narrows the human's window: dividing the error shrinks the sweet
+    // zone and drops the power marker off faster (matches the meter-feed scaling).
+    const power01 = isPlayerKick ? powerFromError(errMs / this.kickWindowScale(), this.tuning) : null;
 
     if (effErr > this.tuning.kick.okWindowMs * 1.6) {
       this.strike('WHIFF!');
@@ -477,7 +506,16 @@ export class MatchScene {
       }
       this.specialArmed = false;
     }
-    const launch = launchParams(judged, { ...aimSpec, ...(aimDeg != null ? { aimDeg } : {}), powerMult }, this.tuning);
+    // HR gate: a player kick leaves the park on a sweet-zone meter lock AND a lined-up
+    // kicker — OR a consumed crown super-kick (kept as a bonus path).
+    this.kickHrEligible = isPlayerKick && (
+      isHrEligible({ power01, alignErrM }, this.tuning) || this.kickWasSpecial
+    );
+    const launch = launchParams(
+      judged,
+      { ...aimSpec, ...(aimDeg != null ? { aimDeg } : {}), powerMult, ...(power01 != null ? { power01 } : {}) },
+      this.tuning,
+    );
     this.judged = judged;
     this.launchSpec = launch;
 
@@ -489,6 +527,7 @@ export class MatchScene {
   }
 
   strike(label) {
+    douseBall(this.ball); // pitch dead — clear the fire look
     this.strikes += 1;
     this.bus.emit('sfx', 'whiff');
     this.hud.stamp(this.strikes >= 3 ? 'STRUCK OUT!' : label, 'pegged');
@@ -974,6 +1013,8 @@ export class MatchScene {
         c.group.position.z += (d2.y / dist) * step;
         c.faceYaw = Math.atan2(d2.x, d2.y);
         if (c.animator.name !== 'run') c.animator.play('run');
+        // stride reads at actual chase speed — fast chases visibly sprint
+        c.animator.ctx.speedFactor = 0.7 + Math.min(1.3, (step / dt) / this.tuning.running.maxSpeedMs);
       } else if (c.animator.name === 'run' && f.role !== 'chase') {
         c.animator.play('crouch');
         this.faceTo(c, this.ball.pos);
@@ -1499,6 +1540,20 @@ export class MatchScene {
       }
     }
 
+    if (this.phase === 'PITCH_TRACE') {
+      const window = this.tuning.pitch.traceTimerMs / 1000;
+      const frac = (this.traceDeadline - this.elapsed) / window;
+      this.hud.setTraceTimer(Math.max(0, frac));
+      // ran out of time → auto-release a fat meatball (fires once)
+      if (this.elapsed > this.traceDeadline && !this.traceExpired) {
+        this.traceExpired = true;
+        this.hud.hidePattern();
+        this.hud.hideTraceTimer();
+        this.hud.pitchGrade('WOBBLER', false);
+        this.throwPlayerPitch(this.selectedPitch, 0.2, /*fire=*/false);
+      }
+    }
+
     if (this.phase === 'PITCH' && this.kickingIsPlayer()) {
       const remain = this.pitchArrival - this.elapsed;
       const total = this.tuning.pitch.plateDistanceM / (this.pitch.speedMph * 0.12);
@@ -1509,7 +1564,14 @@ export class MatchScene {
         this.kicked = true;
         this.strike('TOO LATE!');
         this.hud.hideRing();
+        this.hud.hidePowerMeter();
       }
+    }
+
+    if (this.phase === 'PITCH' && this.kickingIsPlayer() && !this.kicked && this.pitchArrival != null) {
+      // Power peaks (1.0) exactly at plate arrival, then falls — same curve the kick samples.
+      const errNow = (this.elapsed - this.pitchArrival) * 1000;
+      this.hud.setPowerMarker(powerFromError(errNow / this.kickWindowScale(), this.tuning));
     }
 
     if (this.phase === 'PITCH' && !this.kickingIsPlayer() && this.kicker && !this.kicked) {
@@ -1528,6 +1590,26 @@ export class MatchScene {
       k.x += (tx - k.x) * Math.min(1, rawDt * 9);
     }
 
+    // DEAD-FEET FIX: whenever the kicker is sliding to line up — player drag OR CPU
+    // auto-slide — during PITCH/SETUP, drive a real stride (run clip, speed-scaled)
+    // so the feet move instead of gliding on the static plate clip. Never during
+    // KICK_ANIM (the kick clip is playing).
+    if (this.kicker && (this.phase === 'PITCH' || this.phase === 'SETUP')) {
+      const kx = this.kicker.group.position.x;
+      const prevX = this._kickerPrevX ?? kx;
+      const vx = rawDt > 0 ? Math.abs(kx - prevX) / rawDt : 0;
+      const anim = this.kicker.animator;
+      if (vx > 0.6) {
+        if (anim.name !== 'run') anim.play('run'); // guard: don't re-trigger every frame
+        anim.ctx.speedFactor = 0.6 + Math.min(1.4, vx / 3); // stride scales with slide speed
+      } else if (anim.name === 'run') {
+        anim.play('plate'); // settled — back to the batter stance
+      }
+      this._kickerPrevX = kx;
+    } else if (this.kicker) {
+      this._kickerPrevX = this.kicker.group.position.x;
+    }
+
     if (this.phase === 'LIVE' || this.phase === 'RESOLVE') {
       this.updateRunners(dt);
     }
@@ -1537,7 +1619,7 @@ export class MatchScene {
       const dist = Math.hypot(this.ball.pos.x, this.ball.pos.z);
       // a homer must clear the wall IN THE AIR (containment bounces shorter balls
       // back) AND be a crown super-kick — ordinary perfect contact stays in the park
-      if (!this.hrFired && this.kickWasSpecial && dist >= this.fenceM - 0.3 && this.ball.pos.y > this.fenceTopY * 0.8 && this.ball.bounces === 0) {
+      if (!this.hrFired && this.kickHrEligible && dist >= this.fenceM - 0.3 && this.ball.pos.y > this.fenceTopY * 0.8 && this.ball.bounces === 0) {
         this.homer();
       }
       // dead-ball safety net

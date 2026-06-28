@@ -12,8 +12,8 @@ export function mashSpeed(tapsPerSec, tuning) {
  */
 export function humanRunSpeed(tapsPerSec, tuning) {
   const r = tuning.running;
-  if (tapsPerSec < 0.5) return 0;
-  return Math.min(r.maxSpeedMs, tapsPerSec * r.speedPerTapHz * 1.8);
+  if (tapsPerSec < 0.3) return 0;
+  return Math.min(r.maxSpeedMs, tapsPerSec * r.speedPerTapHz * 2.4);
 }
 
 const LATERAL_DECAY_MS = 3; // m/s the juke offset relaxes back toward the base path

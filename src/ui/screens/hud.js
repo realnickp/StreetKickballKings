@@ -1,7 +1,7 @@
 // Match HUD: LED score bug, pitch readout, timing ring, pitch picker + pattern
 // pad (PITCH role), run hint, throw pad, special button, graffiti stamps.
 // Pure DOM; matchScene drives it.
-import { PITCH_MENU } from '../../game/pitchPattern.js';
+import { PITCH_FAMILY_MENU } from '../../game/pitchPattern.js';
 
 export class Hud {
   constructor(root, { homeAbbr, awayAbbr }) {
@@ -33,6 +33,7 @@ export class Hud {
         <circle class="pat-end" r="3.0" />
       </svg>
       <div class="pitch-select"></div>
+      <div class="trace-timer"><div class="tt-fill"></div></div>
       <div class="throw-pad">
         <button class="t-2" data-base="1"><span>2ND</span></button>
         <button class="t-3" data-base="2"><span>3RD</span></button>
@@ -43,6 +44,15 @@ export class Hud {
       <div class="special-btn"><div class="core">👑</div></div>
     `;
     root.appendChild(this.el);
+
+    // Vertical power meter for kicking: a marker rises and peaks at plate arrival.
+    this.powerMeter = document.createElement('div');
+    this.powerMeter.className = 'power-meter';
+    this.powerMeter.innerHTML = `<div class="pm-track"><div class="pm-sweet"></div><div class="pm-fill"></div><div class="pm-marker"></div></div>`;
+    this.el.appendChild(this.powerMeter);
+    this.pmFill = this.powerMeter.querySelector('.pm-fill');
+    this.pmMarker = this.powerMeter.querySelector('.pm-marker');
+
     this.el.querySelector('[data-abbr-away]').textContent = awayAbbr;
     this.el.querySelector('[data-abbr-home]').textContent = homeAbbr;
 
@@ -66,15 +76,18 @@ export class Hud {
     this.throwPad = this.el.querySelector('.throw-pad');
     this.specialBtn = this.el.querySelector('.special-btn');
 
-    // pitch picker (PITCH role) — 5 colour-coded buttons built from the menu
+    // pitch picker (PITCH role) — 3 colour-coded FAMILY buttons; each rolls a variant
     this.pitchSelect = this.el.querySelector('.pitch-select');
-    for (const p of PITCH_MENU) {
+    for (const f of PITCH_FAMILY_MENU) {
       const b = document.createElement('button');
-      b.dataset.pitch = p.id;
-      b.style.setProperty('--pc', p.color);
-      b.textContent = p.label;
+      b.dataset.family = f.id;
+      b.style.setProperty('--pc', f.color);
+      b.textContent = f.label;
       this.pitchSelect.appendChild(b);
     }
+    // countdown bar for the trace window (sits above the pattern pad)
+    this.traceTimer = this.el.querySelector('.trace-timer');
+    this.traceTimerFill = this.traceTimer.querySelector('.tt-fill');
     // pattern pad (reference shape + live trace)
     this.patternPad = this.el.querySelector('.pattern-pad');
     this.patRef = this.patternPad.querySelector('.pat-ref');
@@ -91,7 +104,7 @@ export class Hud {
       const btn = e.target.closest('button');
       if (!btn) return;
       e.stopPropagation();
-      this.onPitchSelect?.(btn.dataset.pitch);
+      this.onPitchSelect?.(btn.dataset.family);
     });
 
     this.aimBar.addEventListener('pointerdown', (e) => {
@@ -151,6 +164,16 @@ export class Hud {
   }
   hideRing() {
     this.ringEl.classList.remove('show');
+  }
+
+  setPowerMarker(p) {
+    const pct = Math.max(0, Math.min(1, p)) * 100;
+    this.powerMeter.classList.add('show');
+    this.pmFill.style.height = `${pct}%`;
+    this.pmMarker.style.bottom = `${pct}%`;
+  }
+  hidePowerMeter() {
+    this.powerMeter.classList.remove('show');
   }
 
   showAim(show) {
@@ -237,6 +260,26 @@ export class Hud {
     this.patternPad.classList.remove('show');
     this.patRef.setAttribute('points', '');
     this.patTrace.setAttribute('points', '');
+  }
+
+  /** Trace countdown bar: show, drive (frac 1→0 sets the fill width), hide. */
+  showTraceTimer() {
+    this.setTraceTimer(1);
+    this.traceTimer.classList.add('show');
+  }
+  setTraceTimer(frac) {
+    const f = Math.max(0, Math.min(1, frac));
+    this.traceTimerFill.style.width = `${f * 100}%`;
+    this.traceTimerFill.classList.toggle('low', f <= 0.33);
+  }
+  hideTraceTimer() {
+    this.traceTimer.classList.remove('show');
+  }
+
+  /** Flash the "FIRE PITCH!" indicator (reuses the top pitch-grade badge slot). */
+  fireBadge(on) {
+    if (!on) return;
+    this.pitchGrade('🔥 FIRE PITCH!', true);
   }
 
   stamp(text, kind) {

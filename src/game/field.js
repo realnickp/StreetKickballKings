@@ -42,7 +42,16 @@ export function buildField(fieldData, scene) {
     : makeAsphaltTexture(palette.ground ?? '#3c3f44');
   groundTex.wrapS = groundTex.wrapT = THREE.RepeatWrapping;
   groundTex.repeat.set(10, 10);
-  const groundMat = new THREE.MeshStandardMaterial({ map: groundTex, roughness: 0.95 });
+  // A subtle procedural normal map gives the blacktop floodlit micro-texture (the
+  // light catches its grain) so it stops reading as a flat painted plane. Kept low.
+  const groundNormal = makeAsphaltNormal();
+  groundNormal.repeat.set(10, 10);
+  const groundMat = new THREE.MeshStandardMaterial({
+    map: groundTex,
+    roughness: 0.92,
+    normalMap: groundNormal,
+    normalScale: new THREE.Vector2(0.3, 0.3),
+  });
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), groundMat);
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
@@ -65,7 +74,7 @@ export function buildField(fieldData, scene) {
   for (const key of ['first', 'second', 'third']) {
     const base = new THREE.Mesh(
       new THREE.BoxGeometry(0.9, 0.08, 0.9),
-      new THREE.MeshStandardMaterial({ color: '#f5f2e8', roughness: 0.6 }),
+      new THREE.MeshStandardMaterial({ color: '#f5f2e8', roughness: 0.5, envMapIntensity: 0.6 }),
     );
     base.position.copy(FIELD_LAYOUT[key]).setY(0.04);
     base.rotation.y = Math.PI / 4;
@@ -96,8 +105,9 @@ export function buildField(fieldData, scene) {
     color: palette.fence ?? '#9aa0a6',
     metalness: 0.4,
     roughness: 0.6,
+    envMapIntensity: 0.7, // hold the env reflection back so the wire mesh doesn't go glary
   });
-  const postMat = new THREE.MeshStandardMaterial({ color: '#6f7578', roughness: 0.5, metalness: 0.6 });
+  const postMat = new THREE.MeshStandardMaterial({ color: '#6f7578', roughness: 0.5, metalness: 0.6, envMapIntensity: 0.7 });
   const R = fieldData.fenceM;
   const fh = fieldData.fenceHeightM ?? 4.5; // tall enough that only well-lofted bombs clear
   fenceTex.repeat.set(4, fh / 2);
@@ -142,7 +152,9 @@ export function buildField(fieldData, scene) {
     const tuneTex = (t) => {
       t.colorSpace = THREE.SRGBColorSpace;
       t.wrapS = THREE.MirroredRepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
-      t.repeat.set(4, 0.82); t.offset.y = 0.18;
+      // Fewer horizontal tiles = bigger fans, far less obvious cloning. Still EVEN so the
+      // mirrored ring stays seamless at every boundary (including the cylinder wrap point).
+      t.repeat.set(2, 0.82); t.offset.y = 0.18;
     };
     // Put the still poster IN the material from the start (so it actually renders),
     // then swap to the looping video once it really starts playing. Robust if the
@@ -151,6 +163,9 @@ export function buildField(fieldData, scene) {
       ? new THREE.TextureLoader().load(fieldData.textures.backdrop, tuneTex)
       : null;
     const mat = new THREE.MeshBasicMaterial({ map: stillTex, side: THREE.BackSide, fog: false });
+    // Gently knock the backdrop down from full-bright so the crowd ring reads as a
+    // distant lit stand sitting BEHIND the action, not glowing wallpaper.
+    mat.color.setScalar(0.85);
     if (fieldData.textures?.backdropVideo) {
       const video = document.createElement('video');
       video.src = fieldData.textures.backdropVideo;
@@ -292,6 +307,14 @@ export function buildField(fieldData, scene) {
   }
 
   const lp = SKY_PRESETS[fieldData.sky] ?? SKY_PRESETS.day;
+
+  // Light exponential fog tinted toward the horizon sky so the midground/outfield
+  // recedes into the backdrop (a real depth cue). The backdrop + sky materials carry
+  // fog:false, so only the FIELD geometry and players haze with distance — never the
+  // sky/crowd. Density kept low so the infield stays crisp and un-greyed.
+  const fogColor = (SKY_DOME[fieldData.sky] ?? SKY_DOME.day)[3];
+  scene.fog = new THREE.FogExp2(new THREE.Color(fogColor), 0.006);
+
   const hemi = new THREE.HemisphereLight(lp.hemiSky, lp.hemiGround, lp.hemiI);
   root.add(hemi);
   // a small ambient floor so ACES tone-mapping never crushes the court to black
@@ -299,13 +322,26 @@ export function buildField(fieldData, scene) {
   const sun = new THREE.DirectionalLight(lp.sun, lp.sunI);
   sun.position.set(28, 40, 18);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(1024, 1024);
-  sun.shadow.camera.left = -45;
-  sun.shadow.camera.right = 45;
-  sun.shadow.camera.top = 45;
-  sun.shadow.camera.bottom = -45;
+  // Higher-res map + a tighter frustum (±38 still covers the ~42m fence play near home)
+  // = crisper contact shadows. Bias pair kills shadow acne and peter-panning.
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.left = -38;
+  sun.shadow.camera.right = 38;
+  sun.shadow.camera.top = 38;
+  sun.shadow.camera.bottom = -38;
   sun.shadow.camera.far = 120;
+  sun.shadow.bias = -0.0004;
+  sun.shadow.normalBias = 0.02;
   root.add(sun);
+
+  // Rim / back light from behind-above the play: skims the tops and edges of the
+  // players and ball so they pop off the crowd ring (a broadcast separation cue).
+  // Accent only — casts no shadow, modest intensity — tinted with the preset's sky
+  // hue so it reads cool or warm to match the field's mood. Aims at home (origin).
+  const rim = new THREE.DirectionalLight(lp.hemiSky, 0.8);
+  rim.position.set(-20, 30, -40);
+  rim.castShadow = false;
+  root.add(rim);
 
   scene.add(root);
   return handles;
@@ -375,6 +411,27 @@ function makeAsphaltTexture(baseColor) {
       ctx.stroke();
     }
   });
+}
+
+// A subtle tangent-space normal map for the blacktop: a flat blue base (128,128,255)
+// peppered with tiny perturbed-normal flecks so floodlights catch a fine grain. Linear
+// colour space (NOT sRGB) — a normal map encodes vectors, not colour.
+function makeAsphaltNormal() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = 'rgb(128,128,255)';
+  ctx.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 4500; i++) {
+    const dx = Math.round((Math.random() - 0.5) * 70);
+    const dy = Math.round((Math.random() - 0.5) * 70);
+    ctx.fillStyle = `rgb(${128 + dx},${128 + dy},255)`;
+    ctx.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.NoColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  return tex;
 }
 
 function makeChainLinkTexture() {

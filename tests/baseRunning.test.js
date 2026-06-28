@@ -1,11 +1,19 @@
 import { it, expect } from 'vitest';
-import { mashSpeed, RunnerSim } from '../src/game/baseRunning.js';
+import { mashSpeed, humanRunSpeed, RunnerSim } from '../src/game/baseRunning.js';
 import tuning from '../src/data/tuning.json';
 
 it('tap rate maps to speed, capped at max', () => {
   expect(mashSpeed(0, tuning)).toBe(tuning.running.baseSpeedMs);
   expect(mashSpeed(3, tuning)).toBeCloseTo(tuning.running.baseSpeedMs + 3 * tuning.running.speedPerTapHz);
   expect(mashSpeed(20, tuning)).toBe(tuning.running.maxSpeedMs);
+});
+
+it('human run speed is responsive: tiny taps already move, no taps = 0', () => {
+  expect(humanRunSpeed(0, tuning)).toBe(0);
+  expect(humanRunSpeed(0.2, tuning)).toBe(0); // below the 0.3 dead-zone
+  expect(humanRunSpeed(0.4, tuning)).toBeGreaterThan(0); // now moves sooner
+  expect(humanRunSpeed(0.4, tuning)).toBeCloseTo(0.4 * tuning.running.speedPerTapHz * 2.4);
+  expect(humanRunSpeed(20, tuning)).toBe(tuning.running.maxSpeedMs); // still capped
 });
 
 it('runner advances along the base path and arrives', () => {

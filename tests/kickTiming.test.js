@@ -19,7 +19,8 @@ it('perfect kick gets the top power band and the cinematic flag', () => {
 
 it('launchParams maps quality + aim to a velocity spec', () => {
   const v = launchParams(judgeKick(0, tuning), { aim: 'center' }, tuning);
-  expect(v.speed).toBeCloseTo(tuning.kick.maxBallSpeedMs * tuning.kick.power.PERFECT);
+  const k = tuning.kick;
+  expect(v.speed).toBeCloseTo(k.baseBallSpeedMs + k.power.PERFECT * (k.maxBallSpeedMs - k.baseBallSpeedMs));
   expect(v.loftDeg).toBe(tuning.kick.loftDeg.PERFECT);
   expect(Math.abs(v.directionDeg)).toBeLessThan(5);
 });
@@ -41,5 +42,6 @@ it('late timing pushes direction, early pulls it', () => {
 
 it('special move multiplies power', () => {
   const v = launchParams(judgeKick(0, tuning), { aim: 'center', powerMult: 1.35 }, tuning);
-  expect(v.speed).toBeCloseTo(tuning.kick.maxBallSpeedMs * tuning.kick.power.PERFECT * 1.35);
+  const k = tuning.kick;
+  expect(v.speed).toBeCloseTo((k.baseBallSpeedMs + k.power.PERFECT * (k.maxBallSpeedMs - k.baseBallSpeedMs)) * 1.35);
 });

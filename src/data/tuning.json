@@ -3,12 +3,23 @@
   "pitch": {
     "types": {
       "fastball":   { "speedMph": [80, 90], "durScale": 1.0,  "curveM": 0,    "ease": 1.0, "bounce": 0 },
+      "riser":      { "speedMph": [84, 92], "durScale": 0.95, "curveM": 0,    "ease": 1.0, "bounce": 0 },
+      "fourSeam":   { "speedMph": [86, 94], "durScale": 0.92, "curveM": 0,    "ease": 1.0, "bounce": 0 },
+      "highCheese": { "speedMph": [82, 90], "durScale": 0.95, "curveM": 0,    "ease": 1.0, "bounce": 0 },
       "curveLeft":  { "speedMph": [64, 74], "durScale": 1.15, "curveM": -2.2, "ease": 1.0, "bounce": 0 },
       "curveRight": { "speedMph": [64, 74], "durScale": 1.15, "curveM": 2.2,  "ease": 1.0, "bounce": 0 },
+      "slurve":     { "speedMph": [64, 72], "durScale": 1.15, "curveM": -2.5, "ease": 1.0, "bounce": 0 },
+      "backdoor":   { "speedMph": [66, 74], "durScale": 1.12, "curveM": 2.0,  "ease": 1.0, "bounce": 0 },
       "changeup":   { "speedMph": [52, 60], "durScale": 1.5,  "curveM": 0,    "ease": 0.5, "bounce": 0 },
-      "bouncy":     { "speedMph": [58, 66], "durScale": 1.2,  "curveM": 0,    "ease": 1.0, "bounce": 1.4 }
+      "bouncy":     { "speedMph": [58, 66], "durScale": 1.2,  "curveM": 0,    "ease": 1.0, "bounce": 1.4 },
+      "eephus":     { "speedMph": [50, 58], "durScale": 1.6,  "curveM": 0,    "ease": 0.5, "bounce": 0 },
+      "knuckle":    { "speedMph": [54, 62], "durScale": 1.25, "curveM": 0,    "ease": 1.0, "bounce": 1.3 }
     },
     "plateDistanceM": 12,
+    "traceTimerMs": 2200,
+    "fireQualityThreshold": 0.9,
+    "fireKickWindowScale": 0.6,
+    "cpuFireChance": { "Rookie": 0.0, "Street": 0.12, "King": 0.25 },
     "trace": { "tolerance": 0.16, "speedFastMs": 600, "speedSlowMs": 2600 },
     "quality": { "weakSpeedFactor": 0.6, "maxWildM": 1.4, "minBreakFactor": 0.4 }
   },
@@ -18,14 +29,18 @@
     "okWindowMs": 270,
     "power":   { "PERFECT": 0.85, "GOOD": 0.7, "OK": 0.52, "FOUL": 0.3 },
     "loftDeg": { "PERFECT": 42, "GOOD": 38, "OK": 24, "FOUL": 55 },
+    "baseBallSpeedMs": 9,
     "maxBallSpeedMs": 24,
+    "meterWindowMs": 320,
+    "hrPower": 0.9,
+    "hrAlignM": 0.6,
     "aimSpreadDeg": 52,
     "aiAimDeg": 30
   },
   "running": {
     "baseSpeedMs": 3.5,
-    "maxSpeedMs": 7.5,
-    "speedPerTapHz": 0.9,
+    "maxSpeedMs": 8.3,
+    "speedPerTapHz": 1.05,
     "tapWindowMs": 1000,
     "jukeOffsetM": 1.2,
     "jukeCooldownMs": 600,
