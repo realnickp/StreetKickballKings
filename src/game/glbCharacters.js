@@ -118,20 +118,20 @@ const CLIPS = {
     A.r('LForeArm', -0.85, 0, 0); A.r('RForeArm', -0.85, 0, 0);
     A.hipsY(Math.abs(Math.sin(t * TAU * 2)) * 0.8);
   } },
-  kick: { loop: false, dur: 0.7, contactAt: 0.5, fn(A, t) {
-    if (t < 0.4) { const k = t / 0.4;
+  kick: { loop: false, dur: 0.5, contactAt: 0.34, fn(A, t) {
+    if (t < 0.3) { const k = t / 0.3;                  // WIND: snap the kicking leg back
       A.r('Spine', 0.1, -k * 0.3, 0);
       A.r('RUpLeg', -k * 0.7, 0, 0); A.r('RLeg', k * 0.5, 0, 0);
       A.r('LUpLeg', k * 0.2, 0, 0);
       A.r('LArm', -k * 0.5, 0, 0.2); A.r('RArm', k * 0.4, 0, -0.2);
-    } else if (t < 0.64) { const k = (t - 0.4) / 0.24;
+    } else if (t < 0.55) { const k = (t - 0.3) / 0.25;  // CONTACT: explosive swing-through
       A.r('Spine', 0.1, -0.3 + k * 0.5, 0);
-      A.r('RUpLeg', -0.7 + k * 1.9, 0, 0); A.r('RLeg', 0.5 - k * 0.5, 0, 0);
+      A.r('RUpLeg', -0.7 + k * 2.4, 0, 0); A.r('RLeg', 0.5 - k * 0.5, 0, 0);
       A.r('LUpLeg', 0.2 - k * 0.1, 0, 0);
       A.r('LArm', -0.5 + k * 0.8, 0, 0.2); A.r('RArm', 0.4 - k * 0.6, 0, -0.2);
-    } else { const k = (t - 0.64) / 0.36;
+    } else { const k = (t - 0.55) / 0.45;               // FOLLOW: high finish, settle down
       A.r('Spine', 0.1, 0.2, 0);
-      A.r('RUpLeg', 1.2 - k * 0.9, 0, 0);
+      A.r('RUpLeg', 1.7 - k * 1.4, 0, 0);
       A.r('LArm', 0.3, 0, 0.2); A.r('RArm', -0.2, 0, -0.2);
     }
   } },
