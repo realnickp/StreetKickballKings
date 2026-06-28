@@ -8,6 +8,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 
 // Combined vignette + chromatic aberration grade. Cheap single pass.
 const GradeShader = {
@@ -132,10 +133,27 @@ export function createEngine(canvas) {
   const comicPass = new ShaderPass(ComicShader);
   const outputPass = new OutputPass();
 
+  // Ambient occlusion (high quality only): subtle contact darkening where players,
+  // ball and props meet the ground so nothing floats. GTAO renders its own depth/
+  // normal buffer. Wrapped so a missing/renamed addon degrades to "no AO" instead of
+  // blanking the screen. Tuned conservatively — a light contact shade, not a grey halo.
+  let aoPass = null;
+  try {
+    aoPass = new GTAOPass(scene, camera, 1, 1); // sized in resize()
+    aoPass.output = GTAOPass.OUTPUT.Default; // scene blended with AO, not the raw AO buffer
+    aoPass.blendIntensity = 0.55;            // hold the occlusion back so it stays subtle
+    aoPass.updateGtaoMaterial({ radius: 0.45, distanceExponent: 1.2, thickness: 1.0, scale: 1.0, samples: 16 });
+  } catch (e) {
+    console.warn('[skk] GTAOPass unavailable, skipping AO:', e);
+    aoPass = null;
+  }
+
   let quality = 'high';
   function rebuildChain() {
     composer.passes.length = 0;
     composer.addPass(renderPass);
+    // AO sits right after the scene render, before bloom — high quality only (mobile skips)
+    if (quality === 'high' && aoPass) composer.addPass(aoPass);
     composer.addPass(bloomPass);
     if (quality === 'high') composer.addPass(gradePass);
     composer.addPass(comicPass); // cheap when amount=0; director ramps it
@@ -179,6 +197,7 @@ export function createEngine(canvas) {
     const h = canvas.clientHeight || window.innerHeight;
     renderer.setSize(w, h, false); // false = don't touch CSS; the frame already sizes the canvas
     composer.setSize(w, h);
+    if (aoPass) aoPass.setSize(w, h);
     comicPass.uniforms.resolution.value.set(w, h);
     camera.aspect = w / h;
     // keep the field framed in narrow portrait by widening FOV as aspect shrinks
