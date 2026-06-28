@@ -7,6 +7,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 // Combined vignette + chromatic aberration grade. Cheap single pass.
 const GradeShader = {
@@ -108,6 +109,18 @@ export function createEngine(canvas) {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
   const scene = new THREE.Scene();
+
+  // Neutral image-based lighting (IBL): a PMREM-filtered RoomEnvironment gives every
+  // MeshStandardMaterial real reflectance/specular so surfaces stop reading flat. This
+  // is the cheapest material-quality win. Wrapped because a missing/renamed addon must
+  // NEVER blank the screen — on failure we just skip the env map and keep rendering.
+  try {
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  } catch (e) {
+    console.warn('[skk] env map (RoomEnvironment/PMREM) unavailable, skipping:', e);
+  }
+
   const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 500);
   camera.position.set(0, 6.5, 8.5);
   camera.lookAt(0, 1, -12);
