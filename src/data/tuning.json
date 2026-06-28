@@ -39,8 +39,8 @@
   },
   "running": {
     "baseSpeedMs": 3.5,
-    "maxSpeedMs": 7.5,
-    "speedPerTapHz": 0.9,
+    "maxSpeedMs": 8.3,
+    "speedPerTapHz": 1.05,
     "tapWindowMs": 1000,
     "jukeOffsetM": 1.2,
     "jukeCooldownMs": 600,
