@@ -152,9 +152,9 @@ export function buildField(fieldData, scene) {
     const tuneTex = (t) => {
       t.colorSpace = THREE.SRGBColorSpace;
       t.wrapS = THREE.MirroredRepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
-      // Fewer horizontal tiles = bigger fans, far less obvious cloning. Still EVEN so the
-      // mirrored ring stays seamless at every boundary (including the cylinder wrap point).
-      t.repeat.set(2, 0.82); t.offset.y = 0.18;
+      // 4 horizontal tiles keeps the fans small/distant (a 2-tile crowd looked too big).
+      // Still EVEN so the mirrored ring stays seamless at every boundary (incl. the wrap point).
+      t.repeat.set(4, 0.82); t.offset.y = 0.18;
     };
     // Put the still poster IN the material from the start (so it actually renders),
     // then swap to the looping video once it really starts playing. Robust if the
@@ -163,9 +163,8 @@ export function buildField(fieldData, scene) {
       ? new THREE.TextureLoader().load(fieldData.textures.backdrop, tuneTex)
       : null;
     const mat = new THREE.MeshBasicMaterial({ map: stillTex, side: THREE.BackSide, fog: false });
-    // Gently knock the backdrop down from full-bright so the crowd ring reads as a
-    // distant lit stand sitting BEHIND the action, not glowing wallpaper.
-    mat.color.setScalar(0.85);
+    // Full-bright: the sky dome + cap sample this image's top pixels at full brightness,
+    // so dimming the material here desynced the join and showed a hard sky seam.
     if (fieldData.textures?.backdropVideo) {
       const video = document.createElement('video');
       video.src = fieldData.textures.backdropVideo;
@@ -313,7 +312,7 @@ export function buildField(fieldData, scene) {
   // fog:false, so only the FIELD geometry and players haze with distance — never the
   // sky/crowd. Density kept low so the infield stays crisp and un-greyed.
   const fogColor = (SKY_DOME[fieldData.sky] ?? SKY_DOME.day)[3];
-  scene.fog = new THREE.FogExp2(new THREE.Color(fogColor), 0.006);
+  scene.fog = new THREE.FogExp2(new THREE.Color(fogColor), 0.004);
 
   const hemi = new THREE.HemisphereLight(lp.hemiSky, lp.hemiGround, lp.hemiI);
   root.add(hemi);

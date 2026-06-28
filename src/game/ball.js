@@ -16,7 +16,10 @@ export class Ball {
     // sheen (a soft specular highlight rolling across it) instead of a flat matte ball.
     const mat = new THREE.MeshStandardMaterial({ color: '#c83232', roughness: 0.38, metalness: 0, envMapIntensity: 0.8 });
     this.mesh = new THREE.Mesh(geo, mat);
-    this.mesh.castShadow = true;
+    // No hard cast shadow: a 0.22m ball through the shadow map renders as a blocky
+    // black square that tracks the ball ("black box around it"). It's airborne most of
+    // the time anyway; a soft contact blob can replace this later if grounding is wanted.
+    this.mesh.castShadow = false;
     scene.add(this.mesh);
     this.vel = new THREE.Vector3();
     this.active = false;
