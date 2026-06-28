@@ -354,6 +354,7 @@ export class MatchScene {
     this.hud.hidePattern();
     this.hud.hint('SLIDE TO LINE UP — FLICK UP TO KICK');
     this.kicker.group.position.x = 0; // start centred; you slide left/right to line up
+    this._kickerPrevX = 0; // reset stride tracker so the recenter isn't read as a slide
     this.pitch = pickPitch(this.tuning);
     // varied plate location so you must move the kicker to line up the incoming
     // ball (kept modest — curves already add up to ~2.2m of lateral, and the
@@ -447,6 +448,7 @@ export class MatchScene {
 
     if (aiKicks) {
       this.kicker.group.position.x = 0; // start centred so the CPU visibly slides to line up
+      this._kickerPrevX = 0; // reset stride tracker so the recenter isn't read as a slide
       // The full error drives the JUDGE (whiff/foul/contact). But cap WHEN the AI
       // actually swings to ±0.45s of arrival so a big miss never leaves the ball
       // just sitting there (which reads as "frozen"). NaN-guarded so it can't hang.
@@ -1011,6 +1013,8 @@ export class MatchScene {
         c.group.position.z += (d2.y / dist) * step;
         c.faceYaw = Math.atan2(d2.x, d2.y);
         if (c.animator.name !== 'run') c.animator.play('run');
+        // stride reads at actual chase speed — fast chases visibly sprint
+        c.animator.ctx.speedFactor = 0.7 + Math.min(1.3, (step / dt) / this.tuning.running.maxSpeedMs);
       } else if (c.animator.name === 'run' && f.role !== 'chase') {
         c.animator.play('crouch');
         this.faceTo(c, this.ball.pos);
@@ -1584,6 +1588,26 @@ export class MatchScene {
       const tx = Math.max(-1.9, Math.min(1.9, this.ball.pos.x));
       const k = this.kicker.group.position;
       k.x += (tx - k.x) * Math.min(1, rawDt * 9);
+    }
+
+    // DEAD-FEET FIX: whenever the kicker is sliding to line up — player drag OR CPU
+    // auto-slide — during PITCH/SETUP, drive a real stride (run clip, speed-scaled)
+    // so the feet move instead of gliding on the static plate clip. Never during
+    // KICK_ANIM (the kick clip is playing).
+    if (this.kicker && (this.phase === 'PITCH' || this.phase === 'SETUP')) {
+      const kx = this.kicker.group.position.x;
+      const prevX = this._kickerPrevX ?? kx;
+      const vx = rawDt > 0 ? Math.abs(kx - prevX) / rawDt : 0;
+      const anim = this.kicker.animator;
+      if (vx > 0.6) {
+        if (anim.name !== 'run') anim.play('run'); // guard: don't re-trigger every frame
+        anim.ctx.speedFactor = 0.6 + Math.min(1.4, vx / 3); // stride scales with slide speed
+      } else if (anim.name === 'run') {
+        anim.play('plate'); // settled — back to the batter stance
+      }
+      this._kickerPrevX = kx;
+    } else if (this.kicker) {
+      this._kickerPrevX = this.kicker.group.position.x;
     }
 
     if (this.phase === 'LIVE' || this.phase === 'RESOLVE') {
