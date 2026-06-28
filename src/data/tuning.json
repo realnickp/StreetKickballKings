@@ -18,7 +18,11 @@
     "okWindowMs": 270,
     "power":   { "PERFECT": 0.85, "GOOD": 0.7, "OK": 0.52, "FOUL": 0.3 },
     "loftDeg": { "PERFECT": 42, "GOOD": 38, "OK": 24, "FOUL": 55 },
+    "baseBallSpeedMs": 9,
     "maxBallSpeedMs": 24,
+    "meterWindowMs": 320,
+    "hrPower": 0.9,
+    "hrAlignM": 0.6,
     "aimSpreadDeg": 52,
     "aiAimDeg": 30
   },
