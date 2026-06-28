@@ -800,3 +800,45 @@ body { display: flex; align-items: center; justify-content: center; }
   background: rgba(255, 255, 255, .06);
 }
 .pause-card .p-resume { background: var(--gold, #f5b312); color: #15110a; border-color: var(--gold, #f5b312); }
+.power-meter {
+  position: absolute;
+  right: 3cqw;
+  bottom: 22cqh;
+  width: 7cqw;
+  height: 34cqh;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+  z-index: 6;
+}
+.power-meter.show { opacity: 1; }
+.power-meter .pm-track {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: rgba(8, 10, 14, 0.72);
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+}
+.power-meter .pm-sweet {
+  position: absolute;
+  left: 0; right: 0;
+  bottom: 90%; height: 10%;
+  background: rgba(255, 215, 64, 0.30);
+  border-top: 1px solid rgba(255, 215, 64, 0.9);
+  border-bottom: 1px solid rgba(255, 215, 64, 0.9);
+}
+.power-meter .pm-fill {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 0%;
+  background: linear-gradient(to top, #2bd1c4, #f5a623, #e6483d);
+}
+.power-meter .pm-marker {
+  position: absolute;
+  left: -8%; right: -8%;
+  height: 3px;
+  bottom: 0%;
+  background: #fff;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.9);
+}

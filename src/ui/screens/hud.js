@@ -43,6 +43,15 @@ export class Hud {
       <div class="special-btn"><div class="core">👑</div></div>
     `;
     root.appendChild(this.el);
+
+    // Vertical power meter for kicking: a marker rises and peaks at plate arrival.
+    this.powerMeter = document.createElement('div');
+    this.powerMeter.className = 'power-meter';
+    this.powerMeter.innerHTML = `<div class="pm-track"><div class="pm-sweet"></div><div class="pm-fill"></div><div class="pm-marker"></div></div>`;
+    this.el.appendChild(this.powerMeter);
+    this.pmFill = this.powerMeter.querySelector('.pm-fill');
+    this.pmMarker = this.powerMeter.querySelector('.pm-marker');
+
     this.el.querySelector('[data-abbr-away]').textContent = awayAbbr;
     this.el.querySelector('[data-abbr-home]').textContent = homeAbbr;
 
@@ -151,6 +160,16 @@ export class Hud {
   }
   hideRing() {
     this.ringEl.classList.remove('show');
+  }
+
+  setPowerMarker(p) {
+    const pct = Math.max(0, Math.min(1, p)) * 100;
+    this.powerMeter.classList.add('show');
+    this.pmFill.style.height = `${pct}%`;
+    this.pmMarker.style.bottom = `${pct}%`;
+  }
+  hidePowerMeter() {
+    this.powerMeter.classList.remove('show');
   }
 
   showAim(show) {
