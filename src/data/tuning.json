@@ -2,10 +2,10 @@
   "match": { "innings": 5, "outsPerHalf": 3 },
   "pitch": {
     "types": {
-      "fastball":   { "speedMph": [80, 90], "durScale": 1.0,  "curveM": 0,    "ease": 1.0, "bounce": 0 },
-      "riser":      { "speedMph": [84, 92], "durScale": 0.95, "curveM": 0,    "ease": 1.0, "bounce": 0 },
-      "fourSeam":   { "speedMph": [86, 94], "durScale": 0.92, "curveM": 0,    "ease": 1.0, "bounce": 0 },
-      "highCheese": { "speedMph": [82, 90], "durScale": 0.95, "curveM": 0,    "ease": 1.0, "bounce": 0 },
+      "fastball":   { "speedMph": [76, 84], "durScale": 1.0,  "curveM": 0,    "ease": 1.0, "bounce": 0 },
+      "riser":      { "speedMph": [78, 86], "durScale": 0.97, "curveM": 0,    "ease": 1.0, "bounce": 0 },
+      "fourSeam":   { "speedMph": [80, 88], "durScale": 0.95, "curveM": 0,    "ease": 1.0, "bounce": 0 },
+      "highCheese": { "speedMph": [78, 86], "durScale": 0.97, "curveM": 0,    "ease": 1.0, "bounce": 0 },
       "curveLeft":  { "speedMph": [64, 74], "durScale": 1.15, "curveM": -2.2, "ease": 1.0, "bounce": 0 },
       "curveRight": { "speedMph": [64, 74], "durScale": 1.15, "curveM": 2.2,  "ease": 1.0, "bounce": 0 },
       "slurve":     { "speedMph": [64, 72], "durScale": 1.15, "curveM": -2.5, "ease": 1.0, "bounce": 0 },
