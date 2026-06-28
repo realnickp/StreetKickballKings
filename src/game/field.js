@@ -42,7 +42,16 @@ export function buildField(fieldData, scene) {
     : makeAsphaltTexture(palette.ground ?? '#3c3f44');
   groundTex.wrapS = groundTex.wrapT = THREE.RepeatWrapping;
   groundTex.repeat.set(10, 10);
-  const groundMat = new THREE.MeshStandardMaterial({ map: groundTex, roughness: 0.95 });
+  // A subtle procedural normal map gives the blacktop floodlit micro-texture (the
+  // light catches its grain) so it stops reading as a flat painted plane. Kept low.
+  const groundNormal = makeAsphaltNormal();
+  groundNormal.repeat.set(10, 10);
+  const groundMat = new THREE.MeshStandardMaterial({
+    map: groundTex,
+    roughness: 0.92,
+    normalMap: groundNormal,
+    normalScale: new THREE.Vector2(0.3, 0.3),
+  });
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), groundMat);
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
@@ -65,7 +74,7 @@ export function buildField(fieldData, scene) {
   for (const key of ['first', 'second', 'third']) {
     const base = new THREE.Mesh(
       new THREE.BoxGeometry(0.9, 0.08, 0.9),
-      new THREE.MeshStandardMaterial({ color: '#f5f2e8', roughness: 0.6 }),
+      new THREE.MeshStandardMaterial({ color: '#f5f2e8', roughness: 0.5, envMapIntensity: 0.6 }),
     );
     base.position.copy(FIELD_LAYOUT[key]).setY(0.04);
     base.rotation.y = Math.PI / 4;
@@ -96,8 +105,9 @@ export function buildField(fieldData, scene) {
     color: palette.fence ?? '#9aa0a6',
     metalness: 0.4,
     roughness: 0.6,
+    envMapIntensity: 0.7, // hold the env reflection back so the wire mesh doesn't go glary
   });
-  const postMat = new THREE.MeshStandardMaterial({ color: '#6f7578', roughness: 0.5, metalness: 0.6 });
+  const postMat = new THREE.MeshStandardMaterial({ color: '#6f7578', roughness: 0.5, metalness: 0.6, envMapIntensity: 0.7 });
   const R = fieldData.fenceM;
   const fh = fieldData.fenceHeightM ?? 4.5; // tall enough that only well-lofted bombs clear
   fenceTex.repeat.set(4, fh / 2);
@@ -384,6 +394,27 @@ function makeAsphaltTexture(baseColor) {
       ctx.stroke();
     }
   });
+}
+
+// A subtle tangent-space normal map for the blacktop: a flat blue base (128,128,255)
+// peppered with tiny perturbed-normal flecks so floodlights catch a fine grain. Linear
+// colour space (NOT sRGB) — a normal map encodes vectors, not colour.
+function makeAsphaltNormal() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = 'rgb(128,128,255)';
+  ctx.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 4500; i++) {
+    const dx = Math.round((Math.random() - 0.5) * 70);
+    const dy = Math.round((Math.random() - 0.5) * 70);
+    ctx.fillStyle = `rgb(${128 + dx},${128 + dy},255)`;
+    ctx.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.NoColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  return tex;
 }
 
 function makeChainLinkTexture() {

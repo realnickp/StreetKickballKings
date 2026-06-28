@@ -12,7 +12,9 @@ const BALL_R = 0.22;       // a real kickball, not a beachball — proportional 
 export class Ball {
   constructor(scene) {
     const geo = new THREE.SphereGeometry(BALL_R, 18, 14);
-    const mat = new THREE.MeshStandardMaterial({ color: '#c83232', roughness: 0.65 });
+    // Glossy red rubber: lower roughness + env reflectance gives a real kickball
+    // sheen (a soft specular highlight rolling across it) instead of a flat matte ball.
+    const mat = new THREE.MeshStandardMaterial({ color: '#c83232', roughness: 0.38, metalness: 0, envMapIntensity: 0.8 });
     this.mesh = new THREE.Mesh(geo, mat);
     this.mesh.castShadow = true;
     scene.add(this.mesh);
