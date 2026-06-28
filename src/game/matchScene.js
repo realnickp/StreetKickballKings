@@ -10,7 +10,7 @@ import { mashSpeed, humanRunSpeed, RunnerSim } from './baseRunning.js';
 import { resolveBaseThrow, resolvePeg } from './throwing.js';
 import { SpecialMeter } from './specialMoves.js';
 import { pickPitch, aiKickError, aiAim, aiWantsPeg, aiMashRate, aiJukes, aiThrowsFire } from './ai.js';
-import { PITCH_PATTERNS, PITCH_FAMILIES, pickVariant, scoreTrace } from './pitchPattern.js';
+import { PITCH_FAMILIES, makePitch, scoreTrace } from './pitchPattern.js';
 import { igniteBall, douseBall } from '../cinematics/fx.js';
 import { Ball } from './ball.js';
 import { buildField, FIELD_LAYOUT } from './field.js';
@@ -385,11 +385,13 @@ export class MatchScene {
 
   onPitchSelect(familyId) {
     if (this.phase !== 'PITCH_SELECT' || !PITCH_FAMILIES[familyId]) return;
-    this.selectedPitch = pickVariant(familyId);
+    // Generate a FRESH pitch every time — the traced shape is almost never the same twice.
+    this.activePitch = makePitch(familyId, this.tuning);
+    this.selectedPitch = this.activePitch.label;
     this.traceBuf = [];
     this.traceExpired = false;
     this.hud.showPitchSelect(false);
-    this.hud.showPattern(PITCH_PATTERNS[this.selectedPitch]);
+    this.hud.showPattern(this.activePitch.points);
     this.hud.updateTrace([]);
     // start the trace countdown — trace it before the bar empties or it's a wobbler
     this.traceStartedAt = this.elapsed;
@@ -403,25 +405,25 @@ export class MatchScene {
     if (this.phase !== 'PITCH_TRACE') return;
     this.hud.hideTraceTimer();
     const t = this.tuning.pitch.trace;
-    const res = scoreTrace(e.points, PITCH_PATTERNS[this.selectedPitch], {
+    const res = scoreTrace(e.points, this.activePitch.points, {
       tolerance: t.tolerance, durMs: e.dur, speedFastMs: t.speedFastMs, speedSlowMs: t.speedSlowMs,
     });
     this.hud.hidePattern();
     const fire = res.quality >= this.tuning.pitch.fireQualityThreshold;
     const label = fire ? 'NASTY!' : res.quality > 0.6 ? 'GOOD HEAT' : 'WOBBLER';
     this.hud.pitchGrade(label, res.quality > 0.6); // small top badge, not a big center stamp
-    this.throwPlayerPitch(this.selectedPitch, res.quality, fire);
+    this.throwPlayerPitch(this.activePitch, res.quality, fire);
     if (fire) this.hud.fireBadge(true);
   }
 
   /** Build a quality-scaled pitch from the player's trace and serve it; AI kicks. */
-  throwPlayerPitch(id, q, fire = false) {
-    const def = this.tuning.pitch.types[id];
+  throwPlayerPitch(base, q, fire = false) {
     const Q = this.tuning.pitch.quality;
-    const speedMph = Math.round(def.speedMph[1] * (Q.weakSpeedFactor + (1 - Q.weakSpeedFactor) * q));
-    const curveM = def.curveM * (Q.minBreakFactor + (1 - Q.minBreakFactor) * q);
+    const speedMph = Math.round(base.speedMph * (Q.weakSpeedFactor + (1 - Q.weakSpeedFactor) * q));
+    const curveM = base.curveM * (Q.minBreakFactor + (1 - Q.minBreakFactor) * q);
     const wildX = (1 - q) * Q.maxWildM * (Math.random() - 0.5) * 2; // sloppy = off-target
-    this.pitch = { id, speedMph, curveM, ease: def.ease, bounce: def.bounce, q, fire }; // q drives AI kick difficulty
+    // q drives AI kick difficulty; durScale/ease/bounce carry the generated pitch's behavior
+    this.pitch = { id: base.label, speedMph, durScale: base.durScale, curveM, ease: base.ease, bounce: base.bounce, q, fire };
     this.phase = 'PITCH';
     this.hud.hint('');
     this.servePitch(this.pitch, /*aiKicks=*/true, wildX);
@@ -436,9 +438,8 @@ export class MatchScene {
     const pitcher = this.fieldingChars()[0];
     pitcher.animator.play('throw', { onDone: () => pitcher.animator.play('idle') });
 
-    const type = this.tuning.pitch.types[pitch.id];
     const rollSpeed = pitch.speedMph * 0.12;
-    const dur = (this.tuning.pitch.plateDistanceM / rollSpeed) * (type?.durScale ?? 1);
+    const dur = (this.tuning.pitch.plateDistanceM / rollSpeed) * (pitch.durScale ?? 1);
     const plate = new THREE.Vector3(wildX, 0, 0.2);
     this.ball.startPitch(FIELD_LAYOUT.pitcher.clone().setY(0.35), plate, dur, {
       bounce: pitch.bounce ?? 0, curveM: pitch.curveM ?? 0, ease: pitch.ease ?? 1,
@@ -1550,7 +1551,7 @@ export class MatchScene {
         this.hud.hidePattern();
         this.hud.hideTraceTimer();
         this.hud.pitchGrade('WOBBLER', false);
-        this.throwPlayerPitch(this.selectedPitch, 0.2, /*fire=*/false);
+        this.throwPlayerPitch(this.activePitch, 0.2, /*fire=*/false);
       }
     }
 

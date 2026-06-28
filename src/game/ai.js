@@ -1,12 +1,13 @@
 // Opponent brains: pitch selection, AI kick timing, fielder reactions,
 // and AI base-running aggression. All knobs come from tuning.json.
+import { PITCH_FAMILIES, makePitch } from './pitchPattern.js';
 
 export function pickPitch(tuning, rng = Math.random) {
-  const types = Object.keys(tuning.pitch.types);
-  const id = types[Math.floor(rng() * types.length)];
-  const def = tuning.pitch.types[id];
-  const speedMph = Math.round(def.speedMph[0] + rng() * (def.speedMph[1] - def.speedMph[0]));
-  return { id, speedMph, curveM: def.curveM, ease: def.ease, bounce: def.bounce };
+  // Generate a fresh pitch from a random family (the CPU's own pitches vary too).
+  const fams = Object.keys(PITCH_FAMILIES);
+  const family = fams[Math.floor(rng() * fams.length)];
+  const p = makePitch(family, tuning, rng);
+  return { id: p.label, speedMph: p.speedMph, durScale: p.durScale, curveM: p.curveM, ease: p.ease, bounce: p.bounce };
 }
 
 /**
