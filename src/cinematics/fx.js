@@ -17,6 +17,61 @@ function makeGlowTexture(inner, outer) {
   return tex;
 }
 
+// --- Lightweight, crash-safe "fire pitch" look on the in-flight ball ---
+// Emissive-orange tint on the ball material + an additive glow sprite riding it.
+// Purely visual; never throws into gameplay (callers also wrap in try/catch).
+let _fireGlowTex = null;
+function fireGlowTex() {
+  if (!_fireGlowTex) _fireGlowTex = makeGlowTexture('rgba(255,210,130,0.95)', 'rgba(255,90,20,0.6)');
+  return _fireGlowTex;
+}
+
+export function igniteBall(ball) {
+  try {
+    const mesh = ball?.mesh;
+    if (!mesh) return;
+    const mat = mesh.material;
+    if (mat && mat.emissive) {
+      if (ball._fireSaved === undefined) {
+        ball._fireSaved = { hex: mat.emissive.getHex(), intensity: mat.emissiveIntensity ?? 1 };
+      }
+      mat.emissive.set('#ff5a1e');
+      mat.emissiveIntensity = 1.7;
+    }
+    if (!ball._fireGlow) {
+      const glow = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: fireGlowTex(),
+        color: '#ff7a2a',
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        transparent: true,
+      }));
+      glow.scale.set(1.5, 1.5, 1);
+      mesh.add(glow);
+      ball._fireGlow = glow;
+    }
+    ball._fireGlow.visible = true;
+  } catch (e) {
+    console.error('[skk] igniteBall (recovered):', e);
+  }
+}
+
+export function douseBall(ball) {
+  try {
+    const mesh = ball?.mesh;
+    if (!mesh) return;
+    const mat = mesh.material;
+    if (mat && mat.emissive && ball._fireSaved !== undefined) {
+      mat.emissive.setHex(ball._fireSaved.hex);
+      mat.emissiveIntensity = ball._fireSaved.intensity;
+      ball._fireSaved = undefined;
+    }
+    if (ball._fireGlow) ball._fireGlow.visible = false;
+  } catch (e) {
+    console.error('[skk] douseBall (recovered):', e);
+  }
+}
+
 export class BallFx {
   constructor(scene) {
     this.scene = scene;
