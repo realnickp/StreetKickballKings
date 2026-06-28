@@ -118,6 +118,10 @@ export function createEngine(canvas) {
   try {
     const pmrem = new THREE.PMREMGenerator(renderer);
     scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    // Hold the IBL well back: full-strength RoomEnvironment + the bright per-sky
+    // lights blew every surface past the bloom threshold (everything glowed). This
+    // keeps the material reflectance cue without lifting overall scene brightness.
+    scene.environmentIntensity = 0.3;
   } catch (e) {
     console.warn('[skk] env map (RoomEnvironment/PMREM) unavailable, skipping:', e);
   }
@@ -128,7 +132,7 @@ export function createEngine(canvas) {
 
   const composer = new EffectComposer(renderer);
   const renderPass = new RenderPass(scene, camera);
-  const bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.35, 0.4, 0.9);
+  const bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.18, 0.4, 0.95);
   const gradePass = new ShaderPass(GradeShader);
   const comicPass = new ShaderPass(ComicShader);
   const outputPass = new OutputPass();
@@ -171,7 +175,7 @@ export function createEngine(canvas) {
     timeScale: 1,
     paused: false, // when true the frame callbacks (gameplay) freeze but we keep rendering
     fx: { bloomPass, gradePass, comicPass },
-    baseBloom: 0.35,
+    baseBloom: 0.18,
     onFrame(cb) {
       frameCbs.add(cb);
       return () => frameCbs.delete(cb);
