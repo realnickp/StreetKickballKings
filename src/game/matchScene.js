@@ -9,8 +9,9 @@ import { judgeKick, launchParams, powerFromError, isHrEligible } from './kickTim
 import { mashSpeed, humanRunSpeed, RunnerSim } from './baseRunning.js';
 import { resolveBaseThrow, resolvePeg } from './throwing.js';
 import { SpecialMeter } from './specialMoves.js';
-import { pickPitch, aiKickError, aiAim, aiWantsPeg, aiMashRate, aiJukes } from './ai.js';
-import { PITCH_PATTERNS, scoreTrace } from './pitchPattern.js';
+import { pickPitch, aiKickError, aiAim, aiWantsPeg, aiMashRate, aiJukes, aiThrowsFire } from './ai.js';
+import { PITCH_PATTERNS, PITCH_FAMILIES, pickVariant, scoreTrace } from './pitchPattern.js';
+import { igniteBall, douseBall } from '../cinematics/fx.js';
 import { Ball } from './ball.js';
 import { buildField, FIELD_LAYOUT } from './field.js';
 import { Hud } from '../ui/screens/hud.js';
@@ -359,7 +360,15 @@ export class MatchScene {
     // kicker can slide ±3.4m, so curve + location stays reachable)
     const locX = (Math.random() - 0.5) * 1.6; // ±0.8m
     this.pitchLocX = locX;
+    // The CPU may throw a FIRE pitch at the human — narrows the kick window (Step 4).
+    this.pitch.fire = aiThrowsFire(this.difficulty, this.tuning);
+    if (this.pitch.fire) { igniteBall(this.ball); this.hud.fireBadge(true); }
     this.servePitch(this.pitch, /*aiKicks=*/false, locX);
+  }
+
+  /** Fire pitches shrink the human's sweet zone + speed the meter sweep via one knob. */
+  kickWindowScale() {
+    return this.pitch?.fire ? this.tuning.pitch.fireKickWindowScale : 1;
   }
 
   // ---------- PITCH role: you pick a pitch + trace its pattern ----------
@@ -370,43 +379,52 @@ export class MatchScene {
     this.hud.hidePitch();
     this.hud.hideRing();
     this.hud.showPitchSelect(true);
-    this.hud.hint('PICK YOUR PITCH');
+    this.hud.hint('PICK A PITCH TYPE');
   }
 
-  onPitchSelect(id) {
-    if (this.phase !== 'PITCH_SELECT' || !PITCH_PATTERNS[id]) return;
-    this.selectedPitch = id;
+  onPitchSelect(familyId) {
+    if (this.phase !== 'PITCH_SELECT' || !PITCH_FAMILIES[familyId]) return;
+    this.selectedPitch = pickVariant(familyId);
     this.traceBuf = [];
+    this.traceExpired = false;
     this.hud.showPitchSelect(false);
-    this.hud.showPattern(PITCH_PATTERNS[id]);
+    this.hud.showPattern(PITCH_PATTERNS[this.selectedPitch]);
     this.hud.updateTrace([]);
+    // start the trace countdown — trace it before the bar empties or it's a wobbler
+    this.traceStartedAt = this.elapsed;
+    this.traceDeadline = this.elapsed + this.tuning.pitch.traceTimerMs / 1000;
+    this.hud.showTraceTimer();
     this.phase = 'PITCH_TRACE';
-    this.hud.hint('TRACE IT!');
+    this.hud.hint('TRACE IT — FAST!');
   }
 
   onStroke(e) {
     if (this.phase !== 'PITCH_TRACE') return;
+    this.hud.hideTraceTimer();
     const t = this.tuning.pitch.trace;
     const res = scoreTrace(e.points, PITCH_PATTERNS[this.selectedPitch], {
       tolerance: t.tolerance, durMs: e.dur, speedFastMs: t.speedFastMs, speedSlowMs: t.speedSlowMs,
     });
     this.hud.hidePattern();
-    const label = res.quality > 0.85 ? 'NASTY!' : res.quality > 0.6 ? 'GOOD HEAT' : 'WOBBLER';
+    const fire = res.quality >= this.tuning.pitch.fireQualityThreshold;
+    const label = fire ? 'NASTY!' : res.quality > 0.6 ? 'GOOD HEAT' : 'WOBBLER';
     this.hud.pitchGrade(label, res.quality > 0.6); // small top badge, not a big center stamp
-    this.throwPlayerPitch(this.selectedPitch, res.quality);
+    this.throwPlayerPitch(this.selectedPitch, res.quality, fire);
+    if (fire) this.hud.fireBadge(true);
   }
 
   /** Build a quality-scaled pitch from the player's trace and serve it; AI kicks. */
-  throwPlayerPitch(id, q) {
+  throwPlayerPitch(id, q, fire = false) {
     const def = this.tuning.pitch.types[id];
     const Q = this.tuning.pitch.quality;
     const speedMph = Math.round(def.speedMph[1] * (Q.weakSpeedFactor + (1 - Q.weakSpeedFactor) * q));
     const curveM = def.curveM * (Q.minBreakFactor + (1 - Q.minBreakFactor) * q);
     const wildX = (1 - q) * Q.maxWildM * (Math.random() - 0.5) * 2; // sloppy = off-target
-    this.pitch = { id, speedMph, curveM, ease: def.ease, bounce: def.bounce, q }; // q drives AI kick difficulty
+    this.pitch = { id, speedMph, curveM, ease: def.ease, bounce: def.bounce, q, fire }; // q drives AI kick difficulty
     this.phase = 'PITCH';
     this.hud.hint('');
     this.servePitch(this.pitch, /*aiKicks=*/true, wildX);
+    if (fire) igniteBall(this.ball);
   }
 
   /** Shared ball serve for both roles. */
@@ -445,6 +463,7 @@ export class MatchScene {
   attemptKick(aimSpec, tapTime) {
     if (this.kicked || this.phase !== 'PITCH') return;
     this.kicked = true;
+    douseBall(this.ball); // contact made — clear the fire look
     this.kickWasSpecial = false;
     this.kickHrEligible = false;
     const isPlayerKick = this.kickingIsPlayer();
@@ -465,7 +484,9 @@ export class MatchScene {
     }
     this.hud.hideRing();
     this.hud.hidePowerMeter();
-    const power01 = isPlayerKick ? powerFromError(errMs, this.tuning) : null;
+    // Fire pitch narrows the human's window: dividing the error shrinks the sweet
+    // zone and drops the power marker off faster (matches the meter-feed scaling).
+    const power01 = isPlayerKick ? powerFromError(errMs / this.kickWindowScale(), this.tuning) : null;
 
     if (effErr > this.tuning.kick.okWindowMs * 1.6) {
       this.strike('WHIFF!');
@@ -504,6 +525,7 @@ export class MatchScene {
   }
 
   strike(label) {
+    douseBall(this.ball); // pitch dead — clear the fire look
     this.strikes += 1;
     this.bus.emit('sfx', 'whiff');
     this.hud.stamp(this.strikes >= 3 ? 'STRUCK OUT!' : label, 'pegged');
@@ -1514,6 +1536,20 @@ export class MatchScene {
       }
     }
 
+    if (this.phase === 'PITCH_TRACE') {
+      const window = this.tuning.pitch.traceTimerMs / 1000;
+      const frac = (this.traceDeadline - this.elapsed) / window;
+      this.hud.setTraceTimer(Math.max(0, frac));
+      // ran out of time → auto-release a fat meatball (fires once)
+      if (this.elapsed > this.traceDeadline && !this.traceExpired) {
+        this.traceExpired = true;
+        this.hud.hidePattern();
+        this.hud.hideTraceTimer();
+        this.hud.pitchGrade('WOBBLER', false);
+        this.throwPlayerPitch(this.selectedPitch, 0.2, /*fire=*/false);
+      }
+    }
+
     if (this.phase === 'PITCH' && this.kickingIsPlayer()) {
       const remain = this.pitchArrival - this.elapsed;
       const total = this.tuning.pitch.plateDistanceM / (this.pitch.speedMph * 0.12);
@@ -1531,7 +1567,7 @@ export class MatchScene {
     if (this.phase === 'PITCH' && this.kickingIsPlayer() && !this.kicked && this.pitchArrival != null) {
       // Power peaks (1.0) exactly at plate arrival, then falls — same curve the kick samples.
       const errNow = (this.elapsed - this.pitchArrival) * 1000;
-      this.hud.setPowerMarker(powerFromError(errNow, this.tuning));
+      this.hud.setPowerMarker(powerFromError(errNow / this.kickWindowScale(), this.tuning));
     }
 
     if (this.phase === 'PITCH' && !this.kickingIsPlayer() && this.kicker && !this.kicked) {
