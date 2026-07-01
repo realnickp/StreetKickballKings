@@ -200,6 +200,11 @@ const CLIPS = {
 };
 // celebration aliases the dance picker may ask for
 CLIPS.dejected = CLIPS.idle;
+// mocap-era names -> nearest legacy clips, so the ?codeanim fallback stays sane
+CLIPS.pitch = CLIPS.throw;
+CLIPS.holdball = CLIPS.idle;
+CLIPS.strafeL = CLIPS.run;
+CLIPS.strafeR = CLIPS.run;
 
 class GlbCodeAnimator {
   constructor(bones) {
