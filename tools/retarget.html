@@ -1,0 +1,24 @@
+<!doctype html>
+<!-- tools/retarget.html — dev-only. Open via `npm run dev` then
+     http://localhost:5173/tools/retarget.html
+     Loads all manifest clips, retargets onto the Meshy archetype skeleton,
+     previews each clip (buttons), exports animation-only mocap.glb. -->
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>SKK retarget harness</title>
+  <style>
+    body { margin: 0; background: #111; color: #eee; font: 13px monospace; }
+    #ui { position: fixed; top: 0; left: 0; right: 0; padding: 8px; background: #000a; z-index: 2; }
+    #ui button { margin: 2px; padding: 4px 8px; }
+    #log { position: fixed; bottom: 0; left: 0; right: 0; max-height: 30vh; overflow: auto;
+           background: #000c; padding: 6px; white-space: pre-wrap; z-index: 2; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <div id="ui"></div>
+  <div id="log"></div>
+  <script type="module" src="/tools/retarget.js"></script>
+</body>
+</html>
