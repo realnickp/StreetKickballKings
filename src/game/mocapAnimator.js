@@ -10,15 +10,16 @@ import manifest from '../data/anims.manifest.json';
 const FADE_S = 0.15;
 const META = new Map(manifest.map((m) => [m.name, m]));
 
-let clipsPromise = null;
-/** Fetch + cache the shared animation set (one download for all characters). */
-export function loadMocapClips(url = '/assets/anims/mocap.glb') {
-  if (!clipsPromise) {
-    clipsPromise = new GLTFLoader().loadAsync(url)
+const clipsPromises = new Map();
+/** Fetch + cache an animation set. Each archetype has its OWN bake (each Meshy
+ *  rig has a different rest pose — a shared bake distorts the other rigs). */
+export function loadMocapClips(url = '/assets/anims/mocap-locs.glb') {
+  if (!clipsPromises.has(url)) {
+    clipsPromises.set(url, new GLTFLoader().loadAsync(url)
       .then((g) => g.animations)
-      .catch((e) => { clipsPromise = null; throw e; });
+      .catch((e) => { clipsPromises.delete(url); throw e; }));
   }
-  return clipsPromise;
+  return clipsPromises.get(url);
 }
 
 export class MocapAnimator {

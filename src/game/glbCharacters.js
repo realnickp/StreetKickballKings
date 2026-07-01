@@ -379,24 +379,28 @@ const FEMALE_ARCHETYPES = new Set([2, 5]); // arch-braids, arch-twists
 export async function buildTeamCharsGlb(team, uniformColor) {
   const roster = team.roster ?? [];
   const primary = uniformColor ?? team.colors?.primary;
-  // shared mocap clips: ONE fetch for every character on every team. A missing/
-  // broken mocap.glb (or ?codeanim=1) falls back to the legacy code animator —
-  // never a blank screen.
+  // Per-archetype mocap clips (each Meshy rig has its own rest pose, so each
+  // gets its own bake); loadMocapClips caches per URL — 6 fetches total across
+  // ALL teams. Missing bakes (or ?codeanim=1) fall back to the legacy code
+  // animator — never a blank screen.
   const forceCode = new URLSearchParams(location.search).has('codeanim');
-  let clips = null;
-  if (!forceCode) {
-    try { clips = await loadMocapClips(); }
-    catch (e) { console.warn('[skk] mocap.glb unavailable, using code animator:', e); }
-  }
+  const clipsFor = async (archIdx) => {
+    if (forceCode) return null;
+    const key = ARCHETYPES[archIdx].match(/arch-(\w+)\.glb/)?.[1];
+    try { return await loadMocapClips(`/assets/anims/mocap-${key}.glb`); }
+    catch (e) { console.warn(`[skk] mocap-${key}.glb unavailable, using code animator:`, e); return null; }
+  };
   const out = [];
   for (let i = 0; i < roster.length; i++) {
     const p = roster[i];
     const archIdx = (p.archetype ?? i) % ARCHETYPES.length;
+    const clips = await clipsFor(archIdx);
     let char;
     try {
       char = await buildGlbCharacter({ model: ARCHETYPES[archIdx], teamColor: primary }, { heightM: 2.05, clips });
     } catch {
-      char = await buildGlbCharacter({ model: FALLBACK_MODEL }, { heightM: 2.05, clips }); // archetype not present yet
+      // fallback model has a DIFFERENT rig — no baked set; use the code animator
+      char = await buildGlbCharacter({ model: FALLBACK_MODEL }, { heightM: 2.05, clips: null });
     }
     char.data = p;
     char.number = p.number ?? JERSEY_NUMBERS[i % JERSEY_NUMBERS.length];
