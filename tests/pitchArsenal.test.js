@@ -1,7 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { PITCH_PATTERNS, PITCH_FAMILIES, PITCH_FAMILY_MENU, pickVariant } from '../src/game/pitchPattern.js';
+import { PITCH_PATTERNS, PITCH_FAMILIES, PITCH_FAMILY_MENU, pickVariant, makePitch } from '../src/game/pitchPattern.js';
 import { aiThrowsFire } from '../src/game/ai.js';
 import tuning from '../src/data/tuning.json';
+
+// Tiny seeded RNG (LCG) for deterministic variety checks.
+function lcg(seed) {
+  let s = seed >>> 0;
+  return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+}
 
 describe('pitch families', () => {
   it('has three families of four variants each (12 total)', () => {
@@ -54,6 +60,59 @@ describe('pitch families', () => {
         expect(typeof t.bounce).toBe('number');
       }
     }
+  });
+});
+
+describe('makePitch (procedural pitch generator)', () => {
+  it('returns a valid, traceable shape + physics for every family', () => {
+    for (const family of Object.keys(PITCH_FAMILIES)) {
+      const fam = tuning.pitch.families[family];
+      const rng = lcg(42);
+      for (let i = 0; i < 300; i++) {
+        const p = makePitch(family, tuning, rng);
+        expect(p.family).toBe(family);
+        expect(typeof p.label).toBe('string');
+        // points: at least a stroke, normalized, starts at the bottom, ends at the top
+        expect(p.points.length).toBeGreaterThanOrEqual(2);
+        expect(p.points[0].y).toBe(0);
+        expect(p.points[p.points.length - 1].y).toBe(1);
+        for (const pt of p.points) {
+          expect(pt.x).toBeGreaterThanOrEqual(0.06);
+          expect(pt.x).toBeLessThanOrEqual(0.94);
+          expect(pt.y).toBeGreaterThanOrEqual(0);
+          expect(pt.y).toBeLessThanOrEqual(1);
+        }
+        // physics in the family's configured ranges
+        expect(p.speedMph).toBeGreaterThanOrEqual(fam.speedMph[0]);
+        expect(p.speedMph).toBeLessThanOrEqual(fam.speedMph[1]);
+        expect(p.durScale).toBeGreaterThanOrEqual(fam.durScale[0]);
+        expect(p.durScale).toBeLessThanOrEqual(fam.durScale[1]);
+      }
+    }
+  });
+
+  it('breaks hook (big curveM) while heat barely tails and junk runs straight', () => {
+    const rng = lcg(7);
+    for (let i = 0; i < 100; i++) {
+      expect(Math.abs(makePitch('HEAT', tuning, rng).curveM)).toBeLessThanOrEqual(1);
+      expect(Math.abs(makePitch('BREAK', tuning, rng).curveM)).toBeGreaterThanOrEqual(1.7);
+      expect(makePitch('JUNK', tuning, rng).curveM).toBe(0);
+    }
+  });
+
+  it('almost never repeats the same shape (high variety)', () => {
+    const rng = lcg(123);
+    const seen = new Set();
+    const N = 200;
+    for (let i = 0; i < N; i++) {
+      const p = makePitch('BREAK', tuning, rng);
+      seen.add(p.points.map(pt => `${pt.x.toFixed(2)},${pt.y.toFixed(2)}`).join('|'));
+    }
+    expect(seen.size).toBeGreaterThan(N * 0.9); // >90% of generated shapes are unique
+  });
+
+  it('returns null for an unknown family', () => {
+    expect(makePitch('NOPE', tuning)).toBeNull();
   });
 });
 

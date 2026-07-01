@@ -55,6 +55,80 @@ export function pickVariant(family, rng = Math.random) {
   return ids[Math.floor(rng() * ids.length)];
 }
 
+const _clamp01 = (v) => Math.max(0.06, Math.min(0.94, v));
+const _rr = (rng, a, b) => a + rng() * (b - a);
+const _pick = (rng, arr) => arr[Math.floor(rng() * arr.length)];
+const _P = (x, y) => ({ x: _clamp01(x), y });
+
+/**
+ * Generate a FRESH random pitch for a family every time — so the traced shape is
+ * almost never the same twice. Returns the trace `points` (normalized, y-up) PLUS the
+ * pitch physics (speed/break/ease/bounce/durScale) derived from the same shape, and a
+ * flavor `label` for the HUD readout. Replaces the old fixed 4-per-family pool.
+ *
+ * Family styles: HEAT = quick straight-ish strokes in varied directions; BREAK = up
+ * then a hook/arc (direction + sharpness randomized → curveM); JUNK = exaggerated
+ * S / zigzag / arch / wobble (off-speed, ease/bounce).
+ *
+ * @param {string} family one of PITCH_FAMILIES
+ * @param {object} tuning the tuning.json object (reads tuning.pitch.families[family])
+ * @param {() => number} [rng]
+ * @returns {{family:string, label:string, points:{x:number,y:number}[], speedMph:number, durScale:number, curveM:number, ease:number, bounce:number}}
+ */
+export function makePitch(family, tuning, rng = Math.random) {
+  const fam = tuning.pitch.families?.[family];
+  if (!fam) return null;
+  const speedMph = Math.round(_rr(rng, fam.speedMph[0], fam.speedMph[1]));
+  const durScale = Math.round(_rr(rng, fam.durScale[0], fam.durScale[1]) * 1000) / 1000;
+  const label = _pick(rng, fam.names);
+  let points, curveM = 0, ease = 1, bounce = 0;
+
+  if (family === 'HEAT') {
+    const bx = _rr(rng, 0.3, 0.7), tx = _rr(rng, 0.3, 0.7);
+    if (rng() < 0.45) {
+      const my = _rr(rng, 0.5, 0.72);
+      const mx = (bx + tx) / 2 + _rr(rng, -0.14, 0.14);
+      points = [_P(bx, 0), _P(mx, my), _P(tx, 1)]; // straight then a late snap
+    } else {
+      points = [_P(bx, 0), _P(tx, 1)]; // clean line in a random direction
+    }
+    curveM = Math.max(-1, Math.min(1, (tx - bx) * 1.6)); // a leaning fastball tails a touch
+  } else if (family === 'BREAK') {
+    const dir = rng() < 0.5 ? -1 : 1;
+    const breakY = _rr(rng, 0.42, 0.62);
+    const startX = 0.5 - dir * _rr(rng, 0, 0.22);                 // opposite-side start = sweeping C
+    const midX = 0.5 + dir * _rr(rng, -0.06, 0.08);
+    const endX = 0.5 + dir * _rr(rng, 0.28, 0.4);                 // big hook to one side
+    if (rng() < 0.5) {
+      points = [_P(startX, 0), _P(midX, breakY), _P(endX, 1)];
+    } else {
+      points = [_P(startX, 0), _P(midX, breakY), _P((midX + endX) / 2, (breakY + 1) / 2), _P(endX, 1)];
+    }
+    curveM = dir * _rr(rng, 1.7, 2.6);
+  } else { // JUNK
+    const kind = _pick(rng, ['s', 'zig', 'arch', 'wobble']);
+    if (kind === 's') {
+      points = [_P(_rr(rng, 0.26, 0.36), 0), _P(_rr(rng, 0.62, 0.72), 0.34), _P(_rr(rng, 0.28, 0.38), 0.66), _P(_rr(rng, 0.64, 0.74), 1)];
+      ease = 0.5;
+    } else if (kind === 'zig') {
+      const n = 3 + Math.floor(rng() * 2);
+      points = [];
+      for (let i = 0; i <= n; i++) points.push(_P(i % 2 === 0 ? _rr(rng, 0.24, 0.34) : _rr(rng, 0.66, 0.76), i / n));
+      bounce = _rr(rng, 1.2, 1.5);
+    } else if (kind === 'arch') {
+      const dir = rng() < 0.5 ? -1 : 1;
+      points = [_P(0.5 - dir * 0.1, 0), _P(0.5 + dir * _rr(rng, 0.22, 0.32), 0.42), _P(0.5 + dir * _rr(rng, 0.06, 0.16), 0.82), _P(0.5 - dir * _rr(rng, 0.18, 0.28), 1)];
+      ease = 0.5;
+    } else { // wobble
+      const n = 4 + Math.floor(rng() * 2);
+      points = [];
+      for (let i = 0; i <= n; i++) points.push(_P(0.5 + (i % 2 === 0 ? -1 : 1) * _rr(rng, 0.08, 0.16), i / n));
+      bounce = _rr(rng, 1.2, 1.4);
+    }
+  }
+  return { family, label, points, speedMph, durScale, curveM, ease, bounce };
+}
+
 const RESAMPLE_N = 24;
 
 function pathLength(pts) {
