@@ -19,3 +19,4 @@ public/assets/audio/samples/
 # stray root-level screenshots / logs
 /*.png
 *.log
+tools/anims-src/
