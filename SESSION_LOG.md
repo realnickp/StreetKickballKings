@@ -2,7 +2,7 @@
 
 > **Purpose:** Complete snapshot of this build so a fresh session gets up to speed instantly.
 > **To resume:** "Read SESSION_LOG.md to get up to speed."
-> Last updated: 2026-06-15 (session 5 — NY/Black announcers, Madden matchup screen w/ logo-on-jersey diverse players, portrait phone frame + PWA, big fielding/rules pass, deployed to GitHub/Vercel)
+> Last updated: 2026-07-01 (session 6 — timed KICK POWER METER + position-based home runs; PITCH ARSENAL: family picker → a procedurally-generated pattern EVERY pitch + countdown + fire pitch; feel pass (run sensitivity, dead-feet fix, snappy kick); full GRAPHICS pass + a phone-playtest regression-fix loop; CPU-kick-HEAT rebalance. All on Vercel production except procedural-variety PR #5, pending "push".)
 
 This is the **browser/Three.js** rebuild of *Street Kickball Kings*. (There is an
 earlier **Unity** version at `C:\Unity Projects\KickballGame\` — its
@@ -528,3 +528,75 @@ build`, output `dist`). `.env.local` (ElevenLabs key) stays gitignored.
   for videos, ffmpeg a frame into the project dir and Read it; for gameplay, drive it (don't trust
   state flags or a subagent's self-assessment). Over-claiming "it works" off synthetic checks burned a
   lot of trust this session. See [[verify-gameplay-by-real-play]] and the video word-landmines in §7f.
+
+---
+
+## 8e. SESSION 6 — power meter, pitch arsenal, feel + graphics overhaul (2026-06-27 → 07-01)
+
+Big feature + polish session, run **subagent-driven** from an approved spec + plan
+(`docs/superpowers/specs/2026-06-27-kick-meter-pitch-arsenal-graphics-design.md`,
+`docs/superpowers/plans/2026-06-27-kick-power-meter.md`). Everything verified before shipping:
+Vitest, node Monte-Carlo sims for tuning, and **real-browser renders via the claude-in-chrome tools**
+(headless Chrome renders the WebGL scene BLACK — don't trust it). **76 Vitest tests pass, build clean.**
+
+**KICK — timed power meter + position home runs.** New vertical **power-meter** HUD widget: the marker
+rises and PEAKS exactly at plate arrival, then falls; flick-up locks it. Launch DISTANCE now scales with
+the lock (`kickTiming.powerFromError` → `launchParams` `power01`), so a good lock genuinely rips (fixed
+"weak kick"). **Home run = sweet-zone lock (power ≥ hrPower) AND kicker aligned under the ball (|Δx| ≤
+hrAlignM)** — `kickTiming.isHrEligible`, gated by `matchScene.kickHrEligible`, which **REPLACED the old
+`kickWasSpecial`-only fence-homer gate** (the crown super-kick is now just a bonus power path).
+tuning.kick: `baseBallSpeedMs 9`, `meterWindowMs 320`, `hrPower 0.9`, `hrAlignM 0.6`.
+
+**PITCH — arsenal + timer + fire, now PROCEDURAL.** Picker = 3 FAMILY buttons (HEAT / BREAK / JUNK).
+Each pitch **GENERATES A FRESH pattern every time** via `pitchPattern.makePitch(family, tuning, rng)` —
+returns the trace `points` PLUS derived physics (speed/break/ease/bounce/durScale) + a flavor label, so
+you almost never trace the same shape twice (replaced the fixed 4-per-family pool that repeated). `ai.pickPitch`
+uses makePitch too, so the CPU's pitches vary. Family ranges in `tuning.pitch.families`. A **countdown**
+(`traceTimerMs 2200`) runs while you trace; time out = a fat meatball. A **perfect trace (≥ `fireQualityThreshold`
+0.9) ignites the ball** (`fx.igniteBall/douseBall`, emissive-orange + additive glow, crash-safe) and makes
+it **harder to kick** — narrows the kicker's sweet-zone + speeds the sweep via `kickWindowScale`
+(`fireKickWindowScale 0.6`). The CPU can throw fire too (`ai.aiThrowsFire`, `cpuFireChance` Rookie 0 /
+Street .12 / King .25). NOTE: the fixed `PITCH_PATTERNS` (12), `pickVariant`, and `tuning.pitch.types`
+remain as legacy/back-compat for tests but are no longer the runtime path.
+
+**FEEL.** Run-tap sensitivity up (`baseRunning.humanRunSpeed` dead-zone 0.5→0.3, mult 1.8→2.4;
+tuning.running `maxSpeedMs 8.3`, `speedPerTapHz 1.05`). **Dead-feet fixed:** the kicker was gliding on the
+static `plate` clip while sliding to line up — now it plays `run` with speed-scaled `speedFactor` whenever
+it repositions during PITCH/SETUP (player-drag AND CPU auto-slide), reverting to `plate` when settled;
+fielder run `speedFactor` now scales with real chase speed. **Snappier kick** (`glbCharacters` CLIPS.kick:
+dur 0.7→0.5, contactAt 0.5→0.34, bigger swing-through).
+
+**GRAPHICS + a hard regression-fix loop from the dev's phone playtests.** KEPT wins: env-map IBL
+(`RoomEnvironment` PMREM, `scene.environmentIntensity 0.3`), rim/back light (0.28), glossy hero-ball
+`MeshStandardMaterial`, asphalt normal map, sharper sun shadows (2048, ±38 frustum, bias). REVERTED/DISABLED
+after playtest bugs:
+- **"Everything glowing"** (over-bloom) → env 0.3 + rim 0.28 + bloom strength 0.35→0.18 / threshold 0.9→0.95.
+- **Crowd too big** → backdrop mirror `repeat` 2→**4** (distant fans).
+- **Sky seam** → removed the backdrop `color.setScalar(0.85)` dim (the dome/cap sample the image's top at
+  full brightness, so dimming the material desynced the join).
+- **Ball "black box that randomly appears"** → `ball.mesh.castShadow = false` (the 0.22m ball's hard
+  shadow through the map was a blocky square tracking it).
+- **GTAO ambient occlusion DISABLED** — its radius artifacted (dark halo-discs under players + the ball
+  box). Env map + shadows carry the grounding; a small-radius/SSAO pass is the "revisit". Fog kept light
+  (`FogExp2 0.004`). (The big grey disc under the pitcher is just the MOUND, not a bug.)
+
+**CPU-KICK REBALANCE (HEAT).** The CPU couldn't kick HEAT — `ai.aiKickError`'s quality multiplier
+`0.6 + q*0.9` (≤1.5×) plus HEAT's speed pushed the CPU's error past the 270ms foul line ~100% of the time
+(auto-foul → out). Softened to `0.55 + q*0.5` (~1.05× max) and lowered HEAT speeds (≤94→≤90 mph).
+**Verified by a node sim** across Rookie/Street/King: Street in-play on a top HEAT now 66-73% (was ~0%),
+still graded by pitch quality; nastier pitch lowers in-play but never to zero.
+
+**DEPLOY / WORKFLOW.** Dev playtests on his **phone via the production PWA**, so each fix ships by merging
+to `main` (Vercel production); he authorizes each deploy with a one-word **"push"** (the merge is
+permission-gated for the agent). **PRs #1-#4 merged to production; PR #5 (procedural pitch variety) is
+OPEN, pending "push".** See [[skk-deploy-playtest-workflow]].
+
+**DISCUSSED, NOT BUILT — character-quality roadmap (convo).** Biggest realism lever = ANIMATION (current
+motion is hand-coded joint rotations in `GlbCodeAnimator`). Hands-off-for-dev paths: (1) code-only
+**foot-IK + secondary motion** (guaranteed, zero steps — recommended first move); (2) validate
+**Higgsfield motion MCP** (`animation_actions`/`motion_control`) — but the baked-clip path is what caused
+the old "flinging mesh," so it needs testing; (3) in-code mocap **retargeting** (`SkeletonUtils.retargetClip`)
+if licensable athletic clips can be fetched. **Mixamo = the one manual wall** (Adobe login + interactive
+auto-rig UI) → avoid. Also on the realism list: per-field HDRI, PBR court textures, **depth-of-field**
+(hides the flat backdrop ring — biggest realism-per-effort), dynamic per-player jersey numbers, more
+body-type archetypes.
