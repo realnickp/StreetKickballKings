@@ -442,28 +442,44 @@ export class MatchScene {
     this.bus.emit('sfx', 'pitch');
 
     const pitcher = this.fieldingChars()[0];
-    // real underhand delivery (Goalie Throw); code-animator falls back to idle-safe names
-    pitcher.animator.play('pitch', { onDone: () => pitcher.animator.play('idle') });
 
     const type = this.tuning.pitch.types[pitch.id];
     const rollSpeed = pitch.speedMph * 0.12;
     const dur = (this.tuning.pitch.plateDistanceM / rollSpeed) * (type?.durScale ?? 1);
     const plate = new THREE.Vector3(wildX, 0, 0.2);
-    this.ball.startPitch(FIELD_LAYOUT.pitcher.clone().setY(0.35), plate, dur, {
-      bounce: pitch.bounce ?? 0, curveM: pitch.curveM ?? 0, ease: pitch.ease ?? 1,
-    });
-    this.pitchArrival = this.elapsed + dur;
+    // the ball leaves the hand at the delivery clip's RELEASE frame (onContact),
+    // not at play() — otherwise the ball rolls away mid-wind-up (dev callout).
+    // The AI's swing is scheduled from the SAME moment so its timing still keys
+    // off actual ball flight.
+    let launched = false;
+    const launch = () => {
+      if (launched) return;
+      launched = true;
+      this.ball.startPitch(FIELD_LAYOUT.pitcher.clone().setY(0.35), plate, dur, {
+        bounce: pitch.bounce ?? 0, curveM: pitch.curveM ?? 0, ease: pitch.ease ?? 1,
+      });
+      this.pitchArrival = this.elapsed + dur;
+      if (aiKicks) {
+        // The full error drives the JUDGE (whiff/foul/contact). But cap WHEN the
+        // AI actually swings to ±0.45s of arrival so a big miss never leaves the
+        // ball just sitting there ("frozen"). NaN-guarded so it can't hang.
+        const errMs = aiKickError(this.difficulty, this.tuning, pitch);
+        const swing = dur + Math.max(-0.25, Math.min(0.45, (Number.isFinite(errMs) ? errMs : 0) / 1000));
+        this.after(swing, () => this.attemptKick({ aim: aiAim(this.difficulty), errMs }, this.elapsed));
+      }
+    };
+    this.pitchArrival = Infinity; // nothing may judge arrival until the ball is live
     this.kicked = false;
+    pitcher.animator.play('pitch', {
+      onContact: launch,
+      onDone: () => pitcher.animator.play('idle'),
+    });
+    // safety: an animator without a contact mark must never freeze the serve
+    this.after(1.2, launch);
 
     if (aiKicks) {
       this.kicker.group.position.x = 0; // start centred so the CPU visibly slides to line up
       this._kickerPrevX = 0; // reset stride tracker so the recenter isn't read as a slide
-      // The full error drives the JUDGE (whiff/foul/contact). But cap WHEN the AI
-      // actually swings to ±0.45s of arrival so a big miss never leaves the ball
-      // just sitting there (which reads as "frozen"). NaN-guarded so it can't hang.
-      const errMs = aiKickError(this.difficulty, this.tuning, pitch);
-      const swing = dur + Math.max(-0.25, Math.min(0.45, (Number.isFinite(errMs) ? errMs : 0) / 1000));
-      this.after(swing, () => this.attemptKick({ aim: aiAim(this.difficulty), errMs }, this.elapsed));
     }
   }
 
