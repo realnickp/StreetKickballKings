@@ -7,19 +7,138 @@
       "fenceM": 42,
       "fenceHeightM": 4.0,
       "flavor": "none",
-      "sky": "day",
-      "palette": { "ground": "#3c3f44", "lines": "#e8e6df", "fence": "#9aa0a6", "wall": "#7a4a32" },
-      "textures": { "ground": "assets/textures/asphalt.png", "sky": "assets/textures/sky-blacktop.png", "backdrop": "assets/textures/backdrop-blacktop-3d.png", "backdropVideo": "assets/video/backdrop-blacktop.mp4" },
+      "sky": "golden-hour",
+      "palette": {
+        "ground": "#3c3f44",
+        "lines": "#e8e6df",
+        "fence": "#9aa0a6",
+        "wall": "#7a4a32"
+      },
+      "textures": {
+        "ground": "assets/textures/asphalt.png",
+        "sky": "assets/textures/sky-blacktop.png",
+        "backdrop": "assets/textures/backdrop-blacktop-3d.png",
+        "backdropVideo": "assets/video/backdrop-blacktop.mp4"
+      },
+      "status": "ready",
+      "world3d": true
+    },
+    {
+      "id": "subway-yard",
+      "label": "Subway Yard",
+      "homeTeam": "snappers",
+      "fenceM": 40,
+      "flavor": "trains",
+      "sky": "sodium-night",
+      "textures": {
+        "backdrop": "assets/textures/backdrop-subway-yard-3d.png",
+        "backdropVideo": "assets/video/backdrop-subway-yard.mp4"
+      },
       "status": "ready"
     },
-    { "id": "subway-yard", "label": "Subway Yard", "homeTeam": "snappers", "fenceM": 40, "flavor": "trains", "sky": "sodium-night", "textures": { "backdrop": "assets/textures/backdrop-subway-yard-3d.png", "backdropVideo": "assets/video/backdrop-subway-yard.mp4" }, "status": "ready" },
-    { "id": "block-party", "label": "The Block Party", "homeTeam": "funk", "fenceM": 36, "flavor": "hydrant", "sky": "dusk", "textures": { "backdrop": "assets/textures/backdrop-block-party-3d.png", "backdropVideo": "assets/video/backdrop-block-party.mp4" }, "status": "ready" },
-    { "id": "neon-night-court", "label": "Neon Night Court", "homeTeam": "hustlers", "fenceM": 38, "flavor": "wet-reflections", "sky": "neon-night", "textures": { "backdrop": "assets/textures/backdrop-neon-night-court-3d.png", "backdropVideo": "assets/video/backdrop-neon-night-court.mp4" }, "status": "ready" },
-    { "id": "boardwalk-kings", "label": "Boardwalk Kings", "homeTeam": "threshers", "fenceM": 39, "flavor": "gulls", "sky": "golden-hour", "textures": { "backdrop": "assets/textures/backdrop-boardwalk-kings-3d.png", "backdropVideo": "assets/video/backdrop-boardwalk-kings.mp4" }, "status": "ready" },
-    { "id": "the-underpass", "label": "The Underpass", "homeTeam": "metros", "fenceM": 37, "flavor": "echo", "sky": "shaft-light", "textures": { "backdrop": "assets/textures/backdrop-the-underpass-3d.png", "backdropVideo": "assets/video/backdrop-the-underpass.mp4" }, "status": "ready" },
-    { "id": "rubber-yard", "label": "The Rubber Yard", "homeTeam": "marauders", "fenceM": 41, "flavor": "smoke", "sky": "overcast", "textures": { "backdrop": "assets/textures/backdrop-rubber-yard-3d.png", "backdropVideo": "assets/video/backdrop-rubber-yard.mp4" }, "status": "ready" },
-    { "id": "winter-classic", "label": "Winter Classic", "homeTeam": "kestrals", "fenceM": 38, "flavor": "snow", "sky": "winter", "textures": { "backdrop": "assets/textures/backdrop-winter-classic-3d.png", "backdropVideo": "assets/video/backdrop-winter-classic.mp4" }, "status": "ready" },
-    { "id": "scorchyard", "label": "The Scorchyard", "homeTeam": "gilas", "fenceM": 42, "flavor": "heat-haze", "sky": "desert-sunset", "textures": { "backdrop": "assets/textures/backdrop-scorchyard-3d.png", "backdropVideo": "assets/video/backdrop-scorchyard.mp4" }, "status": "ready" },
-    { "id": "the-crown", "label": "The Crown", "homeTeam": "monarchs", "fenceM": 40, "flavor": "fireworks", "sky": "stadium-night", "textures": { "backdrop": "assets/textures/backdrop-the-crown-3d.png", "backdropVideo": "assets/video/backdrop-the-crown.mp4" }, "status": "ready" }
+    {
+      "id": "block-party",
+      "label": "The Block Party",
+      "homeTeam": "funk",
+      "fenceM": 36,
+      "flavor": "hydrant",
+      "sky": "dusk",
+      "textures": {
+        "backdrop": "assets/textures/backdrop-block-party-3d.png",
+        "backdropVideo": "assets/video/backdrop-block-party.mp4"
+      },
+      "status": "ready"
+    },
+    {
+      "id": "neon-night-court",
+      "label": "Neon Night Court",
+      "homeTeam": "hustlers",
+      "fenceM": 38,
+      "flavor": "wet-reflections",
+      "sky": "neon-night",
+      "textures": {
+        "backdrop": "assets/textures/backdrop-neon-night-court-3d.png",
+        "backdropVideo": "assets/video/backdrop-neon-night-court.mp4"
+      },
+      "status": "ready"
+    },
+    {
+      "id": "boardwalk-kings",
+      "label": "Boardwalk Kings",
+      "homeTeam": "threshers",
+      "fenceM": 39,
+      "flavor": "gulls",
+      "sky": "golden-hour",
+      "textures": {
+        "backdrop": "assets/textures/backdrop-boardwalk-kings-3d.png",
+        "backdropVideo": "assets/video/backdrop-boardwalk-kings.mp4"
+      },
+      "status": "ready"
+    },
+    {
+      "id": "the-underpass",
+      "label": "The Underpass",
+      "homeTeam": "metros",
+      "fenceM": 37,
+      "flavor": "echo",
+      "sky": "shaft-light",
+      "textures": {
+        "backdrop": "assets/textures/backdrop-the-underpass-3d.png",
+        "backdropVideo": "assets/video/backdrop-the-underpass.mp4"
+      },
+      "status": "ready"
+    },
+    {
+      "id": "rubber-yard",
+      "label": "The Rubber Yard",
+      "homeTeam": "marauders",
+      "fenceM": 41,
+      "flavor": "smoke",
+      "sky": "overcast",
+      "textures": {
+        "backdrop": "assets/textures/backdrop-rubber-yard-3d.png",
+        "backdropVideo": "assets/video/backdrop-rubber-yard.mp4"
+      },
+      "status": "ready"
+    },
+    {
+      "id": "winter-classic",
+      "label": "Winter Classic",
+      "homeTeam": "kestrals",
+      "fenceM": 38,
+      "flavor": "snow",
+      "sky": "winter",
+      "textures": {
+        "backdrop": "assets/textures/backdrop-winter-classic-3d.png",
+        "backdropVideo": "assets/video/backdrop-winter-classic.mp4"
+      },
+      "status": "ready"
+    },
+    {
+      "id": "scorchyard",
+      "label": "The Scorchyard",
+      "homeTeam": "gilas",
+      "fenceM": 42,
+      "flavor": "heat-haze",
+      "sky": "desert-sunset",
+      "textures": {
+        "backdrop": "assets/textures/backdrop-scorchyard-3d.png",
+        "backdropVideo": "assets/video/backdrop-scorchyard.mp4"
+      },
+      "status": "ready"
+    },
+    {
+      "id": "the-crown",
+      "label": "The Crown",
+      "homeTeam": "monarchs",
+      "fenceM": 40,
+      "flavor": "fireworks",
+      "sky": "stadium-night",
+      "textures": {
+        "backdrop": "assets/textures/backdrop-the-crown-3d.png",
+        "backdropVideo": "assets/video/backdrop-the-crown.mp4"
+      },
+      "status": "ready"
+    }
   ]
 }
