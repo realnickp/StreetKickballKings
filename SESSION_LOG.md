@@ -576,3 +576,48 @@ assignments swapped per his call; ball already launches on the release frame).
 **NEXT:** dev phone-playtest + "push" for PR #6 → Phase 2 (broadcast cameras + real
 instant replay, kill DOM speed-lines/stamps) → Phase 3 (NYC 3D world from the owned pack)
 → Phase 4 (DOF, grade, jersey numbers, foot-plant polish).
+
+---
+
+## 11. SESSION 7b — GRAPHICS OVERHAUL PHASE 2: broadcast cams + replays + balance (2026-07-01)
+
+**BOTH PHASES SHIPPED TO PRODUCTION same session: PR #6 (mocap) and PR #7 (Phase 2),
+each dev-authorized with "push".** All tuned live with the dev playtesting and reacting.
+
+**PHASE 2 (`docs/superpowers/plans/2026-07-01-phase2-broadcast-cameras.md`):**
+- `src/game/cameraDirector.js` — named SHOTS (pure fns of game ctx → pos/look/fovScale/
+  stiffness), critically-damped springs, hard `cut()`. matchScene picks the shot
+  (`chooseLiveShot`), camDir moves the camera. Kick/pitch input views keep EXACT legacy
+  framing (input-critical). Contact = 0.4s low hero-cam CUT → telephoto tracker (0.55x
+  lens) → crane on deep balls → runner cam that frames runner + TARGET BAG (dev call:
+  "you gotta see 1st base"). `engine.baseFov` set by renderer resize; shots scale it.
+- `src/cinematics/replay.js` — ReplayRecorder (6s ring buffer of every char's bone quats
+  + hips pos + group transform + ball, 30hz fixed-cadence) + ReplayPlayer (letterboxed
+  slow-mo playback from a low orbital telephoto, snapshots+restores live state, emits
+  cine:start/done). Drives HOMER + PEG moments.
+- **Catch celebration is NOT a raw replay** (dev: raw buffer window caught the chase and
+  looked broken): staged live moment — fielder faces camera holding the REAL ball
+  (holdball), Victory beat, then throws the actual ball back to the mound on the throw
+  clip's release frame (`ball.throwTo`, hasBall cleared at onContact).
+- DELETED: ComicShader/setComic, DOM speed-lines, spray-stamp play calls. Calls
+  (SAFE!/OUT!/DOUBLE PLAY!...) are auto-hiding lower-thirds (`hud.call`); stamps remain
+  only for instructional text (SWITCH!, PICKLE!). `.letterbox` bars via `hud.setLetterbox`.
+
+**FIELDING/BALANCE PASS (dev: "impossible to win... game is pointless" — fixed):**
+- Player defense AUTO-CHASES like the AI (tap/drag overrides); backup converges 2.5m
+  behind the play — two fielders visibly pursue.
+- AI defense beatable: `catchSkill` .5/.68/.85 (Rookie/Street/King), `fieldReactMs`
+  560/430/280, `aiThrowDelayS` .7/.55/.4 — runners beat throws a fair share.
+- CPU kick placement tighter (`aiAimDeg` 30→26) so its kicks land nearer coverage.
+
+**GOTCHAS THIS PHASE:** PowerShell 5.1 mangles embedded double quotes in git -m
+here-strings (message got split — avoid quotes in commit messages). Chrome throttles
+rAF when the game window is OCCLUDED (looked like a frozen game — foreground before
+judging). The dev's Chrome relaunch created a stale claude-in-chrome connection
+(two "browsers" listed; the live one had to be re-selected).
+
+**STILL OPEN:** pitcher's true underhand ROLL (waiting on dev's Mixamo "Bowling"
+download — pitch currently uses the trimmed Throwing clip per his swap call).
+**NEXT:** Phase 3 — The Blacktop as a real NYC 3D world from the owned Gameready3D
+packs (extract Vol2 unitypackage, FBX→GLB, texture downscale, dusk lighting).
+103 tests green.
