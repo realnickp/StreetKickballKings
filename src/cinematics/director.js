@@ -9,6 +9,7 @@
 // Every cinematic is tap-skippable ('cine:skip' on the bus).
 import * as THREE from 'three';
 import { BallFx } from './fx.js';
+import { FIELD_LAYOUT } from '../game/field.js';
 
 const DANCES = ['dance1', 'dance2', 'dance3', 'dance4'];
 
@@ -176,9 +177,16 @@ export class CinematicDirector {
         onStart: () => fielder.animator.play('dance3'),
         onUpdate: (k) => shot(2.6 + k * 0.5, 3.8),
       },
-      { // fire it back into play
+      { // fire it back into play — the REAL ball leaves his hands on the release frame
         dur: 0.9,
-        onStart: () => fielder.animator.play('throw', { onDone: () => fielder.animator.play('idle') }),
+        onStart: () => fielder.animator.play('throw', {
+          onContact: () => {
+            fielder.hasBall = false; // stop pinning the ball to his hands
+            const ball = this.getBall?.();
+            if (ball) ball.throwTo(FIELD_LAYOUT.pitcher.clone().setY(0.3), 14);
+          },
+          onDone: () => fielder.animator.play('idle'),
+        }),
         onUpdate: (k) => shot(3.1, 3.8 + k * 1.0), // ease back out
       },
     ]);
