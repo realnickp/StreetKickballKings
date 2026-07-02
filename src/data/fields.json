@@ -16,12 +16,12 @@
       },
       "textures": {
         "ground": "assets/textures/asphalt.png",
-        "sky": "assets/textures/sky-blacktop.png",
         "backdrop": "assets/textures/backdrop-blacktop-3d.png",
         "backdropVideo": "assets/video/backdrop-blacktop.mp4"
       },
+      "backdropRepeat": 2,
       "status": "ready",
-      "world3d": true
+      "world3d": false
     },
     {
       "id": "subway-yard",
