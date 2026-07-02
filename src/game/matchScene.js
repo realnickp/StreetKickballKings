@@ -13,6 +13,7 @@ import { pickPitch, aiKickError, aiAim, aiWantsPeg, aiMashRate, aiJukes, aiThrow
 import { PITCH_PATTERNS, PITCH_FAMILIES, pickVariant, scoreTrace } from './pitchPattern.js';
 import { igniteBall, douseBall } from '../cinematics/fx.js';
 import { Ball } from './ball.js';
+import { CameraDirector } from './cameraDirector.js';
 import { buildField, FIELD_LAYOUT } from './field.js';
 import { Hud } from '../ui/screens/hud.js';
 
@@ -51,6 +52,14 @@ const CONTINUE_RATE = 3.5; // taps/sec needed to run through a bag
 export function kickerStrideAnim(vxSigned) {
   if (Math.abs(vxSigned) <= 0.6) return null;
   return vxSigned > 0 ? 'strafeR' : 'strafeL';
+}
+
+/** Which broadcast shot covers the live situation. Pure — unit-tested. */
+export function chooseLiveShot({ phase, kickingIsPlayer, trailBall, deepBall }) {
+  if (phase === 'FOUL') return 'foulTrail';
+  if (kickingIsPlayer && trailBall) return deepBall ? 'crane' : 'ballFlight';
+  if (kickingIsPlayer) return 'runners';
+  return 'defense';
 }
 
 export class MatchScene {
@@ -96,6 +105,7 @@ export class MatchScene {
     this.lastDragAt = -10;
     this.camTarget = CAM.kick;
     this.camLook = CAM.kick.look.clone();
+    this.camDir = new CameraDirector(engine.camera, { baseFov: engine.baseFov ?? 58 });
     this.elapsed = 0;
     this.cinematicLock = false;
 
@@ -224,6 +234,17 @@ export class MatchScene {
     return FIELD_LAYOUT[BASE_KEYS[i]].clone();
   }
   // yaw so a +z-forward model placed at `from` faces toward `to`
+  /** plain-object context the CameraDirector shots read */
+  camCtx() {
+    const lead = this.leadRunner?.() ?? this.runners.find((r) => r.state === 'held');
+    return {
+      ball: this.ball,
+      kickerPos: this.kicker?.group.position,
+      leadRunnerPos: lead ? this.runnerWorldPos(lead).p : FIELD_LAYOUT.home,
+      activeFielderPos: (this.activeFielder ?? this.chaser ?? this.kicker)?.group.position,
+    };
+  }
+
   yawTo(from, to) {
     return Math.atan2(to.x - from.x, to.z - from.z);
   }
@@ -606,6 +627,12 @@ export class MatchScene {
     this.hrFired = false;
     this.ballCamUntil = this.elapsed + 1.3; // trail the ball before cutting to the infield
     this.camTarget = CAM.live;
+    // broadcast CUT: 0.4s low hero cam at the moment of contact, then the
+    // telephoto tracker takes over via the live-shot selection
+    this.camDir.request('contact', this.camCtx(), { cut: true });
+    this.after(0.4, () => {
+      if (this.phase === 'LIVE') this.camDir.request('ballFlight', this.camCtx());
+    });
 
     // ball is LIVE: force every pitch-phase overlay off-screen so nothing ever
     // covers the field or eats fielding taps (belt-and-suspenders vs any stray path)
@@ -1660,37 +1687,25 @@ export class MatchScene {
       }
     }
 
+    // BROADCAST CAMERA: matchScene picks the shot for the situation; the
+    // CameraDirector spring-damps toward it (and handles the contact CUT).
     if (!this.engine.cameraLock) {
+      this.camDir.setBaseFov(this.engine.baseFov ?? 58);
       if (this.phase === 'LIVE' || this.phase === 'RESOLVE' || this.phase === 'FOUL') {
-        this.liveCam = this.liveCam ?? { pos: CAM.live.pos.clone(), look: CAM.live.look.clone() };
         const trailBall = this.ball.mode === 'flying' && this.elapsed < (this.ballCamUntil ?? 0);
-        if (this.phase === 'FOUL' || (this.kickingIsPlayer() && trailBall)) {
-          // trail the kicked ball so you SEE where it went (left / right / deep / foul)
-          const b = this.ball.pos;
-          this.liveCam.pos.set(b.x * 0.7, Math.max(6.5, b.y * 0.45 + 7.5), b.z + 11.5);
-          this.liveCam.look.set(b.x, Math.max(0.6, b.y * 0.5), b.z);
-        } else if (this.kickingIsPlayer()) {
-          // OFFENSE: tight infield view so you SEE the bags and your runner while you tap to run
-          const lead = this.leadRunner() ?? this.runners.find(r => r.state === 'held');
-          const rp = lead ? this.runnerWorldPos(lead).p : FIELD_LAYOUT.home;
-          const fx = rp.x * 0.5;
-          this.liveCam.pos.set(fx, 12.5, 6.5);
-          this.liveCam.look.set(fx, 0.7, -10.5);
-        } else {
-          // DEFENSE: frame YOUR fielder + the ball so you can drag and make the play
-          const a = (this.activeFielder ?? this.chaser ?? this.kicker).group.position;
-          const b = this.ball.pos;
-          const mid = a.clone().add(b).multiplyScalar(0.5);
-          const sep = Math.min(30, a.distanceTo(b));
-          this.liveCam.pos.set(mid.x * 0.5, Math.min(15, 8 + sep * 0.25), mid.z + 9 + sep * 0.25);
-          this.liveCam.look.set(mid.x, 0.5, mid.z);
-        }
-        this.camTarget = this.liveCam;
+        const dist = Math.hypot(this.ball.pos.x, this.ball.pos.z);
+        this.camDir.request(chooseLiveShot({
+          phase: this.phase,
+          kickingIsPlayer: this.kickingIsPlayer(),
+          trailBall,
+          deepBall: dist > this.fenceM * 0.55,
+        }), this.camCtx());
+      } else if (this.camTarget === CAM.pitch) {
+        this.camDir.request('pitchSelect', this.camCtx());
+      } else {
+        this.camDir.request('kick', this.camCtx());
       }
-      const cam = this.engine.camera;
-      cam.position.lerp(this.camTarget.pos, Math.min(1, rawDt * 3));
-      this.camLook.lerp(this.camTarget.look, Math.min(1, rawDt * 3));
-      cam.lookAt(this.camLook);
+      this.camDir.update(rawDt, this.camCtx());
     }
 
     // pulse the base target rings

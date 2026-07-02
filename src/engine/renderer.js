@@ -208,6 +208,7 @@ export function createEngine(canvas) {
     camera.aspect = w / h;
     // keep the field framed in narrow portrait by widening FOV as aspect shrinks
     camera.fov = w / h < 0.65 ? 74 : 58;
+    engine.baseFov = camera.fov; // CameraDirector multiplies shot fovScale onto this
     camera.updateProjectionMatrix();
   }
   window.addEventListener('resize', resize);
