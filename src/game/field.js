@@ -171,7 +171,13 @@ export function buildField(fieldData, scene) {
       t.wrapS = THREE.MirroredRepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
       // 4 horizontal tiles keeps the fans small/distant (a 2-tile crowd looked too big).
       // Still EVEN so the mirrored ring stays seamless at every boundary (incl. the wrap point).
-      t.repeat.set(4, 0.82); t.offset.y = 0.18;
+      // City-scene fields override to 2 so buildings stay big and imposing.
+      const rx = fieldData.backdropRepeat ?? 4;
+      t.repeat.set(rx, 0.82); t.offset.y = 0.18;
+      // 2-tile wrap: shift half a tile so the SCENE CENTER (street + bodega)
+      // faces the outfield and home cameras, and the mirror boundaries land on
+      // the foul-line sides where no camera ever points straight-on.
+      if (rx === 2) t.offset.x = 0.5;
     };
     // Put the still poster IN the material from the start (so it actually renders),
     // then swap to the looping video once it really starts playing. Robust if the

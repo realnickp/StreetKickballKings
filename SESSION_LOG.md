@@ -657,3 +657,42 @@ on prod; ALL the world code/pipeline stays behind the flag.
 **NEXT:** Blender-convert the 68 meshes → real brownstones in worldbake (full 360°
 layout already written) → side-by-side vs old backdrop on the dev's phone → only then
 re-flip `world3d`. Then crowd strip re-add + dusk sky tuning. 104 tests green.
+
+## 13) Session 8 (2026-07-02) — THE LIVING 3D CITY SHIPS (PR #12)
+
+**Phase 3 v2 — Higgsfield image→3D, dev-demanded ("I want the 3d world. no
+compromise. use higgsfield… full sky, full height… stunning… no lines where
+you attach images"):** abandoned the Unity pack conversion entirely. Built the
+whole city with the SAME pipeline that made the players:
+
+- nano_banana image per archetype ("stylized 3D game asset render of a single
+  <building>, three-quarter view, isolated on plain flat light-grey background,
+  no readable text, not photorealistic, not cartoon") → `generate_3d`
+  image_to_3d (should_texture) → GLB. Archetypes: brownstone, corner bodega,
+  warehouse+water towers, 12-story pre-war tower, el-track viaduct section,
+  subway train car.
+- `gltf-transform optimize --compress meshopt --texture-compress webp
+  --texture-size 1024`: ~10MB each → 0.6-0.9MB. 4.6MB total (old box bake was
+  5.6MB — deleted). GLTFLoader needs `setMeshoptDecoder(MeshoptDecoder)`.
+- `src/game/world/blacktop.js` REWRITTEN as runtime assembly: 26 instances from
+  6 GLBs (clones share geometry), street disc, el line at z=-74 (stretched
+  track clones), TRAIN CROSSES every 30s alternating direction, rooftop steam
+  sprites, dusk sky panorama dome (r=232, inside the 240 gradient dome) with
+  drifting clouds. Seam fix: blend a HALF-SHIFTED copy near the wrap point with
+  triangular weight — provably continuous, one sun. Returns {group, update(t)};
+  field.js chains update onto handles.updateCrowd.
+- Behind-home block DENSE (7 buildings + 2nd-row tower/warehouse) — the v1
+  "nothing behind home" complaint is dead.
+- tools/worldbake.html now previews the REAL runtime module (no bake step).
+
+**Verified:** preview from all 4 game POVs + real play on ?match (kick, pitch
+arsenal, full loop) — 60fps, no console errors, 104 tests green. Dev said
+"push"; PR #12 merged; production assets confirmed live via the prod PWA.
+
+**Sky/asset jobs (Higgsfield):** images 1bb4259b/55ef5626/e67cd9f2/9696da3c
+(buildings), d3c4371a (train), 68c3ad5d (track), 234d1e66 (dusk pano, in
+public/assets/world/sky-dusk.png).
+
+**NEXT:** dev verdict on his phone; then polish (street props/texture between
+fence and buildings, window glow at dusk, maybe birds), other 9 city fields get
+the same treatment, crowd strip re-add.
