@@ -1052,17 +1052,20 @@ export class MatchScene {
       if (f.role === 'chase') {
         if (!reacted) continue;
         if (this.playerControlled) {
-          // NO auto-chase: the fielder only goes where the player has tapped/dragged
-          target = this.fielderTarget;
+          // AUTO-CHASE like the AI does — your defense should never stand and
+          // watch (dev callout). A tap/drag OVERRIDES the auto pursuit, so you
+          // keep control without babysitting every chase.
+          target = this.fielderTarget ?? chaseSpot;
         } else {
           target = chaseSpot;
         }
       } else if (f.role === 'backup') {
-        // sit a few metres infield of the ball as a relay
+        // converge close behind the play as a second pursuer/relay — TWO
+        // fielders visibly go for the ball, like a real defense
         const bp = this.ball.pos;
         const inward = FIELD_LAYOUT.home.clone().sub(bp).setY(0);
         const len = inward.length() || 1;
-        target = bp.clone().addScaledVector(inward.multiplyScalar(1 / len), 4.5).setY(0);
+        target = bp.clone().addScaledVector(inward.multiplyScalar(1 / len), 2.5).setY(0);
       }
 
       const d2 = new THREE.Vector2(target.x - c.group.position.x, target.z - c.group.position.z);
@@ -1096,7 +1099,14 @@ export class MatchScene {
    *  this is the main "not every ball is caught" lever. Player catches if they got there. */
   catchSkill() {
     if (this.playerControlled) return 1.0;
-    return { Rookie: 0.62, Street: 0.8, King: 0.92 }[this.difficulty] ?? 0.8;
+    // AI drops enough flies that putting the ball in play is worth something —
+    // the player MUST be able to get on base a fair % of the time (dev)
+    return { Rookie: 0.5, Street: 0.68, King: 0.85 }[this.difficulty] ?? 0.68;
+  }
+
+  /** how long the AI holds the ball before throwing — the runner's window */
+  aiThrowDelayS() {
+    return { Rookie: 0.7, Street: 0.55, King: 0.4 }[this.difficulty] ?? 0.55;
   }
 
   /** The chaser tries to catch a fly or scoop a grounder once it's on the ball. */
@@ -1140,7 +1150,7 @@ export class MatchScene {
       // safety: never freeze if the player never throws
       this.after(6, () => { if (c.hasBall && !this.playFinalized && !this.throwing) this.ballControlled = true; });
     } else {
-      this.after(0.4, () => this.aiThrowDecision(c));
+      this.after(this.aiThrowDelayS(), () => this.aiThrowDecision(c));
     }
   }
 

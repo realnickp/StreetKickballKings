@@ -35,7 +35,7 @@
     "hrPower": 0.9,
     "hrAlignM": 0.6,
     "aimSpreadDeg": 52,
-    "aiAimDeg": 30
+    "aiAimDeg": 26
   },
   "running": {
     "baseSpeedMs": 3.5,
@@ -65,8 +65,8 @@
     "powerMult": 1.35
   },
   "ai": {
-    "Rookie": { "kickTimingErrMs": [28, 340], "whiffChance": 0.10, "fieldReactMs": 470, "jukeChance": 0.15 },
-    "Street": { "kickTimingErrMs": [18, 290], "whiffChance": 0.06, "fieldReactMs": 320, "jukeChance": 0.4 },
-    "King":   { "kickTimingErrMs": [12, 220], "whiffChance": 0.03, "fieldReactMs": 200, "jukeChance": 0.7 }
+    "Rookie": { "kickTimingErrMs": [28, 340], "whiffChance": 0.10, "fieldReactMs": 560, "jukeChance": 0.15 },
+    "Street": { "kickTimingErrMs": [18, 290], "whiffChance": 0.06, "fieldReactMs": 430, "jukeChance": 0.4 },
+    "King":   { "kickTimingErrMs": [12, 220], "whiffChance": 0.03, "fieldReactMs": 280, "jukeChance": 0.7 }
   }
 }
