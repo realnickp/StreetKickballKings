@@ -33,9 +33,13 @@
       "flavor": "trains",
       "sky": "sodium-night",
       "textures": {
+        "ground": "assets/textures/ground-subway-yard.jpg",
         "backdrop": "assets/textures/backdrop-subway-yard-3d.png",
         "backdropVideo": "assets/video/backdrop-subway-yard.mp4"
       },
+      "backdropRepeat": 2,
+      "backdropWindow": { "oy": 0.34, "ry": 0.63 },
+      "backdropGeo": { "r": 54, "h": 44, "bottom": 1 },
       "status": "ready"
     },
     {
@@ -46,9 +50,13 @@
       "flavor": "hydrant",
       "sky": "dusk",
       "textures": {
+        "ground": "assets/textures/ground-block-party.jpg",
         "backdrop": "assets/textures/backdrop-block-party-3d.png",
         "backdropVideo": "assets/video/backdrop-block-party.mp4"
       },
+      "backdropRepeat": 2,
+      "backdropWindow": { "oy": 0.3, "ry": 0.67 },
+      "backdropGeo": { "r": 50, "h": 42, "bottom": 1 },
       "status": "ready"
     },
     {
@@ -59,9 +67,13 @@
       "flavor": "wet-reflections",
       "sky": "neon-night",
       "textures": {
+        "ground": "assets/textures/ground-neon-night-court.jpg",
         "backdrop": "assets/textures/backdrop-neon-night-court-3d.png",
         "backdropVideo": "assets/video/backdrop-neon-night-court.mp4"
       },
+      "backdropRepeat": 2,
+      "backdropWindow": { "oy": 0.33, "ry": 0.64 },
+      "backdropGeo": { "r": 52, "h": 42, "bottom": 1 },
       "status": "ready"
     },
     {
@@ -72,9 +84,13 @@
       "flavor": "gulls",
       "sky": "golden-hour",
       "textures": {
+        "ground": "assets/textures/ground-boardwalk-kings.jpg",
         "backdrop": "assets/textures/backdrop-boardwalk-kings-3d.png",
         "backdropVideo": "assets/video/backdrop-boardwalk-kings.mp4"
       },
+      "backdropRepeat": 2,
+      "backdropWindow": { "oy": 0.36, "ry": 0.61 },
+      "backdropGeo": { "r": 53, "h": 42, "bottom": 1 },
       "status": "ready"
     },
     {
@@ -85,9 +101,13 @@
       "flavor": "echo",
       "sky": "shaft-light",
       "textures": {
+        "ground": "assets/textures/ground-the-underpass.jpg",
         "backdrop": "assets/textures/backdrop-the-underpass-3d.png",
         "backdropVideo": "assets/video/backdrop-the-underpass.mp4"
       },
+      "backdropRepeat": 2,
+      "backdropWindow": { "oy": 0.25, "ry": 0.72 },
+      "backdropGeo": { "r": 51, "h": 44, "bottom": 1 },
       "status": "ready"
     },
     {
@@ -98,9 +118,13 @@
       "flavor": "smoke",
       "sky": "overcast",
       "textures": {
+        "ground": "assets/textures/ground-rubber-yard.jpg",
         "backdrop": "assets/textures/backdrop-rubber-yard-3d.png",
         "backdropVideo": "assets/video/backdrop-rubber-yard.mp4"
       },
+      "backdropRepeat": 2,
+      "backdropWindow": { "oy": 0.36, "ry": 0.61 },
+      "backdropGeo": { "r": 55, "h": 44, "bottom": 1 },
       "status": "ready"
     },
     {
@@ -111,9 +135,13 @@
       "flavor": "snow",
       "sky": "winter",
       "textures": {
+        "ground": "assets/textures/ground-winter-classic.jpg",
         "backdrop": "assets/textures/backdrop-winter-classic-3d.png",
         "backdropVideo": "assets/video/backdrop-winter-classic.mp4"
       },
+      "backdropRepeat": 2,
+      "backdropWindow": { "oy": 0.31, "ry": 0.66 },
+      "backdropGeo": { "r": 52, "h": 42, "bottom": 1 },
       "status": "ready"
     },
     {
@@ -124,9 +152,13 @@
       "flavor": "heat-haze",
       "sky": "desert-sunset",
       "textures": {
+        "ground": "assets/textures/ground-scorchyard.jpg",
         "backdrop": "assets/textures/backdrop-scorchyard-3d.png",
         "backdropVideo": "assets/video/backdrop-scorchyard.mp4"
       },
+      "backdropRepeat": 2,
+      "backdropWindow": { "oy": 0.35, "ry": 0.62 },
+      "backdropGeo": { "r": 56, "h": 44, "bottom": 1 },
       "status": "ready"
     },
     {
@@ -137,9 +169,13 @@
       "flavor": "fireworks",
       "sky": "stadium-night",
       "textures": {
+        "ground": "assets/textures/ground-the-crown.jpg",
         "backdrop": "assets/textures/backdrop-the-crown-3d.png",
         "backdropVideo": "assets/video/backdrop-the-crown.mp4"
       },
+      "backdropRepeat": 2,
+      "backdropWindow": { "oy": 0.3, "ry": 0.67 },
+      "backdropGeo": { "r": 54, "h": 44, "bottom": 1 },
       "status": "ready"
     }
   ]

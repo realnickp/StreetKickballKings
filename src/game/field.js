@@ -40,7 +40,9 @@ export function buildField(fieldData, scene) {
   const groundTex = fieldData.textures?.ground
     ? new THREE.TextureLoader().load(fieldData.textures.ground, (t) => { t.colorSpace = THREE.SRGBColorSpace; })
     : makeAsphaltTexture(palette.ground ?? '#3c3f44');
-  groundTex.wrapS = groundTex.wrapT = THREE.RepeatWrapping;
+  // mirrored wrap: generated per-city ground textures tile seamlessly even
+  // when the source image isn't perfectly tileable
+  groundTex.wrapS = groundTex.wrapT = THREE.MirroredRepeatWrapping;
   groundTex.repeat.set(10, 10);
   // A subtle procedural normal map gives the blacktop floodlit micro-texture (the
   // light catches its grain) so it stops reading as a flat painted plane. Kept low.

@@ -123,10 +123,12 @@ if (params.has('match')) {
       home: await buildTeamCharsGlb(snappers),
       away: await buildTeamCharsGlb(monarchs),
     };
+    // ?field=<id> previews any city field in the harness (defaults to blacktop)
+    const harnessField = fieldsData.fields.find(f => f.id === params.get('field')) ?? blacktop;
     const scene = new MatchScene({
       engine, input, bus, chars,
       teams: { home: snappers, away: monarchs },
-      fieldData: blacktop, tuning,
+      fieldData: harnessField, tuning,
       difficulty: params.get('diff') ?? 'Street',
       playerSide: 'away', hudRoot, autoStart: false,
     });
