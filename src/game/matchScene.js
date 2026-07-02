@@ -1002,10 +1002,10 @@ export class MatchScene {
     chaser.animator.play('run');
 
     if (playerControlled) {
-      // YOU control the fielder — it does NOT auto-run. Start it where it stands;
-      // the teal marker shows where the ball will land — tap there to send it.
+      // YOUR fielder AUTO-CHASES from the jump (null target = pursue the ball);
+      // tap/drag away from the ball to position him manually instead.
       this.hud.clearStamps(); // pitch/kick stamp must not linger over the fielding action
-      this.fielderTarget = chaser.group.position.clone();
+      this.fielderTarget = null;
       this.fielderRing.visible = true;
       this.marker.position.copy(this.pred.point).setY(0.05);
       this.marker.visible = true;
@@ -1478,11 +1478,28 @@ export class MatchScene {
     }
     // DEFENSE drag — steer the fielder; landing marker stays fixed
     if (this.phase === 'LIVE' && this.activeFielder && !this.activeFielder.hasBall && !this.kickingIsPlayer()) {
-      const g = this.screenToGround(e.x, e.y);
-      if (g) {
-        this.lastDragAt = this.elapsed;
-        this.fielderTarget.copy(g);
-      }
+      this.steerFielder(e.x, e.y);
+    }
+  }
+
+  /**
+   * Player defense steering. Pointing at/near the ball (or its landing spot)
+   * means CHASE — resume the auto pursuit, which lead-intercepts properly. An
+   * airborne ball's screen position projects to a ground point way short of it,
+   * which used to yank the fielder toward the camera (dev callout). Pointing
+   * somewhere clearly away from the ball = manual positioning.
+   */
+  steerFielder(x, y) {
+    const g = this.screenToGround(x, y);
+    if (!g) return;
+    this.lastDragAt = this.elapsed;
+    const landing = (this.ball.onGround || this.ball.bounces > 0) ? this.ball.pos : this.pred.point;
+    if (g.distanceTo(landing) < 5.5) {
+      this.fielderTarget = null; // chase intent → auto-pursuit takes it
+    } else if (this.fielderTarget) {
+      this.fielderTarget.copy(g);
+    } else {
+      this.fielderTarget = g.clone();
     }
   }
 
@@ -1513,11 +1530,7 @@ export class MatchScene {
     // DEFENSE: tap/drag to drive your fielder. The teal marker STAYS at the ball's
     // landing spot (where to get to); only the fielder moves.
     if (this.phase === 'LIVE' && this.playerControlled && this.activeFielder && !this.activeFielder.hasBall) {
-      const g = this.screenToGround(e.x, e.y);
-      if (g) {
-        this.lastDragAt = this.elapsed;
-        this.fielderTarget.copy(g);
-      }
+      this.steerFielder(e.x, e.y);
     }
   }
 

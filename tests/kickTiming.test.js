@@ -25,10 +25,13 @@ it('launchParams maps quality + aim to a velocity spec', () => {
   expect(Math.abs(v.directionDeg)).toBeLessThan(5);
 });
 
-it('aim left/right spreads direction, bunt is soft', () => {
+it('aim left/right spreads direction (with random 30-100% magnitude), bunt is soft', () => {
   const judged = judgeKick(0, tuning);
-  expect(launchParams(judged, { aim: 'left' }, tuning).directionDeg).toBeLessThan(-20);
-  expect(launchParams(judged, { aim: 'right' }, tuning).directionDeg).toBeGreaterThan(20);
+  const max = tuning.kick.aiAimDeg;
+  // full pull (rng=1) and minimum pull (rng=0 -> 30%) both stay on the aim side
+  expect(launchParams(judged, { aim: 'left', rng: () => 1 }, tuning).directionDeg).toBeCloseTo(-max);
+  expect(launchParams(judged, { aim: 'left', rng: () => 0 }, tuning).directionDeg).toBeCloseTo(-max * 0.3);
+  expect(launchParams(judged, { aim: 'right', rng: () => 1 }, tuning).directionDeg).toBeCloseTo(max);
   const bunt = launchParams(judged, { aim: 'bunt' }, tuning);
   expect(bunt.speed).toBeLessThan(tuning.kick.maxBallSpeedMs * 0.4);
 });
