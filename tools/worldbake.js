@@ -1,9 +1,9 @@
-// tools/worldbake.js — assemble the Blacktop's NYC surroundings offline.
-// Buildings are TEXTURED BOXES using the pack's real facade atlases (the
-// pack's FBX meshes decode with broken UVs in FBXLoader — the textures are the
-// valuable part, and boxes give us full UV control + ~6 draw calls total).
+// tools/worldbake.js — assemble the Blacktop's NYC surroundings offline from
+// the pack's REAL meshes (converted FBX -> glTF by scripts/convert-world-fbx.mjs;
+// assimp preserves the multi-UV channels FBXLoader mangled). Full 360 surround.
 // Preview with orbit -> EXPORT one merged glb to the sink (:5199).
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
@@ -18,7 +18,7 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#2b3350');
-scene.add(new THREE.HemisphereLight(0xffd9b0, 0x2e3a55, 0.75));
+scene.add(new THREE.HemisphereLight(0xffd9b0, 0x2e3a55, 0.9));
 const sun = new THREE.DirectionalLight(0xffB070, 1.6);
 sun.position.set(-40, 18, 30);
 scene.add(sun);
@@ -30,109 +30,149 @@ controls.target.set(0, 8, -40);
 const ring = new THREE.Mesh(new THREE.TorusGeometry(42, 0.15, 6, 64), new THREE.MeshBasicMaterial({ color: '#3ec6b5' }));
 ring.rotation.x = Math.PI / 2;
 scene.add(ring);
-scene.add(new THREE.GridHelper(160, 32, 0x334455, 0x223344));
+scene.add(new THREE.GridHelper(180, 36, 0x334455, 0x223344));
 
-// ---------- facade materials from the pack's atlases ----------
-const texLoader = new THREE.TextureLoader();
-async function facade(file, tint = '#ffffff') {
-  const t = await texLoader.loadAsync('/tools/world-src/textures/' + file);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  return new THREE.MeshStandardMaterial({ map: t, color: tint, metalness: 0, roughness: 0.92 });
-}
-// each entry: material + how many meters one texture repeat covers (w, h).
-// Window-grid atlases only — they read as REAL buildings; the plain-wall
-// atlases tile like wallpaper. Tints vary the same atlas between buildings.
-const FACADES = {
-  windowA: { mat: await facade('T_WindowWall_A_BaseMap.png'), tileW: 7, tileH: 7 },
-  windowA2: { mat: await facade('T_WindowWall_A_BaseMap.png', '#d8a082'), tileW: 7, tileH: 7 },
-  windowB: { mat: await facade('T_WindowWall_B_BaseMap.png'), tileW: 8, tileH: 8 },
-  windowB2: { mat: await facade('T_WindowWall_B_BaseMap.png', '#c0b8a8'), tileW: 8, tileH: 8 },
-  windowC: { mat: await facade('T_WindowWall_C_BaseMap.png'), tileW: 7.5, tileH: 7.5 },
-  windowC2: { mat: await facade('T_WindowWall_C_BaseMap.png', '#e0b890'), tileW: 7.5, tileH: 7.5 },
-};
-const ROOF = new THREE.MeshStandardMaterial({ color: '#3a3632', metalness: 0, roughness: 1 });
-log('facade atlases loaded');
-
-// ---------- building layout: arc behind the fence (outfield = -z) ----------
-// {x, z, rotY, w, d, h, f: facade key}
-const BUILDINGS = [
-  // front row
-  { x: -38, z: -54, rotY: 0.6, w: 20, d: 14, h: 18, f: 'windowA' },
-  { x: -15, z: -60, rotY: 0.12, w: 22, d: 15, h: 23, f: 'windowA2' },
-  { x: 10, z: -61, rotY: -0.08, w: 20, d: 14, h: 17, f: 'windowB' },
-  { x: 34, z: -55, rotY: -0.55, w: 21, d: 15, h: 21, f: 'windowB2' },
-  { x: -57, z: -33, rotY: 1.0, w: 18, d: 13, h: 15, f: 'windowB2' },
-  { x: 57, z: -33, rotY: -1.0, w: 18, d: 13, h: 16, f: 'windowA2' },
-  // second row (taller, peeking over for parallax)
-  { x: -30, z: -80, rotY: 0.3, w: 26, d: 16, h: 30, f: 'windowB' },
-  { x: 2, z: -84, rotY: 0, w: 24, d: 16, h: 26, f: 'windowA2' },
-  { x: 32, z: -80, rotY: -0.3, w: 25, d: 16, h: 32, f: 'windowA' },
-  { x: -62, z: -62, rotY: 0.7, w: 22, d: 15, h: 24, f: 'windowA' },
-  { x: 62, z: -62, rotY: -0.7, w: 22, d: 15, h: 22, f: 'windowB2' },
-  // side streets (foul-line flanks, closer + lower)
-  { x: -52, z: -6, rotY: 1.35, w: 16, d: 12, h: 12, f: 'windowA2' },
-  { x: 52, z: -6, rotY: -1.35, w: 16, d: 12, h: 13, f: 'windowB' },
+// ---------- LAYOUT: full 360 surround (field center=origin, outfield=-z,
+// home plate ~z=0..+2, camera behind home looks toward -z). ------------------
+const B = (file, x, z, rotY = 0, targetH = 18) => ({ file, x, z, rotY, targetH });
+const P = (file, x, z, rotY = 0, targetH = 1.4) => ({ file, x, z, rotY, targetH });
+const LAYOUT = [
+  // ---- outfield arc (front row) ----
+  B('SM_Building_A', -38, -54, 0.6, 18),
+  B('SM_Building_B', -14, -60, 0.12, 22),
+  B('SM_Building_C', 11, -60, -0.1, 17),
+  B('SM_Building_D', 35, -54, -0.55, 20),
+  B('SM_Building_E', -58, -32, 1.0, 16),
+  B('SM_Building_F', 58, -32, -1.0, 17),
+  // ---- second row (parallax) ----
+  B('SM_Building_G_V1', -30, -82, 0.3, 26),
+  B('SM_Building_E_V2', 2, -86, 0, 24),
+  B('SM_Building_F_V2', 33, -82, -0.3, 28),
+  B('SM_Building_A', -62, -62, 0.7, 24),
+  B('SM_Building_G_V2', 62, -62, -0.7, 23),
+  // ---- foul-line flanks ----
+  B('SM_Building_C', -54, 2, 1.35, 13),
+  B('SM_Building_B', 54, 2, -1.35, 14),
+  // ---- BEHIND HOME (the pitcher's view!) ----
+  B('SM_Building_D', -26, 34, 2.6, 15),
+  B('SM_Building_A', 2, 40, 3.14, 17),
+  B('SM_Building_E', 28, 34, -2.6, 14),
+  // ---- street props ----
+  P('SM_Dumpster_V1', -30, -39, 0.4, 1.5),
+  P('SM_Dumpster_V2', 33, -37, -0.7, 1.5),
+  P('SM_Fire_Hydrant', -13.5, 4, 0, 0.9),
+  P('SM_Mailbox', 14.5, 3.5, -0.4, 1.3),
+  P('SM_Cardboardboxes', -36, -20, 0.9, 1.0),
+  P('SM_Barricade_Fence', 29, -20, 1.2, 1.1),
+  P('SM_Big_BillBoard_A', 0, -70, 0, 12),
+  P('SM_Traffic_Lights', -44, -12, 0.8, 5.5),
+  P('SM_Tree_A', -46, -22, 0, 7) ,
+  P('SM_Tree_A', 47, -24, 1.2, 6.5),
 ];
 
-/** box with per-face UVs scaled so the facade tiles at real-world size */
-function buildingGeometry(w, d, h, tileW, tileH) {
-  const g = new THREE.BoxGeometry(w, h, d);
-  const uv = g.attributes.uv;
-  // BoxGeometry face order: +x -x (d,h) | +y -y (w,d roof) | +z -z (w,h)
-  const scales = [
-    [d / tileW, h / tileH], [d / tileW, h / tileH],
-    [w / 8, d / 8], [w / 8, d / 8],
-    [w / tileW, h / tileH], [w / tileW, h / tileH],
-  ];
-  for (let face = 0; face < 6; face++) {
-    const [su, sv] = scales[face];
-    for (let i = face * 4; i < face * 4 + 4; i++) {
-      uv.setXY(i, uv.getX(i) * su, uv.getY(i) * sv);
-    }
+// ---------- load + place ----------
+const loader = new GLTFLoader();
+const cache = new Map();
+const placed = new THREE.Group();
+scene.add(placed);
+
+/** downscale any texture image to <=1024 so the export stays phone-sized */
+function shrinkTexture(tex) {
+  const img = tex.image;
+  if (!img || !img.width || Math.max(img.width, img.height) <= 1024) return;
+  const s = 1024 / Math.max(img.width, img.height);
+  const c = document.createElement('canvas');
+  c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  tex.image = c;
+  tex.needsUpdate = true;
+}
+
+for (const item of LAYOUT) {
+  let base = cache.get(item.file);
+  if (!base) {
+    try {
+      base = (await loader.loadAsync(`/tools/world-src/glb/${item.file}.gltf`)).scene;
+      // SANITIZE: albedo-only materials on ONE uv channel. The raw assimp
+      // output stacks 4 UV sets + full PBR maps -> shader blows past vertex
+      // attribute limits -> WebGL context loss (seen live). Distance set
+      // dressing only needs the base color texture.
+      base.traverse((o) => {
+        if (!o.isMesh) return;
+        const g = o.geometry;
+        // tangent/color contributed to the attribute blowup; the uv sets stay
+        // because base color maps legitimately live on channels 1-3
+        for (const a of ['color', 'tangent']) g.deleteAttribute(a);
+        const src = o.material;
+        const m = new THREE.MeshStandardMaterial({
+          name: src.name,
+          map: src.map ?? null, // KEEPS its original .channel
+          color: src.color?.clone() ?? new THREE.Color('#ffffff'),
+          metalness: 0,
+          roughness: 0.9,
+          transparent: !!src.transparent,
+          opacity: src.opacity ?? 1,
+          alphaTest: src.alphaTest ?? 0,
+          side: src.side ?? THREE.FrontSide,
+        });
+        o.material = m;
+      });
+      cache.set(item.file, base);
+      log(`loaded ${item.file}`);
+    } catch (e) { log(`SKIP ${item.file}: ${e.message ?? e}`); continue; }
   }
-  uv.needsUpdate = true;
-  return g;
+  const src = base.clone(true);
+  // stand up Z-up exports if needed, then normalize to real-world height
+  let box = new THREE.Box3().setFromObject(src);
+  let size = new THREE.Vector3(); box.getSize(size);
+  const inst = new THREE.Group();
+  if (size.z > size.y * 1.4) src.rotation.x = -Math.PI / 2;
+  inst.add(src);
+  inst.updateMatrixWorld(true);
+  box = new THREE.Box3().setFromObject(inst);
+  box.getSize(size);
+  inst.scale.setScalar(item.targetH / (size.y || 1));
+  inst.updateMatrixWorld(true);
+  const box2 = new THREE.Box3().setFromObject(inst);
+  inst.position.set(item.x, -box2.min.y, item.z);
+  inst.rotation.y = item.rotY;
+  placed.add(inst);
 }
+placed.updateMatrixWorld(true);
 
-// place: collect geoms per material (sides) + roof geoms
-const byMaterial = new Map(); // key -> {material, geoms: []}
-function push(key, material, geom) {
-  if (!byMaterial.has(key)) byMaterial.set(key, { material, geoms: [] });
-  byMaterial.get(key).geoms.push(geom);
-}
-const preview = new THREE.Group();
-scene.add(preview);
+// texture shrink + material sanity + collect geometry by material
+const byMaterial = new Map(); // material.uuid -> {material, geoms: []}
+placed.traverse((o) => {
+  if (!o.isMesh) return;
+  const m = o.material;
+  if (m.map) { shrinkTexture(m.map); m.map.colorSpace = THREE.SRGBColorSpace; }
+  m.metalness = Math.min(m.metalness ?? 0, 0.2);
+  m.roughness = Math.max(m.roughness ?? 0.9, 0.6);
+  const g = o.geometry.clone().applyMatrix4(o.matrixWorld);
+  // dedupe by material NAME + texture source (Building_A and _B both carry
+  // an M_Walls_A instance of the same png -> one draw call, not two)
+  const key = `${m.name}|${m.map?.image?.src ?? m.map?.image?.currentSrc ?? 'flat'}|${'#' + m.color.getHexString()}`;
+  if (!byMaterial.has(key)) byMaterial.set(key, { material: m, geoms: [] });
+  byMaterial.get(key).geoms.push(g);
+});
+log(`unique materials: ${byMaterial.size}`);
 
-for (const b of BUILDINGS) {
-  const spec = FACADES[b.f];
-  const g = buildingGeometry(b.w, b.d, b.h, spec.tileW, spec.tileH);
-  const m4 = new THREE.Matrix4()
-    .makeRotationY(b.rotY)
-    .setPosition(b.x, b.h / 2, b.z);
-  g.applyMatrix4(m4);
-  // split side faces vs roof faces into separate geoms (merge by material)
-  const side = g.clone(); side.clearGroups(); // whole box under facade material
-  push(b.f, spec.mat, side);
-  // roof cap: a thin dark box lid so the stretched facade top never shows
-  const lid = new THREE.BoxGeometry(b.w + 0.4, 0.5, b.d + 0.4);
-  lid.applyMatrix4(new THREE.Matrix4().makeRotationY(b.rotY).setPosition(b.x, b.h + 0.2, b.z));
-  push('roof', ROOF, lid);
-}
-
-// preview the merged result exactly as it will export
 function buildMerged() {
   const out = new THREE.Group();
   out.name = 'blacktop-world';
+  let calls = 0;
   for (const { material, geoms } of byMaterial.values()) {
-    const merged = BufferGeometryUtils.mergeGeometries(geoms.map((g) => g.clone()), false);
-    if (!merged) continue;
-    out.add(new THREE.Mesh(merged, material));
+    let merged = null;
+    try { merged = BufferGeometryUtils.mergeGeometries(geoms, false); } catch { /* mixed attrs */ }
+    if (merged) { out.add(new THREE.Mesh(merged, material)); calls++; }
+    else for (const g of geoms) { out.add(new THREE.Mesh(g, material)); calls++; }
   }
+  log(`merged draw calls: ${calls}`);
   return out;
 }
-preview.add(buildMerged());
-log(`buildings: ${BUILDINGS.length}, draw calls: ${byMaterial.size}`);
+const preview = buildMerged();
+scene.add(preview);
+placed.visible = false; // preview EXACTLY what exports
 
 // ---------- export ----------
 const ui = document.getElementById('ui');
@@ -140,7 +180,7 @@ const exp = document.createElement('button');
 exp.textContent = 'EXPORT world-blacktop.glb'; exp.style.background = '#e63';
 exp.onclick = () => {
   new GLTFExporter().parse(
-    buildMerged(),
+    preview,
     async (buf) => {
       try {
         const r = await fetch('http://localhost:5199/save?name=world-blacktop.glb', { method: 'POST', body: buf });
@@ -157,6 +197,10 @@ const pov = document.createElement('button');
 pov.textContent = 'HOME PLATE VIEW';
 pov.onclick = () => { camera.position.set(0, 3, 8); controls.target.set(0, 8, -42); };
 ui.appendChild(pov);
+const pitcherPov = document.createElement('button');
+pitcherPov.textContent = 'PITCHER VIEW';
+pitcherPov.onclick = () => { camera.position.set(0, 5, -19); controls.target.set(0, 4, 30); };
+ui.appendChild(pitcherPov);
 
 window.__scene = scene;
 renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });

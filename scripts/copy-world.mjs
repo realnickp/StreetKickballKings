@@ -33,5 +33,14 @@ for (const dir of MESH_DIRS) {
     }
   }
 })(TEX_ROOT);
-console.log(`copied ${fbx} FBX + ${tex} textures -> ${DST}`);
+// The FBX files reference Volume2-style names (T_X_BaseColor.png) while Vol 1
+// ships HDRP names (T_X_BaseMap.png) — same images. Alias them.
+let aliased = 0;
+for (const f of readdirSync(TEXDST)) {
+  if (f.includes('_BaseMap.')) {
+    const alias = f.replace('_BaseMap.', '_BaseColor.');
+    if (!existsSync(join(TEXDST, alias))) { cpSync(join(TEXDST, f), join(TEXDST, alias)); aliased++; }
+  }
+}
+console.log(`copied ${fbx} FBX + ${tex} textures (+${aliased} BaseColor aliases) -> ${DST}`);
 if (!fbx) process.exit(1);
