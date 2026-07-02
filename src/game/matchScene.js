@@ -1345,9 +1345,25 @@ export class MatchScene {
     this.hud.showThrowPad(false);
     this.showBaseRings(false);
     this.hud.hint('');
-    fielder.animator.play('throw');
     this.bus.emit('sfx', 'throw');
+    // face the target BEFORE the wind-up, release the BALL on the clip's
+    // release frame (onContact) — the arm and the ball move together (dev
+    // callout: the delayed throw had the ball leaving out of sync)
+    this.faceTo(fielder, peg
+      ? (this.pegTarget() ? this.runnerWorldPos(this.pegTarget()).p : this.basePos(base ?? 0))
+      : this.basePos(base));
+    let released = false;
+    const release = () => {
+      if (released || !fielder.hasBall) return;
+      released = true;
+      this.releaseThrow(fielder, { base, peg });
+    };
+    fielder.animator.play('throw', { onContact: release });
+    this.after(0.5, release); // safety: an animator without contact marks never stalls
+  }
 
+  /** the ball actually leaves the hand — runs at the throw clip's release frame */
+  releaseThrow(fielder, { base, peg }) {
     if (peg) {
       const lead = this.pegTarget();
       if (!lead) return this.endThrow(fielder);
