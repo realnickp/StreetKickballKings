@@ -618,6 +618,42 @@ judging). The dev's Chrome relaunch created a stale claude-in-chrome connection
 
 **STILL OPEN:** pitcher's true underhand ROLL (waiting on dev's Mixamo "Bowling"
 download — pitch currently uses the trimmed Throwing clip per his swap call).
-**NEXT:** Phase 3 — The Blacktop as a real NYC 3D world from the owned Gameready3D
-packs (extract Vol2 unitypackage, FBX→GLB, texture downscale, dusk lighting).
-103 tests green.
+
+---
+
+## 12. SESSION 7c — PHASE 3 ATTEMPT: 3D world shipped, rejected, reverted (2026-07-01 night)
+
+**Additional dev punch-list fixes shipped between phases (all live):** throw release
+synced to the clip frame (PR #8 + steering/auto-chase/CPU-kick-variance fixes), fence
+containment + no run-in-place + catch-clip trim + TAG-UP rule (PR #9).
+**AUTO-PUSH granted** ("I'm on a phone, gonna need you to auto push edits") — merge
+verified fixes without per-batch "push" (recorded in [[skk-deploy-playtest-workflow]]).
+
+**PHASE 3 v1 (textured boxes) — SHIPPED (PR #10) THEN REVERTED (PR #11):** the pack's
+FBX meshes decode with BROKEN UVs in FBXLoader (multi-UV UE-authored files; every face
+samples one texel → black buildings). Fell back to textured BOXES using the pack's
+facade atlases (window-grid ones only — T_WindowWall_A/B; the C/mural + plain-wall
+atlases tile like wallpaper). Dev verdict on his phone: "looks like shit... both
+sides" — pitcher view had NOTHING behind home (outfield-only arc), and boxes lose to
+the old Higgsfield backdrop. **Reverted via `world3d:false` flag** — old backdrop back
+on prod; ALL the world code/pipeline stays behind the flag.
+
+**LESSONS (do not relearn):**
+- The dev's own PWA URL confusion: production = **street-kickball-kings.vercel.app**;
+  per-deploy hash URLs are FROZEN forever. ALSO: full-game matches play at the
+  OPPONENT's home field (`opponentTeam.homeField`) — only Bullies matchups use the
+  blacktop; `?match` harness always uses blacktop.
+- The 3D world must beat the old backdrop ON THE DEV'S SCREEN before it ships, and
+  must cover 360° (pitcher looks BEHIND HOME).
+- FBX→web pipeline: FBXLoader ✗ (UV decode), assimpjs ✗ (converts all 68 incl. ones
+  FBXLoader can't parse, but material/texture bindings broken + raw output blows
+  vertex-attribute limits → WebGL CONTEXT LOSS). **Blender headless = the path**
+  (dev approved install; `scripts/blender-convert.py` + winget install).
+- Material name → pack texture mapping works: M_Walls_A → T_Walls_A_BaseMap.png
+  (+ `_BaseColor` aliases created by copy-world.mjs; TEX_ALIASES map in worldbake.js
+  for stragglers). Glass materials → translucent tint, no texture.
+- `scripts/anim-upload-server.mjs` now accepts `world-*.glb` too (port 5199).
+
+**NEXT:** Blender-convert the 68 meshes → real brownstones in worldbake (full 360°
+layout already written) → side-by-side vs old backdrop on the dev's phone → only then
+re-flip `world3d`. Then crowd strip re-add + dusk sky tuning. 104 tests green.

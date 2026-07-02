@@ -76,6 +76,38 @@ const cache = new Map();
 const placed = new THREE.Group();
 scene.add(placed);
 
+// Blender GLBs carry correct geometry/UVs but no textures (the FBX texture
+// paths never existed on disk). Rebind by material name: M_Walls_A pairs with
+// T_Walls_A_BaseMap.png. Stragglers with quirky names get explicit aliases.
+const TEX_ALIASES = {
+  M_pipe: 'T_Pipes_A',
+  M_Window_Ac_C: 'T_AC_C',
+  M_Door_Window_D: 'T_Door_&_Window_D',
+  M_Roof_D: 'T_Roof_C',
+  M_Dumpster_V1: 'T_Dumpster_V1_A',
+  M_Dumpster_V2: 'T_Dumpster_V2_A',
+  M_Big_Billboard: 'T_BillBoard_A',
+};
+const texLoader = new THREE.TextureLoader();
+const texCache = new Map();
+async function facadeTexture(matName) {
+  const stem = TEX_ALIASES[matName] ?? matName.replace(/^M_/, 'T_');
+  if (texCache.has(stem)) return texCache.get(stem);
+  let found = null;
+  for (const file of [`${stem}_BaseMap.png`, `${stem}_BaseColor.png`, `${stem}_Color.png`, `${stem}.png`]) {
+    try {
+      const t = await texLoader.loadAsync('/tools/world-src/textures/' + encodeURIComponent(file));
+      t.colorSpace = THREE.SRGBColorSpace;
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.flipY = false; // glTF convention (geometry UVs are glTF-style)
+      found = t;
+      break;
+    } catch { /* try next */ }
+  }
+  texCache.set(stem, found);
+  return found;
+}
+
 /** downscale any texture image to <=1024 so the export stays phone-sized */
 function shrinkTexture(tex) {
   const img = tex.image;
@@ -92,31 +124,31 @@ for (const item of LAYOUT) {
   let base = cache.get(item.file);
   if (!base) {
     try {
-      base = (await loader.loadAsync(`/tools/world-src/glb/${item.file}.gltf`)).scene;
-      // SANITIZE: albedo-only materials on ONE uv channel. The raw assimp
-      // output stacks 4 UV sets + full PBR maps -> shader blows past vertex
-      // attribute limits -> WebGL context loss (seen live). Distance set
-      // dressing only needs the base color texture.
+      base = (await loader.loadAsync(`/tools/world-src/glb/${item.file}.glb`)).scene;
+      // rebuild every material as albedo-only with the rebound pack texture;
+      // glass panes go translucent-tinted
+      const jobs = [];
       base.traverse((o) => {
         if (!o.isMesh) return;
-        const g = o.geometry;
-        // tangent/color contributed to the attribute blowup; the uv sets stay
-        // because base color maps legitimately live on channels 1-3
-        for (const a of ['color', 'tangent']) g.deleteAttribute(a);
+        for (const a of ['color', 'tangent']) o.geometry.deleteAttribute(a);
         const src = o.material;
+        if (/glass/i.test(src.name)) {
+          o.material = new THREE.MeshStandardMaterial({
+            name: src.name, color: '#6c86a8', transparent: true, opacity: 0.5,
+            metalness: 0.2, roughness: 0.2,
+          });
+          return;
+        }
         const m = new THREE.MeshStandardMaterial({
-          name: src.name,
-          map: src.map ?? null, // KEEPS its original .channel
-          color: src.color?.clone() ?? new THREE.Color('#ffffff'),
-          metalness: 0,
-          roughness: 0.9,
-          transparent: !!src.transparent,
-          opacity: src.opacity ?? 1,
-          alphaTest: src.alphaTest ?? 0,
-          side: src.side ?? THREE.FrontSide,
+          name: src.name, color: '#ffffff', metalness: 0, roughness: 0.9,
         });
+        jobs.push(facadeTexture(src.name).then((t) => {
+          if (t) { m.map = t; m.needsUpdate = true; }
+          else { m.color.set('#8a8078'); log(`NO TEXTURE for ${src.name}`); }
+        }));
         o.material = m;
       });
+      await Promise.all(jobs);
       cache.set(item.file, base);
       log(`loaded ${item.file}`);
     } catch (e) { log(`SKIP ${item.file}: ${e.message ?? e}`); continue; }
