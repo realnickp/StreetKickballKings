@@ -696,3 +696,23 @@ public/assets/world/sky-dusk.png).
 **NEXT:** dev verdict on his phone; then polish (street props/texture between
 fence and buildings, window glow at dusk, maybe birds), other 9 city fields get
 the same treatment, crowd strip re-add.
+
+## 14) Session 8b (2026-07-02) — ALL 10 CITIES GET LIVING SCENES (PRs #13-#19)
+
+The Blacktop's final form (after 5 alignment rounds): ONE cohesive Seedance
+video scene, not assembled 3D assets. Recipe locked (see skk-backdrop-style
+memory) and rolled to all 9 remaining fields, each themed to its team's city
+(NY yard / Philly block party / Memphis neon / Venice boardwalk / DC
+underpass / Akron factories / Chicago winter+L / Phoenix desert / Baltimore
+ballpark+fireworks). Per-city COURT SURFACES too (dev: "the blacktop look
+should change in each city") — 8 generated tileable textures + 1 local
+regrade after the generator flagged plain pavement as nsfw (three failures).
+Ground wrap switched to MirroredRepeatWrapping so imperfect tiles never seam.
+
+Key mechanics: per-field backdropWindow {oy,ry} (grid-MEASURE the fence/base
+line, never eyeball — the 'elevated field' complaints were mis-measured
+crops), backdropGeo {r,h,bottom} (r = fenceM+14, horizon at camera eye
+height, sky past frame top), backdropRepeat 2 + offset.x 0.5 (scene centers
+face outfield + home; mirror boundaries on the foul lines).
+?match&field=<id> previews any field. 104 tests green; subway-yard,
+scorchyard, winter-classic verified in-game; prod confirmed.
