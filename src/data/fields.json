@@ -21,7 +21,7 @@
       },
       "backdropRepeat": 2,
       "backdropWindow": { "oy": 0.215, "ry": 0.72 },
-      "backdropGeo": { "r": 56, "h": 38, "bottom": -1 },
+      "backdropGeo": { "r": 56, "h": 46, "bottom": 1 },
       "status": "ready",
       "world3d": false
     },
