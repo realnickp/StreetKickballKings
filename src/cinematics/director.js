@@ -59,6 +59,7 @@ export class CinematicDirector {
     const ball = this.getBall?.();
     if (ball?.mesh) ball.mesh.visible = true; // restore after any panel that hid it
     this.hud.hideBanner();
+    this.hud.setLetterbox?.(false);
     this.bus.emit('cine:done');
   }
 
@@ -144,8 +145,43 @@ export class CinematicDirector {
     });
   }
 
+  /**
+   * Catch celebration (dev-directed): NOT a raw replay — the fielder stands
+   * there WITH the ball (carryHeldBall keeps it in his hands), soaks it in,
+   * celebrates, then throws the ball back into play. Camera holds a low 3/4.
+   */
   robbed({ fielder }) {
-    this.replayMoment({ focusChar: fielder, seconds: 2.4, banner: 'ROBBED!', bannerKind: 'robbed', vo: 'robbed' });
+    this.bus.emit('vo', 'robbed');
+    this.bus.emit('sfx', 'crowd-cheer');
+    this.hud.setLetterbox(true);
+    this.hud.banner('ROBBED!', 'robbed');
+    // face the camera NOW — the faceYaw lerp is gated during the cinematic,
+    // so rotate the body directly (camera sits +x/+z; yaw = atan2(dx, dz))
+    const yaw = Math.atan2(3.0, 4.4);
+    fielder.faceYaw = yaw;
+    fielder.group.rotation.y = yaw;
+    const p = fielder.group.position;
+    const shot = (offX, offZ) => this.cam(
+      new THREE.Vector3(p.x + offX, 1.7, p.z + offZ),
+      new THREE.Vector3(p.x, 1.05, p.z),
+    );
+    this.run([
+      { // the snag: standing tall, ball in hands, full body in frame
+        dur: 1.1,
+        onStart: () => fielder.animator.play('holdball'),
+        onUpdate: (k) => shot(3.0 - k * 0.4, 4.4 - k * 0.6), // slow push-in
+      },
+      { // soak it in
+        dur: 1.3,
+        onStart: () => fielder.animator.play('dance3'),
+        onUpdate: (k) => shot(2.6 + k * 0.5, 3.8),
+      },
+      { // fire it back into play
+        dur: 0.9,
+        onStart: () => fielder.animator.play('throw', { onDone: () => fielder.animator.play('idle') }),
+        onUpdate: (k) => shot(3.1, 3.8 + k * 1.0), // ease back out
+      },
+    ]);
   }
 
   pegged({ runner }) {

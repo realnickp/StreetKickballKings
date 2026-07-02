@@ -584,7 +584,7 @@ export class MatchScene {
     douseBall(this.ball); // pitch dead — clear the fire look
     this.strikes += 1;
     this.bus.emit('sfx', 'whiff');
-    this.hud.stamp(this.strikes >= 3 ? 'STRUCK OUT!' : label, 'pegged');
+    this.hud.call(this.strikes >= 3 ? 'STRUCK OUT!' : label, 'pegged');
     if (this.strikes >= 3) {
       this.bus.emit('vo', 'strike');
       this.after(0.8, () => this.finalizePlay(1, 'strikeout', { restoreRunners: true }));
@@ -666,11 +666,11 @@ export class MatchScene {
     this.bus.emit('sfx', 'whiff');
     this.bus.emit('vo', 'foul');
     if (this.fouls >= 4) {
-      this.hud.stamp('4 FOULS — OUT!', 'pegged');
+      this.hud.call('4 FOULS — OUT!', 'pegged');
       this.after(0.8, () => this.finalizePlay(1, 'foulout', { restoreRunners: true }));
       return;
     }
-    this.hud.stamp(`${label}  ${this.fouls}/4`, 'pegged');
+    this.hud.call(`${label}  ${this.fouls}/4`, 'pegged');
     this.after(1.0, () => {
       this.phase = 'SETUP';
       this.kicker.animator.play('plate');
@@ -822,7 +822,7 @@ export class MatchScene {
             this.pendingRuns = (this.pendingRuns ?? 0) + 1;
             this.field.crowdEnergy = 1;
             this.bus.emit('sfx', 'crowd-cheer');
-            this.hud.stamp('SAFE AT HOME!', 'crowned');
+            this.hud.call('SAFE AT HOME!', 'crowned');
             this.faceCam(r.char);
             r.char.animator.play('dance' + (1 + Math.floor(Math.random() * 4)));
             this.after(1.4, () => { if (r.state === 'scored') r.char.group.visible = false; });
@@ -898,7 +898,7 @@ export class MatchScene {
     if (outsAdded >= 2) {
       const triple = outsAdded >= 3;
       this.hud.clearStamps();
-      this.hud.stamp(triple ? 'TRIPLE PLAY!' : 'DOUBLE PLAY!', 'crowned');
+      this.hud.call(triple ? 'TRIPLE PLAY!' : 'DOUBLE PLAY!', 'crowned');
       this.bus.emit('vo', triple ? 'tripleplay' : 'doubleplay');
       this.bus.emit('sfx', 'crowd-cheer');
     }
@@ -1354,11 +1354,11 @@ export class MatchScene {
         this.ballControlled = true;
         if (lead.state !== 'running') { // runner already reached a bag — no peg
           this.bus.emit('sfx', 'catchpop');
-          this.hud.stamp('SAFE!', 'robbed');
+          this.hud.call('SAFE!', 'robbed');
         } else {
           const hit = resolvePeg({ throwDistM: 0, runnerLateralM: lead.sim.lateral }, this.tuning).hit;
           if (hit) this.runnerOut(lead, 'pegged');
-          else { this.bus.emit('sfx', 'dodge'); this.hud.stamp('JUKED!', 'robbed'); }
+          else { this.bus.emit('sfx', 'dodge'); this.hud.call('JUKED!', 'robbed'); }
         }
         this.afterThrow(); // keep the play alive if a runner is still going
       });
@@ -1407,7 +1407,7 @@ export class MatchScene {
         // nobody covering — the throw sails to an empty bag: runner's safe, ball loose
         this.ball.place(basePt.clone().setY(0.3));
         this.ball.mode = 'idle';
-        this.hud.stamp('NOBODY COVERING!', 'robbed');
+        this.hud.call('NOBODY COVERING!', 'robbed');
         this.bus.emit('vo', 'safe');
         this.afterThrow();
       } else {
@@ -1510,7 +1510,7 @@ export class MatchScene {
     } else {
       this.bus.emit('sfx', 'catchpop');
       this.bus.emit('vo', 'forced'); // out call
-      this.hud.stamp(reason === 'tag' ? 'TAGGED OUT!' : 'OUT!', 'pegged');
+      this.hud.call(reason === 'tag' ? 'TAGGED OUT!' : 'OUT!', 'pegged');
     }
     // Do NOT finalize here — the kicker/other runners may still be live. The
     // natural play-end (ball controlled + nobody running) records the outs.

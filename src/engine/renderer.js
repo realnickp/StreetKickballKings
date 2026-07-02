@@ -42,66 +42,6 @@ const GradeShader = {
   `,
 };
 
-// Comic-book pass: bold ink outlines (Sobel), posterized flat color, halftone
-// shadow dots, punchy saturation. The cinematic director ramps `amount` 0→1 to
-// snap an in-play moment into a 2D comic panel — flatness becomes the style.
-const ComicShader = {
-  uniforms: {
-    tDiffuse: { value: null },
-    amount: { value: 0 },
-    resolution: { value: new THREE.Vector2(1, 1) },
-  },
-  vertexShader: /* glsl */ `
-    varying vec2 vUv;
-    void main() {
-      vUv = uv;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }
-  `,
-  fragmentShader: /* glsl */ `
-    uniform sampler2D tDiffuse;
-    uniform float amount;
-    uniform vec2 resolution;
-    varying vec2 vUv;
-
-    float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
-
-    void main() {
-      vec3 src = texture2D(tDiffuse, vUv).rgb;
-      if (amount < 0.001) { gl_FragColor = vec4(src, 1.0); return; }
-
-      vec2 texel = 1.0 / resolution;
-      // Sobel edge detection on luma -> ink lines
-      float tl = luma(texture2D(tDiffuse, vUv + texel * vec2(-1.0, -1.0)).rgb);
-      float tm = luma(texture2D(tDiffuse, vUv + texel * vec2( 0.0, -1.0)).rgb);
-      float tr = luma(texture2D(tDiffuse, vUv + texel * vec2( 1.0, -1.0)).rgb);
-      float ml = luma(texture2D(tDiffuse, vUv + texel * vec2(-1.0,  0.0)).rgb);
-      float mr = luma(texture2D(tDiffuse, vUv + texel * vec2( 1.0,  0.0)).rgb);
-      float bl = luma(texture2D(tDiffuse, vUv + texel * vec2(-1.0,  1.0)).rgb);
-      float bm = luma(texture2D(tDiffuse, vUv + texel * vec2( 0.0,  1.0)).rgb);
-      float br = luma(texture2D(tDiffuse, vUv + texel * vec2( 1.0,  1.0)).rgb);
-      float gx = -tl - 2.0 * ml - bl + tr + 2.0 * mr + br;
-      float gy = -tl - 2.0 * tm - tr + bl + 2.0 * bm + br;
-      float edge = sqrt(gx * gx + gy * gy);
-      float ink = 1.0 - smoothstep(0.18, 0.55, edge);
-
-      // posterize + saturation boost
-      vec3 poster = floor(src * 5.0 + 0.5) / 5.0;
-      float l = luma(poster);
-      poster = clamp(mix(vec3(l), poster, 1.45), 0.0, 1.0);
-
-      // halftone dots concentrated in shadows
-      vec2 dotUv = vUv * resolution / 4.0;
-      float d = length(fract(dotUv) - 0.5);
-      float dotMask = smoothstep(0.30, 0.34, d + l * 0.55);
-      float shade = mix(0.78, 1.0, dotMask);
-
-      vec3 comic = poster * shade * ink;
-      gl_FragColor = vec4(mix(src, comic, amount), 1.0);
-    }
-  `,
-};
-
 export function createEngine(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -134,7 +74,6 @@ export function createEngine(canvas) {
   const renderPass = new RenderPass(scene, camera);
   const bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.18, 0.4, 0.95);
   const gradePass = new ShaderPass(GradeShader);
-  const comicPass = new ShaderPass(ComicShader);
   const outputPass = new OutputPass();
 
   // Ambient occlusion (high quality only): subtle contact darkening where players,
@@ -162,7 +101,6 @@ export function createEngine(canvas) {
     // if (quality === 'high' && aoPass) composer.addPass(aoPass);
     composer.addPass(bloomPass);
     if (quality === 'high') composer.addPass(gradePass);
-    composer.addPass(comicPass); // cheap when amount=0; director ramps it
     composer.addPass(outputPass);
   }
   rebuildChain();
@@ -176,7 +114,7 @@ export function createEngine(canvas) {
     composer,
     timeScale: 1,
     paused: false, // when true the frame callbacks (gameplay) freeze but we keep rendering
-    fx: { bloomPass, gradePass, comicPass },
+    fx: { bloomPass, gradePass },
     baseBloom: 0.18,
     onFrame(cb) {
       frameCbs.add(cb);
@@ -185,10 +123,6 @@ export function createEngine(canvas) {
     setQuality(q) {
       quality = q;
       rebuildChain();
-    },
-    /** 0 = normal 3D, 1 = full comic panel. */
-    setComic(amount) {
-      comicPass.uniforms.amount.value = amount;
     },
     shakeAmt: 0,
     shake(intensity = 0.4) {
@@ -204,7 +138,6 @@ export function createEngine(canvas) {
     renderer.setSize(w, h, false); // false = don't touch CSS; the frame already sizes the canvas
     composer.setSize(w, h);
     if (aoPass) aoPass.setSize(w, h);
-    comicPass.uniforms.resolution.value.set(w, h);
     camera.aspect = w / h;
     // keep the field framed in narrow portrait by widening FOV as aspect shrinks
     camera.fov = w / h < 0.65 ? 74 : 58;

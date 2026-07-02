@@ -755,50 +755,6 @@ body { display: flex; align-items: center; justify-content: center; }
 .score-bug .diamond b[data-b="3"] { left: 0; bottom: 0; }
 .score-bug .diamond b.on { background: var(--teal); box-shadow: 0 0 7px var(--teal); }
 
-/* ---------- comic-panel speed lines ---------- */
-/* comic panel wash: radial speed streaks faded to the centre (action stays
-   readable), a halftone dot print, and a soft vignette — no hard rectangle. */
-.speed-lines {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0;
-  z-index: 7;
-  --sl: 8, 9, 13; /* streak colour, retinted per kind */
-  transition: opacity .12s ease-out;
-}
-.speed-lines.show { opacity: 1; animation: speedPunch .5s cubic-bezier(.2,.8,.3,1.2); }
-.speed-lines[data-kind="crowned"] { --sl: 245, 179, 18; }
-.speed-lines[data-kind="robbed"]  { --sl: 62, 198, 181; }
-.speed-lines[data-kind="pegged"]  { --sl: 215, 38, 61; }
-/* the radial speed streaks */
-.speed-lines::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: repeating-conic-gradient(from 0deg at 50% 46%,
-    rgba(var(--sl), 0) 0deg, rgba(var(--sl), 0) 2.3deg,
-    rgba(var(--sl), .4) 2.3deg, rgba(var(--sl), .4) 3.2deg);
-  -webkit-mask: radial-gradient(circle at 50% 46%, transparent 42%, #000 74%);
-  mask: radial-gradient(circle at 50% 46%, transparent 42%, #000 74%);
-}
-/* halftone dots + vignette for the printed-comic feel */
-.speed-lines::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(circle, rgba(0,0,0,.5) 22%, transparent 24%) 0 0 / 7px 7px,
-    radial-gradient(125% 95% at 50% 46%, transparent 50%, rgba(7,4,9,.6) 100%);
-  -webkit-mask: radial-gradient(circle at 50% 46%, transparent 46%, #000 96%);
-  mask: radial-gradient(circle at 50% 46%, transparent 46%, #000 96%);
-  opacity: .55;
-}
-@keyframes speedPunch {
-  0% { transform: scale(1.14); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
-}
-
 /* ---------- pause button + pause/sound overlay + menu settings ---------- */
 .pause-btn {
   position: absolute; top: calc(10px + env(safe-area-inset-top)); right: 12px;
