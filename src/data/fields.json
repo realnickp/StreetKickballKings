@@ -7,7 +7,7 @@
       "fenceM": 42,
       "fenceHeightM": 4,
       "flavor": "none",
-      "sky": "day",
+      "sky": "golden-hour",
       "palette": {
         "ground": "#3c3f44",
         "lines": "#e8e6df",
@@ -21,7 +21,7 @@
         "backdropVideo": "assets/video/backdrop-blacktop.mp4"
       },
       "status": "ready",
-      "world3d": false
+      "world3d": true
     },
     {
       "id": "subway-yard",
