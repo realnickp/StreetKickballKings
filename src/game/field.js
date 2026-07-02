@@ -145,7 +145,10 @@ export function buildField(fieldData, scene) {
   if (world3d) {
     import('./world/blacktop.js').then(async ({ loadBlacktopWorld }) => {
       const world = await loadBlacktopWorld();
-      root.add(world);
+      root.add(world.group);
+      // the world animates (el train, steam, cloud drift) off the crowd tick
+      const prevTick = handles.updateCrowd;
+      handles.updateCrowd = (t) => { prevTick(t); world.update(t); };
       if (handles.backdrop) handles.backdrop.visible = false;
       if (handles.backdropVideo) { try { handles.backdropVideo.pause(); } catch { /* fine */ } }
       if (handles.skyline) handles.skyline.visible = false;
