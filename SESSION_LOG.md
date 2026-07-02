@@ -528,3 +528,51 @@ build`, output `dist`). `.env.local` (ElevenLabs key) stays gitignored.
   for videos, ffmpeg a frame into the project dir and Read it; for gameplay, drive it (don't trust
   state flags or a subagent's self-assessment). Over-claiming "it works" off synthetic checks burned a
   lot of trust this session. See [[verify-gameplay-by-real-play]] and the video word-landmines in §7f.
+
+---
+
+## 10. SESSION 7 — GRAPHICS OVERHAUL PHASE 1: real mocap animation (2026-07-01)
+
+Dev asked "how do we make this look like a PlayStation game" → found he already OWNS the
+assets in the old Unity project (see [[skk-unity-asset-trove]]): 17+ Mixamo clips
+(`GangsPack01/Animations`), SK_Gang characters, AND a 6GB NYC building environment pack.
+Wrote the overhaul spec (`docs/superpowers/specs/2026-07-01-graphics-overhaul-design.md`,
+4 phases: mocap → broadcast cams+replay → 3D world → polish) + Phase 1 plan
+(`docs/superpowers/plans/2026-07-01-phase1-mocap-animation.md`), executed inline with the
+dev watching/playtesting live. **PR #6 open (feat/graphics-overhaul), pending "push".**
+
+**WHAT SHIPPED (Phase 1):** `MocapAnimator` (AnimationMixer + crossfades + manifest
+contact events, same surface as GlbCodeAnimator which stays behind `?codeanim=1`);
+`src/data/anims.manifest.json` (clip → game-action table w/ trims/rates/contact marks);
+`tools/retarget.html` bake harness; per-archetype `public/assets/anims/mocap-<arch>.glb`.
+Kicker strafes to line up (half-facing travel, dev call), fielders hold ball in
+Goalkeeper stance, pitch ball launches ON the release frame, throws 1.4x, kick responds
+in ~0.25s (clips trimmed to the action; release frames measured by peak hand/foot velocity).
+
+**HARD-WON RETARGETING KNOWLEDGE (don't relearn — encoded in tools/retarget.js):**
+- Correct method = WORLD-orientation transplant with per-bone REST-DIRECTION alignment
+  (A-pose Meshy vs T-pose Mixamo). Three simpler methods all failed visibly: SkeletonUtils
+  .retargetClip (folded waist), joint-space local deltas (yaw offset), parent-space local
+  deltas (arms trailing behind / flared forearms — dev: "arms are fucked").
+- ONE bake per archetype — each Meshy rig has its own rest pose; a shared bake distorts
+  the other 5 (folded legs / floating characters).
+- NEVER call skeleton.pose() on these GLBs (rewrites bone locals in bind units, x100 off);
+  size characters from the HIPS BONE, not Box3 (skinned bounds disagree with node units by 100x).
+- FBXLoader strips ':' from mixamorig names; Meshy spine chain is INVERTED (Spine02=lower,
+  Spine=chest); 'Idle.fbx'+'SwaggerWalk.fbx' in the pack are UE-MANNEQUIN rigs (separate
+  bone map in the harness); pack clips have HUGE lead-ins (Throwing.fbx = 5.6s for a 1s
+  throw) → manifest trims are load-bearing.
+- Chrome silently blocks repeated programmatic downloads → harness POSTs bakes to
+  `scripts/anim-upload-server.mjs` (port 5199) which writes into public/assets/anims/.
+- Dev supplied `Breathing Idle.fbx` (Mixamo) for idle/plate — the pack's idles were unusable.
+- Chrome throttles rAF when the window is OCCLUDED — the game "freezing" during testing
+  was window occlusion, not code. Foreground the window before judging behavior.
+
+**DEV FEEDBACK CAPTURED:** catch cinematic is "horrendous — nothing correct or good
+about it" (left in place, dies in the Phase 2 replay rebuild — priority raised); wants
+the pitcher ROLLING the ball (waiting on his Mixamo "Bowling" download; pitch/throw clip
+assignments swapped per his call; ball already launches on the release frame).
+
+**NEXT:** dev phone-playtest + "push" for PR #6 → Phase 2 (broadcast cameras + real
+instant replay, kill DOM speed-lines/stamps) → Phase 3 (NYC 3D world from the owned pack)
+→ Phase 4 (DOF, grade, jersey numbers, foot-plant polish).
