@@ -45,6 +45,14 @@ const CAM = {
 
 const CONTINUE_RATE = 3.5; // taps/sec needed to run through a bag
 
+/** Directional stride for the kicker lining up: signed x-velocity (m/s) ->
+ *  strafe clip name, or null when settled. Kicker faces the mound (-z), so
+ *  +x movement is his RIGHT. Dead-zone matches the old dead-feet fix (0.6). */
+export function kickerStrideAnim(vxSigned) {
+  if (Math.abs(vxSigned) <= 0.6) return null;
+  return vxSigned > 0 ? 'strafeR' : 'strafeL';
+}
+
 export class MatchScene {
   constructor({ engine, input, bus, teams, chars, fieldData, tuning, difficulty = 'Street', playerSide = 'away', firstKick = 'away', hudRoot, autoStart = true }) {
     this.engine = engine;
@@ -434,27 +442,44 @@ export class MatchScene {
     this.bus.emit('sfx', 'pitch');
 
     const pitcher = this.fieldingChars()[0];
-    pitcher.animator.play('throw', { onDone: () => pitcher.animator.play('idle') });
 
     const type = this.tuning.pitch.types[pitch.id];
     const rollSpeed = pitch.speedMph * 0.12;
     const dur = (this.tuning.pitch.plateDistanceM / rollSpeed) * (type?.durScale ?? 1);
     const plate = new THREE.Vector3(wildX, 0, 0.2);
-    this.ball.startPitch(FIELD_LAYOUT.pitcher.clone().setY(0.35), plate, dur, {
-      bounce: pitch.bounce ?? 0, curveM: pitch.curveM ?? 0, ease: pitch.ease ?? 1,
-    });
-    this.pitchArrival = this.elapsed + dur;
+    // the ball leaves the hand at the delivery clip's RELEASE frame (onContact),
+    // not at play() — otherwise the ball rolls away mid-wind-up (dev callout).
+    // The AI's swing is scheduled from the SAME moment so its timing still keys
+    // off actual ball flight.
+    let launched = false;
+    const launch = () => {
+      if (launched) return;
+      launched = true;
+      this.ball.startPitch(FIELD_LAYOUT.pitcher.clone().setY(0.35), plate, dur, {
+        bounce: pitch.bounce ?? 0, curveM: pitch.curveM ?? 0, ease: pitch.ease ?? 1,
+      });
+      this.pitchArrival = this.elapsed + dur;
+      if (aiKicks) {
+        // The full error drives the JUDGE (whiff/foul/contact). But cap WHEN the
+        // AI actually swings to ±0.45s of arrival so a big miss never leaves the
+        // ball just sitting there ("frozen"). NaN-guarded so it can't hang.
+        const errMs = aiKickError(this.difficulty, this.tuning, pitch);
+        const swing = dur + Math.max(-0.25, Math.min(0.45, (Number.isFinite(errMs) ? errMs : 0) / 1000));
+        this.after(swing, () => this.attemptKick({ aim: aiAim(this.difficulty), errMs }, this.elapsed));
+      }
+    };
+    this.pitchArrival = Infinity; // nothing may judge arrival until the ball is live
     this.kicked = false;
+    pitcher.animator.play('pitch', {
+      onContact: launch,
+      onDone: () => pitcher.animator.play('idle'),
+    });
+    // safety: an animator without a contact mark must never freeze the serve
+    this.after(1.2, launch);
 
     if (aiKicks) {
       this.kicker.group.position.x = 0; // start centred so the CPU visibly slides to line up
       this._kickerPrevX = 0; // reset stride tracker so the recenter isn't read as a slide
-      // The full error drives the JUDGE (whiff/foul/contact). But cap WHEN the AI
-      // actually swings to ±0.45s of arrival so a big miss never leaves the ball
-      // just sitting there (which reads as "frozen"). NaN-guarded so it can't hang.
-      const errMs = aiKickError(this.difficulty, this.tuning, pitch);
-      const swing = dur + Math.max(-0.25, Math.min(0.45, (Number.isFinite(errMs) ? errMs : 0) / 1000));
-      this.after(swing, () => this.attemptKick({ aim: aiAim(this.difficulty), errMs }, this.elapsed));
     }
   }
 
@@ -1016,7 +1041,7 @@ export class MatchScene {
         // stride reads at actual chase speed — fast chases visibly sprint
         c.animator.ctx.speedFactor = 0.7 + Math.min(1.3, (step / dt) / this.tuning.running.maxSpeedMs);
       } else if (c.animator.name === 'run' && f.role !== 'chase') {
-        c.animator.play('crouch');
+        c.animator.play(c.hasBall ? 'holdball' : 'crouch');
         this.faceTo(c, this.ball.pos);
       }
     }
@@ -1067,7 +1092,8 @@ export class MatchScene {
     this.defenseHasBall = true; // the infield has it now — runners turn cautious
     this.ball.place(c.group.position.clone().setY(1.1));
     this.ball.mode = 'idle';
-    c.animator.play('catch');
+    // catch, then settle into the ball-in-hands stance (dev call: Goalkeeper Idle)
+    c.animator.play('catch', { onDone: () => { if (c.hasBall) c.animator.play('holdball'); } });
     this.faceTo(c, FIELD_LAYOUT.home);
     this.bus.emit('sfx', 'catchpop');
     if (this.playerControlled) {
@@ -1597,13 +1623,19 @@ export class MatchScene {
     if (this.kicker && (this.phase === 'PITCH' || this.phase === 'SETUP')) {
       const kx = this.kicker.group.position.x;
       const prevX = this._kickerPrevX ?? kx;
-      const vx = rawDt > 0 ? Math.abs(kx - prevX) / rawDt : 0;
+      const vx = rawDt > 0 ? (kx - prevX) / rawDt : 0; // SIGNED — picks the strafe direction
       const anim = this.kicker.animator;
-      if (vx > 0.6) {
-        if (anim.name !== 'run') anim.play('run'); // guard: don't re-trigger every frame
-        anim.ctx.speedFactor = 0.6 + Math.min(1.4, vx / 3); // stride scales with slide speed
-      } else if (anim.name === 'run') {
+      const stride = kickerStrideAnim(vx);
+      if (stride) {
+        if (anim.name !== stride) anim.play(stride, { speedFactor: 0.6 + Math.min(1.4, Math.abs(vx) / 3) });
+        anim.ctx.speedFactor = 0.6 + Math.min(1.4, Math.abs(vx) / 3); // stride scales with slide speed
+        // half-face the strafe direction like the raw Mixamo clip (dev call):
+        // base facing is the mound (-z); bias ~37 deg toward the movement side
+        this.kicker.faceYaw = this.yawTo(this.kicker.group.position, FIELD_LAYOUT.pitcher)
+          + (stride === 'strafeL' ? 0.65 : -0.65);
+      } else if (anim.name === 'strafeL' || anim.name === 'strafeR' || anim.name === 'run') {
         anim.play('plate'); // settled — back to the batter stance
+        this.faceTo(this.kicker, FIELD_LAYOUT.pitcher); // square back up to the mound
       }
       this._kickerPrevX = kx;
     } else if (this.kicker) {

@@ -11,6 +11,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
+import { MocapAnimator, loadMocapClips } from './mocapAnimator.js';
 
 const loader = new GLTFLoader();
 const gltfCache = new Map();
@@ -199,6 +200,11 @@ const CLIPS = {
 };
 // celebration aliases the dance picker may ask for
 CLIPS.dejected = CLIPS.idle;
+// mocap-era names -> nearest legacy clips, so the ?codeanim fallback stays sane
+CLIPS.pitch = CLIPS.throw;
+CLIPS.holdball = CLIPS.idle;
+CLIPS.strafeL = CLIPS.run;
+CLIPS.strafeR = CLIPS.run;
 
 class GlbCodeAnimator {
   constructor(bones) {
@@ -268,11 +274,18 @@ class GlbCodeAnimator {
   }
 }
 
+/** Which animator a character gets. Pure — unit-tested. */
+export function chooseAnimator({ clips, forceCode }) {
+  return clips && !forceCode ? 'mocap' : 'code';
+}
+
 /**
- * Load + clone a GLB into a matchScene-ready character (group + code animator).
- * @param {{model:string, faceOffset?:number}} def
+ * Load + clone a GLB into a matchScene-ready character. With `clips` (the
+ * shared retargeted mocap set) the character gets a MocapAnimator; without,
+ * the legacy code animator (also forced by ?codeanim=1 via def.forceCode).
+ * @param {{model:string, faceOffset?:number, teamColor?:string, forceCode?:boolean}} def
  */
-export async function buildGlbCharacter(def, { heightM = 2.05 } = {}) {
+export async function buildGlbCharacter(def, { heightM = 2.05, clips = null } = {}) {
   const base = await loadGltf(def.model);
   const root = skeletonClone(base.scene);
   root.traverse((o) => {
@@ -299,7 +312,11 @@ export async function buildGlbCharacter(def, { heightM = 2.05 } = {}) {
         o.material.needsUpdate = true;
       }
     }
-    if (o.isSkinnedMesh) o.skeleton.pose(); // clean bind pose before we capture rest
+    // Legacy code-animator path only: skeleton.pose() rewrites bone LOCAL
+    // positions in bind/geometry units (x100 vs the node hierarchy), which
+    // mangles the mesh once mocap clips animate a subset of bones. The GLB
+    // already loads in bind pose — mocap needs the loaded locals untouched.
+    if (o.isSkinnedMesh && !clips) o.skeleton.pose();
   });
 
   // The mesh already faces +z (same convention as the procedural rig), which is
@@ -308,12 +325,24 @@ export async function buildGlbCharacter(def, { heightM = 2.05 } = {}) {
   inner.rotation.y = def.faceOffset ?? 0;
   inner.add(root);
 
-  // scale to target height + drop feet to y=0 (compute on the rotated content)
-  const box = new THREE.Box3().setFromObject(inner);
-  const size = new THREE.Vector3(); box.getSize(size);
-  inner.scale.setScalar(heightM / (size.y || 1));
-  const box2 = new THREE.Box3().setFromObject(inner);
-  inner.position.y -= box2.min.y;
+  if (clips) {
+    // MOCAP path: size from the HIPS BONE, not a Box3. The clips drive
+    // Hips.position in the rig's native node units (~0.98 world after the
+    // armature scale); a Box3-derived scale can disagree with those units by
+    // 100x (skinned-bounds vs node-hierarchy quirk) and launch the skeleton
+    // 100m up. Hips sit at ~51% of standing height on this rig.
+    root.updateMatrixWorld(true);
+    const hips = root.getObjectByName('Hips');
+    const hipsY = hips ? hips.getWorldPosition(new THREE.Vector3()).y : 1;
+    inner.scale.setScalar((heightM * 0.51) / (hipsY || 1));
+  } else {
+    // legacy code-animator path: scale to target height + drop feet to y=0
+    const box = new THREE.Box3().setFromObject(inner);
+    const size = new THREE.Vector3(); box.getSize(size);
+    inner.scale.setScalar(heightM / (size.y || 1));
+    const box2 = new THREE.Box3().setFromObject(inner);
+    inner.position.y -= box2.min.y;
+  }
 
   const group = new THREE.Group();
   group.add(inner);
@@ -321,7 +350,11 @@ export async function buildGlbCharacter(def, { heightM = 2.05 } = {}) {
   const bones = {};
   root.traverse((o) => { if (o.isBone) bones[o.name] = o; });
 
-  return { group, animator: new GlbCodeAnimator(bones) };
+  const which = chooseAnimator({ clips, forceCode: def.forceCode ?? false });
+  const animator = which === 'mocap'
+    ? new MocapAnimator(root, clips)
+    : new GlbCodeAnimator(bones);
+  return { group, animator };
 }
 
 const JERSEY_NUMBERS = [23, 7, 3, 44, 11, 5, 88, 1, 32, 9, 21, 0];
@@ -346,15 +379,28 @@ const FEMALE_ARCHETYPES = new Set([2, 5]); // arch-braids, arch-twists
 export async function buildTeamCharsGlb(team, uniformColor) {
   const roster = team.roster ?? [];
   const primary = uniformColor ?? team.colors?.primary;
+  // Per-archetype mocap clips (each Meshy rig has its own rest pose, so each
+  // gets its own bake); loadMocapClips caches per URL — 6 fetches total across
+  // ALL teams. Missing bakes (or ?codeanim=1) fall back to the legacy code
+  // animator — never a blank screen.
+  const forceCode = new URLSearchParams(location.search).has('codeanim');
+  const clipsFor = async (archIdx) => {
+    if (forceCode) return null;
+    const key = ARCHETYPES[archIdx].match(/arch-(\w+)\.glb/)?.[1];
+    try { return await loadMocapClips(`/assets/anims/mocap-${key}.glb`); }
+    catch (e) { console.warn(`[skk] mocap-${key}.glb unavailable, using code animator:`, e); return null; }
+  };
   const out = [];
   for (let i = 0; i < roster.length; i++) {
     const p = roster[i];
     const archIdx = (p.archetype ?? i) % ARCHETYPES.length;
+    const clips = await clipsFor(archIdx);
     let char;
     try {
-      char = await buildGlbCharacter({ model: ARCHETYPES[archIdx], teamColor: primary }, { heightM: 2.05 });
+      char = await buildGlbCharacter({ model: ARCHETYPES[archIdx], teamColor: primary }, { heightM: 2.05, clips });
     } catch {
-      char = await buildGlbCharacter({ model: FALLBACK_MODEL }, { heightM: 2.05 }); // archetype not present yet
+      // fallback model has a DIFFERENT rig — no baked set; use the code animator
+      char = await buildGlbCharacter({ model: FALLBACK_MODEL }, { heightM: 2.05, clips: null });
     }
     char.data = p;
     char.number = p.number ?? JERSEY_NUMBERS[i % JERSEY_NUMBERS.length];
