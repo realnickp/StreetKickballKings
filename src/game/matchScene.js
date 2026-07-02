@@ -12,6 +12,7 @@ import { SpecialMeter } from './specialMoves.js';
 import { pickPitch, aiKickError, aiAim, aiWantsPeg, aiMashRate, aiJukes, aiThrowsFire } from './ai.js';
 import { PITCH_PATTERNS, PITCH_FAMILIES, pickVariant, scoreTrace } from './pitchPattern.js';
 import { igniteBall, douseBall } from '../cinematics/fx.js';
+import { ReplayRecorder } from '../cinematics/replay.js';
 import { Ball } from './ball.js';
 import { CameraDirector } from './cameraDirector.js';
 import { buildField, FIELD_LAYOUT } from './field.js';
@@ -91,6 +92,11 @@ export class MatchScene {
         engine.scene.add(c.group);
       }
     }
+
+    // instant-replay capture: the last ~6s of every character's skeleton + ball
+    this.replayChars = [...this.chars.home, ...this.chars.away];
+    this.replayRecorder = new ReplayRecorder({ seconds: 6, hz: 30 });
+    this.replayRecorder.track(this.replayChars, this.ball);
 
     this.special = new SpecialMeter(teams[playerSide], tuning);
     this.specialArmed = false;
@@ -241,6 +247,8 @@ export class MatchScene {
       ball: this.ball,
       kickerPos: this.kicker?.group.position,
       leadRunnerPos: lead ? this.runnerWorldPos(lead).p : FIELD_LAYOUT.home,
+      // the bag the lead runner is going for — the runners shot keeps it in frame
+      targetBasePos: lead && lead.targetBase >= 0 ? this.basePos(Math.min(lead.targetBase, 3)) : FIELD_LAYOUT.first,
       activeFielderPos: (this.activeFielder ?? this.chaser ?? this.kicker)?.group.position,
     };
   }
@@ -1707,6 +1715,9 @@ export class MatchScene {
       }
       this.camDir.update(rawDt, this.camCtx());
     }
+
+    // record for instant replays — never WHILE one is playing back
+    if (!this.cinematicLock) this.replayRecorder.capture(this.elapsed);
 
     // pulse the base target rings
     if (this.baseRings[0].visible) {

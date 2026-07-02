@@ -475,6 +475,16 @@ body { display: flex; align-items: center; justify-content: center; }
 .cine-banner.robbed { --accent: var(--teal); --glow: rgba(62, 198, 181, .55); }
 .cine-banner.pegged { --accent: var(--red);  --glow: rgba(215, 38, 61, .6); }
 
+/* replay letterbox: broadcast bars that slide in during instant replays */
+.letterbox { position: absolute; inset: 0; pointer-events: none; z-index: 7; }
+.letterbox::before, .letterbox::after {
+  content: ''; position: absolute; left: 0; right: 0; height: 0;
+  background: #000; transition: height .28s ease;
+}
+.letterbox::before { top: 0; }
+.letterbox::after { bottom: 0; }
+.letterbox.on::before, .letterbox.on::after { height: 9%; }
+
 /* small pitch-quality badge, tucked up top under the scoreboard — never covers the play */
 .pitch-grade {
   position: absolute;

@@ -330,6 +330,16 @@ export class Hud {
     if (this.cineBanner) this.cineBanner.classList.remove('show');
   }
 
+  /** cinematic letterbox bars that slide in during instant replays */
+  setLetterbox(on) {
+    if (!this.letterboxEl) {
+      this.letterboxEl = document.createElement('div');
+      this.letterboxEl.className = 'letterbox';
+      this.el.appendChild(this.letterboxEl);
+    }
+    this.letterboxEl.classList.toggle('on', !!on);
+  }
+
   destroy() {
     this.el.remove();
   }

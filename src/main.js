@@ -11,6 +11,7 @@ import { buildPlayer, CLIP_NAMES } from './game/characters.js';
 import { buildTeamCharsGlb } from './game/glbCharacters.js';
 import { MatchScene } from './game/matchScene.js';
 import { CinematicDirector } from './cinematics/director.js';
+import { ReplayPlayer } from './cinematics/replay.js';
 import { playVideo } from './cinematics/videoPlayer.js';
 import { showLogoClash } from './cinematics/introSequence.js';
 import { ScreenRouter } from './ui/router.js';
@@ -130,7 +131,11 @@ if (params.has('match')) {
       playerSide: 'away', hudRoot, autoStart: false,
     });
     window.__skk = scene;
-    const director = new CinematicDirector({ engine, bus, hud: scene.hud, getBall: () => scene.ball });
+    const replayPlayer = new ReplayPlayer({ engine, hud: scene.hud, bus });
+    const director = new CinematicDirector({
+      engine, bus, hud: scene.hud, getBall: () => scene.ball,
+      getReplay: () => ({ recorder: scene.replayRecorder, chars: scene.replayChars, ball: scene.ball, player: replayPlayer }),
+    });
     void director;
     bus.on('matchOver', () => scene.startMatch(params.get('match') === 'field' ? 'home' : 'away'));
     scene.startMatch(params.get('match') === 'field' ? 'home' : 'away');
@@ -279,7 +284,13 @@ async function bootFlow() {
       autoStart: false,
     });
     window.__skk = ctx.scene; // dev/debug handle
-    ctx.director = ctx.director ?? new CinematicDirector({ engine, bus, hud: ctx.scene.hud, getBall: () => ctx.scene.ball });
+    // director + replay follow the CURRENT scene (rebuilt every match)
+    ctx.replayPlayer = ctx.replayPlayer ?? new ReplayPlayer({ engine, hud: ctx.scene.hud, bus });
+    ctx.replayPlayer.hud = ctx.scene.hud;
+    ctx.director = ctx.director ?? new CinematicDirector({
+      engine, bus, hud: ctx.scene.hud, getBall: () => ctx.scene.ball,
+      getReplay: () => ({ recorder: ctx.scene.replayRecorder, chars: ctx.scene.replayChars, ball: ctx.scene.ball, player: ctx.replayPlayer }),
+    });
     ctx.director.hud = ctx.scene.hud;
 
     audio.stopMusic();      // silence game music so the coin-toss video's own audio plays clean

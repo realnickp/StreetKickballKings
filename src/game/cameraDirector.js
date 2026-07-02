@@ -30,11 +30,18 @@ export const SHOTS = {
     };
   },
 
-  // elevated sideline cam framing lead runner + infield
+  // elevated cam framing the lead runner AND the bag they're running to —
+  // the TARGET BASE must stay in frame (dev call: "you gotta see 1st base")
   runners: (c) => {
     const r = c.leadRunnerPos ?? V(0, 0, 0);
-    const fx = r.x * 0.5;
-    return { pos: V(fx + 9, 9.5, -3.5), look: V(fx * 0.6, 0.8, -8), fovScale: 0.85, stiffness: 8 };
+    const bag = c.targetBasePos ?? V(11.3, 0, -11.3); // default: 1st
+    const mid = r.clone().add(bag).multiplyScalar(0.5);
+    const sep = Math.max(6, r.distanceTo(bag));
+    return {
+      pos: V(mid.x * 0.55, 8.5 + sep * 0.35, mid.z + 9.5 + sep * 0.45),
+      look: V(mid.x, 0.6, mid.z),
+      fovScale: 0.85, stiffness: 8,
+    };
   },
 
   // defense: frame your fielder + the ball (legacy live framing, spring-damped)
