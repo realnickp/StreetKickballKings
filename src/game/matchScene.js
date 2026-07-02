@@ -894,6 +894,13 @@ export class MatchScene {
     this.phase = 'RESOLVE';
     this.hud.setRunnerAlerts([]); // play's over — clear the runner banners
 
+    // nobody jogs in place once the play is dead — settle every defender
+    // (updateDefense stops outside LIVE, so a looping run clip would stick)
+    for (const c of this.fieldingChars()) {
+      const n = c.animator.name;
+      if (!c.hasBall && (n === 'run' || n === 'strafeL' || n === 'strafeR')) c.animator.play('idle');
+    }
+
     // multi-out play — call it out big
     if (outsAdded >= 2) {
       const triple = outsAdded >= 3;
@@ -1074,6 +1081,11 @@ export class MatchScene {
         const step = Math.min(dist, this.fielderSpeed(c, f.role) * dt);
         c.group.position.x += (d2.x / dist) * step;
         c.group.position.z += (d2.y / dist) * step;
+        // hard court limits — nobody runs THROUGH the outfield fence or backstop
+        const rr = Math.hypot(c.group.position.x, c.group.position.z);
+        const maxR = this.fenceM - 0.5;
+        if (rr > maxR) { c.group.position.x *= maxR / rr; c.group.position.z *= maxR / rr; }
+        if (c.group.position.z > 3.0) c.group.position.z = 3.0;
         c.faceYaw = Math.atan2(d2.x, d2.y);
         if (c.animator.name !== 'run') c.animator.play('run');
         // stride reads at actual chase speed — fast chases visibly sprint
@@ -1562,9 +1574,25 @@ export class MatchScene {
     fielder.animator.play('catch');
     fielder.hasBall = true;
     this.field.crowdEnergy = 1;
+
+    // TAG UP: on a caught fly every base runner must get back to his bag —
+    // reverse them visibly (real kickball rule, dev callout). The kicker is
+    // the out; stop driving his runner.
+    for (const r of this.runners) {
+      if (r.state !== 'running') continue;
+      if (r.char === this.kicker) { r.state = 'out'; continue; }
+      if (r.fromBase < 0) continue;
+      const t = r.targetBase;
+      r.targetBase = r.fromBase;
+      r.fromBase = t;
+      r.sim.progressM = Math.max(0, this.tuning.running.basePathM - r.sim.progressM);
+      r.forced = false;
+    }
+
     this.bus.emit('cine:robbed', { fielder, kicker: this.kicker });
     if (!this.kickingIsPlayer()) this.special.add('catch');
-    this.after(0.2, () => this.finalizePlay(1, 'catch', { restoreRunners: true }));
+    // give the retreat a beat to read before the bases reset
+    this.after(1.1, () => this.finalizePlay(1, 'catch', { restoreRunners: true }));
   }
 
   homer() {
