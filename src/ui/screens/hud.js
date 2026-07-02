@@ -56,11 +56,6 @@ export class Hud {
     this.el.querySelector('[data-abbr-away]').textContent = awayAbbr;
     this.el.querySelector('[data-abbr-home]').textContent = homeAbbr;
 
-    // comic-panel speed-line overlay (shown during in-engine comic moments)
-    this.speedLines = document.createElement('div');
-    this.speedLines.className = 'speed-lines';
-    this.el.appendChild(this.speedLines);
-
     this.scoreEls = {
       away: this.el.querySelector('[data-away]'),
       home: this.el.querySelector('[data-home]'),
@@ -307,27 +302,41 @@ export class Hud {
     this._pgT = setTimeout(() => g.classList.remove('show'), 1100);
   }
 
-  /** Radial comic speed lines + panel frame around the frozen moment. */
-  showSpeedLines(on, kind) {
-    this.speedLines.dataset.kind = kind || '';
-    this.speedLines.classList.toggle('show', !!on);
-  }
-
   /**
    * Clean lower-third broadcast banner for cinematic replays (HOME RUN / ROBBED
    * / PEGGED). Replaces the old spiky center stamp. `kind` colours it
    * (homer = gold, robbed = teal, pegged = red).
    */
-  banner(text, kind) {
+  banner(text, kind, { autoHideMs = 0 } = {}) {
     let b = this.cineBanner;
     if (!b) { b = this.cineBanner = document.createElement('div'); b.className = 'cine-banner'; this.el.appendChild(b); }
     b.textContent = text;
     b.className = `cine-banner ${kind || ''}`;
     void b.offsetWidth; // reflow so the slide-up transition re-fires each time
     b.classList.add('show');
+    clearTimeout(this._bannerT);
+    if (autoHideMs) this._bannerT = setTimeout(() => this.hideBanner(), autoHideMs);
+  }
+
+  /** Broadcast play CALL: a lower-third that shows briefly and slides away.
+   *  Replaces the spray-paint stamp for SAFE!/OUT!/FOUL!-type rulings.
+   *  Maps the stamp kinds onto banner accents (crowned=gold, robbed=teal, pegged=red). */
+  call(text, kind) {
+    const map = { crowned: 'homer', robbed: 'robbed', pegged: 'pegged' };
+    this.banner(text, map[kind] ?? kind, { autoHideMs: 1400 });
   }
   hideBanner() {
     if (this.cineBanner) this.cineBanner.classList.remove('show');
+  }
+
+  /** cinematic letterbox bars that slide in during instant replays */
+  setLetterbox(on) {
+    if (!this.letterboxEl) {
+      this.letterboxEl = document.createElement('div');
+      this.letterboxEl.className = 'letterbox';
+      this.el.appendChild(this.letterboxEl);
+    }
+    this.letterboxEl.classList.toggle('on', !!on);
   }
 
   destroy() {

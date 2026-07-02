@@ -9,15 +9,17 @@
 // Every cinematic is tap-skippable ('cine:skip' on the bus).
 import * as THREE from 'three';
 import { BallFx } from './fx.js';
+import { FIELD_LAYOUT } from '../game/field.js';
 
 const DANCES = ['dance1', 'dance2', 'dance3', 'dance4'];
 
 export class CinematicDirector {
-  constructor({ engine, bus, hud, getBall }) {
+  constructor({ engine, bus, hud, getBall, getReplay = null }) {
     this.engine = engine;
     this.bus = bus;
     this.hud = hud;
     this.getBall = getBall;
+    this.getReplay = getReplay; // () => {recorder, chars, ball, player} for instant replays
     this.fx = new BallFx(engine.scene);
     this.script = null;
     this.danceIdx = Math.floor(Math.random() * 4);
@@ -53,12 +55,12 @@ export class CinematicDirector {
     this.script = null;
     this.engine.cameraLock = false;
     this.engine.timeScale = 1;
-    this.engine.setComic(0);
     this.engine.fx.bloomPass.strength = this.engine.baseBloom;
     if (this.engine.fx.gradePass) this.engine.fx.gradePass.uniforms.caAmount.value = 0.0004;
     const ball = this.getBall?.();
     if (ball?.mesh) ball.mesh.visible = true; // restore after any panel that hid it
     this.hud.hideBanner();
+    this.hud.setLetterbox?.(false);
     this.bus.emit('cine:done');
   }
 
@@ -119,88 +121,79 @@ export class CinematicDirector {
   }
 
   /**
-   * Frame a subject for a front-on hero replay: drop the camera in FRONT of the
-   * subject (home-plate / +z side) at eye level, turn the subject to face the
-   * lens (procedural chars have a real front), and slow-dolly in over the panel.
-   * Returns an onUpdate(k) that runs the push-in.
+   * TRUE INSTANT REPLAY: re-play the recorded last seconds of the ACTUAL play
+   * in slow motion from a fresh broadcast angle (ReplayPlayer). Skips
+   * gracefully when nothing is recorded yet — never a broken cinematic.
    */
-  cineFraming(subject) {
-    const p = subject.group.position.clone();
-    const offX = 1.1; // a touch off-axis so it reads as a camera angle, not a mugshot
-    // turn the subject to face where the camera will sit (yawTo convention: atan2(dx,dz))
-    subject.faceYaw = Math.atan2(offX, 4.0);
-    return (k) => {
-      const dist = 4.0 - k * 0.9; // gentle dolly-in across the panel
-      this.cam(
-        new THREE.Vector3(p.x + offX, 1.75, p.z + dist),
-        new THREE.Vector3(p.x, 1.15, p.z),
-      );
-    };
-  }
-
-  /**
-   * Play an in-play moment as a clean slow-motion broadcast replay.
-   * @param {{panels: {subject, dur, freeze?, anim?, banner?, bannerKind?}[],
-   *          vo?, sound?, banner?, bannerKind?, hideBall?}} cfg
-   */
-  cinematicMoment({ panels, vo, sound, banner, bannerKind, hideBall = false }) {
-    if (sound) this.bus.emit('sfx', sound);
-    if (vo) this.bus.emit('vo', vo);
-    this.bus.emit('sfx', 'crowd-cheer');
+  replayMoment({ focusChar, seconds, banner, bannerKind, vo, sound }) {
+    const r = this.getReplay?.();
+    if (!r?.player) return;
     this.engine.shake(0.3);
-    // a caught ball sits on the fielder and covers them — hide it for the replay
-    if (hideBall) { const ball = this.getBall?.(); if (ball?.mesh) ball.mesh.visible = false; }
-
-    const steps = panels.map((panel, idx) => {
-      const frame = this.cineFraming(panel.subject);
-      return {
-        dur: panel.dur,
-        onStart: () => {
-          // true slow-mo (not a hard freeze) + a soft cinematic grade — no comic shader
-          this.engine.timeScale = panel.freeze ? 0.32 : 0.6;
-          this.engine.fx.bloomPass.strength = 0.78;
-          if (this.engine.fx.gradePass) this.engine.fx.gradePass.uniforms.caAmount.value = 0.0012;
-          if (panel.anim) panel.subject.animator.play(panel.anim);
-          const b = panel.banner ?? (idx === 0 ? banner : null);
-          if (b) this.hud.banner(b, panel.bannerKind ?? bannerKind);
-        },
-        onUpdate: (k) => frame(k),
-      };
+    r.player.play({
+      clip: r.recorder.clipLast(seconds),
+      chars: r.chars, ball: r.ball,
+      focusIndex: Math.max(0, r.chars.indexOf(focusChar)),
+      banner, bannerKind, vo, sound,
+      speed: 0.45,
     });
-    this.run(steps);
   }
 
   crowned({ kicker }) {
-    const dance = DANCES[this.danceIdx % DANCES.length];
-    this.danceIdx += 1;
-    this.cinematicMoment({
-      vo: { event: 'crowned', gender: kicker.gender }, // he/she-aware home-run call
+    this.replayMoment({
+      focusChar: kicker, seconds: 3.2,
       banner: 'HOME RUN!', bannerKind: 'homer',
-      panels: [{ subject: kicker, dur: 2.6, freeze: false, anim: dance }],
+      vo: { event: 'crowned', gender: kicker.gender }, // he/she-aware home-run call
     });
   }
 
-  robbed({ fielder, kicker }) {
-    // ball stays VISIBLE — matchScene.carryHeldBall() keeps it in the fielder's
-    // glove, so the snag reads as a real catch (was hidden because it used to sit
-    // at the body centre and cover them).
-    this.cinematicMoment({
-      vo: 'robbed',
-      banner: 'ROBBED!', bannerKind: 'robbed',
-      panels: [
-        { subject: fielder, dur: 1.5, freeze: true, anim: 'catch' },   // the snag, frozen at full reach
-        { subject: kicker, dur: 1.1, freeze: false, anim: 'dejected' }, // cut to the gutted kicker
-      ],
-    });
+  /**
+   * Catch celebration (dev-directed): NOT a raw replay — the fielder stands
+   * there WITH the ball (carryHeldBall keeps it in his hands), soaks it in,
+   * celebrates, then throws the ball back into play. Camera holds a low 3/4.
+   */
+  robbed({ fielder }) {
+    this.bus.emit('vo', 'robbed');
+    this.bus.emit('sfx', 'crowd-cheer');
+    this.hud.setLetterbox(true);
+    this.hud.banner('ROBBED!', 'robbed');
+    // face the camera NOW — the faceYaw lerp is gated during the cinematic,
+    // so rotate the body directly (camera sits +x/+z; yaw = atan2(dx, dz))
+    const yaw = Math.atan2(3.0, 4.4);
+    fielder.faceYaw = yaw;
+    fielder.group.rotation.y = yaw;
+    const p = fielder.group.position;
+    const shot = (offX, offZ) => this.cam(
+      new THREE.Vector3(p.x + offX, 1.7, p.z + offZ),
+      new THREE.Vector3(p.x, 1.05, p.z),
+    );
+    this.run([
+      { // the snag: standing tall, ball in hands, full body in frame
+        dur: 1.1,
+        onStart: () => fielder.animator.play('holdball'),
+        onUpdate: (k) => shot(3.0 - k * 0.4, 4.4 - k * 0.6), // slow push-in
+      },
+      { // soak it in
+        dur: 1.3,
+        onStart: () => fielder.animator.play('dance3'),
+        onUpdate: (k) => shot(2.6 + k * 0.5, 3.8),
+      },
+      { // fire it back into play — the REAL ball leaves his hands on the release frame
+        dur: 0.9,
+        onStart: () => fielder.animator.play('throw', {
+          onContact: () => {
+            fielder.hasBall = false; // stop pinning the ball to his hands
+            const ball = this.getBall?.();
+            if (ball) ball.throwTo(FIELD_LAYOUT.pitcher.clone().setY(0.3), 14);
+          },
+          onDone: () => fielder.animator.play('idle'),
+        }),
+        onUpdate: (k) => shot(3.1, 3.8 + k * 1.0), // ease back out
+      },
+    ]);
   }
 
   pegged({ runner }) {
-    this.cinematicMoment({
-      vo: 'pegged',
-      sound: 'peg', // real ball-on-body impact
-      banner: 'PEGGED!', bannerKind: 'pegged',
-      panels: [{ subject: runner, dur: 1.6, freeze: true, anim: 'stumble' }],
-    });
+    this.replayMoment({ focusChar: runner, seconds: 2.2, banner: 'PEGGED!', bannerKind: 'pegged', vo: 'pegged', sound: 'peg' });
   }
 
   special() {

@@ -12,7 +12,9 @@ import { SpecialMeter } from './specialMoves.js';
 import { pickPitch, aiKickError, aiAim, aiWantsPeg, aiMashRate, aiJukes, aiThrowsFire } from './ai.js';
 import { PITCH_PATTERNS, PITCH_FAMILIES, pickVariant, scoreTrace } from './pitchPattern.js';
 import { igniteBall, douseBall } from '../cinematics/fx.js';
+import { ReplayRecorder } from '../cinematics/replay.js';
 import { Ball } from './ball.js';
+import { CameraDirector } from './cameraDirector.js';
 import { buildField, FIELD_LAYOUT } from './field.js';
 import { Hud } from '../ui/screens/hud.js';
 
@@ -53,6 +55,14 @@ export function kickerStrideAnim(vxSigned) {
   return vxSigned > 0 ? 'strafeR' : 'strafeL';
 }
 
+/** Which broadcast shot covers the live situation. Pure — unit-tested. */
+export function chooseLiveShot({ phase, kickingIsPlayer, trailBall, deepBall }) {
+  if (phase === 'FOUL') return 'foulTrail';
+  if (kickingIsPlayer && trailBall) return deepBall ? 'crane' : 'ballFlight';
+  if (kickingIsPlayer) return 'runners';
+  return 'defense';
+}
+
 export class MatchScene {
   constructor({ engine, input, bus, teams, chars, fieldData, tuning, difficulty = 'Street', playerSide = 'away', firstKick = 'away', hudRoot, autoStart = true }) {
     this.engine = engine;
@@ -83,6 +93,11 @@ export class MatchScene {
       }
     }
 
+    // instant-replay capture: the last ~6s of every character's skeleton + ball
+    this.replayChars = [...this.chars.home, ...this.chars.away];
+    this.replayRecorder = new ReplayRecorder({ seconds: 6, hz: 30 });
+    this.replayRecorder.track(this.replayChars, this.ball);
+
     this.special = new SpecialMeter(teams[playerSide], tuning);
     this.specialArmed = false;
 
@@ -96,6 +111,7 @@ export class MatchScene {
     this.lastDragAt = -10;
     this.camTarget = CAM.kick;
     this.camLook = CAM.kick.look.clone();
+    this.camDir = new CameraDirector(engine.camera, { baseFov: engine.baseFov ?? 58 });
     this.elapsed = 0;
     this.cinematicLock = false;
 
@@ -224,6 +240,19 @@ export class MatchScene {
     return FIELD_LAYOUT[BASE_KEYS[i]].clone();
   }
   // yaw so a +z-forward model placed at `from` faces toward `to`
+  /** plain-object context the CameraDirector shots read */
+  camCtx() {
+    const lead = this.leadRunner?.() ?? this.runners.find((r) => r.state === 'held');
+    return {
+      ball: this.ball,
+      kickerPos: this.kicker?.group.position,
+      leadRunnerPos: lead ? this.runnerWorldPos(lead).p : FIELD_LAYOUT.home,
+      // the bag the lead runner is going for — the runners shot keeps it in frame
+      targetBasePos: lead && lead.targetBase >= 0 ? this.basePos(Math.min(lead.targetBase, 3)) : FIELD_LAYOUT.first,
+      activeFielderPos: (this.activeFielder ?? this.chaser ?? this.kicker)?.group.position,
+    };
+  }
+
   yawTo(from, to) {
     return Math.atan2(to.x - from.x, to.z - from.z);
   }
@@ -555,7 +584,7 @@ export class MatchScene {
     douseBall(this.ball); // pitch dead — clear the fire look
     this.strikes += 1;
     this.bus.emit('sfx', 'whiff');
-    this.hud.stamp(this.strikes >= 3 ? 'STRUCK OUT!' : label, 'pegged');
+    this.hud.call(this.strikes >= 3 ? 'STRUCK OUT!' : label, 'pegged');
     if (this.strikes >= 3) {
       this.bus.emit('vo', 'strike');
       this.after(0.8, () => this.finalizePlay(1, 'strikeout', { restoreRunners: true }));
@@ -606,6 +635,12 @@ export class MatchScene {
     this.hrFired = false;
     this.ballCamUntil = this.elapsed + 1.3; // trail the ball before cutting to the infield
     this.camTarget = CAM.live;
+    // broadcast CUT: 0.4s low hero cam at the moment of contact, then the
+    // telephoto tracker takes over via the live-shot selection
+    this.camDir.request('contact', this.camCtx(), { cut: true });
+    this.after(0.4, () => {
+      if (this.phase === 'LIVE') this.camDir.request('ballFlight', this.camCtx());
+    });
 
     // ball is LIVE: force every pitch-phase overlay off-screen so nothing ever
     // covers the field or eats fielding taps (belt-and-suspenders vs any stray path)
@@ -631,11 +666,11 @@ export class MatchScene {
     this.bus.emit('sfx', 'whiff');
     this.bus.emit('vo', 'foul');
     if (this.fouls >= 4) {
-      this.hud.stamp('4 FOULS — OUT!', 'pegged');
+      this.hud.call('4 FOULS — OUT!', 'pegged');
       this.after(0.8, () => this.finalizePlay(1, 'foulout', { restoreRunners: true }));
       return;
     }
-    this.hud.stamp(`${label}  ${this.fouls}/4`, 'pegged');
+    this.hud.call(`${label}  ${this.fouls}/4`, 'pegged');
     this.after(1.0, () => {
       this.phase = 'SETUP';
       this.kicker.animator.play('plate');
@@ -787,7 +822,7 @@ export class MatchScene {
             this.pendingRuns = (this.pendingRuns ?? 0) + 1;
             this.field.crowdEnergy = 1;
             this.bus.emit('sfx', 'crowd-cheer');
-            this.hud.stamp('SAFE AT HOME!', 'crowned');
+            this.hud.call('SAFE AT HOME!', 'crowned');
             this.faceCam(r.char);
             r.char.animator.play('dance' + (1 + Math.floor(Math.random() * 4)));
             this.after(1.4, () => { if (r.state === 'scored') r.char.group.visible = false; });
@@ -863,7 +898,7 @@ export class MatchScene {
     if (outsAdded >= 2) {
       const triple = outsAdded >= 3;
       this.hud.clearStamps();
-      this.hud.stamp(triple ? 'TRIPLE PLAY!' : 'DOUBLE PLAY!', 'crowned');
+      this.hud.call(triple ? 'TRIPLE PLAY!' : 'DOUBLE PLAY!', 'crowned');
       this.bus.emit('vo', triple ? 'tripleplay' : 'doubleplay');
       this.bus.emit('sfx', 'crowd-cheer');
     }
@@ -1017,17 +1052,20 @@ export class MatchScene {
       if (f.role === 'chase') {
         if (!reacted) continue;
         if (this.playerControlled) {
-          // NO auto-chase: the fielder only goes where the player has tapped/dragged
-          target = this.fielderTarget;
+          // AUTO-CHASE like the AI does — your defense should never stand and
+          // watch (dev callout). A tap/drag OVERRIDES the auto pursuit, so you
+          // keep control without babysitting every chase.
+          target = this.fielderTarget ?? chaseSpot;
         } else {
           target = chaseSpot;
         }
       } else if (f.role === 'backup') {
-        // sit a few metres infield of the ball as a relay
+        // converge close behind the play as a second pursuer/relay — TWO
+        // fielders visibly go for the ball, like a real defense
         const bp = this.ball.pos;
         const inward = FIELD_LAYOUT.home.clone().sub(bp).setY(0);
         const len = inward.length() || 1;
-        target = bp.clone().addScaledVector(inward.multiplyScalar(1 / len), 4.5).setY(0);
+        target = bp.clone().addScaledVector(inward.multiplyScalar(1 / len), 2.5).setY(0);
       }
 
       const d2 = new THREE.Vector2(target.x - c.group.position.x, target.z - c.group.position.z);
@@ -1061,7 +1099,14 @@ export class MatchScene {
    *  this is the main "not every ball is caught" lever. Player catches if they got there. */
   catchSkill() {
     if (this.playerControlled) return 1.0;
-    return { Rookie: 0.62, Street: 0.8, King: 0.92 }[this.difficulty] ?? 0.8;
+    // AI drops enough flies that putting the ball in play is worth something —
+    // the player MUST be able to get on base a fair % of the time (dev)
+    return { Rookie: 0.5, Street: 0.68, King: 0.85 }[this.difficulty] ?? 0.68;
+  }
+
+  /** how long the AI holds the ball before throwing — the runner's window */
+  aiThrowDelayS() {
+    return { Rookie: 0.7, Street: 0.55, King: 0.4 }[this.difficulty] ?? 0.55;
   }
 
   /** The chaser tries to catch a fly or scoop a grounder once it's on the ball. */
@@ -1105,7 +1150,7 @@ export class MatchScene {
       // safety: never freeze if the player never throws
       this.after(6, () => { if (c.hasBall && !this.playFinalized && !this.throwing) this.ballControlled = true; });
     } else {
-      this.after(0.4, () => this.aiThrowDecision(c));
+      this.after(this.aiThrowDelayS(), () => this.aiThrowDecision(c));
     }
   }
 
@@ -1319,11 +1364,11 @@ export class MatchScene {
         this.ballControlled = true;
         if (lead.state !== 'running') { // runner already reached a bag — no peg
           this.bus.emit('sfx', 'catchpop');
-          this.hud.stamp('SAFE!', 'robbed');
+          this.hud.call('SAFE!', 'robbed');
         } else {
           const hit = resolvePeg({ throwDistM: 0, runnerLateralM: lead.sim.lateral }, this.tuning).hit;
           if (hit) this.runnerOut(lead, 'pegged');
-          else { this.bus.emit('sfx', 'dodge'); this.hud.stamp('JUKED!', 'robbed'); }
+          else { this.bus.emit('sfx', 'dodge'); this.hud.call('JUKED!', 'robbed'); }
         }
         this.afterThrow(); // keep the play alive if a runner is still going
       });
@@ -1372,7 +1417,7 @@ export class MatchScene {
         // nobody covering — the throw sails to an empty bag: runner's safe, ball loose
         this.ball.place(basePt.clone().setY(0.3));
         this.ball.mode = 'idle';
-        this.hud.stamp('NOBODY COVERING!', 'robbed');
+        this.hud.call('NOBODY COVERING!', 'robbed');
         this.bus.emit('vo', 'safe');
         this.afterThrow();
       } else {
@@ -1475,7 +1520,7 @@ export class MatchScene {
     } else {
       this.bus.emit('sfx', 'catchpop');
       this.bus.emit('vo', 'forced'); // out call
-      this.hud.stamp(reason === 'tag' ? 'TAGGED OUT!' : 'OUT!', 'pegged');
+      this.hud.call(reason === 'tag' ? 'TAGGED OUT!' : 'OUT!', 'pegged');
     }
     // Do NOT finalize here — the kicker/other runners may still be live. The
     // natural play-end (ball controlled + nobody running) records the outs.
@@ -1660,38 +1705,29 @@ export class MatchScene {
       }
     }
 
+    // BROADCAST CAMERA: matchScene picks the shot for the situation; the
+    // CameraDirector spring-damps toward it (and handles the contact CUT).
     if (!this.engine.cameraLock) {
+      this.camDir.setBaseFov(this.engine.baseFov ?? 58);
       if (this.phase === 'LIVE' || this.phase === 'RESOLVE' || this.phase === 'FOUL') {
-        this.liveCam = this.liveCam ?? { pos: CAM.live.pos.clone(), look: CAM.live.look.clone() };
         const trailBall = this.ball.mode === 'flying' && this.elapsed < (this.ballCamUntil ?? 0);
-        if (this.phase === 'FOUL' || (this.kickingIsPlayer() && trailBall)) {
-          // trail the kicked ball so you SEE where it went (left / right / deep / foul)
-          const b = this.ball.pos;
-          this.liveCam.pos.set(b.x * 0.7, Math.max(6.5, b.y * 0.45 + 7.5), b.z + 11.5);
-          this.liveCam.look.set(b.x, Math.max(0.6, b.y * 0.5), b.z);
-        } else if (this.kickingIsPlayer()) {
-          // OFFENSE: tight infield view so you SEE the bags and your runner while you tap to run
-          const lead = this.leadRunner() ?? this.runners.find(r => r.state === 'held');
-          const rp = lead ? this.runnerWorldPos(lead).p : FIELD_LAYOUT.home;
-          const fx = rp.x * 0.5;
-          this.liveCam.pos.set(fx, 12.5, 6.5);
-          this.liveCam.look.set(fx, 0.7, -10.5);
-        } else {
-          // DEFENSE: frame YOUR fielder + the ball so you can drag and make the play
-          const a = (this.activeFielder ?? this.chaser ?? this.kicker).group.position;
-          const b = this.ball.pos;
-          const mid = a.clone().add(b).multiplyScalar(0.5);
-          const sep = Math.min(30, a.distanceTo(b));
-          this.liveCam.pos.set(mid.x * 0.5, Math.min(15, 8 + sep * 0.25), mid.z + 9 + sep * 0.25);
-          this.liveCam.look.set(mid.x, 0.5, mid.z);
-        }
-        this.camTarget = this.liveCam;
+        const dist = Math.hypot(this.ball.pos.x, this.ball.pos.z);
+        this.camDir.request(chooseLiveShot({
+          phase: this.phase,
+          kickingIsPlayer: this.kickingIsPlayer(),
+          trailBall,
+          deepBall: dist > this.fenceM * 0.55,
+        }), this.camCtx());
+      } else if (this.camTarget === CAM.pitch) {
+        this.camDir.request('pitchSelect', this.camCtx());
+      } else {
+        this.camDir.request('kick', this.camCtx());
       }
-      const cam = this.engine.camera;
-      cam.position.lerp(this.camTarget.pos, Math.min(1, rawDt * 3));
-      this.camLook.lerp(this.camTarget.look, Math.min(1, rawDt * 3));
-      cam.lookAt(this.camLook);
+      this.camDir.update(rawDt, this.camCtx());
     }
+
+    // record for instant replays — never WHILE one is playing back
+    if (!this.cinematicLock) this.replayRecorder.capture(this.elapsed);
 
     // pulse the base target rings
     if (this.baseRings[0].visible) {
