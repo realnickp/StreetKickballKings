@@ -49,10 +49,13 @@ export function launchParams(judged, opts, tuning) {
   }
 
   // Player swipe (aimDeg) can pull all the way to the foul pole — a skill risk.
-  // Discrete AI aims use a tighter, always-fair spread so the AI puts it in play.
+  // Discrete AI aims use a tighter, always-fair spread — and a RANDOM magnitude
+  // (30-100% of the max pull), so CPU kicks range from right at a fielder to
+  // the gap instead of always splitting the exact same seams (dev callout).
+  const rng = opts.rng ?? Math.random;
   const base = opts.aimDeg != null
     ? clamp(opts.aimDeg, -k.aimSpreadDeg, k.aimSpreadDeg)
-    : AIM_DIR[opts.aim] * (k.aiAimDeg ?? 30);
+    : AIM_DIR[opts.aim] * (k.aiAimDeg ?? 30) * (0.3 + rng() * 0.7);
   // mistimed contact pushes the ball off the aim line: late opens right, early pulls left
   const timingBias = judged.quality === 'PERFECT' ? 0 : Math.sign(judged.errorMs) * 8;
   // Distance scales with the meter power (player) or the per-band power (AI fallback).
