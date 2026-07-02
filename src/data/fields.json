@@ -20,6 +20,8 @@
         "backdropVideo": "assets/video/backdrop-blacktop.mp4"
       },
       "backdropRepeat": 2,
+      "backdropWindow": { "oy": 0.32, "ry": 0.66 },
+      "backdropGeo": { "r": 76, "h": 56, "bottom": -2 },
       "status": "ready",
       "world3d": false
     },

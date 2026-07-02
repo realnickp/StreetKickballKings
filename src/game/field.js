@@ -173,7 +173,11 @@ export function buildField(fieldData, scene) {
       // Still EVEN so the mirrored ring stays seamless at every boundary (incl. the wrap point).
       // City-scene fields override to 2 so buildings stay big and imposing.
       const rx = fieldData.backdropRepeat ?? 4;
-      t.repeat.set(rx, 0.82); t.offset.y = 0.18;
+      // Per-field vertical window: oy = crop from the image bottom (up to the
+      // far curb so the scene's street sits AT ground level, not above it),
+      // ry = how much of the image height to show (rest of the sky included).
+      const w = fieldData.backdropWindow ?? {};
+      t.repeat.set(rx, w.ry ?? 0.82); t.offset.y = w.oy ?? 0.18;
       // 2-tile wrap: shift half a tile so the SCENE CENTER (street + bodega)
       // faces the outfield and home cameras, and the mirror boundaries land on
       // the foul-line sides where no camera ever points straight-on.
