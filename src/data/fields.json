@@ -5,9 +5,9 @@
       "label": "The Blacktop",
       "homeTeam": "bullies",
       "fenceM": 42,
-      "fenceHeightM": 4.0,
+      "fenceHeightM": 4,
       "flavor": "none",
-      "sky": "golden-hour",
+      "sky": "day",
       "palette": {
         "ground": "#3c3f44",
         "lines": "#e8e6df",
@@ -21,7 +21,7 @@
         "backdropVideo": "assets/video/backdrop-blacktop.mp4"
       },
       "status": "ready",
-      "world3d": true
+      "world3d": false
     },
     {
       "id": "subway-yard",
