@@ -7,7 +7,7 @@ import { join } from 'node:path';
 const SRC = 'C:/Unity Projects/KickballGame/Assets/GangsPack01/Animations';
 const DST = 'tools/anims-src';
 const FILES = [
-  'Idle.fbx', 'Goalkeeper Idle.fbx', 'Running.fbx',
+  'Breathing Idle.fbx', 'Idle.fbx', 'Goalkeeper Idle.fbx', 'Running.fbx',
   'Jog Strafe Left.fbx', 'Jog Strafe Right.fbx', 'Strike Foward Jog.fbx',
   'Throwing.fbx', 'Goalie Throw.fbx', 'Baseball Catcher.fbx',
   'Running Slide.fbx', 'Left Strafe.fbx', 'Defeated.fbx',

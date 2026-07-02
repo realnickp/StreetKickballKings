@@ -85,12 +85,17 @@ const MESHY_TO_UE = {
   RightToeBase: 'ball_r',
 };
 
-// Bones using joint-space deltas instead of parent-space. Hips is the verified
-// default (fixes the whole-body yaw offset); arms/legs read best in parent
-// space. Override for A/B testing via ?jointspace=Bone,Bone.
-const JOINT_SPACE_BONES = new Set(
-  (new URLSearchParams(location.search).get('jointspace') ?? 'Hips').split(',').filter(Boolean),
-);
+// child bone used to measure each bone's rest world DIRECTION (for the A/T
+// rest alignment). Leaf/ambiguous bones (Hips, Head, hands, toes) stay
+// delta-based — their parents carry the big correction.
+const CHILD_FOR_DIR = {
+  Spine02: 'Spine01', Spine01: 'Spine', Spine: 'neck', neck: 'Head',
+  LeftShoulder: 'LeftArm', LeftArm: 'LeftForeArm', LeftForeArm: 'LeftHand',
+  RightShoulder: 'RightArm', RightArm: 'RightForeArm', RightForeArm: 'RightHand',
+  LeftUpLeg: 'LeftLeg', LeftLeg: 'LeftFoot', LeftFoot: 'LeftToeBase',
+  RightUpLeg: 'RightLeg', RightLeg: 'RightFoot', RightFoot: 'RightToeBase',
+};
+
 // constant corrective rotations (radians, XYZ euler) applied after the delta —
 // tune via ?offset=Hips:0.2:0:0,Head:-0.1:0:0
 const BONE_OFFSETS = new Map();
@@ -115,20 +120,32 @@ async function loadSource(file) {
   // capture the source REST pose now — sampling poses the rig, and cached
   // files are reused for a second clip name
   src.restQ = {};
-  fbx.traverse((o) => { if (o.isBone) src.restQ[o.name] = o.quaternion.clone(); });
+  src.restWorldQ = {};
+  src.restWorldPos = {};
+  fbx.updateMatrixWorld(true);
+  fbx.traverse((o) => {
+    if (o.isBone) {
+      src.restQ[o.name] = o.quaternion.clone();
+      src.restWorldQ[o.name] = o.getWorldQuaternion(new THREE.Quaternion());
+      src.restWorldPos[o.name] = o.getWorldPosition(new THREE.Vector3());
+    }
+  });
   src.hipRestPos = srcHips ? srcHips.position.clone() : new THREE.Vector3();
   log(`loaded ${file}: ${src.clip.duration.toFixed(2)}s, hipY ${src.hipY.toFixed(1)}${src.isUE ? ' [UE rig]' : ''}`);
   return src;
 }
 
 /**
- * Rest-relative LOCAL delta retarget onto ONE rig's rest pose.
- * targetLocal(t) per bone: parent-space (sLocal*sRest^-1)*tRest by default,
- * joint-space tRest*(sRest^-1*sLocal) for JOINT_SPACE_BONES (Hips).
+ * WORLD-orientation retarget with per-bone rest compensation — the standard
+ * approach: C = sRestWorld^-1 * tRestWorld per bone; each frame the target
+ * bone's world orientation = sourceWorld(t) * C (rest maps exactly to rest,
+ * world motion maps to world motion), converted to target-local by walking the
+ * target hierarchy top-down. Fixes the arms-trailing/lean-back artifacts the
+ * local-delta transplant produced on mismatched shoulder/spine frames.
  * Hips position: tRest + (source delta * hip-height ratio), horizontal zeroed
  * for inPlace clips (the GAME moves characters).
  */
-function retargetLocalDelta(entry, src, rig) {
+function retargetWorld(entry, src, rig) {
   const fps = 30;
   let start = 0;
   let dur = src.clip.duration;
@@ -138,11 +155,27 @@ function retargetLocalDelta(entry, src, rig) {
   const names = src.isUE ? MESHY_TO_UE : MESHY_TO_MIXAMO;
   const sBones = {};
   src.fbx.traverse((o) => { if (o.isBone) sBones[o.name] = o; });
-  const pairs = [];
+
+  // per mapped target bone: the rest-frame conversion
+  //   C = sRestW^-1 * R * tRestW, with R aligning the TARGET bone's rest world
+  // DIRECTION onto the SOURCE's (A-pose arm -> T-pose arm). Without R the copy
+  // is delta-based and the A/T arm difference over-rotates arms into the body.
+  const conv = new Map(); // tName -> {sBone, C}
   for (const [tName, sName] of Object.entries(names)) {
     const sBone = sBones[sName];
-    const tRestQ = rig.restQ[tName];
-    if (sBone && tRestQ) pairs.push({ tName, sBone, tRestQ, sRestQ: src.restQ[sName] });
+    const sRestW = src.restWorldQ[sName];
+    const tRestW = rig.restWorldQ[tName];
+    if (!sBone || !sRestW || !tRestW) continue;
+    const R = new THREE.Quaternion();
+    const tChild = CHILD_FOR_DIR[tName];
+    const sChild = tChild ? names[tChild] : null;
+    if (tChild && sChild && rig.restWorldPos[tChild] && src.restWorldPos[sChild]) {
+      const tDir = rig.restWorldPos[tChild].clone().sub(rig.restWorldPos[tName]).normalize();
+      const sDir = src.restWorldPos[sChild].clone().sub(src.restWorldPos[sName]).normalize();
+      if (tDir.lengthSq() > 0.5 && sDir.lengthSq() > 0.5) R.setFromUnitVectors(tDir, sDir);
+    }
+    const C = sRestW.clone().invert().multiply(R).multiply(tRestW);
+    conv.set(tName, { sBone, C });
   }
   const sHips = sBones[src.hipName];
   const scale = rig.hipY / (src.hipY || 100);
@@ -153,25 +186,36 @@ function retargetLocalDelta(entry, src, rig) {
   mixer.update(start); // jump to trim start
 
   const times = new Float32Array(frames);
-  const quatData = pairs.map(() => new Float32Array(frames * 4));
+  const trackIdx = new Map([...conv.keys()].map((n, i) => [n, i]));
+  const quatData = [...conv.keys()].map(() => new Float32Array(frames * 4));
   const posData = new Float32Array(frames * 3);
-  const dq = new THREE.Quaternion(), inv = new THREE.Quaternion();
   const dt = dur / (frames - 1);
+  const sW = new THREE.Quaternion(), tW = new THREE.Quaternion(),
+    local = new THREE.Quaternion(), parentInv = new THREE.Quaternion();
+  const worldQ = new Map(); // this frame's target world quats, by bone name
 
   for (let f = 0; f < frames; f++) {
     times[f] = f * dt;
-    for (let i = 0; i < pairs.length; i++) {
-      const p = pairs[i];
-      inv.copy(p.sRestQ).invert();
-      if (JOINT_SPACE_BONES.has(p.tName)) {
-        dq.copy(inv).multiply(p.sBone.quaternion).premultiply(p.tRestQ);
+    src.fbx.updateMatrixWorld(true); // mixer wrote locals; refresh world matrices
+
+    // walk the target skeleton top-down (rig.order is parents-first)
+    worldQ.clear();
+    for (const b of rig.order) {
+      const parentW = worldQ.get(b.parentName) ?? b.parentRestW; // Armature etc: rest
+      const c = conv.get(b.name);
+      if (c) {
+        c.sBone.getWorldQuaternion(sW);
+        tW.copy(sW).multiply(c.C);
+        local.copy(parentInv.copy(parentW).invert()).multiply(tW);
+        const off = BONE_OFFSETS.get(b.name);
+        if (off) local.multiply(off);
+        local.toArray(quatData[trackIdx.get(b.name)], f * 4);
+        worldQ.set(b.name, tW.clone());
       } else {
-        dq.copy(p.sBone.quaternion).multiply(inv).multiply(p.tRestQ);
+        worldQ.set(b.name, parentW.clone().multiply(b.restLocalQ));
       }
-      const off = BONE_OFFSETS.get(p.tName);
-      if (off) dq.multiply(off);
-      dq.toArray(quatData[i], f * 4);
     }
+
     if (sHips) {
       const dx = (sHips.position.x - src.hipRestPos.x) * scale;
       const dy = (sHips.position.y - src.hipRestPos.y) * scale;
@@ -185,10 +229,9 @@ function retargetLocalDelta(entry, src, rig) {
   }
   mixer.uncacheClip(src.clip);
 
-  const tracks = pairs.map((p, i) => new THREE.QuaternionKeyframeTrack(`${p.tName}.quaternion`, times, quatData[i]));
+  const tracks = [...conv.keys()].map((n) => new THREE.QuaternionKeyframeTrack(`${n}.quaternion`, times, quatData[trackIdx.get(n)]));
   if (sHips) tracks.push(new THREE.VectorKeyframeTrack('Hips.position', times, posData));
-  const clip = new THREE.AnimationClip(entry.name, dur, tracks);
-  return clip;
+  return new THREE.AnimationClip(entry.name, dur, tracks);
 }
 
 // ---------- bake every archetype ----------
@@ -201,15 +244,28 @@ for (const arch of ARCHS) {
     log(`SKIP arch-${arch}: ${e.message ?? e}`);
     continue;
   }
-  const rig = { gltf, restQ: {}, hipRestPos: new THREE.Vector3(), clips: [] };
+  const rig = { gltf, restQ: {}, restWorldQ: {}, restWorldPos: {}, order: [], hipRestPos: new THREE.Vector3(), clips: [] };
   gltf.scene.updateMatrixWorld(true);
-  gltf.scene.traverse((o) => { if (o.isBone) rig.restQ[o.name] = o.quaternion.clone(); });
+  gltf.scene.traverse((o) => {
+    if (!o.isBone) return;
+    rig.restQ[o.name] = o.quaternion.clone();
+    rig.restWorldQ[o.name] = o.getWorldQuaternion(new THREE.Quaternion());
+    rig.restWorldPos[o.name] = o.getWorldPosition(new THREE.Vector3());
+    // hierarchy walk data: traverse() is DFS, so parents always precede children
+    rig.order.push({
+      name: o.name,
+      parentName: o.parent?.isBone ? o.parent.name : null,
+      // non-bone parents (Armature) never animate — use their rest world quat
+      parentRestW: o.parent?.isBone ? null : o.parent.getWorldQuaternion(new THREE.Quaternion()),
+      restLocalQ: o.quaternion.clone(),
+    });
+  });
   const hips = gltf.scene.getObjectByName('Hips');
   rig.hipRestPos.copy(hips.position);
   rig.hipY = hips.getWorldPosition(new THREE.Vector3()).y;
   for (const entry of manifest) {
     const src = await loadSource(entry.file);
-    rig.clips.push(retargetLocalDelta(entry, src, rig));
+    rig.clips.push(retargetWorld(entry, src, rig));
   }
   rigs.set(arch, rig);
   log(`baked ${rig.clips.length} clips for arch-${arch} (hip restY ${rig.hipY.toExponential(2)})`);

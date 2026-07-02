@@ -1,6 +1,6 @@
 [
-  { "file": "Goalkeeper Idle.fbx",     "name": "idle",     "loop": true,  "rate": 0.85 },
-  { "file": "Goalkeeper Idle.fbx",     "name": "plate",    "loop": true,  "rate": 0.95 },
+  { "file": "Breathing Idle.fbx",      "name": "idle",     "loop": true },
+  { "file": "Breathing Idle.fbx",      "name": "plate",    "loop": true,  "rate": 0.9 },
   { "file": "Goalkeeper Idle.fbx",     "name": "crouch",   "loop": true },
   { "file": "Goalkeeper Idle.fbx",     "name": "holdball", "loop": true },
   { "file": "Running.fbx",             "name": "run",      "loop": true,  "inPlace": true },
