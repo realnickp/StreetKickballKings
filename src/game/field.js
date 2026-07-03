@@ -40,9 +40,11 @@ export function buildField(fieldData, scene) {
   const groundTex = fieldData.textures?.ground
     ? new THREE.TextureLoader().load(fieldData.textures.ground, (t) => { t.colorSpace = THREE.SRGBColorSpace; })
     : makeAsphaltTexture(palette.ground ?? '#3c3f44');
-  // mirrored wrap: generated per-city ground textures tile seamlessly even
-  // when the source image isn't perfectly tileable
-  groundTex.wrapS = groundTex.wrapT = THREE.MirroredRepeatWrapping;
+  // Generated per-city ground textures (ground-*.jpg) aren't perfectly
+  // tileable -> mirrored wrap hides their seams. The hand-tiled asphalt.png
+  // stays on plain repeat (mirroring it makes symmetric butterfly blotches).
+  const cityGround = /ground-/.test(fieldData.textures?.ground ?? '');
+  groundTex.wrapS = groundTex.wrapT = cityGround ? THREE.MirroredRepeatWrapping : THREE.RepeatWrapping;
   groundTex.repeat.set(10, 10);
   // A subtle procedural normal map gives the blacktop floodlit micro-texture (the
   // light catches its grain) so it stops reading as a flat painted plane. Kept low.
@@ -173,17 +175,16 @@ export function buildField(fieldData, scene) {
       t.wrapS = THREE.MirroredRepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
       // 4 horizontal tiles keeps the fans small/distant (a 2-tile crowd looked too big).
       // Still EVEN so the mirrored ring stays seamless at every boundary (incl. the wrap point).
-      // City-scene fields override to 2 so buildings stay big and imposing.
       const rx = fieldData.backdropRepeat ?? 4;
       // Per-field vertical window: oy = crop from the image bottom (up to the
       // far curb so the scene's street sits AT ground level, not above it),
       // ry = how much of the image height to show (rest of the sky included).
       const w = fieldData.backdropWindow ?? {};
       t.repeat.set(rx, w.ry ?? 0.82); t.offset.y = w.oy ?? 0.18;
-      // 2-tile wrap: shift half a tile so the SCENE CENTER (street + bodega)
-      // faces the outfield and home cameras, and the mirror boundaries land on
-      // the foul-line sides where no camera ever points straight-on.
-      if (rx === 2) t.offset.x = 0.5;
+      // City-scene fields (explicit backdropRepeat): shift half a tile so
+      // SCENE CENTERS face the outfield/home cameras (and both foul lines at
+      // repeat 4) while the mirror boundaries land between camera directions.
+      if (fieldData.backdropRepeat) t.offset.x = 0.5;
     };
     // Put the still poster IN the material from the start (so it actually renders),
     // then swap to the looping video once it really starts playing. Robust if the
@@ -316,7 +317,13 @@ export function buildField(fieldData, scene) {
           px.push([d[i], d[i + 1], d[i + 2], 0.3 * d[i] + 0.59 * d[i + 1] + 0.11 * d[i + 2]]);
         }
         px.sort((a, b2) => a[3] - b2[3]);
-        const dark = px.slice(0, Math.max(1, Math.floor(px.length * 0.6)));
+        // City-scene fields (backdropWindow set) have a plain sky at the image
+        // top, so the MEDIAN band matches it exactly and the cap join vanishes.
+        // Legacy fan backdrops keep the darker bias (fireworks/floodlights in
+        // the strip would skew a mean brighter than the real sky).
+        const dark = fieldData.backdropWindow
+          ? px.slice(Math.floor(px.length * 0.25), Math.max(1, Math.ceil(px.length * 0.75)))
+          : px.slice(0, Math.max(1, Math.floor(px.length * 0.6)));
         let r = 0, g = 0, b = 0;
         for (const p of dark) { r += p[0]; g += p[1]; b += p[2]; }
         r = Math.round(r / dark.length); g = Math.round(g / dark.length); b = Math.round(b / dark.length);
