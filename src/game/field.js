@@ -186,26 +186,72 @@ export function buildField(fieldData, scene) {
       // repeat 4) while the mirror boundaries land between camera directions.
       if (fieldData.backdropRepeat) t.offset.x = 0.5;
     };
-    // Put the still poster IN the material from the start (so it actually renders),
-    // then swap to the looping video once it really starts playing. Robust if the
-    // clip is slow, blocked by autoplay policy, or missing — the still stays up.
-    const stillTex = fieldData.textures?.backdrop
-      ? new THREE.TextureLoader().load(fieldData.textures.backdrop, tuneTex)
-      : null;
-    const mat = new THREE.MeshBasicMaterial({ map: stillTex, side: THREE.BackSide, fog: false });
+    // WEBKIT/iOS RULE: never construct a material with a texture that hasn't
+    // finished loading — WebKit compiles the program against the empty texture
+    // and renders it BLACK forever (Chrome recovers; Safari doesn't). Assign
+    // the map in the load callback instead, then the poster shows on every
+    // browser and the video swaps in on top once it actually plays.
+    const mat = new THREE.MeshBasicMaterial({ side: THREE.BackSide, fog: false, color: '#0f1420' });
     // Full-bright: the sky dome + cap sample this image's top pixels at full brightness,
     // so dimming the material here desynced the join and showed a hard sky seam.
+    let posterTex = null;
+    if (fieldData.textures?.backdrop) {
+      new THREE.TextureLoader().load(fieldData.textures.backdrop, (t) => {
+        tuneTex(t);
+        posterTex = t;
+        if (mat.map?.isVideoTexture) return; // video already took over
+        mat.map = t;
+        mat.color.set('#ffffff');
+        mat.needsUpdate = true;
+      });
+    }
     if (fieldData.textures?.backdropVideo) {
       const video = document.createElement('video');
       video.src = fieldData.textures.backdropVideo;
       video.loop = true; video.muted = true; video.autoplay = true; video.playsInline = true;
       video.setAttribute('playsinline', ''); video.setAttribute('muted', '');
       const kick = () => { video.play().catch(() => {}); };
-      video.addEventListener('playing', () => {
+      // WEBKIT/iOS RULE #2: 'playing' fires (readyState 4!) even when the
+      // decoder produces NOTHING (videoWidth 0x0) — a 0x0 VideoTexture renders
+      // BLACK and dimension events lie too. The only honest signal that frames
+      // actually reach the screen is requestVideoFrameCallback; without it (or
+      // without frames) the poster simply stays up.
+      let swapped = false;
+      const trySwap = () => {
+        if (swapped || !video.videoWidth || !video.videoHeight) return;
+        swapped = true;
         const v = new THREE.VideoTexture(video);
         tuneTex(v);
-        mat.map = v; mat.needsUpdate = true;
-      }, { once: true });
+        mat.map = v;
+        mat.color.set('#ffffff');
+        mat.needsUpdate = true;
+        // watchdog: every dimension/readyState API can lie (WebKit reports a
+        // healthy playing video while uploading pure black) — so sample REAL
+        // PIXELS. All-black frame => dead decoder => back to the poster.
+        setTimeout(() => {
+          let ok = false;
+          try {
+            const c = document.createElement('canvas'); c.width = 8; c.height = 8;
+            const g = c.getContext('2d');
+            g.drawImage(video, 0, 0, 8, 8);
+            const d = g.getImageData(0, 0, 8, 8).data;
+            for (let i = 0; i < d.length; i += 4) {
+              if (d[i] + d[i + 1] + d[i + 2] > 24) { ok = true; break; }
+            }
+          } catch { ok = false; }
+          if (ok) { if (posterTex !== mat.map) posterTex?.dispose?.(); posterTex = null; return; }
+          swapped = false;
+          v.dispose();
+          try { video.pause(); } catch { /* fine */ }
+          if (posterTex) { mat.map = posterTex; mat.color.set('#ffffff'); mat.needsUpdate = true; }
+        }, 1500);
+      };
+      // two presented frames in a row before trusting the decoder at all
+      if ('requestVideoFrameCallback' in video) {
+        video.requestVideoFrameCallback(() => video.requestVideoFrameCallback(() => trySwap()));
+      } else {
+        video.addEventListener('playing', trySwap);
+      }
       kick();
       window.addEventListener('pointerdown', kick, { once: true }); // mobile autoplay may need a gesture
       handles.backdropVideo = video;

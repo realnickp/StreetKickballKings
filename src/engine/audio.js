@@ -76,6 +76,7 @@ export class AudioBus {
 
   async _playAnnouncer(url) {
     const ctx = this.ensureCtx();
+    if (!ctx) return;
     this.gains.music.gain.cancelScheduledValues(ctx.currentTime);
     this.gains.music.gain.linearRampToValueAtTime(0.16, ctx.currentTime + 0.12);
     const played = await this.playBuffer(url, 'vo');
@@ -84,8 +85,18 @@ export class AudioBus {
   }
 
   ensureCtx() {
+    if (this.ctxDead) return null; // construction failed before: stay silent, never re-throw
     if (!this.ctx) {
-      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      // iOS Safari can THROW here (context limit, interrupted media session, low
+      // memory) and an uncaught throw takes the whole event handler down with it —
+      // the game must keep playing without sound instead.
+      try {
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      } catch (e) {
+        console.warn('[skk] AudioContext unavailable, muting:', e?.message ?? e);
+        this.ctxDead = true;
+        return null;
+      }
       // master → destination; each channel routes level-gain → user-gain → master
       // so ducking can drive the level while the sound editor drives the user gain.
       this.master = this.ctx.createGain();
@@ -106,7 +117,7 @@ export class AudioBus {
       this.gains.sfx.gain.value = 0.9;
       this.gains.vo.gain.value = 1.0;
     }
-    if (this.ctx.state === 'suspended') this.ctx.resume();
+    if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
     return this.ctx;
   }
 
@@ -124,7 +135,7 @@ export class AudioBus {
     if (this.buffers.has(url)) return this.buffers.get(url);
     const p = fetch(url)
       .then(r => r.arrayBuffer())
-      .then(ab => this.ensureCtx().decodeAudioData(ab))
+      .then(ab => this.ensureCtx()?.decodeAudioData(ab) ?? null)
       .catch(() => null);
     this.buffers.set(url, p);
     return p;
@@ -134,6 +145,7 @@ export class AudioBus {
     const buf = await this.buffer(url);
     if (!buf) return null;
     const ctx = this.ensureCtx();
+    if (!ctx) return null;
     const src = ctx.createBufferSource();
     src.buffer = buf;
     src.loop = loop;
@@ -175,6 +187,7 @@ export class AudioBus {
       this.playBuffer(FILES.sfx[def.file], 'sfx', { gain: def.gain });
     } else if (def.synth) {
       const ctx = this.ensureCtx();
+      if (!ctx) return;
       const o = ctx.createOscillator();
       const g = ctx.createGain();
       o.type = def.synth.type;
