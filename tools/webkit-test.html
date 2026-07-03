@@ -1,0 +1,45 @@
+<!doctype html>
+<!-- tools/webkit-test.html — minimal repro: does WebKit render the backdrop
+     cylinder with the game's exact texture settings? Each variant renders in
+     its own labeled quadrant so one screenshot answers four questions. -->
+<html><body style="margin:0;background:#123">
+<script type="module">
+import * as THREE from 'three';
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#204060');
+const cam = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 500);
+cam.position.set(0, 5, 0.1);
+
+const status = [];
+const mk = (x, tune, label) => new Promise((res) => {
+  new THREE.TextureLoader().load('../assets/textures/backdrop-blacktop-3d.png', (t) => {
+    tune(t);
+    const m = new THREE.Mesh(
+      new THREE.CylinderGeometry(30, 30, 25, 48, 1, true, x, Math.PI / 2),
+      new THREE.MeshBasicMaterial({ map: t, side: THREE.BackSide, fog: false }),
+    );
+    m.position.y = 10;
+    scene.add(m);
+    status.push(label + ':loaded');
+    res();
+  }, undefined, (e) => { status.push(label + ':LOADERR'); res(); });
+});
+
+await mk(0, (t) => { // exact game settings
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = THREE.MirroredRepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
+  t.repeat.set(6, 0.6052); t.offset.set(0.5, 0.3898);
+}, 'game');
+await mk(Math.PI / 2, (t) => { t.colorSpace = THREE.SRGBColorSpace; }, 'plain');
+await mk(Math.PI, (t) => { t.wrapS = THREE.RepeatWrapping; t.repeat.set(2, 1); }, 'repeat');
+await mk(-Math.PI / 2, (t) => { t.wrapS = THREE.MirroredRepeatWrapping; t.repeat.set(2, 1); }, 'mirror');
+
+renderer.setAnimationLoop((ms) => { cam.rotation.y = ms / 3000; renderer.render(scene, cam); });
+window.__status = status;
+</script>
+</body></html>

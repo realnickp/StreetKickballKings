@@ -44,7 +44,7 @@ input.attach(stage); // gestures scoped to the phone frame, not the desktop lett
 const bus = new EventBus();
 const audio = new AudioBus(bus);
 const save = new SaveManager({});
-window.__bus = bus; window.__audio = audio; // dev/debug handles
+window.__bus = bus; window.__audio = audio; window.__engine = engine; // dev/debug handles
 
 // PWA: register the service worker in production only (keeps dev hot-reload clean)
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
