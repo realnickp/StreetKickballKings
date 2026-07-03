@@ -21,18 +21,18 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.215,
-        "ry": 0.72
+        "oy": 0.3898,
+        "ry": 0.6052
       },
       "backdropGeo": {
         "r": 68,
-        "h": 26,
+        "h": 52.2,
         "bottom": 0.5
       },
       "status": "ready",
       "world3d": false,
       "backdropSkyTex": "assets/textures/sky-blacktop.jpg",
-      "backdropSkyH": 33.5
+      "backdropSkyH": 5.8
     },
     {
       "id": "subway-yard",
@@ -48,17 +48,17 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.34,
-        "ry": 0.63
+        "oy": 0.4304,
+        "ry": 0.5646
       },
       "backdropGeo": {
         "r": 66,
-        "h": 25,
+        "h": 53.5,
         "bottom": 0.5
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-subway-yard.jpg",
-      "backdropSkyH": 35.3
+      "backdropSkyH": 6.4
     },
     {
       "id": "block-party",
@@ -74,17 +74,17 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.3,
-        "ry": 0.67
+        "oy": 0.3844,
+        "ry": 0.6106
       },
       "backdropGeo": {
         "r": 62,
-        "h": 23,
+        "h": 50.1,
         "bottom": 0.5
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-block-party.jpg",
-      "backdropSkyH": 30.7
+      "backdropSkyH": 5.5
     },
     {
       "id": "neon-night-court",
@@ -100,17 +100,17 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.33,
-        "ry": 0.64
+        "oy": 0.4321,
+        "ry": 0.5629
       },
       "backdropGeo": {
         "r": 64,
-        "h": 24,
+        "h": 50.4,
         "bottom": 0.5
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-neon-night-court.jpg",
-      "backdropSkyH": 33.4
+      "backdropSkyH": 6.0
     },
     {
       "id": "boardwalk-kings",
@@ -126,17 +126,17 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.36,
-        "ry": 0.61
+        "oy": 0.4388,
+        "ry": 0.5562
       },
       "backdropGeo": {
         "r": 65,
-        "h": 24,
+        "h": 52.3,
         "bottom": 0.5
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-boardwalk-kings.jpg",
-      "backdropSkyH": 35.0
+      "backdropSkyH": 6.3
     },
     {
       "id": "the-underpass",
@@ -152,17 +152,17 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.28,
-        "ry": 0.69
+        "oy": 0.4317,
+        "ry": 0.5633
       },
       "backdropGeo": {
         "r": 63,
-        "h": 25,
+        "h": 48.8,
         "bottom": 0.5
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-the-underpass.jpg",
-      "backdropSkyH": 32.3
+      "backdropSkyH": 5.8
     },
     {
       "id": "rubber-yard",
@@ -178,17 +178,17 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.36,
-        "ry": 0.61
+        "oy": 0.4417,
+        "ry": 0.5533
       },
       "backdropGeo": {
         "r": 67,
-        "h": 25,
+        "h": 54.2,
         "bottom": 0.5
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-rubber-yard.jpg",
-      "backdropSkyH": 36.4
+      "backdropSkyH": 6.6
     },
     {
       "id": "winter-classic",
@@ -204,17 +204,17 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.31,
-        "ry": 0.66
+        "oy": 0.412,
+        "ry": 0.583
       },
       "backdropGeo": {
         "r": 64,
-        "h": 24,
+        "h": 50.7,
         "bottom": 0.5
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-winter-classic.jpg",
-      "backdropSkyH": 32.4
+      "backdropSkyH": 5.8
     },
     {
       "id": "scorchyard",
@@ -230,17 +230,17 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.35,
-        "ry": 0.62
+        "oy": 0.4288,
+        "ry": 0.5662
       },
       "backdropGeo": {
         "r": 68,
-        "h": 25,
+        "h": 54.5,
         "bottom": 0.5
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-scorchyard.jpg",
-      "backdropSkyH": 35.9
+      "backdropSkyH": 6.5
     },
     {
       "id": "the-crown",
@@ -256,17 +256,17 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.3,
-        "ry": 0.67
+        "oy": 0.4108,
+        "ry": 0.5842
       },
       "backdropGeo": {
         "r": 66,
-        "h": 25,
+        "h": 52.1,
         "bottom": 0.5
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-the-crown.jpg",
-      "backdropSkyH": 33.3
+      "backdropSkyH": 6.0
     }
   ]
 }
