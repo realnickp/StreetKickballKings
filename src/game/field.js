@@ -297,11 +297,61 @@ export function buildField(fieldData, scene) {
     skyCap.position.set(0, handles.backdropTopY - 1 + capH / 2, 0); // overlaps the backdrop top a hair
     root.add(skyCap);
     handles.skyCap = skyCap;
+
+    // City scenes: a flat gradient cap above the (now short, true-scale) scene
+    // ring read as a busted ceiling, and stretching a texture band up the cap
+    // smeared cloud detail into vertical streaks. Instead: PER-COLUMN gradient
+    // — each cap column starts at the exact color of the scene's sky where the
+    // ring ends and fades to the sky's mean color. Continuous at the join,
+    // structureless above it, works for any sky (storm, dusk, neon night).
+    if (fieldData.backdropWindow && fieldData.textures?.backdrop) {
+      const w = fieldData.backdropWindow;
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const cols = 256;
+          const topV = (w.oy ?? 0.18) + (w.ry ?? 0.82); // window top, v from image bottom
+          const bandTopPx = Math.max(0, Math.floor(img.height * (1 - topV) + img.height * 0.01));
+          const bandH = Math.max(2, Math.floor(img.height * 0.04));
+          const sc = document.createElement('canvas'); sc.width = cols; sc.height = 1;
+          const sg = sc.getContext('2d');
+          sg.drawImage(img, 0, bandTopPx, img.width, bandH, 0, 0, cols, 1);
+          const row = sg.getImageData(0, 0, cols, 1).data;
+          let mr = 0, mg = 0, mb = 0;
+          for (let i = 0; i < cols; i++) { mr += row[i * 4]; mg += row[i * 4 + 1]; mb += row[i * 4 + 2]; }
+          mr /= cols; mg /= cols; mb /= cols;
+          const cv = document.createElement('canvas'); cv.width = cols; cv.height = 128;
+          const g = cv.getContext('2d');
+          for (let x = 0; x < cols; x++) {
+            const grad = g.createLinearGradient(0, 128, 0, 0);
+            // cameras only ever see the bottom ~15% of the tall cap, so the
+            // per-column color must dissolve into the mean almost immediately
+            grad.addColorStop(0, `rgb(${row[x * 4]},${row[x * 4 + 1]},${row[x * 4 + 2]})`);
+            grad.addColorStop(0.08, `rgb(${Math.round(mr)},${Math.round(mg)},${Math.round(mb)})`);
+            grad.addColorStop(1, `rgb(${Math.round(mr)},${Math.round(mg)},${Math.round(mb)})`);
+            g.fillStyle = grad;
+            g.fillRect(x, 0, 1, 128);
+          }
+          const t = new THREE.CanvasTexture(cv);
+          t.colorSpace = THREE.SRGBColorSpace;
+          t.wrapS = THREE.MirroredRepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
+          t.repeat.set(fieldData.backdropRepeat ?? 4, 1);
+          t.offset.x = 0.5; // same mirror phase as the scene ring below
+          skyCap.material.map = t;
+          skyCap.material.needsUpdate = true;
+          // the far dome above the cap gets the same mean so nothing bands
+          sky.material.map = makeDomeGradient(Math.round(mr), Math.round(mg), Math.round(mb));
+          sky.material.needsUpdate = true;
+        } catch { /* keep the gradient cap */ }
+      };
+      img.src = fieldData.textures.backdrop;
+    }
   }
 
-  // Sample the VERY TOP of the backdrop image and continue that exact sky upward
-  // on the cap (seamless) and the dome — no hard colour band, looks natural.
-  if (fieldData.textures?.backdrop && !fieldData.textures?.sky) {
+  // Legacy fan backdrops: sample the VERY TOP of the backdrop image and
+  // continue that sky upward on the cap + dome. City scenes handle both in
+  // the per-column cap block above.
+  if (fieldData.textures?.backdrop && !fieldData.textures?.sky && !fieldData.backdropWindow) {
     const img = new Image();
     img.onload = () => {
       try {
@@ -336,7 +386,9 @@ export function buildField(fieldData, scene) {
         const lr = Math.round(r + (38 - r) * t);
         const lg = Math.round(g + (52 - g) * t);
         const lb = Math.round(b + (104 - b) * t);
-        if (skyCap) { skyCap.material.map = makeSkyCapGradient([r, g, b], [lr, lg, lb]); skyCap.material.needsUpdate = true; }
+        // city scenes keep their texture-band cap; the gradient cap is for
+        // legacy fan backdrops only
+        if (skyCap && !fieldData.backdropWindow) { skyCap.material.map = makeSkyCapGradient([r, g, b], [lr, lg, lb]); skyCap.material.needsUpdate = true; }
         sky.material.map = makeDomeGradient(lr, lg, lb); sky.material.needsUpdate = true;
       } catch (e) { /* keep the fallback */ }
     };
