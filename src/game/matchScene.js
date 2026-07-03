@@ -45,7 +45,6 @@ const CAM = {
   live: { pos: new THREE.Vector3(0, 16, 14), look: new THREE.Vector3(0, 0, -16) },
 };
 
-const CONTINUE_RATE = 3.5; // taps/sec needed to run through a bag
 const LEAD_M = 1.4; // how far runners lead off their bag before the pitch
 
 /** Directional stride for the kicker lining up: signed x-velocity (m/s) ->
@@ -162,6 +161,7 @@ export class MatchScene {
     this.hud.onAim = (aim) => { this.aim = aim; };
     this.hud.onPitchSelect = (id) => this.onPitchSelect(id);
     this.hud.onThrow = (t) => this.onPlayerThrow(t);
+    this.hud.onGo = () => this.sendHeldRunner();
     this.hud.onSpecial = () => {
       if (this.special.ready && this.kickingIsPlayer()) {
         this.specialArmed = true;
@@ -342,6 +342,8 @@ export class MatchScene {
     this.stealing = null;
     this.stealDefense = null;
     this.stealResolving = false;
+    this.goOffer = null;
+    this.hud.hideGo();
     this.match.state.bases.forEach((occ, i) => {
       if (occ === null) return;
       const c = off[occ % off.length];
@@ -749,7 +751,6 @@ export class MatchScene {
       state: 'running',
       decideT: 0,
       forced: false,
-      advanceArmed: false, // a held runner won't steal on until you ease off + re-mash
       aiRate: aiMashRate(this.difficulty),
     };
   }
@@ -934,6 +935,72 @@ export class MatchScene {
     return { p, dir, to };
   }
 
+  // ---------- GO FOR 2: the extra-base send prompt ----------
+  /** The lead held runner whose next bag is open and whose send-window is live. */
+  goCandidate() {
+    if (!this.kickingIsPlayer() || this.playFinalized || this.throwing || this.cinematicLock) return null;
+    let best = null;
+    for (const r of this.runners) {
+      if (r.state !== 'held' || r.heldAt >= 3 || r.decideT <= 0) continue;
+      const nextTaken = this.runners.some(o => o !== r &&
+        ((o.state === 'held' && o.heldAt === r.heldAt + 1) ||
+         (o.state === 'running' && o.targetBase === r.heldAt + 1)));
+      if (nextTaken) continue;
+      if (!best || r.heldAt > best.heldAt) best = r;
+    }
+    return best;
+  }
+
+  /** Seconds the runner would beat the ball to the next bag (+ = makes it).
+   *  Deliberately generous on loose balls — a marginal GO is what makes pickles. */
+  goMargin(r) {
+    const bag = this.basePos(r.heldAt + 1);
+    const runnerT = this.tuning.running.basePathM / (this.tuning.running.maxSpeedMs * 0.88);
+    const BALL_MS = 22; // matches the base-throw flight speed class
+    const holder = this.fieldingChars().find((c) => c.hasBall);
+    let defT;
+    if (holder) {
+      defT = 0.45 + holder.group.position.distanceTo(bag) / BALL_MS; // wind-up + flight
+    } else {
+      // ball loose: nearest fielder must reach it, secure it, then throw
+      const bp = this.ball.pos;
+      let near = Infinity;
+      for (const c of this.fieldingChars()) near = Math.min(near, c.group.position.distanceTo(bp));
+      defT = near / 6.0 + 0.5 + bp.distanceTo(bag) / BALL_MS;
+    }
+    return defT - runnerT;
+  }
+
+  /** Show/hide the GO button for the lead held runner (called every frame). */
+  updateGoOffer() {
+    const r = this.goCandidate();
+    const margin = r ? this.goMargin(r) : -Infinity;
+    if (margin > -0.35) {
+      // risky = a genuine race — taking it invites the throw-down / rundown
+      this.goOffer = { r, risky: margin < 0.25 };
+      this.hud.showGo(['GO FOR 2!', 'GO FOR 3!', 'GO HOME!'][r.heldAt], this.goOffer.risky);
+    } else if (this.goOffer) {
+      this.goOffer = null;
+      this.hud.hideGo();
+    }
+  }
+
+  /** GO button tapped — send the offered runner for the next bag (mash to run!). */
+  sendHeldRunner() {
+    const r = this.goOffer?.r;
+    if (!r || r.state !== 'held' || this.playFinalized) return;
+    this.goOffer = null;
+    this.hud.hideGo();
+    r.fromBase = r.heldAt;
+    r.targetBase = r.heldAt + 1;
+    r.forced = false;
+    r.sim = new RunnerSim({ tuning: this.tuning, human: true });
+    r.state = 'running';
+    r.char.animator.play('run');
+    this.bus.emit('sfx', 'juke');
+    this.hud.call(['GOING FOR 2!', 'GOING FOR 3!', 'GOING HOME!'][r.fromBase], 'crowned');
+  }
+
   updateRunners(dt) {
     const isPlayerOffense = this.kickingIsPlayer();
     // short window so the runner responds quickly to starting/stopping taps
@@ -999,9 +1066,7 @@ export class MatchScene {
           } else {
             r.state = 'held';
             r.heldAt = r.targetBase;
-            r.advanceArmed = false; // STOP on the bag — ease off the taps + re-mash to take the next one
-            r.heldT = 0;
-            r.decideT = 1.4; // window in which a deliberate re-mash can send you to the next bag
+            r.decideT = 1.4; // window in which the GO button can send him to the next bag
             r.char.group.position.copy(this.basePos(r.heldAt)).add(new THREE.Vector3(0.4, 0, 0.4));
             this.faceTo(r.char, this.basePos(Math.min(r.heldAt + 1, 3))); // poised to take the next bag
             r.char.animator.play('idle');
@@ -1009,24 +1074,18 @@ export class MatchScene {
         }
       } else if (r.state === 'held' && r.heldAt < 3) {
         r.decideT -= dt;
-        if (this.kickingIsPlayer()) {
-          // arm the advance on an eased-off gas OR after a beat on the bag —
-          // so just KEEPING the taps going rounds the bag naturally (no more
-          // hidden ease-off-then-re-mash trick to take 2nd)
-          r.heldT = (r.heldT ?? 0) + dt;
-          if (rate < 1.0 || r.heldT > 0.35) r.advanceArmed = true;
-          if (!this.ballControlled) r.decideT = 1.4; // keep the send-window open while the ball is loose
-        }
+        // keep the send-window open while the ball is loose
+        if (this.kickingIsPlayer() && !this.ballControlled) r.decideT = 1.4;
         // a teammate running into my bag forces me off it — vacate or we stack
         const mustVacate = this.runners.some(o =>
           o !== r && o.state === 'running' && o.targetBase === r.heldAt);
-        // HUMAN: only chain to the next bag on a DELIBERATE re-mash (advanceArmed) — so the
-        // mashing that GOT you to the bag can't blow you past it into a tag/force out.
+        // HUMAN: a held runner ONLY takes the next bag through the GO FOR 2 button
+        // (sendHeldRunner) or when forced off — no accidental mash-through into a tag.
         // AI offense: a bold lead runner (1st/2nd) will gamble for the next bag right
         // after the D secures it (until the ball is fully controlled) — that's what
         // creates a pickle the human defender can throw on; otherwise the AI holds.
         const aggressive = this.kickingIsPlayer()
-          ? (r.advanceArmed && rate > CONTINUE_RATE && !this.throwing && !this.playFinalized)
+          ? false
           : (!this.ballControlled && r.aiRate > 4.2 && this.landDist > 24 && r.heldAt <= 1);
         const wantsGo = mustVacate || (r.decideT > 0 && aggressive);
         if (wantsGo) {
@@ -1048,14 +1107,16 @@ export class MatchScene {
     }
     this.hud.setBases(liveBases);
 
+    // GO FOR 2: offer the extra base on the lead held runner while it's live
+    this.updateGoOffer();
+
     // play is over when nobody is running and the defense controls the ball —
     // record however many outs accrued (force/peg) once everyone has settled.
-    // Don't finalize while a held runner is still actively pushing for the next
-    // bag (human mashing, ball not thrown) — that would freeze them at 2nd early.
-    const stillPushing = isPlayerOffense && rate > CONTINUE_RATE && !this.throwing && !this.playFinalized;
+    // Don't finalize while the GO FOR 2 offer is up on a held runner — the
+    // player gets that decision beat before the play locks in.
     const someoneAdvancing = this.runners.some(r =>
       r.state === 'running' ||
-      (r.state === 'held' && r.heldAt < 3 && r.decideT > 0 && stillPushing));
+      (r.state === 'held' && r.heldAt < 3 && r.decideT > 0 && this.goOffer?.r === r));
     this.updateRunnerAlerts(); // keep the "runner heading home / stealing 3rd" banners live
     if (!this.playFinalized && this.ballControlled && !someoneAdvancing) {
       this.finalizePlay(this.playOuts ?? 0, this.lastOutReason);
@@ -1068,6 +1129,8 @@ export class MatchScene {
     this.playFinalized = true;
     this.phase = 'RESOLVE';
     this.hud.setRunnerAlerts([]); // play's over — clear the runner banners
+    this.goOffer = null;
+    this.hud.hideGo();
 
     // nobody jogs in place once the play is dead — settle every defender
     // (updateDefense stops outside LIVE, so a looping run clip would stick)
