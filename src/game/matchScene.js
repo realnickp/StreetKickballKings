@@ -1188,15 +1188,36 @@ export class MatchScene {
     return true; // turning two — keep the play live
   }
 
-  /** The lead FORCED runner's target base — the only base where a throw gets an out. */
-  recommendedThrowBase() {
-    let best = null;
-    for (const r of this.runners) {
-      if (r.state === 'running' && r.forced && r.targetBase >= 0 && r.targetBase <= 3) {
-        if (!best || r.targetBase > best.targetBase) best = r;
+  /**
+   * Which forced bag to throw to. Under 2 outs: the LEAD force (protect the
+   * plate — stop the biggest damage). With 2 outs, ANY out ends the inning, so
+   * take the EASIEST one: the bag with the biggest time margin between the
+   * runner still getting there and the ball's flight (dev call — no more
+   * hero throws home when a soft flip to first ends it).
+   */
+  recommendedThrowBase(fromFielder = null) {
+    const forced = this.runners.filter((r) =>
+      r.state === 'running' && r.forced && r.targetBase >= 0 && r.targetBase <= 3);
+    if (!forced.length) return null;
+    const outsNow = (this.match?.state?.outs ?? 0) + (this.playOuts ?? 0);
+    if (outsNow >= 2) {
+      const from = (fromFielder ?? this.activeFielder ?? this.chaser)?.group?.position ?? this.ball.pos;
+      const runSpeed = this.tuning.running.maxSpeedMs ?? 8.3;
+      const BALL_MS = 22; // matches the base-throw flight speed class
+      let best = null;
+      let bestMargin = -Infinity;
+      for (const r of forced) {
+        const bag = this.basePos(r.targetBase);
+        const runnerT = Math.max(0, this.tuning.running.basePathM - r.sim.progressM) / runSpeed;
+        const ballT = from.distanceTo(bag) / BALL_MS;
+        const margin = runnerT - ballT;
+        if (margin > bestMargin) { bestMargin = margin; best = r; }
       }
+      return best.targetBase;
     }
-    return best ? best.targetBase : null;
+    let best = null;
+    for (const r of forced) if (!best || r.targetBase > best.targetBase) best = r;
+    return best.targetBase;
   }
 
   /** Peg targets the running runner closest to the fielder holding the ball (good for rundowns). */
@@ -1266,8 +1287,9 @@ export class MatchScene {
   /** What the AI does with the ball: force out → cut off the lead runner → peg. */
   aiThrowDecision(fielder) {
     if (!fielder.hasBall || this.playFinalized || this.phase === 'RESOLVE') return;
-    // 1) a force out is available → fire to the lead forced bag
-    const forcedBase = this.recommendedThrowBase();
+    // 1) a force out is available → fire to the recommended bag (lead force
+    //    under 2 outs; the EASIEST out with 2 outs)
+    const forcedBase = this.recommendedThrowBase(fielder);
     if (forcedBase !== null && !(aiWantsPeg(this.difficulty) && this.landDist < 24)) {
       return this.throwBall(fielder, { base: forcedBase });
     }

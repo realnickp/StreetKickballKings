@@ -35,17 +35,20 @@ export class CinematicDirector {
   }
 
   // ---------- script engine ----------
-  run(steps, { lockCamera = true } = {}) {
-    this.skip(); // end anything already running
-    this.script = { steps, i: 0, t: 0, lockCamera };
+  run(steps, { lockCamera = true, noSkip = false } = {}) {
+    this.skip(true); // end anything already running (internal — always allowed)
+    this.script = { steps, i: 0, t: 0, lockCamera, noSkip };
     if (lockCamera) this.engine.cameraLock = true;
     this.hud.el.style.zIndex = 6;
     this.bus.emit('cine:start');
     steps[0].onStart?.();
   }
 
-  skip() {
+  /** `force` = internal teardown; a user tap can't skip noSkip moments
+   *  (catches / home runs play out in full — dev call). */
+  skip(force = false) {
     if (!this.script) return;
+    if (this.script.noSkip && !force) return;
     for (const step of this.script.steps) step.onEnd?.();
     this.finish();
   }
@@ -125,7 +128,7 @@ export class CinematicDirector {
    * in slow motion from a fresh broadcast angle (ReplayPlayer). Skips
    * gracefully when nothing is recorded yet — never a broken cinematic.
    */
-  replayMoment({ focusChar, seconds, banner, bannerKind, vo, sound }) {
+  replayMoment({ focusChar, seconds, banner, bannerKind, vo, sound, noSkip = false }) {
     const r = this.getReplay?.();
     if (!r?.player) return;
     this.engine.shake(0.3);
@@ -135,6 +138,7 @@ export class CinematicDirector {
       focusIndex: Math.max(0, r.chars.indexOf(focusChar)),
       banner, bannerKind, vo, sound,
       speed: 0.45,
+      noSkip,
     });
   }
 
@@ -143,6 +147,7 @@ export class CinematicDirector {
       focusChar: kicker, seconds: 3.2,
       banner: 'HOME RUN!', bannerKind: 'homer',
       vo: { event: 'crowned', gender: kicker.gender }, // he/she-aware home-run call
+      noSkip: true, // home-run replays always play out in full (dev call)
     });
   }
 
@@ -189,7 +194,7 @@ export class CinematicDirector {
         }),
         onUpdate: (k) => shot(3.1, 3.8 + k * 1.0), // ease back out
       },
-    ]);
+    ], { noSkip: true }); // the catch celebration always plays out in full
   }
 
   pegged({ runner }) {
