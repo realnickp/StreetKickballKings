@@ -21,13 +21,13 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.3898,
-        "ry": 0.6052
+        "oy": 0.4024,
+        "ry": 0.5926
       },
       "backdropGeo": {
         "r": 68,
-        "h": 52.2,
-        "bottom": 0.5
+        "h": 51.1,
+        "bottom": -0.5
       },
       "status": "ready",
       "world3d": false,
@@ -48,13 +48,13 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.4304,
-        "ry": 0.5646
+        "oy": 0.4472,
+        "ry": 0.5478
       },
       "backdropGeo": {
         "r": 66,
-        "h": 53.5,
-        "bottom": 0.5
+        "h": 51.9,
+        "bottom": -0.5
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-subway-yard.jpg",
@@ -74,13 +74,13 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.3844,
-        "ry": 0.6106
+        "oy": 0.3878,
+        "ry": 0.6072
       },
       "backdropGeo": {
         "r": 62,
-        "h": 50.1,
-        "bottom": 0.5
+        "h": 57.1,
+        "bottom": -0.5
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-block-party.jpg",
@@ -100,13 +100,13 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.4321,
-        "ry": 0.5629
+        "oy": 0.4488,
+        "ry": 0.5462
       },
       "backdropGeo": {
         "r": 64,
-        "h": 50.4,
-        "bottom": 0.5
+        "h": 48.9,
+        "bottom": -0.5
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-neon-night-court.jpg",
@@ -126,13 +126,13 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.4388,
-        "ry": 0.5562
+        "oy": 0.4514,
+        "ry": 0.5436
       },
       "backdropGeo": {
         "r": 65,
-        "h": 52.3,
-        "bottom": 0.5
+        "h": 51.1,
+        "bottom": -0.5
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-boardwalk-kings.jpg",
@@ -152,13 +152,13 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.4317,
-        "ry": 0.5633
+        "oy": 0.4443,
+        "ry": 0.5507
       },
       "backdropGeo": {
         "r": 63,
-        "h": 48.8,
-        "bottom": 0.5
+        "h": 47.7,
+        "bottom": -0.5
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-the-underpass.jpg",
@@ -178,13 +178,13 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.4417,
-        "ry": 0.5533
+        "oy": 0.4627,
+        "ry": 0.5323
       },
       "backdropGeo": {
         "r": 67,
-        "h": 54.2,
-        "bottom": 0.5
+        "h": 52.1,
+        "bottom": -0.5
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-rubber-yard.jpg",
@@ -204,13 +204,13 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.412,
-        "ry": 0.583
+        "oy": 0.4329,
+        "ry": 0.5621
       },
       "backdropGeo": {
         "r": 64,
-        "h": 50.7,
-        "bottom": 0.5
+        "h": 48.8,
+        "bottom": -0.5
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-winter-classic.jpg",
@@ -230,13 +230,13 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.4288,
-        "ry": 0.5662
+        "oy": 0.4455,
+        "ry": 0.5495
       },
       "backdropGeo": {
         "r": 68,
-        "h": 54.5,
-        "bottom": 0.5
+        "h": 52.9,
+        "bottom": -0.5
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-scorchyard.jpg",
@@ -256,13 +256,13 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.4108,
-        "ry": 0.5842
+        "oy": 0.4401,
+        "ry": 0.5549
       },
       "backdropGeo": {
         "r": 66,
-        "h": 52.1,
-        "bottom": 0.5
+        "h": 49.5,
+        "bottom": -0.5
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-the-crown.jpg",
