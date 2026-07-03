@@ -9,9 +9,11 @@ describe('3d world config', () => {
     // world3d stays off; the city lives in backdrop + backdropVideo
     expect(blacktop.world3d).toBe(false);
     expect(blacktop.sky).toBe('golden-hour');
-    // repeat 4 + half-tile offset = true-to-life building scale with scene
-    // centers facing all four camera directions
-    expect(blacktop.backdropRepeat).toBe(4);
+    // repeat 6 + half-tile offset + pushed-out ring (r = fenceM + 26) =
+    // true-to-life building scale AND correct aspect (tile arc / height
+    // matches the source image within ~10%)
+    expect(blacktop.backdropRepeat).toBe(6);
+    expect(blacktop.backdropGeo.r).toBe(blacktop.fenceM + 26);
     expect(blacktop.textures.sky).toBeUndefined(); // sky cap continues the dusk pano upward
     expect(blacktop.textures.backdropVideo).toBeTruthy();
   });
