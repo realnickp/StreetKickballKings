@@ -170,7 +170,15 @@ export function buildField(fieldData, scene) {
     // there is no hard edge anywhere — the non-tileable image can't show a seam.
     // Vertical crop drops the lowest crowd row so the fans read as a thinner band
     // over the fence (a distant stadium crowd) instead of full looming bodies.
-    const tuneTex = (t) => {
+    // City scenes are split into TWO half-rings so kicking and fielding do NOT
+    // show the same landmark twice: the outfield half wraps the scene's CENTER
+    // (monument / bodega / stadium), the home half wraps the scene's EDGE
+    // content (side streets / museums) — two different views of one painting,
+    // like turning around on a real corner lot. Each half carries tiles = rx/2
+    // over its π arc; the content handoff lands exactly on the foul poles and
+    // reads as a street corner.
+    const splitRing = !!fieldData.backdropRepeat;
+    const tuneTex = (t, offX = 0) => {
       t.colorSpace = THREE.SRGBColorSpace;
       t.wrapS = THREE.MirroredRepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
       // 4 horizontal tiles keeps the fans small/distant (a 2-tile crowd looked too big).
@@ -180,11 +188,8 @@ export function buildField(fieldData, scene) {
       // far curb so the scene's street sits AT ground level, not above it),
       // ry = how much of the image height to show (rest of the sky included).
       const w = fieldData.backdropWindow ?? {};
-      t.repeat.set(rx, w.ry ?? 0.82); t.offset.y = w.oy ?? 0.18;
-      // City-scene fields (explicit backdropRepeat): shift half a tile so
-      // SCENE CENTERS face the outfield/home cameras (and both foul lines at
-      // repeat 4) while the mirror boundaries land between camera directions.
-      if (fieldData.backdropRepeat) t.offset.x = 0.5;
+      t.repeat.set(splitRing ? rx / 2 : rx, w.ry ?? 0.82); t.offset.y = w.oy ?? 0.18;
+      if (splitRing) t.offset.x = offX;
     };
     // WEBKIT/iOS RULE: never construct a material with a texture that hasn't
     // finished loading — WebKit compiles the program against the empty texture
@@ -261,10 +266,34 @@ export function buildField(fieldData, scene) {
     // not looming right on top of the court.
     const bg = fieldData.backdropGeo ?? {};
     const bdR = bg.r ?? 76, bdH = bg.h ?? 44, bdBottom = bg.bottom ?? -2;
-    const backdrop = new THREE.Mesh(
-      new THREE.CylinderGeometry(bdR, bdR, bdH, 96, 1, true, 0, Math.PI * 2),
-      mat,
-    );
+    let backdrop;
+    if (splitRing) {
+      // outfield half (animated scene center) + home half (static edge slice)
+      backdrop = new THREE.Group();
+      const front = new THREE.Mesh(
+        new THREE.CylinderGeometry(bdR, bdR, bdH, 48, 1, true, Math.PI / 2, Math.PI),
+        mat,
+      );
+      const matBack = new THREE.MeshBasicMaterial({ side: THREE.BackSide, fog: false, color: '#0f1420' });
+      if (fieldData.textures?.backdrop) {
+        new THREE.TextureLoader().load(fieldData.textures.backdrop, (t) => {
+          tuneTex(t, 0.5); // edge content faces home — a different block
+          matBack.map = t;
+          matBack.color.set('#ffffff');
+          matBack.needsUpdate = true;
+        });
+      }
+      const back = new THREE.Mesh(
+        new THREE.CylinderGeometry(bdR, bdR, bdH, 48, 1, true, -Math.PI / 2, Math.PI),
+        matBack,
+      );
+      backdrop.add(front, back);
+    } else {
+      backdrop = new THREE.Mesh(
+        new THREE.CylinderGeometry(bdR, bdR, bdH, 96, 1, true, 0, Math.PI * 2),
+        mat,
+      );
+    }
     backdrop.position.set(0, bdBottom + bdH / 2, 0);
     root.add(backdrop);
     handles.backdrop = backdrop;
