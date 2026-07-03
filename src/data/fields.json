@@ -19,13 +19,13 @@
         "backdrop": "assets/textures/backdrop-blacktop-3d.png",
         "backdropVideo": "assets/video/backdrop-blacktop.mp4"
       },
-      "backdropRepeat": 4,
+      "backdropRepeat": 6,
       "backdropWindow": {
         "oy": 0.215,
         "ry": 0.72
       },
       "backdropGeo": {
-        "r": 56,
+        "r": 68,
         "h": 26,
         "bottom": 0.5
       },
@@ -44,13 +44,13 @@
         "backdrop": "assets/textures/backdrop-subway-yard-3d.png",
         "backdropVideo": "assets/video/backdrop-subway-yard.mp4"
       },
-      "backdropRepeat": 4,
+      "backdropRepeat": 6,
       "backdropWindow": {
         "oy": 0.34,
         "ry": 0.63
       },
       "backdropGeo": {
-        "r": 54,
+        "r": 66,
         "h": 25,
         "bottom": 0.5
       },
@@ -68,13 +68,13 @@
         "backdrop": "assets/textures/backdrop-block-party-3d.png",
         "backdropVideo": "assets/video/backdrop-block-party.mp4"
       },
-      "backdropRepeat": 4,
+      "backdropRepeat": 6,
       "backdropWindow": {
         "oy": 0.3,
         "ry": 0.67
       },
       "backdropGeo": {
-        "r": 50,
+        "r": 62,
         "h": 23,
         "bottom": 0.5
       },
@@ -92,13 +92,13 @@
         "backdrop": "assets/textures/backdrop-neon-night-court-3d.png",
         "backdropVideo": "assets/video/backdrop-neon-night-court.mp4"
       },
-      "backdropRepeat": 4,
+      "backdropRepeat": 6,
       "backdropWindow": {
         "oy": 0.33,
         "ry": 0.64
       },
       "backdropGeo": {
-        "r": 52,
+        "r": 64,
         "h": 24,
         "bottom": 0.5
       },
@@ -116,13 +116,13 @@
         "backdrop": "assets/textures/backdrop-boardwalk-kings-3d.png",
         "backdropVideo": "assets/video/backdrop-boardwalk-kings.mp4"
       },
-      "backdropRepeat": 4,
+      "backdropRepeat": 6,
       "backdropWindow": {
         "oy": 0.36,
         "ry": 0.61
       },
       "backdropGeo": {
-        "r": 53,
+        "r": 65,
         "h": 24,
         "bottom": 0.5
       },
@@ -140,13 +140,13 @@
         "backdrop": "assets/textures/backdrop-the-underpass-3d.png",
         "backdropVideo": "assets/video/backdrop-the-underpass.mp4"
       },
-      "backdropRepeat": 4,
+      "backdropRepeat": 6,
       "backdropWindow": {
         "oy": 0.28,
         "ry": 0.69
       },
       "backdropGeo": {
-        "r": 51,
+        "r": 63,
         "h": 25,
         "bottom": 0.5
       },
@@ -164,13 +164,13 @@
         "backdrop": "assets/textures/backdrop-rubber-yard-3d.png",
         "backdropVideo": "assets/video/backdrop-rubber-yard.mp4"
       },
-      "backdropRepeat": 4,
+      "backdropRepeat": 6,
       "backdropWindow": {
         "oy": 0.36,
         "ry": 0.61
       },
       "backdropGeo": {
-        "r": 55,
+        "r": 67,
         "h": 25,
         "bottom": 0.5
       },
@@ -188,13 +188,13 @@
         "backdrop": "assets/textures/backdrop-winter-classic-3d.png",
         "backdropVideo": "assets/video/backdrop-winter-classic.mp4"
       },
-      "backdropRepeat": 4,
+      "backdropRepeat": 6,
       "backdropWindow": {
         "oy": 0.31,
         "ry": 0.66
       },
       "backdropGeo": {
-        "r": 52,
+        "r": 64,
         "h": 24,
         "bottom": 0.5
       },
@@ -212,13 +212,13 @@
         "backdrop": "assets/textures/backdrop-scorchyard-3d.png",
         "backdropVideo": "assets/video/backdrop-scorchyard.mp4"
       },
-      "backdropRepeat": 4,
+      "backdropRepeat": 6,
       "backdropWindow": {
         "oy": 0.35,
         "ry": 0.62
       },
       "backdropGeo": {
-        "r": 56,
+        "r": 68,
         "h": 25,
         "bottom": 0.5
       },
@@ -236,13 +236,13 @@
         "backdrop": "assets/textures/backdrop-the-crown-3d.png",
         "backdropVideo": "assets/video/backdrop-the-crown.mp4"
       },
-      "backdropRepeat": 4,
+      "backdropRepeat": 6,
       "backdropWindow": {
         "oy": 0.3,
         "ry": 0.67
       },
       "backdropGeo": {
-        "r": 54,
+        "r": 66,
         "h": 25,
         "bottom": 0.5
       },
