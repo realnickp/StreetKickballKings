@@ -1017,7 +1017,7 @@ export class MatchScene {
       this.marker.position.copy(this.pred.point).setY(0.05);
       this.marker.visible = true;
       this.lastDragAt = -10;
-      this.hud.hint('TAP WHERE THE BALL LANDS!');
+      this.hud.hint('TAP A FIELDER TO CONTROL THEM — DRAG TO STEER');
     }
   }
 
@@ -1539,11 +1539,57 @@ export class MatchScene {
 
   onTap(e) {
     if (this.cinematicLock) { this.bus.emit('cine:skip'); return; }
-    // DEFENSE: tap/drag to drive your fielder. The teal marker STAYS at the ball's
-    // landing spot (where to get to); only the fielder moves.
+    // DEFENSE: tap ANOTHER fielder to take control of them (sports-game player
+    // switching); otherwise tap/drag drives your current fielder. The teal
+    // marker STAYS at the ball's landing spot (where to get to).
     if (this.phase === 'LIVE' && this.playerControlled && this.activeFielder && !this.activeFielder.hasBall) {
+      const pick = this.pickFielderAt(e.x, e.y);
+      if (pick) { this.switchChaser(pick); return; }
       this.steerFielder(e.x, e.y);
     }
+  }
+
+  /** Screen position of a character's chest, in the same coords as pointer events. */
+  worldToScreen(v) {
+    const r = this.engine.renderer.domElement.getBoundingClientRect();
+    const p = v.clone();
+    p.y += 1.0;
+    p.project(this.engine.camera);
+    if (p.z > 1) return null; // behind the camera
+    return { x: r.left + (p.x * 0.5 + 0.5) * r.width, y: r.top + (-p.y * 0.5 + 0.5) * r.height };
+  }
+
+  /** The non-active fielder nearest the tap, if the tap actually lands on one. */
+  pickFielderAt(x, y) {
+    let best = null;
+    let bestD = 1e9;
+    for (const f of this.fielders ?? []) {
+      if (f.char === this.chaser || f.char.hasBall) continue;
+      const s = this.worldToScreen(f.char.group.position);
+      if (!s) continue;
+      const d = Math.hypot(s.x - x, s.y - y);
+      if (d < bestD) { bestD = d; best = f; }
+    }
+    return bestD < 54 ? best : null;
+  }
+
+  /** Hand control to a tapped fielder: they become the chaser, the old chaser
+   *  inherits their assignment (base cover / hold) so no base goes unmanned. */
+  switchChaser(fNew) {
+    const fOld = this.fielders.find((q) => q.char === this.chaser);
+    if (!fOld || fNew === fOld) return;
+    fOld.role = fNew.role;
+    fOld.baseIdx = fNew.baseIdx;
+    fOld.target = fOld.role === 'cover'
+      ? this.basePos(fOld.baseIdx).clone()
+      : fOld.char.group.position.clone();
+    fNew.role = 'chase';
+    fNew.baseIdx = undefined;
+    this.chaser = fNew.char;
+    this.activeFielder = fNew.char;
+    this.fielderTarget = null; // fresh auto-pursuit until the player steers
+    fNew.char.animator.play('run');
+    this.bus.emit('sfx', 'juke'); // switch blip
   }
 
   // ---------- outs ----------
