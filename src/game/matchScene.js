@@ -944,7 +944,9 @@ export class MatchScene {
   // ---------- GO FOR 2: the extra-base send prompt ----------
   /** The lead held runner whose next bag is open and whose send-window is live. */
   goCandidate() {
-    if (!this.kickingIsPlayer() || this.playFinalized || this.throwing || this.cinematicLock) return null;
+    // NOTE: a throw in flight does NOT hide the offer — taking a bag on the
+    // throw to another base is the classic gamble this button exists for
+    if (!this.kickingIsPlayer() || this.playFinalized || this.cinematicLock) return null;
     let best = null;
     for (const r of this.runners) {
       if (r.state !== 'held' || r.heldAt >= 3 || r.decideT <= 0) continue;
@@ -958,22 +960,33 @@ export class MatchScene {
   }
 
   /** Seconds the runner would beat the ball to the next bag (+ = makes it).
-   *  Deliberately generous on loose balls — a marginal GO is what makes pickles. */
+   *  Deliberately GENEROUS: the AI needs real time to decide + transfer + wind
+   *  up (~1s, matching aiThrowDelayS + the throw clip), the bag actually has
+   *  to be covered, and a bad send becomes the pickle mini-game now instead of
+   *  an auto-out — marginal GOs are content, not suicide. */
   goMargin(r) {
     const bag = this.basePos(r.heldAt + 1);
     const runnerT = this.tuning.running.basePathM / (this.tuning.running.maxSpeedMs * 0.88);
     const BALL_MS = 22; // matches the base-throw flight speed class
+    const WINDUP = 1.0; // AI decision + ball transfer + throw clip before release
     const holder = this.fieldingChars().find((c) => c.hasBall);
     let defT;
     if (holder) {
-      defT = 0.45 + holder.group.position.distanceTo(bag) / BALL_MS; // wind-up + flight
+      defT = WINDUP + holder.group.position.distanceTo(bag) / BALL_MS;
     } else {
       // ball loose: nearest fielder must reach it, secure it, then throw
       const bp = this.ball.pos;
       let near = Infinity;
       for (const c of this.fieldingChars()) near = Math.min(near, c.group.position.distanceTo(bp));
-      defT = near / 6.0 + 0.5 + bp.distanceTo(bag) / BALL_MS;
+      defT = near / 6.0 + WINDUP * 0.5 + bp.distanceTo(bag) / BALL_MS;
     }
+    // an uncovered bag can't take a throw — charge the cover man's travel time
+    let coverD = Infinity;
+    for (const c of this.fieldingChars()) {
+      if (c === holder) continue;
+      coverD = Math.min(coverD, c.group.position.distanceTo(bag));
+    }
+    if (coverD > 3) defT += (coverD - 3) / 6.0;
     return defT - runnerT;
   }
 
@@ -981,7 +994,7 @@ export class MatchScene {
   updateGoOffer() {
     const r = this.goCandidate();
     const margin = r ? this.goMargin(r) : -Infinity;
-    if (margin > -0.35) {
+    if (margin > -0.9) {
       // risky = a genuine race — taking it invites the throw-down / rundown
       this.goOffer = { r, risky: margin < 0.25 };
       this.hud.showGo(['GO FOR 2!', 'GO FOR 3!', 'GO HOME!'][r.heldAt], this.goOffer.risky);
