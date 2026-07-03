@@ -58,6 +58,24 @@ export class MatchEngine {
     if (this.state.outs >= this.cfg.outsPerHalf) this.endHalf();
   }
 
+  /**
+   * Mid-at-bat base event (steal / caught stealing / pickoff): outs and bases
+   * change but the SAME kicker stays up — the kicker index does not advance.
+   * @param {{outsAdded?: number, bases?: (number|null)[], runs?: number}} e
+   */
+  applyBaseEvent({ outsAdded = 0, bases = null, runs = 0 } = {}) {
+    if (this.state.phase === 'GAME_END') return;
+    const side = this.kickingSide();
+    this.state.outs += outsAdded;
+    if (bases) this.state.bases = [...bases];
+    if (runs > 0) {
+      this.state.score[side] += runs;
+      this.bus.emit('score', { side, runs, score: { ...this.state.score } });
+    }
+    this.bus.emit('play', { type: outsAdded ? 'caught-stealing' : 'steal', side });
+    if (this.state.outs >= this.cfg.outsPerHalf) this.endHalf();
+  }
+
   /** @param {{type: 'out'|'single'|'double'|'triple'|'homerun'}} play */
   applyPlay(play) {
     if (this.state.phase === 'GAME_END') return;

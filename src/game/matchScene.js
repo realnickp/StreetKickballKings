@@ -46,6 +46,7 @@ const CAM = {
 };
 
 const CONTINUE_RATE = 3.5; // taps/sec needed to run through a bag
+const LEAD_M = 1.4; // how far runners lead off their bag before the pitch
 
 /** Directional stride for the kicker lining up: signed x-velocity (m/s) ->
  *  strafe clip name, or null when settled. Kicker faces the mound (-z), so
@@ -337,12 +338,21 @@ export class MatchScene {
     this.faceTo(this.kicker, FIELD_LAYOUT.pitcher, true); // square up to the mound
     this.kicker.animator.play('plate');
 
+    this.baseChars = [null, null, null];
+    this.stealing = null;
+    this.stealDefense = null;
+    this.stealResolving = false;
     this.match.state.bases.forEach((occ, i) => {
       if (occ === null) return;
       const c = off[occ % off.length];
       if (c === this.kicker) return;
       c.group.visible = true;
-      c.group.position.copy(this.basePos(i)).add(new THREE.Vector3(0.5, 0, 0.5));
+      // runners take a LEAD off the bag toward the next base — it's a real
+      // head start when the ball is kicked, and the launch point for a steal
+      const bag = this.basePos(i);
+      const dir = this.basePos(Math.min(i + 1, 3)).clone().sub(bag).normalize();
+      c.group.position.copy(bag).addScaledVector(dir, LEAD_M);
+      this.baseChars[i] = c;
       this.faceTo(c, this.basePos(Math.min(i + 1, 3)), true); // lead toward next bag
       c.animator.play('idle');
     });
@@ -389,7 +399,10 @@ export class MatchScene {
     this.camTarget = CAM.kick;
     this.hud.showPitchSelect(false);
     this.hud.hidePattern();
-    this.hud.hint('SLIDE TO LINE UP — FLICK UP TO KICK');
+    const hasRunners = this.match.state.bases.some((b) => b !== null);
+    this.hud.hint(hasRunners
+      ? 'FLICK UP TO KICK — TAP A RUNNER TO STEAL'
+      : 'SLIDE TO LINE UP — FLICK UP TO KICK');
     this.kicker.group.position.x = 0; // start centred; you slide left/right to line up
     this._kickerPrevX = 0; // reset stride tracker so the recenter isn't read as a slide
     this.pitch = pickPitch(this.tuning);
@@ -463,6 +476,7 @@ export class MatchScene {
     this.hud.hint('');
     this.servePitch(this.pitch, /*aiKicks=*/true, wildX);
     if (fire) igniteBall(this.ball);
+    this.maybeAiSteal(); // AI runners may take off on your pitch — be ready to throw down
   }
 
   /** Shared ball serve for both roles. */
@@ -586,14 +600,18 @@ export class MatchScene {
     this.bus.emit('sfx', 'whiff');
     this.hud.call(this.strikes >= 3 ? 'STRUCK OUT!' : label, 'pegged');
     if (this.strikes >= 3) {
+      this.cancelSteal(); // at-bat's over anyway; restoreRunners puts him back
       this.bus.emit('vo', 'strike');
       this.after(0.8, () => this.finalizePlay(1, 'strikeout', { restoreRunners: true }));
     } else {
-      this.after(1.0, () => {
+      const resume = () => {
         this.phase = 'SETUP';
         this.kicker.animator.play('plate');
         this.serve();
-      });
+      };
+      // a steal was in flight and the pitch is dead → the defense throws down
+      if (this.stealing?.state === 'running') this.after(0.3, () => this.resolveStealThrowdown(resume));
+      else this.after(1.0, resume);
     }
   }
 
@@ -666,16 +684,19 @@ export class MatchScene {
     this.bus.emit('sfx', 'whiff');
     this.bus.emit('vo', 'foul');
     if (this.fouls >= 4) {
+      this.cancelSteal();
       this.hud.call('4 FOULS — OUT!', 'pegged');
       this.after(0.8, () => this.finalizePlay(1, 'foulout', { restoreRunners: true }));
       return;
     }
     this.hud.call(`${label}  ${this.fouls}/4`, 'pegged');
-    this.after(1.0, () => {
+    const resume = () => {
       this.phase = 'SETUP';
       this.kicker.animator.play('plate');
       this.serve();
-    });
+    };
+    if (this.stealing?.state === 'running') this.after(0.3, () => this.resolveStealThrowdown(resume));
+    else this.after(1.0, resume);
   }
 
   // ---------- multi-runner base running ----------
@@ -697,15 +718,20 @@ export class MatchScene {
       if (chain && occupied[i]) forced[i] = true; else chain = false;
     }
 
-    // everyone on base takes off, baseball style
+    // everyone on base takes off, baseball style — a runner already STEALING
+    // when the kick lands just keeps going (his progress is real)
+    const stealer = this.stealing?.state === 'running' ? this.stealing : null;
     this.match.state.bases.forEach((occ, baseIdx) => {
       if (occ === null) return;
+      if (stealer && stealer.idx === occ) { this.runners.push(stealer); return; }
       const char = off[occ % off.length];
       char.group.visible = true;
       const r = this.makeRunner(occ, char, baseIdx);
       r.forced = forced[baseIdx];
+      r.sim.progressM = LEAD_M; // the pre-pitch lead is a real head start
       this.runners.push(r);
     });
+    this.stealing = null; // merged into the live play
     // and the kicker breaks for first (always forced)
     const kr = this.makeRunner(this.match.currentKickerIdx(), this.kicker, -1);
     kr.forced = true;
@@ -735,6 +761,150 @@ export class MatchScene {
       if (!lead || r.targetBase > lead.targetBase) lead = r;
     }
     return lead;
+  }
+
+  // ---------- lead & steal ----------
+  /** Send the runner on `baseIdx` stealing the next bag (pre-kick). */
+  startSteal(baseIdx) {
+    if (this.stealing || this.phase === 'LIVE' || this.playFinalized) return;
+    const occ = this.match.state.bases[baseIdx];
+    const char = this.baseChars?.[baseIdx];
+    if (occ === null || !char) return;
+    if (baseIdx < 2 && this.match.state.bases[baseIdx + 1] !== null) return; // next bag occupied
+    const r = this.makeRunner(occ, char, baseIdx);
+    r.forced = false;
+    r.stealing = true;
+    r.sim.progressM = LEAD_M;
+    this.stealing = r;
+    this.runners.push(r);
+    char.animator.play('run');
+    this.bus.emit('sfx', 'juke');
+    if (this.kickingIsPlayer()) this.hud.hint('STEALING ' + ['2ND', '3RD', 'HOME'][baseIdx] + '!');
+    else this.hud.call('RUNNER GOING!', 'pegged');
+  }
+
+  /** Pre-kick steal movement (during the pitch, before the ball is live). */
+  updateStealRunner(dt) {
+    const r = this.stealing;
+    if (!r || r.state !== 'running') return;
+    const rate = this.kickingIsPlayer()
+      ? Math.max(3.2, this.input.tapRate(500, performance.now())) // auto-runs; mashing helps
+      : r.aiRate;
+    r.sim.tick(dt, rate);
+    if (r.sim.arrived && this.stealResolving) {
+      r.sim.progressM = this.tuning.running.basePathM; // hold AT the bag while the throw races in
+    }
+    const { p, dir } = this.runnerWorldPos(r);
+    r.char.group.position.set(p.x, 0, p.z);
+    r.char.faceYaw = Math.atan2(dir.x, dir.z);
+    r.char.animator.ctx.speedFactor = 1;
+    if (r.sim.arrived && !this.stealResolving) this.commitStealArrival(r);
+  }
+
+  /** Stealer reached the bag before the pitch resolved — he's in clean. */
+  commitStealArrival(r) {
+    const to = r.targetBase;
+    const bases = [...this.match.state.bases];
+    bases[r.fromBase] = null;
+    this.baseChars[r.fromBase] = null;
+    if (to >= 3) {
+      this.match.applyBaseEvent({ bases, runs: 1 });
+      this.hud.call('STOLE HOME!', 'crowned');
+      this.bus.emit('sfx', 'crowd-cheer');
+      this.faceCam(r.char);
+      r.char.animator.play('dance' + (1 + Math.floor(Math.random() * 4)));
+      this.after(1.4, () => { r.char.group.visible = false; });
+    } else {
+      bases[to] = r.idx;
+      this.match.applyBaseEvent({ bases });
+      this.hud.call('STOLE ' + ['2ND', '3RD'][to - 1] + '!', 'crowned');
+      const bag = this.basePos(to);
+      const dir = this.basePos(Math.min(to + 1, 3)).clone().sub(bag).normalize();
+      r.char.group.position.copy(bag).addScaledVector(dir, LEAD_M); // settle into the next lead
+      r.char.animator.play('idle');
+      this.baseChars[to] = r.char;
+    }
+    r.state = 'done';
+    this.runners = this.runners.filter((q) => q !== r);
+    this.stealing = null;
+    this.refreshHud();
+  }
+
+  cancelSteal() {
+    const r = this.stealing;
+    if (!r) return;
+    this.runners = this.runners.filter((q) => q !== r);
+    this.stealing = null;
+  }
+
+  /**
+   * The pitch came back dead (strike/foul) with a steal in flight: the defense
+   * throws down to the bag and the race resolves. Player defense gets a quick
+   * throw window; AI defense reacts on a difficulty timer.
+   */
+  resolveStealThrowdown(done) {
+    const r = this.stealing;
+    if (!r || r.state !== 'running') { this.cancelSteal(); return done(); }
+    this.stealResolving = true;
+    const bag = this.basePos(r.targetBase);
+    const catcher = this.fieldingChars().find((c) => c.spot?.id === 'C') ?? this.fieldingChars()[0];
+    const runnerT = () =>
+      Math.max(0, this.tuning.running.basePathM - r.sim.progressM) / (this.tuning.running.maxSpeedMs * 0.85);
+    const finish = (out) => {
+      this.stealResolving = false;
+      this.hud.showThrowPad(false);
+      this.stealDefense = null;
+      if (out) {
+        const bases = [...this.match.state.bases];
+        bases[r.fromBase] = null;
+        this.baseChars[r.fromBase] = null;
+        r.state = 'done';
+        this.runners = this.runners.filter((q) => q !== r);
+        this.stealing = null;
+        r.char.animator.play('stumble');
+        this.hud.call('CAUGHT STEALING!', 'pegged');
+        this.bus.emit('sfx', 'catchpop');
+        this.bus.emit('vo', 'forced');
+        this.match.applyBaseEvent({ outsAdded: 1, bases });
+        this.refreshHud();
+        this.after(1.0, () => { r.char.group.visible = false; });
+        // that out may have ended the half (engine resets outs/bases on endHalf)
+        if (this.match.state.phase === 'GAME_END' || (this.match.state.outs === 0 && this.match.state.bases.every((b) => b === null))) {
+          this.halfJustEnded = true;
+          this.after(1.4, () => this.nextAtBat());
+          return;
+        }
+      } else if (r.state === 'running') {
+        this.commitStealArrival(r); // beat the throw — safe
+      }
+      this.after(0.8, done);
+    };
+    const throwDown = (reactionS) => {
+      const flightT = catcher.group.position.distanceTo(bag) / 20;
+      const out = reactionS + flightT < runnerT() - 0.05;
+      this.after(Math.max(0.05, reactionS), () => {
+        this.faceTo(catcher, bag);
+        catcher.animator.play('throw', {
+          onContact: () => this.ball.throwTo(bag.clone().setY(0.4), 20),
+          onDone: () => catcher.animator.play('idle'),
+        });
+      });
+      this.after(reactionS + flightT + 0.15, () => finish(out));
+    };
+    if (!this.kickingIsPlayer()) {
+      // YOU'RE the defense: quick draw — tap the bag on the throw pad
+      this.hud.hint('RUNNER GOING — THROW HIM OUT!');
+      this.hud.showThrowPad(true);
+      this.hud.highlightBestBase(r.targetBase);
+      this.stealDefense = { t0: this.elapsed, throwDown };
+      this.after(1.1, () => {
+        if (this.stealDefense) { this.stealDefense = null; finish(false); } // froze — he's in
+      });
+    } else {
+      // AI defense reacts on its difficulty clock
+      const react = this.tuning.ai[this.difficulty].fieldReactMs / 1000 + 0.15 + Math.random() * 0.2;
+      throwDown(react);
+    }
   }
 
   /** On-screen banners of what each base-runner is doing (so you know where to throw). */
@@ -829,7 +999,8 @@ export class MatchScene {
           } else {
             r.state = 'held';
             r.heldAt = r.targetBase;
-            r.advanceArmed = false; // STOP on the bag — ease off the taps + re-mash to steal on
+            r.advanceArmed = false; // STOP on the bag — ease off the taps + re-mash to take the next one
+            r.heldT = 0;
             r.decideT = 1.4; // window in which a deliberate re-mash can send you to the next bag
             r.char.group.position.copy(this.basePos(r.heldAt)).add(new THREE.Vector3(0.4, 0, 0.4));
             this.faceTo(r.char, this.basePos(Math.min(r.heldAt + 1, 3))); // poised to take the next bag
@@ -839,7 +1010,11 @@ export class MatchScene {
       } else if (r.state === 'held' && r.heldAt < 3) {
         r.decideT -= dt;
         if (this.kickingIsPlayer()) {
-          if (rate < 1.0) r.advanceArmed = true;     // eased off the gas → ready to be sent on
+          // arm the advance on an eased-off gas OR after a beat on the bag —
+          // so just KEEPING the taps going rounds the bag naturally (no more
+          // hidden ease-off-then-re-mash trick to take 2nd)
+          r.heldT = (r.heldT ?? 0) + dt;
+          if (rate < 1.0 || r.heldT > 0.35) r.advanceArmed = true;
           if (!this.ballControlled) r.decideT = 1.4; // keep the send-window open while the ball is loose
         }
         // a teammate running into my bag forces me off it — vacate or we stack
@@ -1364,6 +1539,15 @@ export class MatchScene {
 
   /** Player throw handler (HUD throw-pad). Delegates to the shared resolver. */
   onPlayerThrow({ base, peg }) {
+    // steal defense quick-draw: your reaction time IS the throw's head start
+    if (this.stealDefense) {
+      const sd = this.stealDefense;
+      this.stealDefense = null;
+      this.hud.showThrowPad(false);
+      const wrongBag = base !== undefined && base !== this.stealing?.targetBase;
+      sd.throwDown((this.elapsed - sd.t0) + (wrongBag ? 0.6 : 0)); // wrong bag costs you
+      return;
+    }
     const c = this.activeFielder;
     if (!c?.hasBall || this.throwing) return;
     this.throwBall(c, { base, peg });
@@ -1561,6 +1745,11 @@ export class MatchScene {
 
   onTap(e) {
     if (this.cinematicLock) { this.bus.emit('cine:skip'); return; }
+    // OFFENSE, pre-kick: tap one of YOUR base runners to send him stealing
+    if ((this.phase === 'PITCH' || this.phase === 'SETUP') && this.kickingIsPlayer() && !this.stealing) {
+      const b = this.pickBaseRunnerAt(e.x, e.y);
+      if (b !== null) { this.startSteal(b); return; }
+    }
     // DEFENSE: tap ANOTHER fielder to take control of them (sports-game player
     // switching); otherwise tap/drag drives your current fielder. The teal
     // marker STAYS at the ball's landing spot (where to get to).
@@ -1568,6 +1757,35 @@ export class MatchScene {
       const pick = this.pickFielderAt(e.x, e.y);
       if (pick) { this.switchChaser(pick); return; }
       this.steerFielder(e.x, e.y);
+    }
+  }
+
+  /** Which of your base runners (if any) a pre-pitch tap landed on. */
+  pickBaseRunnerAt(x, y) {
+    let best = null;
+    let bestD = 1e9;
+    for (let b = 0; b < 3; b++) {
+      const c = this.baseChars?.[b];
+      if (!c) continue;
+      if (b < 2 && this.match.state.bases[b + 1] !== null) continue; // nowhere to go
+      const s = this.worldToScreen(c.group.position);
+      if (!s) continue;
+      const d = Math.hypot(s.x - x, s.y - y);
+      if (d < bestD) { bestD = d; best = b; }
+    }
+    return bestD < 54 ? best : null;
+  }
+
+  /** AI offense sometimes sends a runner on the pitch (difficulty-scaled). */
+  maybeAiSteal() {
+    if (this.kickingIsPlayer() || this.stealing || this.playFinalized) return;
+    const prob = { Rookie: 0.05, Street: 0.1, King: 0.16 }[this.difficulty] ?? 0.1;
+    if (Math.random() > prob) return;
+    for (const b of [0, 1]) { // AI steals 2nd/3rd, never home
+      if (this.match.state.bases[b] !== null && this.match.state.bases[b + 1] === null) {
+        this.startSteal(b);
+        return;
+      }
     }
   }
 
@@ -1814,6 +2032,8 @@ export class MatchScene {
 
     if (this.phase === 'LIVE' || this.phase === 'RESOLVE') {
       this.updateRunners(dt);
+    } else if (this.stealing) {
+      this.updateStealRunner(dt); // pre-kick steal keeps moving during the pitch
     }
     if (this.phase === 'LIVE') {
       this.updateDefense(dt);
