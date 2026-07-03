@@ -21,12 +21,12 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.4024,
-        "ry": 0.5926
+        "oy": 0.31,
+        "ry": 0.685
       },
       "backdropGeo": {
         "r": 68,
-        "h": 51.1,
+        "h": 59.1,
         "bottom": -0.5
       },
       "status": "ready",
@@ -48,12 +48,12 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.4472,
-        "ry": 0.5478
+        "oy": 0.44,
+        "ry": 0.555
       },
       "backdropGeo": {
         "r": 66,
-        "h": 51.9,
+        "h": 52.6,
         "bottom": -0.5
       },
       "status": "ready",
@@ -74,12 +74,12 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.3878,
-        "ry": 0.6072
+        "oy": 0.365,
+        "ry": 0.63
       },
       "backdropGeo": {
         "r": 62,
-        "h": 57.1,
+        "h": 59.2,
         "bottom": -0.5
       },
       "status": "ready",
@@ -100,12 +100,12 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.4488,
-        "ry": 0.5462
+        "oy": 0.54,
+        "ry": 0.455
       },
       "backdropGeo": {
         "r": 64,
-        "h": 48.9,
+        "h": 40.7,
         "bottom": -0.5
       },
       "status": "ready",
@@ -126,12 +126,12 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.4514,
-        "ry": 0.5436
+        "oy": 0.43,
+        "ry": 0.565
       },
       "backdropGeo": {
         "r": 65,
-        "h": 51.1,
+        "h": 53.1,
         "bottom": -0.5
       },
       "status": "ready",
@@ -152,12 +152,12 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.4443,
-        "ry": 0.5507
+        "oy": 0.31,
+        "ry": 0.685
       },
       "backdropGeo": {
         "r": 63,
-        "h": 47.7,
+        "h": 59.3,
         "bottom": -0.5
       },
       "status": "ready",
@@ -178,12 +178,12 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.4627,
-        "ry": 0.5323
+        "oy": 0.36,
+        "ry": 0.635
       },
       "backdropGeo": {
         "r": 67,
-        "h": 52.1,
+        "h": 62.2,
         "bottom": -0.5
       },
       "status": "ready",
@@ -204,12 +204,12 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.4329,
-        "ry": 0.5621
+        "oy": 0.38,
+        "ry": 0.615
       },
       "backdropGeo": {
         "r": 64,
-        "h": 48.8,
+        "h": 53.4,
         "bottom": -0.5
       },
       "status": "ready",
@@ -230,12 +230,12 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.4455,
-        "ry": 0.5495
+        "oy": 0.42,
+        "ry": 0.575
       },
       "backdropGeo": {
         "r": 68,
-        "h": 52.9,
+        "h": 55.4,
         "bottom": -0.5
       },
       "status": "ready",
@@ -256,12 +256,12 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.4401,
-        "ry": 0.5549
+        "oy": 0.33,
+        "ry": 0.665
       },
       "backdropGeo": {
         "r": 66,
-        "h": 49.5,
+        "h": 59.3,
         "bottom": -0.5
       },
       "status": "ready",
