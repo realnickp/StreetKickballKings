@@ -97,11 +97,12 @@ export class ReplayPlayer {
     this.hud = hud;
     this.bus = bus;
     this.active = null;
-    bus.on?.('cine:skip', () => this.finish());
+    // a user tap can't skip noSkip replays (home runs play out in full)
+    bus.on?.('cine:skip', () => { if (!this.active?.noSkip) this.finish(); });
     engine.onFrame((dt, rawDt) => this.update(rawDt));
   }
 
-  play({ clip, chars, ball, focusIndex = 0, banner, bannerKind, vo, sound, speed = 0.4, onDone }) {
+  play({ clip, chars, ball, focusIndex = 0, banner, bannerKind, vo, sound, speed = 0.4, onDone, noSkip = false }) {
     if (!clip) { onDone?.(); return; }
     // snapshot the LIVE state so the world resumes exactly where it was
     const rec = new ReplayRecorder({ seconds: 1, hz: 240 });
@@ -119,7 +120,7 @@ export class ReplayPlayer {
 
     const prevFov = this.engine.camera.fov;
     this.active = {
-      clip, chars, ball, focusIndex, speed, onDone, liveSnapshot, prevFov,
+      clip, chars, ball, focusIndex, speed, onDone, liveSnapshot, prevFov, noSkip,
       t: clip[0].t, end: clip[clip.length - 1].t,
       bonesPerChar: chars.map((c) => { const b = []; c.group.traverse((o) => { if (o.isBone) b.push(o); }); return b; }),
     };
