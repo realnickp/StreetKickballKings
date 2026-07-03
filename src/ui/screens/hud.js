@@ -42,6 +42,7 @@ export class Hud {
         <button class="t-peg" data-peg><span>PEG</span></button>
       </div>
       <div class="special-btn"><div class="core">👑</div></div>
+      <button class="go-btn"><span></span></button>
     `;
     root.appendChild(this.el);
 
@@ -90,10 +91,18 @@ export class Hud {
     this.patStart = this.patternPad.querySelector('.pat-start');
     this.patEnd = this.patternPad.querySelector('.pat-end');
 
+    this.goBtn = this.el.querySelector('.go-btn');
+
     this.onAim = null;
     this.onThrow = null;
     this.onSpecial = null;
     this.onPitchSelect = null;
+    this.onGo = null;
+
+    this.goBtn.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      this.onGo?.();
+    });
 
     this.pitchSelect.addEventListener('pointerdown', (e) => {
       const btn = e.target.closest('button');
@@ -182,6 +191,16 @@ export class Hud {
     }
     this.hintEl.textContent = text;
     this.hintEl.classList.add('show');
+  }
+
+  /** "GO FOR 2!" send prompt for a held runner. risky = amber (a live pickle bet). */
+  showGo(label, risky = false) {
+    this.goBtn.querySelector('span').textContent = label;
+    this.goBtn.classList.toggle('risky', !!risky);
+    this.goBtn.classList.add('show');
+  }
+  hideGo() {
+    this.goBtn.classList.remove('show', 'risky');
   }
 
   showThrowPad(show) {

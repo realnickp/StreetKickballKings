@@ -262,6 +262,33 @@ body { display: flex; align-items: center; justify-content: center; }
 }
 .throw-pad .t-peg span { transform: none; }
 
+/* GO FOR 2! — send prompt for a held runner when the extra base is live.
+   Teal = clean take; amber (.risky) = tight race, pickle territory. */
+.go-btn {
+  pointer-events: auto;
+  position: absolute;
+  bottom: calc(104px + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 13px 30px;
+  border-radius: 999px;
+  border: 3px solid var(--teal);
+  background: rgba(18,21,30,.93);
+  color: var(--ink);
+  font-family: var(--marker);
+  font-size: 24px;
+  letter-spacing: 1px;
+  box-shadow: 0 0 18px rgba(62,198,181,.6);
+  display: none;
+  animation: goPulse 0.55s ease-in-out infinite;
+}
+.go-btn.show { display: block; }
+.go-btn.risky { border-color: var(--gold); box-shadow: 0 0 22px rgba(245,179,18,.85); }
+@keyframes goPulse {
+  0%, 100% { transform: translateX(-50%) scale(1); }
+  50% { transform: translateX(-50%) scale(1.09); }
+}
+
 /* PITCH role: 5-pitch picker */
 .pitch-select {
   position: absolute;
