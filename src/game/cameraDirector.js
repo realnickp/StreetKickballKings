@@ -44,6 +44,17 @@ export const SHOTS = {
     };
   },
 
+  // a run is coming IN: low cam beside the plate looking up the third-base
+  // line at the incoming runner — the kicker SEES his runs score (dev call)
+  homeStretch: (c) => {
+    const r = c.homeRunnerPos ?? V(-11.3, 0, -11.3);
+    return {
+      pos: V(4.2, 1.8, 2.6),
+      look: V(r.x * 0.45, 1.0, r.z * 0.45),
+      fovScale: 0.8, stiffness: 14,
+    };
+  },
+
   // defense: frame your fielder + the ball (legacy live framing, spring-damped)
   defense: (c) => {
     const a = c.activeFielderPos ?? V(0, 0, -14);

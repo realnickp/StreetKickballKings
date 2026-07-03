@@ -43,6 +43,7 @@ export class Hud {
       </div>
       <div class="special-btn"><div class="core">👑</div></div>
       <button class="go-btn"><span></span></button>
+      <button class="slide-btn"><span>SLIDE!</span></button>
     `;
     root.appendChild(this.el);
 
@@ -92,16 +93,22 @@ export class Hud {
     this.patEnd = this.patternPad.querySelector('.pat-end');
 
     this.goBtn = this.el.querySelector('.go-btn');
+    this.slideBtn = this.el.querySelector('.slide-btn');
 
     this.onAim = null;
     this.onThrow = null;
     this.onSpecial = null;
     this.onPitchSelect = null;
     this.onGo = null;
+    this.onSlide = null;
 
     this.goBtn.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
       this.onGo?.();
+    });
+    this.slideBtn.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      this.onSlide?.();
     });
 
     this.pitchSelect.addEventListener('pointerdown', (e) => {
@@ -202,6 +209,10 @@ export class Hud {
   hideGo() {
     this.goBtn.classList.remove('show', 'risky');
   }
+
+  /** SLIDE! dive prompt — shows in a pickle when the runner closes on a bag. */
+  showSlide() { this.slideBtn.classList.add('show'); }
+  hideSlide() { this.slideBtn.classList.remove('show'); }
 
   showThrowPad(show) {
     this.throwPad.classList.toggle('show', show);
