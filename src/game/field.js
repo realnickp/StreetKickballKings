@@ -289,7 +289,9 @@ export function buildField(fieldData, scene) {
 
   let skyCap = null;
   if (handles.backdropR && !fieldData.textures?.sky) {
-    const capH = 220;
+    // City scenes carry a real outpainted sky band sized in meters; legacy fan
+    // backdrops keep the tall gradient cap.
+    const capH = fieldData.backdropSkyH ?? 220;
     skyCap = new THREE.Mesh(
       new THREE.CylinderGeometry(handles.backdropR + 0.4, handles.backdropR + 0.4, capH, 64, 1, true, 0, Math.PI * 2),
       new THREE.MeshBasicMaterial({ map: skyMap, side: THREE.BackSide, fog: false }),
@@ -298,53 +300,30 @@ export function buildField(fieldData, scene) {
     root.add(skyCap);
     handles.skyCap = skyCap;
 
-    // City scenes: a flat gradient cap above the (now short, true-scale) scene
-    // ring read as a busted ceiling, and stretching a texture band up the cap
-    // smeared cloud detail into vertical streaks. Instead: PER-COLUMN gradient
-    // — each cap column starts at the exact color of the scene's sky where the
-    // ring ends and fades to the sky's mean color. Continuous at the join,
-    // structureless above it, works for any sky (storm, dusk, neon night).
-    if (fieldData.backdropWindow && fieldData.textures?.backdrop) {
-      const w = fieldData.backdropWindow;
-      const img = new Image();
-      img.onload = () => {
+    // City scenes: the cap shows the REAL outpainted continuation of the
+    // scene's own sky (generated clouds, full width, same mirror phase), so
+    // the video ring below and the sky above are one painting. The far dome
+    // above the cap takes the sky image's top-strip mean so nothing bands.
+    if (fieldData.backdropSkyTex) {
+      new THREE.TextureLoader().load(fieldData.backdropSkyTex, (t) => {
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.wrapS = THREE.MirroredRepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
+        t.repeat.set(fieldData.backdropRepeat ?? 4, 1);
+        t.offset.x = 0.5; // same mirror phase as the scene ring below
+        skyCap.material.map = t;
+        skyCap.material.needsUpdate = true;
         try {
-          const cols = 256;
-          const topV = (w.oy ?? 0.18) + (w.ry ?? 0.82); // window top, v from image bottom
-          const bandTopPx = Math.max(0, Math.floor(img.height * (1 - topV) + img.height * 0.01));
-          const bandH = Math.max(2, Math.floor(img.height * 0.04));
-          const sc = document.createElement('canvas'); sc.width = cols; sc.height = 1;
-          const sg = sc.getContext('2d');
-          sg.drawImage(img, 0, bandTopPx, img.width, bandH, 0, 0, cols, 1);
-          const row = sg.getImageData(0, 0, cols, 1).data;
-          let mr = 0, mg = 0, mb = 0;
-          for (let i = 0; i < cols; i++) { mr += row[i * 4]; mg += row[i * 4 + 1]; mb += row[i * 4 + 2]; }
-          mr /= cols; mg /= cols; mb /= cols;
-          const cv = document.createElement('canvas'); cv.width = cols; cv.height = 128;
+          const img = t.image;
+          const cv = document.createElement('canvas'); cv.width = 16; cv.height = 4;
           const g = cv.getContext('2d');
-          for (let x = 0; x < cols; x++) {
-            const grad = g.createLinearGradient(0, 128, 0, 0);
-            // cameras only ever see the bottom ~15% of the tall cap, so the
-            // per-column color must dissolve into the mean almost immediately
-            grad.addColorStop(0, `rgb(${row[x * 4]},${row[x * 4 + 1]},${row[x * 4 + 2]})`);
-            grad.addColorStop(0.08, `rgb(${Math.round(mr)},${Math.round(mg)},${Math.round(mb)})`);
-            grad.addColorStop(1, `rgb(${Math.round(mr)},${Math.round(mg)},${Math.round(mb)})`);
-            g.fillStyle = grad;
-            g.fillRect(x, 0, 1, 128);
-          }
-          const t = new THREE.CanvasTexture(cv);
-          t.colorSpace = THREE.SRGBColorSpace;
-          t.wrapS = THREE.MirroredRepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
-          t.repeat.set(fieldData.backdropRepeat ?? 4, 1);
-          t.offset.x = 0.5; // same mirror phase as the scene ring below
-          skyCap.material.map = t;
-          skyCap.material.needsUpdate = true;
-          // the far dome above the cap gets the same mean so nothing bands
-          sky.material.map = makeDomeGradient(Math.round(mr), Math.round(mg), Math.round(mb));
+          g.drawImage(img, 0, 0, img.width, Math.max(1, Math.floor(img.height * 0.06)), 0, 0, 16, 4);
+          const dd = g.getImageData(0, 0, 16, 4).data;
+          let mr = 0, mg = 0, mb = 0, n = 0;
+          for (let i = 0; i < dd.length; i += 4) { mr += dd[i]; mg += dd[i + 1]; mb += dd[i + 2]; n++; }
+          sky.material.map = makeDomeGradient(Math.round(mr / n), Math.round(mg / n), Math.round(mb / n));
           sky.material.needsUpdate = true;
-        } catch { /* keep the gradient cap */ }
-      };
-      img.src = fieldData.textures.backdrop;
+        } catch { /* gradient dome stays */ }
+      });
     }
   }
 

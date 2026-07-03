@@ -30,7 +30,9 @@
         "bottom": 0.5
       },
       "status": "ready",
-      "world3d": false
+      "world3d": false,
+      "backdropSkyTex": "assets/textures/sky-blacktop.jpg",
+      "backdropSkyH": 33.5
     },
     {
       "id": "subway-yard",
@@ -54,7 +56,9 @@
         "h": 25,
         "bottom": 0.5
       },
-      "status": "ready"
+      "status": "ready",
+      "backdropSkyTex": "assets/textures/sky-subway-yard.jpg",
+      "backdropSkyH": 35.3
     },
     {
       "id": "block-party",
@@ -78,7 +82,9 @@
         "h": 23,
         "bottom": 0.5
       },
-      "status": "ready"
+      "status": "ready",
+      "backdropSkyTex": "assets/textures/sky-block-party.jpg",
+      "backdropSkyH": 30.7
     },
     {
       "id": "neon-night-court",
@@ -102,7 +108,9 @@
         "h": 24,
         "bottom": 0.5
       },
-      "status": "ready"
+      "status": "ready",
+      "backdropSkyTex": "assets/textures/sky-neon-night-court.jpg",
+      "backdropSkyH": 33.4
     },
     {
       "id": "boardwalk-kings",
@@ -126,7 +134,9 @@
         "h": 24,
         "bottom": 0.5
       },
-      "status": "ready"
+      "status": "ready",
+      "backdropSkyTex": "assets/textures/sky-boardwalk-kings.jpg",
+      "backdropSkyH": 35.0
     },
     {
       "id": "the-underpass",
@@ -150,7 +160,9 @@
         "h": 25,
         "bottom": 0.5
       },
-      "status": "ready"
+      "status": "ready",
+      "backdropSkyTex": "assets/textures/sky-the-underpass.jpg",
+      "backdropSkyH": 32.3
     },
     {
       "id": "rubber-yard",
@@ -174,7 +186,9 @@
         "h": 25,
         "bottom": 0.5
       },
-      "status": "ready"
+      "status": "ready",
+      "backdropSkyTex": "assets/textures/sky-rubber-yard.jpg",
+      "backdropSkyH": 36.4
     },
     {
       "id": "winter-classic",
@@ -198,7 +212,9 @@
         "h": 24,
         "bottom": 0.5
       },
-      "status": "ready"
+      "status": "ready",
+      "backdropSkyTex": "assets/textures/sky-winter-classic.jpg",
+      "backdropSkyH": 32.4
     },
     {
       "id": "scorchyard",
@@ -222,7 +238,9 @@
         "h": 25,
         "bottom": 0.5
       },
-      "status": "ready"
+      "status": "ready",
+      "backdropSkyTex": "assets/textures/sky-scorchyard.jpg",
+      "backdropSkyH": 35.9
     },
     {
       "id": "the-crown",
@@ -246,7 +264,9 @@
         "h": 25,
         "bottom": 0.5
       },
-      "status": "ready"
+      "status": "ready",
+      "backdropSkyTex": "assets/textures/sky-the-crown.jpg",
+      "backdropSkyH": 33.3
     }
   ]
 }
