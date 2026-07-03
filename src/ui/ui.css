@@ -289,6 +289,27 @@ body { display: flex; align-items: center; justify-content: center; }
   50% { transform: translateX(-50%) scale(1.09); }
 }
 
+/* SLIDE! — pickle dive prompt; red urgency, sits above the GO slot */
+.slide-btn {
+  pointer-events: auto;
+  position: absolute;
+  bottom: calc(172px + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 13px 34px;
+  border-radius: 999px;
+  border: 3px solid var(--red);
+  background: radial-gradient(circle at 35% 30%, #ff5e72, var(--red));
+  color: #fff;
+  font-family: var(--marker);
+  font-size: 26px;
+  letter-spacing: 1px;
+  box-shadow: 0 0 20px rgba(215,38,61,.8);
+  display: none;
+  animation: goPulse 0.4s ease-in-out infinite;
+}
+.slide-btn.show { display: block; }
+
 /* PITCH role: 5-pitch picker */
 .pitch-select {
   position: absolute;

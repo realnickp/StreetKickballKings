@@ -56,9 +56,10 @@ export function kickerStrideAnim(vxSigned) {
 }
 
 /** Which broadcast shot covers the live situation. Pure — unit-tested. */
-export function chooseLiveShot({ phase, kickingIsPlayer, trailBall, deepBall }) {
+export function chooseLiveShot({ phase, kickingIsPlayer, trailBall, deepBall, runnerHome }) {
   if (phase === 'FOUL') return 'foulTrail';
   if (kickingIsPlayer && trailBall) return deepBall ? 'crane' : 'ballFlight';
+  if (kickingIsPlayer && runnerHome) return 'homeStretch'; // a run is coming in — show it
   if (kickingIsPlayer) return 'runners';
   return 'defense';
 }
@@ -162,6 +163,7 @@ export class MatchScene {
     this.hud.onPitchSelect = (id) => this.onPitchSelect(id);
     this.hud.onThrow = (t) => this.onPlayerThrow(t);
     this.hud.onGo = () => this.sendHeldRunner();
+    this.hud.onSlide = () => this.doSlide();
     this.hud.onSpecial = () => {
       if (this.special.ready && this.kickingIsPlayer()) {
         this.specialArmed = true;
@@ -244,6 +246,7 @@ export class MatchScene {
   /** plain-object context the CameraDirector shots read */
   camCtx() {
     const lead = this.leadRunner?.() ?? this.runners.find((r) => r.state === 'held');
+    const homeR = this.runners.find((r) => r.state === 'running' && r.targetBase === 3);
     return {
       ball: this.ball,
       kickerPos: this.kicker?.group.position,
@@ -251,6 +254,7 @@ export class MatchScene {
       // the bag the lead runner is going for — the runners shot keeps it in frame
       targetBasePos: lead && lead.targetBase >= 0 ? this.basePos(Math.min(lead.targetBase, 3)) : FIELD_LAYOUT.first,
       activeFielderPos: (this.activeFielder ?? this.chaser ?? this.kicker)?.group.position,
+      homeRunnerPos: homeR ? this.runnerWorldPos(homeR).p : null,
     };
   }
 
@@ -344,6 +348,8 @@ export class MatchScene {
     this.stealResolving = false;
     this.goOffer = null;
     this.hud.hideGo();
+    this.pickle = null;
+    this.hud.hideSlide();
     this.match.state.bases.forEach((occ, i) => {
       if (occ === null) return;
       const c = off[occ % off.length];
@@ -1017,13 +1023,43 @@ export class MatchScene {
         if (r.state !== 'running') continue;
         const dx = r.char.group.position.x - holder.group.position.x;
         const dz = r.char.group.position.z - holder.group.position.z;
-        if (dx * dx + dz * dz < TAG2) this.runnerOut(r, 'tag');
+        const d2 = dx * dx + dz * dz;
+        if (d2 >= TAG2) continue;
+        const P = this.pickle?.r === r ? this.pickle : null;
+        if (P) {
+          if (P.tagCd > 0) continue; // tagger is still stumbling
+          if (P.spinT > 0) {
+            // SPIN MOVE — the lunge whiffs, tagger stumbles, you get separation
+            if (!P.dodged) {
+              P.dodged = true;
+              P.tagCd = 0.9;
+              holder.animator.play('stumble');
+              this.bus.emit('sfx', 'dodge');
+              this.hud.call('SPIN MOVE!', 'crowned');
+            }
+            continue;
+          }
+          if (P.sliding && d2 > 0.55) continue; // sliding low under the tag
+        }
+        this.runnerOut(r, 'tag');
       }
     }
 
     for (const r of this.runners) {
       if (r.state === 'running') {
-        const useRate = isPlayerOffense ? rate : r.aiRate;
+        // AI runner in a PLAYER-DEFENSE rundown: work the pickle — reverse and
+        // juke on a timer so the defender has to time the throw
+        if (!isPlayerOffense && r.aiPickleFlips > 0 && this.defenseHasBall) {
+          r.aiPickleRev -= dt;
+          if (r.aiPickleRev <= 0) {
+            r.aiPickleFlips -= 1;
+            r.aiPickleRev = 0.7 + Math.random() * 0.6;
+            this.retreatRunner(r);
+            if (Math.random() < 0.5) r.sim.juke(Math.random() < 0.5 ? 'left' : 'right');
+          }
+        }
+        const sliding = this.pickle?.r === r && this.pickle.sliding;
+        const useRate = sliding ? 12 : (isPlayerOffense ? rate : r.aiRate);
         // A human who stops tapping can hover between bags while the ball is loose
         // (that's strategic). But once the defense SECURES the ball, a stalled
         // runner must commit to a bag — otherwise the play can never end.
@@ -1131,6 +1167,7 @@ export class MatchScene {
     this.hud.setRunnerAlerts([]); // play's over — clear the runner banners
     this.goOffer = null;
     this.hud.hideGo();
+    if (this.pickle) { this.pickle = null; this.hud.hideSlide(); }
 
     // nobody jogs in place once the play is dead — settle every defender
     // (updateDefense stops outside LIVE, so a looping run clip would stick)
@@ -1496,7 +1533,9 @@ export class MatchScene {
     r.char.animator.play('run');
   }
 
-  /** Rundown: the runner reverses, the fielder at the base grabs it, you peg him. */
+  /** Rundown: the runner reverses, the fielder at the base grabs it, you peg him.
+   *  PLAYER OFFENSE: this becomes the PICKLE mini-game — back and forth, juking
+   *  and spinning, until you're tagged/pegged or you slide onto a bag. */
   startRundown(runner, ballBase) {
     this.retreatRunner(runner);
     const catcher = this.coverFielderAt(ballBase) ?? this.nearestFielderTo(this.basePos(ballBase));
@@ -1512,19 +1551,129 @@ export class MatchScene {
     this.hud.stamp('PICKLE!', 'robbed');
     this.bus.emit('vo', 'pickle');
     if (this.playerControlled) {
+      // PLAYER DEFENSE: the AI runner works the pickle — reverses and jukes so
+      // you have to TIME your throws, not just spam a peg
+      runner.aiPickleFlips = this.difficulty === 'King' ? 4 : 3;
+      runner.aiPickleRev = 0.7 + Math.random() * 0.6;
       this.hud.hint('RUNDOWN! PEG HIM!');
       this.hud.showThrowPad(true);
       this.hud.highlightBestBase(null);
       this.showBaseRings(true);
       this.after(6, () => { if (!this.playFinalized && !this.throwing) this.ballControlled = true; });
+    } else if (this.kickingIsPlayer()) {
+      this.startPickle(runner); // YOUR runner is trapped — mini-game on
     } else if (catcher) {
       this.after(0.5, () => { if (catcher.hasBall && !this.playFinalized) this.throwBall(catcher, { peg: true }); });
+    }
+  }
+
+  // ---------- PICKLE mini-game (your runner is trapped) ----------
+  /** Controls: TAP = reverse direction • SWIPE left/right = juke • SWIPE UP =
+   *  spin move (dodges a tag, stumbles the tagger) • SLIDE! button near a bag.
+   *  The defense chases you down and relays the ball ahead of you. */
+  startPickle(r) {
+    this.pickle = { r, spinT: 0, spinCd: 0, sliding: false, slideShown: false, dodged: false, tagCd: 0, decideT: 0.8, throwsLeft: 4 };
+    r.sim.human = false; // auto-trot — tapping still adds speed, but no mash needed
+    this.hud.hint('PICKLE! TAP = REVERSE • SWIPE UP = SPIN • SLIDE AT THE BAG');
+  }
+
+  updatePickle(dt) {
+    const P = this.pickle;
+    const r = P.r;
+    if (r.state !== 'running' || this.playFinalized) {
+      // 'scored' has its own SAFE AT HOME! call — don't stack banners
+      return this.endPickle(r.state === 'held');
+    }
+    P.spinT = Math.max(0, P.spinT - dt);
+    P.spinCd = Math.max(0, P.spinCd - dt);
+    P.tagCd = Math.max(0, P.tagCd - dt);
+    if (P.spinT > 0) r.char.group.rotation.y += dt * 16; // the whirl
+
+    // SLIDE! offer when he's closing on the bag ahead
+    const remaining = this.tuning.running.basePathM - r.sim.progressM;
+    const showSlide = !P.sliding && remaining < 5.2;
+    if (showSlide !== P.slideShown) {
+      P.slideShown = showSlide;
+      showSlide ? this.hud.showSlide() : this.hud.hideSlide();
+    }
+
+    // the ball-carrier hunts you down (updateDefense skips holders — we own him)
+    const holder = this.fieldingChars().find((c) => c.hasBall);
+    if (holder && !this.throwing) {
+      const rp = this.runnerWorldPos(r).p;
+      const hp = holder.group.position;
+      const d = hp.distanceTo(rp);
+      if (d > 1.05) {
+        const spd = this.tuning.running.maxSpeedMs * (P.tagCd > 0 ? 0.35 : 0.82); // stumbled = slowed
+        const dir = rp.clone().sub(hp).setY(0);
+        dir.normalize();
+        hp.addScaledVector(dir, spd * dt);
+        holder.faceYaw = Math.atan2(dir.x, dir.z);
+        if (holder.animator.name !== 'run' && holder.animator.name !== 'stumble') holder.animator.play('run');
+      } else if (holder.animator.name === 'run') {
+        holder.animator.play('holdball');
+      }
+      // pulling away toward a bag → relay AHEAD of you to tighten the trap
+      P.decideT -= dt;
+      if (P.decideT <= 0) {
+        P.decideT = { Rookie: 1.05, Street: 0.8, King: 0.6 }[this.difficulty] ?? 0.8;
+        if (d > 4.5 && P.throwsLeft > 0 && !P.sliding) {
+          P.throwsLeft -= 1;
+          this.throwBall(holder, { base: r.targetBase });
+        }
+      }
+    }
+  }
+
+  /** Tap during the pickle: reverse direction (back and forth is the game). */
+  pickleReverse() {
+    const P = this.pickle;
+    if (!P || P.sliding || P.r.state !== 'running' || P.r.fromBase < 0) return;
+    this.retreatRunner(P.r);
+    P.r.sim.human = false; // keep the auto-trot through the reverse
+    this.bus.emit('sfx', 'juke');
+  }
+
+  /** Swipe up during the pickle: spin move — brief i-frames; a tagger caught
+   *  mid-lunge stumbles and you get separation. */
+  pickleSpin() {
+    const P = this.pickle;
+    if (!P || P.sliding || P.spinCd > 0) return;
+    P.spinT = 0.5;
+    P.spinCd = 1.7;
+    P.dodged = false;
+    this.bus.emit('sfx', 'juke');
+  }
+
+  /** SLIDE! — commit: full burst at the bag, low to the ground, no turning back. */
+  doSlide() {
+    const P = this.pickle;
+    if (!P || P.sliding || P.r.state !== 'running') return;
+    P.sliding = true;
+    P.slideShown = false;
+    this.hud.hideSlide();
+    P.r.sim.jukeCooldown = 1e9; // committed
+    P.r.char.animator.play('slide');
+    this.bus.emit('sfx', 'juke');
+    this.hud.call('SLIDE!', 'crowned');
+  }
+
+  endPickle(safe) {
+    const P = this.pickle;
+    if (!P) return;
+    this.pickle = null;
+    this.hud.hideSlide();
+    this.hud.hint('');
+    if (safe) {
+      this.bus.emit('sfx', 'crowd-cheer');
+      this.hud.call('SAFE!', 'crowned');
     }
   }
 
   /** What the AI does with the ball: force out → cut off the lead runner → peg. */
   aiThrowDecision(fielder) {
     if (!fielder.hasBall || this.playFinalized || this.phase === 'RESOLVE') return;
+    if (this.pickle) return; // the pickle mini-game owns the defense (updatePickle)
     // 1) a force out is available → fire to the recommended bag (lead force
     //    under 2 outs; the EASIEST out with 2 outs)
     const forcedBase = this.recommendedThrowBase(fielder);
@@ -1709,7 +1858,14 @@ export class MatchScene {
         this.runnerOut(victim, 'forced');
         if (!this.tryDoublePlay(base)) this.afterThrow(); // turn two, or keep chasing the next runner
       } else if (caught && live && !victim.forced) {
-        this.startRundown(victim, base); // can't force him — trap him in a pickle
+        if (this.pickle?.r === victim) {
+          // pickle relay landed AHEAD of you — the bag man is the tagger now.
+          // No auto-reverse: which way you break is YOUR call.
+          this.chaser = receiver;
+          this.defenseHasBall = true;
+        } else {
+          this.startRundown(victim, base); // can't force him — trap him in a pickle
+        }
       } else if (!caught) {
         // nobody covering — the throw sails to an empty bag: runner's safe, ball loose
         this.ball.place(basePt.clone().setY(0.3));
@@ -1790,9 +1946,14 @@ export class MatchScene {
       this.attemptKick({ align: true }, this.elapsed);
       return;
     }
-    // juke while running (left/right only)
+    // PICKLE: swipe up = spin move (i-frames — dodge the tag)
+    if (this.pickle && this.kickingIsPlayer() && e.dir === 'up') {
+      this.pickleSpin();
+      return;
+    }
+    // juke while running (left/right only); in a pickle it's YOUR trapped runner
     if (this.phase === 'LIVE' && this.kickingIsPlayer() && (e.dir === 'left' || e.dir === 'right')) {
-      const lead = this.leadRunner();
+      const lead = this.pickle?.r ?? this.leadRunner();
       if (lead && lead.sim.juke(e.dir)) this.bus.emit('sfx', 'juke');
     }
   }
@@ -1808,6 +1969,8 @@ export class MatchScene {
 
   onTap(e) {
     if (this.cinematicLock) { this.bus.emit('cine:skip'); return; }
+    // PICKLE: tap = reverse direction (the back-and-forth IS the game)
+    if (this.pickle && this.kickingIsPlayer()) { this.pickleReverse(); return; }
     // OFFENSE, pre-kick: tap one of YOUR base runners to send him stealing
     if ((this.phase === 'PITCH' || this.phase === 'SETUP') && this.kickingIsPlayer() && !this.stealing) {
       const b = this.pickBaseRunnerAt(e.x, e.y);
@@ -2095,6 +2258,7 @@ export class MatchScene {
 
     if (this.phase === 'LIVE' || this.phase === 'RESOLVE') {
       this.updateRunners(dt);
+      if (this.pickle) this.updatePickle(dt);
     } else if (this.stealing) {
       this.updateStealRunner(dt); // pre-kick steal keeps moving during the pitch
     }
@@ -2125,6 +2289,7 @@ export class MatchScene {
           kickingIsPlayer: this.kickingIsPlayer(),
           trailBall,
           deepBall: dist > this.fenceM * 0.55,
+          runnerHome: this.runners.some((r) => r.state === 'running' && r.targetBase === 3),
         }), this.camCtx());
       } else if (this.camTarget === CAM.pitch) {
         this.camDir.request('pitchSelect', this.camCtx());
