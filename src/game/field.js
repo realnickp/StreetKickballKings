@@ -277,7 +277,17 @@ export function buildField(fieldData, scene) {
       const matBack = new THREE.MeshBasicMaterial({ side: THREE.BackSide, fog: false, color: '#0f1420' });
       if (fieldData.textures?.backdrop) {
         new THREE.TextureLoader().load(fieldData.textures.backdrop, (t) => {
-          tuneTex(t, 0.5); // edge content faces home — a different block
+          // The home half centers on the painting's RIGHT-side region (beach /
+          // Capitol / warehouse end) — real asymmetric content, NOT a mirror
+          // twin (a centered mirror boundary kaleidoscoped every asymmetric
+          // scene). 2 tiles per π keeps the mirror joints out on the foul
+          // lines and just off the pitch camera's framing.
+          const bk = fieldData.backdropBack ?? {};
+          t.colorSpace = THREE.SRGBColorSpace;
+          t.wrapS = THREE.MirroredRepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
+          const w = fieldData.backdropWindow ?? {};
+          t.repeat.set(bk.tiles ?? 2, bk.ry ?? w.ry ?? 0.82);
+          t.offset.set(bk.offX ?? 0.25, bk.oy ?? w.oy ?? 0.18);
           matBack.map = t;
           matBack.color.set('#ffffff');
           matBack.needsUpdate = true;
