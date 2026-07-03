@@ -191,48 +191,42 @@ export function buildField(fieldData, scene) {
       t.repeat.set(splitRing ? rx / 2 : rx, w.ry ?? 0.82); t.offset.y = w.oy ?? 0.18;
       if (splitRing) t.offset.x = offX;
     };
-    // WEBKIT/iOS RULE: never construct a material with a texture that hasn't
-    // finished loading — WebKit compiles the program against the empty texture
-    // and renders it BLACK forever (Chrome recovers; Safari doesn't). Assign
-    // the map in the load callback instead, then the poster shows on every
-    // browser and the video swaps in on top once it actually plays.
-    const mat = new THREE.MeshBasicMaterial({ side: THREE.BackSide, fog: false, color: '#0f1420' });
-    // Full-bright: the sky dome + cap sample this image's top pixels at full brightness,
-    // so dimming the material here desynced the join and showed a hard sky seam.
-    let posterTex = null;
-    if (fieldData.textures?.backdrop) {
-      new THREE.TextureLoader().load(fieldData.textures.backdrop, (t) => {
-        tuneTex(t);
-        posterTex = t;
-        if (mat.map?.isVideoTexture) return; // video already took over
-        mat.map = t;
-        mat.color.set('#ffffff');
-        mat.needsUpdate = true;
-      });
-    }
-    if (fieldData.textures?.backdropVideo) {
+    // WEBKIT/iOS RULES (learned the hard way, keep both):
+    // 1) never construct a material with a still-loading texture — WebKit
+    //    compiles against the empty texture and renders BLACK forever.
+    // 2) never trust the video element's own signals — 'playing' fires with a
+    //    dead decoder, dimensions flap, even rVFC fires for all-black frames.
+    //    Two presented frames + a real-pixel watchdog, else the poster stays.
+    // Full-bright materials: the sky dome + cap sample these images' top pixels
+    // at full brightness, so dimming here desyncs the sky join.
+    const buildBackdropMat = (texUrl, videoUrl, tune) => {
+      const bmat = new THREE.MeshBasicMaterial({ side: THREE.BackSide, fog: false, color: '#0f1420' });
+      let posterTex = null;
+      if (texUrl) {
+        new THREE.TextureLoader().load(texUrl, (t) => {
+          tune(t);
+          posterTex = t;
+          if (bmat.map?.isVideoTexture) return; // video already took over
+          bmat.map = t;
+          bmat.color.set('#ffffff');
+          bmat.needsUpdate = true;
+        });
+      }
+      if (!videoUrl) return { mat: bmat, video: null };
       const video = document.createElement('video');
-      video.src = fieldData.textures.backdropVideo;
+      video.src = videoUrl;
       video.loop = true; video.muted = true; video.autoplay = true; video.playsInline = true;
       video.setAttribute('playsinline', ''); video.setAttribute('muted', '');
       const kick = () => { video.play().catch(() => {}); };
-      // WEBKIT/iOS RULE #2: 'playing' fires (readyState 4!) even when the
-      // decoder produces NOTHING (videoWidth 0x0) — a 0x0 VideoTexture renders
-      // BLACK and dimension events lie too. The only honest signal that frames
-      // actually reach the screen is requestVideoFrameCallback; without it (or
-      // without frames) the poster simply stays up.
       let swapped = false;
       const trySwap = () => {
         if (swapped || !video.videoWidth || !video.videoHeight) return;
         swapped = true;
         const v = new THREE.VideoTexture(video);
-        tuneTex(v);
-        mat.map = v;
-        mat.color.set('#ffffff');
-        mat.needsUpdate = true;
-        // watchdog: every dimension/readyState API can lie (WebKit reports a
-        // healthy playing video while uploading pure black) — so sample REAL
-        // PIXELS. All-black frame => dead decoder => back to the poster.
+        tune(v);
+        bmat.map = v;
+        bmat.color.set('#ffffff');
+        bmat.needsUpdate = true;
         setTimeout(() => {
           let ok = false;
           try {
@@ -244,14 +238,13 @@ export function buildField(fieldData, scene) {
               if (d[i] + d[i + 1] + d[i + 2] > 24) { ok = true; break; }
             }
           } catch { ok = false; }
-          if (ok) { if (posterTex !== mat.map) posterTex?.dispose?.(); posterTex = null; return; }
+          if (ok) { if (posterTex !== bmat.map) posterTex?.dispose?.(); posterTex = null; return; }
           swapped = false;
           v.dispose();
           try { video.pause(); } catch { /* fine */ }
-          if (posterTex) { mat.map = posterTex; mat.color.set('#ffffff'); mat.needsUpdate = true; }
+          if (posterTex) { bmat.map = posterTex; bmat.color.set('#ffffff'); bmat.needsUpdate = true; }
         }, 1500);
       };
-      // two presented frames in a row before trusting the decoder at all
       if ('requestVideoFrameCallback' in video) {
         video.requestVideoFrameCallback(() => video.requestVideoFrameCallback(() => trySwap()));
       } else {
@@ -259,8 +252,11 @@ export function buildField(fieldData, scene) {
       }
       kick();
       window.addEventListener('pointerdown', kick, { once: true }); // mobile autoplay may need a gesture
-      handles.backdropVideo = video;
-    }
+      return { mat: bmat, video };
+    };
+    const frontBuild = buildBackdropMat(fieldData.textures?.backdrop, fieldData.textures?.backdropVideo, tuneTex);
+    const mat = frontBuild.mat;
+    if (frontBuild.video) handles.backdropVideo = frontBuild.video;
     // Backdrop sizing (overridable per-field via fieldData.backdropGeo). Pushed
     // well back beyond the fence so the crowd reads as a distant stadium ring,
     // not looming right on top of the court.
@@ -274,28 +270,30 @@ export function buildField(fieldData, scene) {
         new THREE.CylinderGeometry(bdR, bdR, bdH, 48, 1, true, Math.PI / 2, Math.PI),
         mat,
       );
-      const matBack = new THREE.MeshBasicMaterial({ side: THREE.BackSide, fog: false, color: '#0f1420' });
-      if (fieldData.textures?.backdrop) {
-        new THREE.TextureLoader().load(fieldData.textures.backdrop, (t) => {
-          // The home half centers on the painting's RIGHT-side region (beach /
-          // Capitol / warehouse end) — real asymmetric content, NOT a mirror
-          // twin (a centered mirror boundary kaleidoscoped every asymmetric
-          // scene). 2 tiles per π keeps the mirror joints out on the foul
-          // lines and just off the pitch camera's framing.
-          const bk = fieldData.backdropBack ?? {};
-          t.colorSpace = THREE.SRGBColorSpace;
-          t.wrapS = THREE.MirroredRepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
-          const w = fieldData.backdropWindow ?? {};
+      // The home half is its OWN generated scene per city (reverse angle: the
+      // other side of the neighborhood), with the same poster→video pipeline
+      // as the front. Falls back to an edge-slice of the front painting until
+      // a field ships its backdropBack assets.
+      const bk = fieldData.backdropBack ?? {};
+      const w = fieldData.backdropWindow ?? {};
+      const tuneBack = (t) => {
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.wrapS = THREE.MirroredRepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
+        if (bk.tex) {
+          // own scene: center content faces home, own measured ground line
+          t.repeat.set((fieldData.backdropRepeat ?? 6) / 2, bk.ry ?? w.ry ?? 0.82);
+          t.offset.set(0, bk.oy ?? w.oy ?? 0.18);
+        } else {
+          // fallback: right-side slice of the front painting
           t.repeat.set(bk.tiles ?? 2, bk.ry ?? w.ry ?? 0.82);
           t.offset.set(bk.offX ?? 0.25, bk.oy ?? w.oy ?? 0.18);
-          matBack.map = t;
-          matBack.color.set('#ffffff');
-          matBack.needsUpdate = true;
-        });
-      }
+        }
+      };
+      const backBuild = buildBackdropMat(bk.tex ?? fieldData.textures?.backdrop, bk.video ?? null, tuneBack);
+      if (backBuild.video) handles.backdropVideoBack = backBuild.video;
       const back = new THREE.Mesh(
         new THREE.CylinderGeometry(bdR, bdR, bdH, 48, 1, true, -Math.PI / 2, Math.PI),
-        matBack,
+        backBuild.mat,
       );
       backdrop.add(front, back);
     } else {

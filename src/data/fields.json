@@ -32,7 +32,13 @@
       "status": "ready",
       "world3d": false,
       "backdropSkyTex": "assets/textures/sky-blacktop.jpg",
-      "backdropSkyH": 5.8
+      "backdropSkyH": 5.8,
+      "backdropBack": {
+        "tex": "assets/textures/backdrop-blacktop-back.jpg",
+        "video": "assets/video/backdrop-blacktop-back.mp4",
+        "oy": 0.34,
+        "ry": 0.655
+      }
     },
     {
       "id": "subway-yard",
@@ -58,7 +64,13 @@
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-subway-yard.jpg",
-      "backdropSkyH": 6.4
+      "backdropSkyH": 6.4,
+      "backdropBack": {
+        "tex": "assets/textures/backdrop-subway-yard-back.jpg",
+        "video": "assets/video/backdrop-subway-yard-back.mp4",
+        "oy": 0.42,
+        "ry": 0.575
+      }
     },
     {
       "id": "block-party",
@@ -84,7 +96,13 @@
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-block-party.jpg",
-      "backdropSkyH": 5.5
+      "backdropSkyH": 5.5,
+      "backdropBack": {
+        "tex": "assets/textures/backdrop-block-party-back.jpg",
+        "video": "assets/video/backdrop-block-party-back.mp4",
+        "oy": 0.37,
+        "ry": 0.625
+      }
     },
     {
       "id": "neon-night-court",
@@ -110,7 +128,13 @@
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-neon-night-court.jpg",
-      "backdropSkyH": 6.0
+      "backdropSkyH": 6.0,
+      "backdropBack": {
+        "tex": "assets/textures/backdrop-neon-night-court-back.jpg",
+        "video": "assets/video/backdrop-neon-night-court-back.mp4",
+        "oy": 0.3,
+        "ry": 0.695
+      }
     },
     {
       "id": "boardwalk-kings",
@@ -136,7 +160,13 @@
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-boardwalk-kings.jpg",
-      "backdropSkyH": 6.3
+      "backdropSkyH": 6.3,
+      "backdropBack": {
+        "tex": "assets/textures/backdrop-boardwalk-kings-back.jpg",
+        "video": "assets/video/backdrop-boardwalk-kings-back.mp4",
+        "oy": 0.37,
+        "ry": 0.625
+      }
     },
     {
       "id": "the-underpass",
@@ -162,7 +192,13 @@
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-the-underpass.jpg",
-      "backdropSkyH": 5.8
+      "backdropSkyH": 5.8,
+      "backdropBack": {
+        "tex": "assets/textures/backdrop-the-underpass-back.jpg",
+        "video": "assets/video/backdrop-the-underpass-back.mp4",
+        "oy": 0.4,
+        "ry": 0.595
+      }
     },
     {
       "id": "rubber-yard",
@@ -188,7 +224,13 @@
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-rubber-yard.jpg",
-      "backdropSkyH": 6.6
+      "backdropSkyH": 6.6,
+      "backdropBack": {
+        "tex": "assets/textures/backdrop-rubber-yard-back.jpg",
+        "video": "assets/video/backdrop-rubber-yard-back.mp4",
+        "oy": 0.37,
+        "ry": 0.625
+      }
     },
     {
       "id": "winter-classic",
@@ -214,7 +256,13 @@
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-winter-classic.jpg",
-      "backdropSkyH": 5.8
+      "backdropSkyH": 5.8,
+      "backdropBack": {
+        "tex": "assets/textures/backdrop-winter-classic-back.jpg",
+        "video": "assets/video/backdrop-winter-classic-back.mp4",
+        "oy": 0.4,
+        "ry": 0.595
+      }
     },
     {
       "id": "scorchyard",
@@ -240,7 +288,13 @@
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-scorchyard.jpg",
-      "backdropSkyH": 6.5
+      "backdropSkyH": 6.5,
+      "backdropBack": {
+        "tex": "assets/textures/backdrop-scorchyard-back.jpg",
+        "video": "assets/video/backdrop-scorchyard-back.mp4",
+        "oy": 0.42,
+        "ry": 0.575
+      }
     },
     {
       "id": "the-crown",
@@ -256,17 +310,23 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.33,
+        "oy": 0.32,
         "ry": 0.665
       },
       "backdropGeo": {
         "r": 66,
-        "h": 59.3,
+        "h": 50,
         "bottom": -0.5
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-the-crown.jpg",
-      "backdropSkyH": 6.0
+      "backdropSkyH": 6.0,
+      "backdropBack": {
+        "tex": "assets/textures/backdrop-the-crown-back.jpg",
+        "video": "assets/video/backdrop-the-crown-back.mp4",
+        "oy": 0.42,
+        "ry": 0.575
+      }
     }
   ]
 }
