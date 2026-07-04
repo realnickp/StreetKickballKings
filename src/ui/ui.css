@@ -885,3 +885,102 @@ body { display: flex; align-items: center; justify-content: center; }
   background: #fff;
   box-shadow: 0 0 6px rgba(255, 255, 255, 0.9);
 }
+
+/* ---------- HOW TO PLAY (tutorial carousel) ---------- */
+.tutorial-screen { gap: 12px; justify-content: flex-start; touch-action: none; }
+.tut-top { width: 100%; display: flex; align-items: center; justify-content: space-between; }
+.tut-top h2 { font-family: var(--marker); font-size: 28px; color: var(--ink); text-shadow: 0 3px 0 #000, 0 0 22px rgba(240,127,29,.5); margin: 4px 0; }
+.tut-skip {
+  pointer-events: auto; font-family: var(--sans); font-weight: 900; font-size: 12px; letter-spacing: 1.5px;
+  color: var(--muted); background: none; border: 2px solid #2e3344; border-radius: 999px; padding: 7px 14px;
+}
+.tut-card {
+  width: 100%; flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column;
+  background: var(--panel); border: 2px solid #2e3344; border-radius: 18px; padding: 18px 16px;
+  overflow-y: auto;
+}
+.tut-nav { margin-top: auto; } /* buttons live in the thumb zone */
+.tut-card.slide-in { animation: tutSlide .28s ease-out; }
+@keyframes tutSlide { from { transform: translateX(26px); opacity: 0; } to { transform: none; opacity: 1; } }
+.tut-title { font-family: var(--marker); font-size: 30px; color: var(--gold); margin: 0 0 6px; text-shadow: 0 3px 0 #000; }
+.tut-lines p { font-size: 15px; line-height: 1.45; margin: 9px 0; color: var(--ink); }
+.tut-lines b { color: var(--teal); }
+.tut-dots { display: flex; gap: 8px; }
+.tut-dots i { width: 9px; height: 9px; border-radius: 50%; background: #2e3344; transition: background .2s, transform .2s; }
+.tut-dots i.on { background: var(--gold); transform: scale(1.25); }
+.tut-nav { width: 100%; display: flex; justify-content: space-between; gap: 12px; }
+.tut-nav button {
+  pointer-events: auto; flex: 1; font-family: var(--marker); font-size: 19px; color: var(--ink);
+  background: var(--panel-2); border: 2.5px solid var(--teal); border-radius: 14px; padding: 12px 0;
+  box-shadow: 0 0 14px rgba(62,198,181,.3);
+}
+.tut-nav .tut-prev { border-color: #2e3344; box-shadow: none; color: var(--muted); }
+
+/* demo stage: little CSS dioramas that mimic the real HUD */
+.tut-demo { margin: 4px 0 6px; }
+.tut-stage {
+  position: relative; height: 150px; border-radius: 14px;
+  background: radial-gradient(120% 130% at 50% 0%, #232736 0%, #12141c 75%);
+  border: 2px solid #262b3a; overflow: hidden;
+  display: flex; align-items: center; justify-content: center; gap: 18px;
+}
+/* kicking: the power meter + a flicking finger */
+.tut-meter { position: absolute; left: 18px; top: 14px; bottom: 14px; width: 14px; border-radius: 8px; background: #0d0f15; border: 2px solid #2e3344; }
+.tut-meter-sweet { position: absolute; left: 0; right: 0; top: 6%; height: 20%; background: rgba(245,179,18,.35); border-radius: 6px; }
+.tut-meter-fill { position: absolute; left: 2px; right: 2px; bottom: 2px; border-radius: 6px; background: linear-gradient(180deg, var(--gold), var(--orange)); animation: tutFill 1.6s ease-in-out infinite; }
+@keyframes tutFill { 0%, 15% { height: 6%; } 70%, 82% { height: 88%; } 100% { height: 6%; } }
+.tut-gesture { font-size: 42px; filter: drop-shadow(0 4px 6px rgba(0,0,0,.6)); }
+.tut-flick { animation: tutFlick 1.6s ease-in-out infinite; }
+@keyframes tutFlick { 0%, 55% { transform: translateY(26px); opacity: .35; } 70% { transform: translateY(26px); opacity: 1; } 85%, 100% { transform: translateY(-30px); opacity: 0; } }
+/* running: mash ripples + a lit diamond */
+.tut-mash { position: relative; animation: tutMash .5s ease-in-out infinite; }
+@keyframes tutMash { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(9px); } }
+.tut-mash span { position: absolute; left: 50%; bottom: -8px; width: 14px; height: 14px; border: 3px solid var(--teal); border-radius: 50%; transform: translateX(-50%); animation: tutRipple .5s ease-out infinite; }
+@keyframes tutRipple { from { opacity: .9; scale: .4; } to { opacity: 0; scale: 2.4; } }
+.tut-diamond { position: relative; width: 86px; height: 86px; transform: rotate(45deg); }
+.tut-diamond i { position: absolute; width: 20px; height: 20px; border-radius: 5px; background: #e8e2d5; box-shadow: 0 0 10px rgba(255,255,255,.25); }
+.tut-diamond .d1 { right: 0; bottom: 0; background: var(--gold); animation: tutBag 1.2s ease-in-out infinite; }
+.tut-diamond .d2 { right: 0; top: 0; }
+.tut-diamond .d3 { left: 0; top: 0; }
+.tut-diamond .dh { left: 0; bottom: 0; background: #cfd6e4; }
+@keyframes tutBag { 0%, 100% { box-shadow: 0 0 8px rgba(245,179,18,.4); } 50% { box-shadow: 0 0 20px rgba(245,179,18,.95); } }
+/* pills that mimic GO FOR 2! / SLIDE! */
+.tut-pill {
+  pointer-events: none; font-family: var(--marker); font-size: 21px; letter-spacing: 1px; color: var(--ink);
+  background: rgba(18,21,30,.93); border: 3px solid var(--teal); border-radius: 999px; padding: 11px 24px;
+  box-shadow: 0 0 18px rgba(62,198,181,.6); animation: beatBounce .6s ease-in-out infinite;
+}
+.tut-pill.amber { border-color: var(--gold); box-shadow: 0 0 18px rgba(245,179,18,.7); }
+.tut-pill.small { font-size: 15px; padding: 8px 16px; opacity: .85; }
+.tut-pill.red { border-color: var(--red); background: radial-gradient(circle at 35% 30%, #ff5e72, var(--red)); color: #fff; box-shadow: 0 0 20px rgba(215,38,61,.8); }
+/* pickle arrows */
+.tut-arrows { display: flex; gap: 16px; font-size: 34px; color: var(--teal); font-weight: 900; }
+.tut-arrows .up { color: var(--gold); animation: tutUp 1s ease-in-out infinite; }
+@keyframes tutUp { 0%, 100% { transform: translateY(4px); } 50% { transform: translateY(-6px); } }
+/* fielding: mini throw pad */
+.tut-pad { position: relative; width: 118px; height: 118px; }
+.tut-pad b {
+  position: absolute; width: 34px; height: 34px; border-radius: 9px; border: 2px solid var(--teal);
+  background: rgba(18,21,30,.92); color: var(--ink); font-size: 10px; font-weight: 900;
+  display: flex; align-items: center; justify-content: center; transform: rotate(45deg);
+}
+.tut-pad b span { display: block; transform: rotate(-45deg); font-family: var(--sans); line-height: 1; }
+.tut-pad .p2 { top: 0; left: 42px; border-color: var(--gold); box-shadow: 0 0 12px rgba(245,179,18,.8); animation: tutBag 1.2s ease-in-out infinite; }
+.tut-pad .p1 { top: 42px; right: 0; }
+.tut-pad .p3 { top: 42px; left: 0; }
+.tut-pad .ph { bottom: 0; left: 42px; }
+.tut-pad .peg {
+  top: 44px; left: 44px; width: 30px; height: 30px; transform: none; border-radius: 50%;
+  border-color: var(--red); background: radial-gradient(circle at 35% 30%, #ff5e72, var(--red)); color: #fff; font-size: 8px;
+}
+.tut-pad .peg span { transform: none; }
+/* pitch trace + crown */
+.tut-trace { width: 150px; height: 66px; }
+.tut-trace polyline { fill: none; stroke: var(--teal); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 220; stroke-dashoffset: 220; animation: tutTrace 1.8s ease-in-out infinite; filter: drop-shadow(0 0 6px rgba(62,198,181,.7)); }
+@keyframes tutTrace { 20% { stroke-dashoffset: 220; } 80%, 100% { stroke-dashoffset: 0; } }
+.tut-crown { font-size: 40px; animation: beatBounce .632s ease-in-out infinite; filter: drop-shadow(0 0 14px rgba(245,179,18,.8)); }
+/* menu: HOW TO PLAY entry */
+.menu-howto {
+  width: 100%; font-family: var(--marker); font-size: 16px; color: var(--teal);
+  background: var(--panel); border: 2px solid #2e3344; border-radius: 12px; padding: 10px 14px; letter-spacing: 1px;
+}
