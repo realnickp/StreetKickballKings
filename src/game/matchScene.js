@@ -1008,7 +1008,8 @@ export class MatchScene {
   updateGoOffer() {
     const r = this.goCandidate();
     const margin = r ? this.goMargin(r) : -Infinity;
-    if (margin > -0.9) {
+    // tutorialGo: the extra-bases drill always offers the button (the lesson)
+    if (margin > -0.9 || (this.tutorialGo && r)) {
       // risky = a genuine race — taking it invites the throw-down / rundown
       this.goOffer = { r, risky: margin < 0.25 };
       this.hud.showGo(['GO FOR 2!', 'GO FOR 3!', 'GO HOME!'][r.heldAt], this.goOffer.risky);
@@ -2081,6 +2082,7 @@ export class MatchScene {
   /** AI offense sometimes sends a runner on the pitch (difficulty-scaled). */
   maybeAiSteal() {
     if (this.kickingIsPlayer() || this.stealing || this.playFinalized) return;
+    if (this.tutorialQuiet) return; // no surprise AI steals mid-lesson
     const prob = { Rookie: 0.05, Street: 0.1, King: 0.16 }[this.difficulty] ?? 0.1;
     if (Math.random() > prob) return;
     for (const b of [0, 1]) { // AI steals 2nd/3rd, never home

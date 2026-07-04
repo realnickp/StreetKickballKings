@@ -86,14 +86,21 @@ export function MenuScreen(ctx) {
             <div class="mode-card locked">DERBY<small>COMING SOON</small></div>
           </div>
           <div class="daily-card">DAILY CHALLENGE<small>Hit 3 home runs — 0/3</small><b>+500 XP</b></div>
-          <button class="menu-howto">📖 HOW TO PLAY</button>
+          <div class="menu-learn">
+            <button class="menu-tutorial">🎓 TUTORIAL</button>
+            <button class="menu-howto">📖 CONTROLS</button>
+          </div>
         </div>`);
       root.appendChild(s);
       s.querySelector('.big-play').addEventListener('pointerdown', () => {
         ctx.bus.emit('sfx', 'scratch');
-        // first time out? walk through the controls, then straight into team select
-        if (!save.get('tutorialSeen', false)) return ctx.router.go('tutorial', { next: 'teamSelect' });
+        // first time out? run the playable drills (skippable inside), then play
+        if (!save.get('tutorialPlayed', false)) return ctx.startTutorial?.();
         ctx.router.go('teamSelect');
+      });
+      s.querySelector('.menu-tutorial').addEventListener('pointerdown', () => {
+        ctx.bus.emit('sfx', 'scratch');
+        ctx.startTutorial?.();
       });
       s.querySelector('.menu-howto').addEventListener('pointerdown', () => {
         ctx.bus.emit('sfx', 'scratch');

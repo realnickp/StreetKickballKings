@@ -17,6 +17,7 @@ import { showLogoClash } from './cinematics/introSequence.js';
 import { ScreenRouter } from './ui/router.js';
 import { TitleScreen, MenuScreen, TeamSelectScreen, CoinTossScreen, PostGameScreen } from './ui/screens/screens.js';
 import { TutorialScreen } from './ui/screens/tutorial.js';
+import { TutorialDirector } from './game/tutorialDirector.js';
 import fieldsData from './data/fields.json';
 import teamsData from './data/teams.json';
 import tuning from './data/tuning.json';
@@ -163,6 +164,7 @@ async function bootFlow() {
     beginMatch,
     rematch,
     backToMenu,
+    startTutorial,
   };
   const router = new ScreenRouter(uiRoot, ctx);
   ctx.router = router;
@@ -238,6 +240,7 @@ async function bootFlow() {
   router.go('title');
   // dev: jump straight to a screen for screenshots, e.g. ?nosplash&go=teamSelect
   if (params.has('go')) router.go(params.get('go'));
+  if (params.has('tut')) startTutorial(); // dev harness: straight into the drills
 
   async function startMatchFlow(playerTeam, opponentTeam, kits) {
     ctx.playerTeam = playerTeam;
@@ -315,13 +318,66 @@ async function bootFlow() {
 
   function backToMenu() {
     ctx.setMatchActive?.(false);
+    if (ctx.tutorialDirector) { ctx.tutorialDirector.destroy(); ctx.tutorialDirector = null; }
+    ctx.tutorialActive = false;
     if (ctx.scene) { ctx.scene.destroy(); ctx.scene = null; }
     audio.ambience(false);
     audio.music('theme');
     router.go('menu');
   }
 
+  /** PLAYABLE TUTORIAL: a skill-drill gauntlet on the real engine — no intros,
+   *  no coin toss, endless outs. The TutorialDirector runs the lesson plan. */
+  async function startTutorial() {
+    ctx.tutorialActive = true;
+    uiRoot.replaceChildren();
+    const black = document.createElement('div');
+    black.className = 'screen';
+    black.style.cssText = 'background:#050308;position:absolute;inset:0;z-index:1;';
+    uiRoot.appendChild(black);
+
+    if (ctx.scene) ctx.scene.destroy();
+    const player = teamsData.teams.find((t) => t.id === 'monarchs') ?? teamsData.teams[0];
+    const opp = teamsData.teams.find((t) => t.id === 'snappers') ?? teamsData.teams[1];
+    const chars = {
+      home: await buildTeamCharsGlb(opp, contrastUniform(opp.colors.primary, player.colors.primary)),
+      away: await buildTeamCharsGlb(player, player.colors.primary),
+    };
+    // endless half: outs never roll the inning, drills own the flow
+    const tutTuning = structuredClone(tuning);
+    tutTuning.match = { ...tutTuning.match, innings: 1, outsPerHalf: 99 };
+    ctx.scene = new MatchScene({
+      engine, input, bus, chars,
+      teams: { home: opp, away: player },
+      fieldData: blacktop,
+      tuning: tutTuning,
+      difficulty: 'Rookie',
+      playerSide: 'away',
+      hudRoot,
+      autoStart: false,
+    });
+    window.__skk = ctx.scene;
+    ctx.replayPlayer = ctx.replayPlayer ?? new ReplayPlayer({ engine, hud: ctx.scene.hud, bus });
+    ctx.replayPlayer.hud = ctx.scene.hud;
+    ctx.director = ctx.director ?? new CinematicDirector({
+      engine, bus, hud: ctx.scene.hud, getBall: () => ctx.scene.ball,
+      getReplay: () => ({ recorder: ctx.scene.replayRecorder, chars: ctx.scene.replayChars, ball: ctx.scene.ball, player: ctx.replayPlayer }),
+    });
+    ctx.director.hud = ctx.scene.hud;
+
+    black.remove();
+    audio.music('beat');
+    audio.ambience(true);
+    ctx.setMatchActive?.(true);
+    ctx.scene.startMatch('away'); // player kicks first — drills 1-4, then the director flips the half
+    ctx.tutorialDirector = new TutorialDirector({
+      scene: ctx.scene, engine, bus, save,
+      onExit: () => { ctx.tutorialDirector = null; backToMenu(); },
+    });
+  }
+
   bus.on('matchOver', ({ winner, score }) => {
+    if (ctx.tutorialActive) return; // drills never end in a box score
     ctx.setMatchActive?.(false);
     router.go('postGame', {
       winner, score,
