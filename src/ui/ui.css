@@ -984,3 +984,37 @@ body { display: flex; align-items: center; justify-content: center; }
   width: 100%; font-family: var(--marker); font-size: 16px; color: var(--teal);
   background: var(--panel); border: 2px solid #2e3344; border-radius: 12px; padding: 10px 14px; letter-spacing: 1px;
 }
+
+/* ---------- playable tutorial: drill overlay ---------- */
+.drill-layer { position: absolute; inset: 0; pointer-events: none; z-index: 7; }
+.drill-card {
+  position: absolute; top: calc(84px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+  width: min(88cqw, 380px); background: rgba(13,15,21,.92); border: 2px solid var(--teal);
+  border-radius: 14px; padding: 9px 13px; box-shadow: 0 0 16px rgba(62,198,181,.35);
+  display: flex; flex-direction: column; gap: 3px;
+}
+.drill-title { font-family: var(--marker); font-size: 15px; color: var(--gold); letter-spacing: .5px; }
+.drill-goal { font-size: 12.5px; line-height: 1.35; color: var(--ink); font-weight: 600; }
+.drill-pips { display: flex; gap: 6px; margin-top: 3px; }
+.drill-pips i { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--teal); background: transparent; }
+.drill-pips i.on { background: var(--gold); border-color: var(--gold); box-shadow: 0 0 8px rgba(245,179,18,.8); }
+.drill-actions {
+  /* top-LEFT: the pause button owns the top-right corner */
+  position: absolute; top: calc(12px + env(safe-area-inset-top)); left: 10px;
+  display: flex; flex-direction: column; gap: 6px; align-items: flex-start;
+}
+.drill-actions button {
+  pointer-events: auto; font-family: var(--sans); font-weight: 900; font-size: 10.5px; letter-spacing: 1px;
+  color: var(--muted); background: rgba(13,15,21,.85); border: 2px solid #2e3344; border-radius: 999px; padding: 6px 11px;
+}
+.drill-actions .drill-skip { color: var(--teal); border-color: rgba(62,198,181,.5); }
+
+/* menu: learn row (playable tutorial + controls reference) */
+.menu-learn { width: 100%; display: flex; gap: 10px; }
+.menu-learn button {
+  flex: 1; font-family: var(--marker); font-size: 15px; letter-spacing: 1px;
+  background: var(--panel); border: 2px solid #2e3344; border-radius: 12px; padding: 10px 6px;
+}
+.menu-learn .menu-tutorial { color: var(--gold); border-color: rgba(245,179,18,.45); }
+.menu-learn .menu-howto { color: var(--teal); }
+.menu-howto { width: auto; }
