@@ -16,6 +16,7 @@ import { playVideo } from './cinematics/videoPlayer.js';
 import { showLogoClash } from './cinematics/introSequence.js';
 import { ScreenRouter } from './ui/router.js';
 import { TitleScreen, MenuScreen, TeamSelectScreen, CoinTossScreen, PostGameScreen } from './ui/screens/screens.js';
+import { TutorialScreen } from './ui/screens/tutorial.js';
 import fieldsData from './data/fields.json';
 import teamsData from './data/teams.json';
 import tuning from './data/tuning.json';
@@ -170,6 +171,7 @@ async function bootFlow() {
   router.register('teamSelect', TeamSelectScreen);
   router.register('coinToss', CoinTossScreen);
   router.register('postGame', PostGameScreen);
+  router.register('tutorial', TutorialScreen);
 
   // ---------- pause button + pause/sound overlay ----------
   const pauseBtn = document.createElement('button');
