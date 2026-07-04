@@ -716,3 +716,46 @@ height, sky past frame top), backdropRepeat 2 + offset.x 0.5 (scene centers
 face outfield + home; mirror boundaries on the foul lines).
 ?match&field=<id> previews any field. 104 tests green; subway-yard,
 scorchyard, winter-classic verified in-game; prod confirmed.
+
+## 15) Sessions 9-10 (2026-07-02 → 07-04) — SKY/SCALE WARS, REVERSE SCENES, iOS HARDENING, BASEPATH GAMEPLAY (PRs #20-#38)
+
+**Backdrop endgame (PRs #20-#31, #37).** The sky-seam war ended with ONE TALL
+VIDEO per scene: master still → outpaint 2:3 → re-run Seedance on the tall
+image → a single video covers scene + entire sky (every two-source sky showed
+a visible break the dev rejected). Scale locked at backdropRepeat 6 / ring
+r=fenceM+26 / h≈50-60 (tile aspect within ~10% of source = true proportions).
+Ground lines are GRID-MEASURED on frame 0 of the DEPLOYED video, by eye —
+every crop formula and auto-matcher silently failed. Mirror/static back
+halves rejected ("you're lazy") → 10 purpose-generated REVERSE-ANGLE scenes
+(split ring: two half-cylinders, each its own animated video,
+fields.json backdropBack). PR #37 (after another "elevated" report with a
+Memphis screenshot): re-measured all 20 videos AND screenshot-verified every
+field IN-ENGINE front+back — neon front was cut 14% above the ground line,
+neon/DC/Akron backs wrong too. New rule: never ship a window change without
+the in-engine sweep (?match&field=<id> / ?match=field&field=<id>).
+
+**iPhone hardening (PRs #22-#24-ish).** WebKit: never construct a material
+with a still-loading texture (black forever); swap poster→video only after 2
+presented frames + a pixel-sampling watchdog (drawImage 8×8, all-black →
+revert); AudioContext constructor in try/catch with soft-mute; JPEG posters.
+Playwright WebKit harness (scratchpad) repros what headless Chrome can't.
+
+**Basepath gameplay (PRs #32-#36, #38).** Tap-to-switch fielders; 2-out AI
+goes for the EASIEST force; unskippable catch/HR replays; leads (LEAD_M 1.4)
++ steals both ways (tap a runner pre-pitch; quick-draw throw pad on defense;
+rules-correct mid-at-bat outs via MatchEngine.applyBaseEvent); GO FOR 2
+button (default stop at the bag, explicit send prompt, teal=clean amber=risky
+— margin model made GENEROUS in #36 after "the pop up is not happening": 1s
+AI windup, offers live during throws, threshold −0.9s because a bad send is
+now content); PICKLE MINI-GAME (#35: tap=reverse, swipe up=spin with
+i-frames + tagger stumble, red SLIDE! button near the bag, defense chases and
+relays ahead; defense-side AI runners reverse/juke so pegs need timing);
+home-stretch camera (runner breaks for home → low plate-side cut, "see your
+runs come in"); #38: pickle endings release ball control (was the "game
+doesn't understand the play ended" stall), every play closes with a return
+throw the PITCHER CATCHES, held ball rides the THROWING hand (forearm-bone
+tracked) through catches and celebrations.
+
+**Verification pattern that stuck:** vitest (106) + WebKit playthrough probe
+(power-meter-synced swipes; caught the GO-button-during-HR-replay bug) + in-
+engine screenshot sweeps via the hidden Chrome tab (CDP renders it anyway).
