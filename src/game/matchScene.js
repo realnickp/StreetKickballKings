@@ -36,6 +36,7 @@ const BASE_KEYS = ['first', 'second', 'third', 'home'];
 const _ballHand = new THREE.Vector3();
 const _foreL = new THREE.Vector3();
 const _foreR = new THREE.Vector3();
+const _boneAxis = new THREE.Vector3();
 const CAM = {
   // KICK role: low behind home, the pitch rolls AT you so you read the timing
   kick: { pos: new THREE.Vector3(0, 3.4, 8.0), look: new THREE.Vector3(0, 1.2, -12) },
@@ -149,6 +150,8 @@ export class MatchScene {
 
     bus.on('cine:start', () => { this.cinematicLock = true; this.hud.hint(''); });
     bus.on('cine:done', () => { this.cinematicLock = false; });
+    // a cutscene's return throw: the scene flies it and the pitcher catches
+    bus.on('cine:returnThrow', () => this.flyBallToPitcher(14));
 
     this.offTap = input.on('tap', (e) => this.onTap(e));
     this.offSwipe = input.on('swipe', (e) => this.onSwipe(e));
@@ -211,13 +214,24 @@ export class MatchScene {
     const holder = this.fieldingChars().find((c) => c.hasBall);
     if (!holder || this.ball.mode === 'flying' || this.ball.mode === 'rolling-pitch') return;
     const yaw = holder.group.rotation.y;
-    const L = holder.animator?.b?.LForeArm, R = holder.animator?.b?.RForeArm;
-    if (L && R) {
-      L.updateWorldMatrix(true, false); R.updateWorldMatrix(true, false);
-      L.getWorldPosition(_foreL); R.getWorldPosition(_foreR);
-      _ballHand.copy(_foreL).add(_foreR).multiplyScalar(0.5);   // between the two hands
-      _ballHand.x += Math.sin(yaw) * 0.30; _ballHand.z += Math.cos(yaw) * 0.30; // into the palms
-      _ballHand.y += 0.08;
+    const R = holder.animator?.b?.RForeArm;
+    const S = holder.animator?.b?.RArm;
+    if (R) {
+      // the ball lives in the THROWING hand (right) — it rides a raised arm in
+      // the catch celebration and leaves from the same hand on the return throw.
+      // Palm = elbow extended along the forearm bone, signed AWAY from the shoulder.
+      R.updateWorldMatrix(true, false);
+      R.getWorldPosition(_foreR);
+      _boneAxis.setFromMatrixColumn(R.matrixWorld, 1).normalize().multiplyScalar(0.26);
+      if (S) {
+        S.updateWorldMatrix(true, false);
+        S.getWorldPosition(_foreL); // scratch: shoulder position
+        if (_ballHand.copy(_foreR).add(_boneAxis).distanceToSquared(_foreL) <
+            _ballHand.copy(_foreR).sub(_boneAxis).distanceToSquared(_foreL)) {
+          _boneAxis.negate(); // axis pointed back up the arm — flip toward the palm
+        }
+      }
+      _ballHand.copy(_foreR).add(_boneAxis);
     } else {
       const p = holder.group.position; // fallback: right-hand offset from the body, chest height
       _ballHand.set(
@@ -1239,11 +1253,47 @@ export class MatchScene {
       this.after(0.6, fireOver);
       return;
     }
+    this.returnBallToPitcher(); // every play closes with the ball back on the mound
     const tryNext = () => {
-      if (this.cinematicLock) return this.after(0.3, tryNext);
+      // never reset mid-cinematic OR while the return throw is still in the air
+      if (this.cinematicLock || this.ball.mode === 'flying') return this.after(0.3, tryNext);
       this.nextAtBat();
     };
     this.after(1.2, tryNext);
+  }
+
+  /** End-of-play ritual: whoever ended up with the ball fires it back to the
+   *  pitcher, who catches it clean — the ball ALWAYS returns to the mound. */
+  returnBallToPitcher() {
+    const fielding = this.fieldingChars();
+    const pitcher = fielding.find((c) => c.spot?.id === 'P');
+    const holder = fielding.find((c) => c.hasBall);
+    if (!pitcher || !holder || holder === pitcher || this.throwing || this.cinematicLock) return;
+    this.faceTo(holder, pitcher.group.position);
+    this.faceTo(pitcher, holder.group.position);
+    holder.animator.play('throw', {
+      onContact: () => {
+        if (!holder.hasBall) return;
+        holder.hasBall = false;
+        this.flyBallToPitcher();
+      },
+      onDone: () => { if (holder.animator.name === 'throw') holder.animator.play('idle'); },
+    });
+  }
+
+  /** Fly the ball from wherever it is to the pitcher, who catches it clean. */
+  flyBallToPitcher(speed = this.tuning.throwing.throwSpeedMs) {
+    const pitcher = this.fieldingChars().find((c) => c.spot?.id === 'P');
+    if (!pitcher) return;
+    const flight = this.ball.throwTo(pitcher.group.position.clone().setY(1.15), speed);
+    this.after(flight, () => {
+      pitcher.hasBall = true; // carryHeldBall pins it to his throwing hand
+      pitcher.animator.play('catch', { onDone: () => pitcher.animator.play('idle') });
+      this.ball.place(pitcher.group.position.clone().setY(1.1));
+      this.ball.mode = 'idle';
+      this.bus.emit('sfx', 'catchpop');
+      this.faceTo(pitcher, FIELD_LAYOUT.home);
+    });
   }
 
   // ---------- defense (shared: AI fields when you kick, YOU field otherwise) ----------
@@ -1677,6 +1727,19 @@ export class MatchScene {
     this.pickle = null;
     this.hud.hideSlide();
     this.hud.hint('');
+    // settle the tagger — updateDefense skips ball-holders, so without this
+    // he's stuck looping the run clip in place
+    const holder = this.fieldingChars().find((c) => c.hasBall);
+    if (holder && holder.animator.name === 'run') holder.animator.play('holdball');
+    // the rundown WAS the play: once it resolves the defense controls the
+    // ball, and the play must be allowed to END (dev: 'very glitchy when a
+    // pickle ends — the game doesn't understand the play is over')
+    if (!this.throwing && !this.runners.some((r) => r.state === 'running')) {
+      this.defenseHasBall = true;
+      this.ballControlled = true;
+    } else if (!this.playerControlled && !this.throwing) {
+      this.aiContinue(); // someone ELSE is still running — defense resumes the hunt
+    }
     if (safe) {
       this.bus.emit('sfx', 'crowd-cheer');
       this.hud.call('SAFE!', 'crowned');
