@@ -813,3 +813,25 @@ drills once (skippable, 'tutorialPlayed'); menu keeps 🎓 TUTORIAL forever.
   pump speed, direction lives on the pad. Deterministic E2E via tutorial
   drill 4's force-staged rundown (pickle-test.mjs): stage up (letterbox +
   mapped labels + pickleCam) → inputs → outcome → stage struck.
+
+## 18) Session 10d (2026-07-04/05) — PREMIUM POLISH WAVE (PRs #45-#48)
+
+- **#45 street respray (CSS)**: spray-blob callouts/cards via CSS tricks —
+  dev rejected AGAIN ("vibe coded piece of junk") →
+- **#46 REAL Higgsfield UI art**: nano_banana_pro → remove_background →
+  PIL trim/downscale → webp (335KB, public/assets/ui/, preloaded in Hud):
+  splat-gold callouts (baked drips = pointer), poster intro card,
+  start-plate button, chip-teal stencil, burst goal-pop. RULE (now in
+  asset-pipeline memory): HUD chrome is GENERATED, never hand-drawn CSS.
+  Plus: drill-final-goal now lets the play RESOLVE before DRILL COMPLETE
+  (dev: "don't end the step so abruptly"), ribbon/actions moved below the
+  score bug, callouts clamp by measured width (his screenshots showed
+  MONA clipped + callout bleeding off edge).
+- **#47 pickle freeze-frame**: timeScale=0 while the side-on camera flies
+  in over the frozen tableau (camera runs on rawDt), PICKLE! + bass drop,
+  1.5s to set thumbs, GO! release. Safety releases at every teardown.
+- **#48 pickle BULLET TIME**: stage runs at 0.6 timeScale (relative speeds
+  unchanged, player reacts in real time), gold→red threat marker rides the
+  ball-carrier, SPIN button flashes red exactly in lunge-range+off-cooldown,
+  tagger 0.74×, relay clock 1.2/0.95/0.75s. E2E asserts the full arc
+  frozen→0.6→marker→outcome→full speed.
