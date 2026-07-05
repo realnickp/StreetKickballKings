@@ -817,6 +817,7 @@ export class MatchScene {
       idx,
       char,
       fromBase, // -1 = home plate
+      originBase: fromBase, // the time-of-pitch bag — where a TAG UP must return
       targetBase: fromBase + 1,
       sim: new RunnerSim({ tuning: this.tuning, human: this.kickingIsPlayer() }),
       state: 'running',
@@ -1182,6 +1183,17 @@ export class MatchScene {
             r.state = 'held';
             r.heldAt = r.targetBase;
             r.decideT = 1.4; // window in which the GO button can send him to the next bag
+            if (r.tagUp && r.heldAt !== r.originBase && r.heldAt > r.originBase) {
+              // still not back to his time-of-pitch bag — keep scrambling
+              r.fromBase = r.heldAt;
+              r.targetBase = r.heldAt - 1;
+              r.sim = new RunnerSim({ tuning: this.tuning, human: this.kickingIsPlayer() });
+              r.state = 'running';
+              r.char.animator.play('run');
+            } else if (r.tagUp) {
+              r.tagUp = false; // safe — retouched his bag
+              this.hud.call('SAFE — TAGGED UP!', 'robbed');
+            }
             r.char.group.position.copy(this.basePos(r.heldAt)).add(new THREE.Vector3(0.4, 0, 0.4));
             this.faceTo(r.char, this.basePos(Math.min(r.heldAt + 1, 3))); // poised to take the next bag
             r.char.animator.play('idle');
@@ -1600,7 +1612,7 @@ export class MatchScene {
    */
   recommendedThrowBase(fromFielder = null) {
     const forced = this.runners.filter((r) =>
-      r.state === 'running' && r.forced && r.targetBase >= 0 && r.targetBase <= 3);
+      r.state === 'running' && (r.forced || r.tagUp) && r.targetBase >= 0 && r.targetBase <= 3);
     if (!forced.length) return null;
     const outsNow = (this.match?.state?.outs ?? 0) + (this.playOuts ?? 0);
     if (outsNow >= 2) {
@@ -2115,7 +2127,8 @@ export class MatchScene {
     let res = { out: false };
     // Only a FORCED runner can be thrown out at a base (he MUST go there). A
     // non-forced runner heading there can always retreat — no force out.
-    if (victim && victim.forced) {
+    // TAG-UP runners are force targets too: beat them back to the bag = doubled off.
+    if (victim && (victim.forced || victim.tagUp)) {
       const remaining = this.tuning.running.basePathM - victim.sim.progressM;
       const rate = this.kickingIsPlayer() ? this.input.tapRate(500, performance.now()) : victim.aiRate;
       const runnerSpeedMs = this.kickingIsPlayer() ? humanRunSpeed(rate, this.tuning) : mashSpeed(rate, this.tuning);
@@ -2139,10 +2152,11 @@ export class MatchScene {
         this.bus.emit('sfx', 'catch'); // glove pop at the bag
         this.chaser = receiver; // the ball is with the bag man now (for relays/next throw)
       }
-      if (caught && live && victim.forced && res.out) {
+      if (caught && live && (victim.forced || victim.tagUp) && res.out) {
         this.runnerOut(victim, 'forced');
+        if (victim.tagUp) this.hud.call('DOUBLED OFF!', 'pegged');
         if (!this.tryDoublePlay(base)) this.afterThrow(); // turn two, or keep chasing the next runner
-      } else if (caught && live && !victim.forced) {
+      } else if (caught && live && !victim.forced && !victim.tagUp) {
         if (this.pickle?.r === victim) {
           // pickle relay landed AHEAD of you — the bag man is the tagger now.
           // No auto-reverse: which way you break is YOUR call.
@@ -2373,24 +2387,64 @@ export class MatchScene {
     fielder.hasBall = true;
     this.field.crowdEnergy = 1;
 
-    // TAG UP: on a caught fly every base runner must get back to his bag —
-    // reverse them visibly (real kickball rule, dev callout). The kicker is
-    // the out; stop driving his runner.
+    // TAG UP RACE (dev callout): on a caught fly the kicker is out and every
+    // base runner must get BACK to his time-of-pitch bag — LIVE. The defense
+    // can gun the bag behind him for a DOUBLE-OFF; a loose throw can spiral
+    // into a rundown. No more teleport-safe.
+    let racing = 0;
     for (const r of this.runners) {
-      if (r.state !== 'running') continue;
-      if (r.char === this.kicker) { r.state = 'out'; continue; }
-      if (r.fromBase < 0) continue;
-      const t = r.targetBase;
-      r.targetBase = r.fromBase;
-      r.fromBase = t;
-      r.sim.progressM = Math.max(0, this.tuning.running.basePathM - r.sim.progressM);
-      r.forced = false;
+      if (r.char === this.kicker) { if (r.state !== 'out') r.state = 'out'; continue; }
+      if (r.state === 'running' && r.fromBase >= 0) {
+        const t = r.targetBase;
+        r.targetBase = r.fromBase;
+        r.fromBase = t;
+        r.sim.progressM = Math.max(0, this.tuning.running.basePathM - r.sim.progressM);
+        r.forced = false;
+        r.tagUp = true;
+        racing += 1;
+      } else if (r.state === 'held' && r.heldAt !== r.originBase && r.heldAt < 3) {
+        // he completed an advance while the ball hung — send him scrambling back
+        r.fromBase = r.heldAt;
+        r.targetBase = r.heldAt - 1;
+        r.sim = new RunnerSim({ tuning: this.tuning, human: this.kickingIsPlayer() });
+        r.state = 'running';
+        r.forced = false;
+        r.tagUp = true;
+        r.char.animator.play('run');
+        racing += 1;
+      }
     }
-
-    this.bus.emit('cine:robbed', { fielder, kicker: this.kicker });
+    this.playOuts = (this.playOuts ?? 0) + 1; // the kicker's out, play stays LIVE
+    this.lastOutReason = 'catch';
     if (!this.kickingIsPlayer()) this.special.add('catch');
-    // give the retreat a beat to read before the bases reset
-    this.after(1.1, () => this.finalizePlay(1, 'catch', { restoreRunners: true }));
+
+    if (racing === 0) {
+      // bases empty — the catch IS the play: full celebration cinematic
+      this.bus.emit('cine:robbed', { fielder, kicker: this.kicker });
+      this.after(1.1, () => this.finalizePlay(1, 'catch', { restoreRunners: true }));
+      return;
+    }
+    // runners scrambling: no cinematic — the RACE is the drama
+    this.hud.call('CAUGHT! TAG UP!', 'pegged');
+    this.bus.emit('vo', 'robbed');
+    this.bus.emit('sfx', 'crowd-cheer');
+    if (this.kickingIsPlayer()) this.hud.hint('GET BACK! MASH!');
+    if (this.playerControlled) {
+      // your gun: fire behind the runner for the double-off
+      this.activeFielder = fielder;
+      this.chaser = fielder;
+      this.defenseHasBall = true;
+      this.hud.showThrowPad(true);
+      this.hud.highlightBestBase(this.recommendedThrowBase(fielder));
+      this.showBaseRings(true);
+      this.after(6, () => { if (fielder.hasBall && !this.playFinalized && !this.throwing) this.ballControlled = true; });
+    } else {
+      this.chaser = fielder;
+      this.defenseHasBall = true;
+      this.after(this.aiThrowDelayS() + 0.25, () => {
+        if (fielder.hasBall && !this.playFinalized) this.aiThrowDecision(fielder);
+      });
+    }
   }
 
   homer() {
