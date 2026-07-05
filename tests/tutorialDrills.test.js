@@ -6,12 +6,15 @@ describe('playable tutorial drills', () => {
     expect(DRILLS.map((d) => d.id)).toEqual(['kick', 'run', 'steal', 'go', 'pitch', 'field']);
   });
 
-  it('every drill has a goal, a target, and a tick scorer', () => {
+  it('every drill has an objective, an intro detail, a target, a scorer, and a coach', () => {
     for (const d of DRILLS) {
       expect(d.title.length).toBeGreaterThan(2);
-      expect(d.goal.length).toBeGreaterThan(15);
+      expect(d.objective.length).toBeGreaterThan(5);
+      expect(d.objective.length).toBeLessThan(36); // ribbon-sized — readable mid-play
+      expect(d.detail.length).toBeGreaterThan(25); // the intro card carries the teaching
       expect(d.target).toBeGreaterThanOrEqual(1);
       expect(typeof d.tick).toBe('function');
+      expect(typeof d.coach).toBe('function'); // contextual callouts for every drill
     }
   });
 

@@ -423,8 +423,8 @@ export class MatchScene {
     this.hud.hidePattern();
     const hasRunners = this.match.state.bases.some((b) => b !== null);
     this.hud.hint(hasRunners
-      ? 'FLICK UP TO KICK — TAP A RUNNER TO STEAL'
-      : 'SLIDE TO LINE UP — FLICK UP TO KICK');
+      ? 'FLICK UP TO KICK • TAP RUNNER = STEAL'
+      : 'SLIDE TO AIM • FLICK UP TO KICK');
     this.kicker.group.position.x = 0; // start centred; you slide left/right to line up
     this._kickerPrevX = 0; // reset stride tracker so the recenter isn't read as a slide
     this.pitch = pickPitch(this.tuning);
@@ -468,7 +468,7 @@ export class MatchScene {
     this.traceDeadline = this.elapsed + this.tuning.pitch.traceTimerMs / 1000;
     this.hud.showTraceTimer();
     this.phase = 'PITCH_TRACE';
-    this.hud.hint('TRACE IT — FAST!');
+    this.hud.hint('TRACE IT — FAST + CLEAN!');
   }
 
   onStroke(e) {
@@ -914,7 +914,7 @@ export class MatchScene {
     };
     if (!this.kickingIsPlayer()) {
       // YOU'RE the defense: quick draw — tap the bag on the throw pad
-      this.hud.hint('RUNNER GOING — THROW HIM OUT!');
+      this.hud.hint('RUNNER GOING! OUT-DRAW HIM!');
       this.hud.showThrowPad(true);
       this.hud.highlightBestBase(r.targetBase);
       this.stealDefense = { t0: this.elapsed, throwDown };
@@ -1356,7 +1356,7 @@ export class MatchScene {
       this.marker.position.copy(this.pred.point).setY(0.05);
       this.marker.visible = true;
       this.lastDragAt = -10;
-      this.hud.hint('TAP A FIELDER TO CONTROL THEM — DRAG TO STEER');
+      this.hud.hint('DRAG = STEER • TAP TEAMMATE = SWITCH');
     }
   }
 
@@ -1494,7 +1494,7 @@ export class MatchScene {
     this.bus.emit('sfx', 'catchpop');
     if (this.playerControlled) {
       this.marker.visible = false;
-      this.hud.hint('THROW IT! GOLD BASE = OUT, OR PEG');
+      this.hud.hint('THROW! GOLD BAG = THE OUT');
       this.hud.showThrowPad(true);
       this.hud.highlightBestBase(this.recommendedThrowBase()); // show the force-out base
       this.showBaseRings(true);
@@ -1638,7 +1638,7 @@ export class MatchScene {
   startPickle(r) {
     this.pickle = { r, spinT: 0, spinCd: 0, sliding: false, slideShown: false, dodged: false, tagCd: 0, decideT: 0.8, throwsLeft: 4 };
     r.sim.human = false; // auto-trot — tapping still adds speed, but no mash needed
-    this.hud.hint('PICKLE! TAP = REVERSE • SWIPE UP = SPIN • SLIDE AT THE BAG');
+    this.hud.hint('PICKLE! TAP=REVERSE • SWIPE↑=SPIN');
   }
 
   updatePickle(dt) {
@@ -1818,7 +1818,7 @@ export class MatchScene {
     this.hud.showThrowPad(true);
     this.hud.highlightBestBase(this.recommendedThrowBase());
     this.showBaseRings(true);
-    this.hud.hint('THROW TO THE BAG TO GET HIM!');
+    this.hud.hint('THROW TO THE BAG!');
     this.after(6, () => { if (holder.hasBall && !this.playFinalized && !this.throwing) this.ballControlled = true; });
   }
 

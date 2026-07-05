@@ -1,10 +1,10 @@
 // PLAYABLE TUTORIAL — a skill-drill gauntlet on the real engine (no fake sim).
-// One skill at a time, each with a GOAL the player must hit before advancing:
-// kick fair balls, beat out a single, steal second, take the extra base and
-// survive the pickle, trace clean pitches, field for an out. The director
-// watches the live MatchScene every frame, scores goal progress, re-arms the
-// scenario after failed attempts, and force-stages the moments that RNG can't
-// guarantee (the GO offer, the rundown). Skippable per-drill and entirely.
+// One skill at a time, each with a GOAL the player must hit before advancing.
+// UX: every drill opens with a full-screen INTRO SLAM (big title + one clear
+// sentence), a slim objective RIBBON with progress pips rides under the score
+// bug during play, and animated COACH CALLOUTS pop at the exact moment and
+// PLACE a control matters (over the meter, on the GO button, at your runner).
+// Skippable per-drill and entirely.
 
 function el(html) {
   const t = document.createElement('template');
@@ -12,15 +12,15 @@ function el(html) {
   return t.content.firstElementChild;
 }
 
-// A drill = { id, title, goal, target, setup?, ensure?, tick }.
-// tick(scene, st) returns true each time the player scores ONE goal unit.
-// `st` is per-drill scratch state (reset when the drill starts).
-// setup runs once at a settle point; ensure re-runs at every new at-bat.
+// A drill = { id, title, objective (ribbon), detail (intro sentence), target,
+// setup?, ensure?, teardown?, tick(scene, st) -> true per goal unit,
+// coach?(scene, st, say) -> fire contextual callouts (say(text, opts)) }.
 export const DRILLS = [
   {
     id: 'kick',
     title: 'KICKING',
-    goal: 'Slide to line up — FLICK UP at the meter peak. Kick 2 fair balls.',
+    objective: 'KICK 2 FAIR BALLS',
+    detail: 'Slide left or right to line up. FLICK UP right as the meter peaks — perfect timing is 🔥.',
     target: 2,
     tick(s, st) {
       if (s.phase === 'LIVE') {
@@ -30,21 +30,34 @@ export const DRILLS = [
       }
       return false;
     },
+    coach(s, st, say) {
+      if (s.phase === 'PITCH' && s.hud.powerMeter.classList.contains('show')) {
+        say('FLICK UP AT THE PEAK!', { el: s.hud.powerMeter, dir: 'down', key: 'kick-flick', ttl: 1500 });
+      }
+    },
   },
   {
     id: 'run',
     title: 'RUNNING',
-    goal: 'Kick, then MASH-TAP to sprint. Beat the throw to first!',
+    objective: 'BEAT THE THROW TO FIRST',
+    detail: 'The second you kick it — MASH-TAP anywhere to sprint. No taps, no legs.',
     target: 1,
     tick(s) {
       const kr = s.runners.find((r) => r.char === s.kicker);
       return !!kr && (kr.state === 'held' || kr.state === 'scored');
     },
+    coach(s, st, say) {
+      if (s.phase === 'LIVE') {
+        const H = s.hud.el.getBoundingClientRect();
+        say('MASH! TAP TAP TAP!', { x: H.left + H.width / 2, y: H.top + H.height * 0.62, dir: 'down', key: 'run-mash', ttl: 1600 });
+      }
+    },
   },
   {
     id: 'steal',
     title: 'STEALING',
-    goal: 'You have a man on first. TAP HIM during the pitch — steal second!',
+    objective: 'STEAL SECOND BASE',
+    detail: 'You’ve got a man on first. TAP HIM while the pitch is rolling in — then mash.',
     target: 1,
     setup(s) { ensureRunnerOn(s, 0); },
     // idempotent — re-arms after a caught-stealing wipes the runner
@@ -57,11 +70,19 @@ export const DRILLS = [
       }
       return false;
     },
+    coach(s, st, say) {
+      if (s.stealing || s.phase === 'LIVE') return;
+      const runner = s.baseChars?.[0];
+      if (!runner) return;
+      const p = s.worldToScreen(runner.group.position);
+      if (p) say('TAP HIM!', { x: p.x, y: p.y - 26, dir: 'down', key: 'steal-tap', ttl: 1500 });
+    },
   },
   {
     id: 'go',
     title: 'EXTRA BASES & THE PICKLE',
-    goal: 'Kick, take first, then hit GO FOR 2! You WILL get hung up — spin, reverse, SLIDE, survive.',
+    objective: 'TAKE 2ND — SURVIVE THE PICKLE',
+    detail: 'Kick, take first, hit GO FOR 2! You WILL get trapped — TAP reverses, SWIPE UP spins, SLIDE! wins.',
     target: 1,
     setup(s) {
       s.match.state.bases = [null, null, null]; // clean diamond for the lesson
@@ -89,11 +110,25 @@ export const DRILLS = [
       }
       return false;
     },
+    coach(s, st, say) {
+      if (s.goOffer && !st.sent) {
+        say('HIT IT!', { el: s.hud.goBtn, dir: 'down', key: 'go-hit', ttl: 1400 });
+      }
+      if (s.pickle) {
+        st.pickleT = (st.pickleT ?? 0) + 1;
+        if (st.pickleT < 90) say('TAP = REVERSE!', { x: centerX(s), y: midY(s), dir: 'down', key: 'pk-rev', ttl: 1400 });
+        else if (st.pickleT < 200) say('SWIPE UP = SPIN!', { x: centerX(s), y: midY(s), dir: 'down', key: 'pk-spin', ttl: 1400 });
+        if (s.pickle.slideShown) say('DIVE!', { el: s.hud.slideBtn, dir: 'down', key: 'pk-slide', ttl: 1200 });
+      } else {
+        st.pickleT = 0;
+      }
+    },
   },
   {
     id: 'pitch',
     title: 'PITCHING',
-    goal: 'Your arm now. Pick a pitch, then TRACE the pattern — fast and clean. Deliver 2.',
+    objective: 'DELIVER 2 PITCHES',
+    detail: 'Your arm now. Pick a pitch, then TRACE the pattern — fast, tight strokes. Sloppy = meatball.',
     target: 2,
     setup(s) { flipToDefense(s); },
     tick(s, st) {
@@ -104,11 +139,16 @@ export const DRILLS = [
       }
       return false;
     },
+    coach(s, st, say) {
+      if (s.phase === 'PITCH_SELECT') say('PICK ONE', { el: s.hud.pitchSelect, dir: 'down', key: 'pt-pick', ttl: 1500 });
+      if (s.phase === 'PITCH_TRACE') say('TRACE IT — FAST!', { el: s.hud.patternPad, dir: 'down', key: 'pt-trace', ttl: 1500 });
+    },
   },
   {
     id: 'field',
     title: 'FIELDING',
-    goal: 'He kicks — DRAG your glowing fielder, TAP teammates to switch, throw the GOLD bag. Get an out!',
+    objective: 'GET AN OUT',
+    detail: 'DRAG steers your glowing fielder, TAP a teammate to switch. Ball in hand → hit the GOLD bag.',
     target: 1,
     setup(s, st) { st.base = outsNow(s); },
     tick(s, st) {
@@ -117,10 +157,21 @@ export const DRILLS = [
       st.base = Math.min(st.base ?? 0, cur); // outs reset (half rolled) — track down too
       return false;
     },
+    coach(s, st, say) {
+      if (s.phase === 'LIVE' && !s.defenseHasBall) {
+        const H = s.hud.el.getBoundingClientRect();
+        say('DRAG TO STEER!', { x: H.left + H.width / 2, y: H.top + H.height * 0.6, dir: 'down', key: 'fd-drag', ttl: 1600 });
+      }
+      if (s.hud.throwPad.classList.contains('show')) {
+        say('GOLD BAG = THE OUT', { el: s.hud.throwPad, dir: 'down', key: 'fd-gold', ttl: 1600 });
+      }
+    },
   },
 ];
 
 const outsNow = (s) => (s.match?.state?.outs ?? 0) + (s.playOuts ?? 0);
+const centerX = (s) => { const H = s.hud.el.getBoundingClientRect(); return H.left + H.width / 2; };
+const midY = (s) => { const H = s.hud.el.getBoundingClientRect(); return H.top + H.height * 0.46; };
 
 function ensureRunnerOn(s, bag) {
   if (s.match.state.bases[bag] !== null) return;
@@ -147,6 +198,7 @@ export class TutorialDirector {
     this.progress = 0;
     this.st = {};
     this.pendingSetup = false;
+    this.introUp = false;
     this.advanceAt = 0;
     this.elapsed = 0;
     this.finished = false;
@@ -163,14 +215,14 @@ export class TutorialDirector {
 
     this.root = el(`
       <div class="drill-layer">
-        <div class="drill-card">
-          <b class="drill-title"></b>
-          <span class="drill-goal"></span>
+        <div class="drill-ribbon">
+          <b class="drill-no"></b>
+          <span class="drill-obj"></span>
           <div class="drill-pips"></div>
         </div>
         <div class="drill-actions">
           <button class="drill-skip">SKIP DRILL ›</button>
-          <button class="drill-exit">✕ EXIT TUTORIAL</button>
+          <button class="drill-exit">✕ EXIT</button>
         </div>
       </div>`);
     scene.hud.el.appendChild(this.root);
@@ -191,21 +243,47 @@ export class TutorialDirector {
 
   nextDrill() {
     this.drill()?.teardown?.(this.scene);
+    this.scene.hud.clearCallouts();
     this.idx += 1;
     if (this.idx >= DRILLS.length) return this.finish();
     this.progress = 0;
     this.st = { goSentFlag: () => { const v = this.goSent; this.goSent = false; return v; } };
     this.pendingSetup = !!this.drill().setup;
-    this.lastKickerIdx = null;
     this.render();
+    this.showIntro(this.drill());
     this.bus.emit('sfx', 'scratch');
+  }
+
+  /** Full-screen INTRO SLAM: big title, one sentence, tap (or 3.2s) to start. */
+  showIntro(d) {
+    this.intro?.remove();
+    this.introUp = true;
+    const box = el(`
+      <div class="drill-intro">
+        <div class="di-card">
+          <small>DRILL ${this.idx + 1} OF ${DRILLS.length}</small>
+          <h2>${d.title}</h2>
+          <p>${d.detail}</p>
+          <b class="di-go">TAP TO START</b>
+        </div>
+      </div>`);
+    this.scene.hud.el.appendChild(box);
+    this.intro = box;
+    const dismiss = () => {
+      if (!this.introUp) return;
+      this.introUp = false;
+      box.classList.add('bye');
+      setTimeout(() => box.remove(), 320);
+    };
+    box.addEventListener('pointerdown', (e) => { e.stopPropagation(); dismiss(); });
+    setTimeout(dismiss, 3400);
   }
 
   render() {
     const d = this.drill();
     if (!d) return;
-    this.root.querySelector('.drill-title').textContent = `DRILL ${this.idx + 1}/${DRILLS.length} — ${d.title}`;
-    this.root.querySelector('.drill-goal').textContent = d.goal;
+    this.root.querySelector('.drill-no').textContent = `${this.idx + 1}/${DRILLS.length}`;
+    this.root.querySelector('.drill-obj').textContent = d.objective;
     this.root.querySelector('.drill-pips').innerHTML =
       Array.from({ length: d.target }, (_, i) => `<i class="${i < this.progress ? 'on' : ''}"></i>`).join('');
   }
@@ -242,7 +320,7 @@ export class TutorialDirector {
       return;
     }
     const d = this.drill();
-    if (!d) return;
+    if (!d || this.introUp) return; // read first, play after
 
     const settled = SETTLED.has(s.phase) && !s.cinematicLock && !s.playFinalized;
     if (this.pendingSetup) {
@@ -256,13 +334,17 @@ export class TutorialDirector {
     // ensure() implementations are idempotent so this is safe every frame
     if (d.ensure && settled) d.ensure(s, this.st);
 
+    // contextual coach callouts — the right words at the right place & moment
+    if (!s.cinematicLock) d.coach?.(s, this.st, (text, opts) => s.hud.callout(text, opts));
+
     if (d.tick(s, this.st)) {
       this.progress += 1;
       this.render();
       if (this.progress >= d.target) {
+        s.hud.goalPop('GOAL ✓');
         this.completeDrill();
       } else {
-        s.hud.call('✓ ONE MORE!', 'robbed');
+        s.hud.goalPop(`✓ ${this.progress}/${d.target}`);
         this.bus.emit('sfx', 'catchpop');
       }
     }
@@ -274,6 +356,8 @@ export class TutorialDirector {
     this.scene.sendHeldRunner = this.origSend;
     this.scene.tutorialGo = false;
     this.scene.tutorialQuiet = false;
+    this.scene.hud.clearCallouts?.();
+    this.intro?.remove();
     this.root.remove();
   }
 }

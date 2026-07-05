@@ -214,6 +214,54 @@ export class Hud {
   showSlide() { this.slideBtn.classList.add('show'); }
   hideSlide() { this.slideBtn.classList.remove('show'); }
 
+  /**
+   * CALLOUT: an animated coach bubble with an arrow, popped at the exact
+   * moment + place a control matters. Anchor to a DOM element (el) or a
+   * viewport point (x,y). Deduped by key while alive; auto-hides after ttl.
+   */
+  callout(text, { el = null, x = null, y = null, dir = 'down', ttl = 1800, key = text } = {}) {
+    this._callouts ??= new Map();
+    if (this._callouts.has(key)) return;
+    const H = this.el.getBoundingClientRect();
+    let cx; let cy;
+    if (el) {
+      const r = el.getBoundingClientRect();
+      if (!r.width && !r.height) return; // hidden anchor — nothing to point at
+      cx = r.left + r.width / 2 - H.left;
+      cy = (dir === 'down' ? r.top - 8 : r.bottom + 8) - H.top;
+    } else if (x !== null && y !== null) {
+      cx = x - H.left;
+      cy = y - H.top;
+    } else return;
+    const b = document.createElement('div');
+    b.className = `coach-callout ${dir}`;
+    b.textContent = text;
+    b.style.left = `${cx}px`;
+    b.style.top = `${cy}px`;
+    this.el.appendChild(b);
+    this._callouts.set(key, b);
+    setTimeout(() => { b.classList.add('bye'); }, Math.max(200, ttl - 260));
+    setTimeout(() => { b.remove(); this._callouts.delete(key); }, ttl);
+  }
+
+  clearCallouts() {
+    if (!this._callouts) return;
+    for (const b of this._callouts.values()) b.remove();
+    this._callouts.clear();
+  }
+
+  /** Big juicy center pop for scoring a tutorial goal ("GOAL ✓ 1/2"). */
+  goalPop(text) {
+    const g = document.createElement('div');
+    g.className = 'goal-pop';
+    g.appendChild(document.createElement('i')); // the burst ring
+    const s = document.createElement('span');
+    s.textContent = text;
+    g.appendChild(s);
+    this.el.appendChild(g);
+    setTimeout(() => g.remove(), 1100);
+  }
+
   showThrowPad(show) {
     this.throwPad.classList.toggle('show', show);
     if (!show) this.highlightBestBase(null);
