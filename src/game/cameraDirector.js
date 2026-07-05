@@ -67,11 +67,15 @@ export const SHOTS = {
     // perp pointed AWAY from the diamond centre (0,0,-11.3) = outside
     if (px * mid.x + pz * (mid.z + 11.3) < 0) { px = -px; pz = -pz; }
     const n = Math.hypot(px, pz) || 1;
-    const d = Math.max(9.5, A.distanceTo(B) * 0.78);
+    // HIGH TACTICAL view — nearly top-down over the basepath, like a play
+    // diagram: both bags, every body, and all the distances read instantly
+    // (the ground-level side angle left players unable to tell what the
+    // camera was even facing)
+    const sep = A.distanceTo(B);
     return {
-      pos: V(mid.x + (px / n) * d, 2.9, mid.z + (pz / n) * d),
-      look: V(mid.x, 1.05, mid.z),
-      fovScale: 0.78, stiffness: 30,
+      pos: V(mid.x + (px / n) * sep * 0.32, Math.max(13.5, sep * 1.05), mid.z + (pz / n) * sep * 0.32),
+      look: V(mid.x, 0, mid.z),
+      fovScale: 0.95, stiffness: 30,
     };
   },
 

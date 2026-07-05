@@ -101,7 +101,7 @@ export const DRILLS = [
       </div>`,
     title: 'EXTRA BASES & THE PICKLE',
     objective: 'TAKE 2ND — SURVIVE THE PICKLE',
-    detail: 'Kick, take first, hit GO FOR 2! You WILL get trapped — the game cuts to the PICKLE: arrows pick your bag, SPIN dodges the tag, SLIDE! wins.',
+    detail: 'Kick, take first, hit GO FOR 2! You WILL get trapped — then just do what the big coach line says: GO, REVERSE, SPIN, SLIDE!',
     target: 1,
     setup(s) {
       s.match.state.bases = [null, null, null]; // clean diamond for the lesson
@@ -133,14 +133,7 @@ export const DRILLS = [
       if (s.goOffer && !st.sent) {
         say('HIT IT!', { el: s.hud.goBtn, dir: 'down', key: 'go-hit', ttl: 1400 });
       }
-      if (s.pickle) {
-        st.pickleT = (st.pickleT ?? 0) + 1;
-        if (st.pickleT < 110) say('ARROWS = BREAK FOR A BAG!', { el: s.hud.picklePad, dir: 'down', key: 'pk-arrows', ttl: 1500 });
-        else if (st.pickleT < 220) say('SPIN THROUGH THE TAG!', { el: s.hud.picklePad.querySelector('.pk-spin'), dir: 'down', key: 'pk-spin', ttl: 1400 });
-        if (s.pickle.slideShown) say('DIVE!', { el: s.hud.slideBtn, dir: 'down', key: 'pk-slide', ttl: 1200 });
-      } else {
-        st.pickleT = 0;
-      }
+      // the in-game LIVE COACH owns pickle instruction — no callouts on top
     },
   },
   {
