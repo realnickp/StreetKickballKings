@@ -45,6 +45,11 @@ export class Hud {
       <button class="go-btn"><span></span></button>
       <button class="slide-btn"><span>SLIDE!</span></button>
       <div class="steal-chips"></div>
+      <div class="pickle-pad">
+        <button class="pk-left"><span>⬅</span><small></small></button>
+        <button class="pk-spin"><span>🌀</span><small>SPIN</small></button>
+        <button class="pk-right"><span>➡</span><small></small></button>
+      </div>
     `;
     root.appendChild(this.el);
 
@@ -98,6 +103,16 @@ export class Hud {
     this.stealChips = this.el.querySelector('.steal-chips');
     this.onSteal = null;
     this._chipKey = '';
+    this.picklePad = this.el.querySelector('.pickle-pad');
+    this.onPickleMove = null;
+    this.onPickleSpin = null;
+    this.picklePad.addEventListener('pointerdown', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      e.stopPropagation();
+      if (btn.classList.contains('pk-spin')) this.onPickleSpin?.();
+      else this.onPickleMove?.(btn.classList.contains('pk-left') ? 'left' : 'right');
+    });
 
     this.onAim = null;
     this.onThrow = null;
@@ -217,6 +232,20 @@ export class Hud {
   /** SLIDE! dive prompt — shows in a pickle when the runner closes on a bag. */
   showSlide() { this.slideBtn.classList.add('show'); }
   hideSlide() { this.slideBtn.classList.remove('show'); }
+
+  /** PICKLE PAD: the mini-game control strip — break left, spin, break right.
+   *  Labels carry the bag names as seen ON SCREEN in the side-on pickle cam. */
+  showPicklePad(leftLabel, rightLabel) {
+    this.picklePad.querySelector('.pk-left small').textContent = leftLabel;
+    this.picklePad.querySelector('.pk-right small').textContent = rightLabel;
+    this.picklePad.classList.add('show');
+  }
+  hidePicklePad() { this.picklePad.classList.remove('show'); }
+  /** pulse the button matching the runner's CURRENT direction */
+  setPickleDir(side) {
+    this.picklePad.querySelector('.pk-left').classList.toggle('live', side === 'left');
+    this.picklePad.querySelector('.pk-right').classList.toggle('live', side === 'right');
+  }
 
   /**
    * STEAL CHIPS: runners on 1st/3rd sit OUTSIDE the kick camera's framing, so
