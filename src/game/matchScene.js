@@ -152,7 +152,7 @@ export class MatchScene {
     // PICKLE STAGE identity rings: teal = YOUR man, red = the ball / the threat
     const stageRing = (color) => {
       const ring = new THREE.Mesh(
-        new THREE.RingGeometry(0.55, 0.88, 28),
+        new THREE.RingGeometry(0.85, 1.25, 28),
         new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide }),
       );
       ring.rotation.x = -Math.PI / 2;
@@ -162,6 +162,26 @@ export class MatchScene {
     };
     this.youRing = stageRing('#3ec6b5');
     this.threatRing = stageRing('#d7263d');
+
+    // SMART ARROW: a fat play-diagram arrow painted on the court from your
+    // runner toward the bag the coach recommends — follow the arrow, live
+    {
+      const shape = new THREE.Shape();
+      shape.moveTo(-0.45, 0); shape.lineTo(-0.45, 1.7); shape.lineTo(-0.95, 1.7);
+      shape.lineTo(0, 3.0); shape.lineTo(0.95, 1.7); shape.lineTo(0.45, 1.7);
+      shape.lineTo(0.45, 0); shape.closePath();
+      const inner = new THREE.Mesh(
+        new THREE.ShapeGeometry(shape),
+        new THREE.MeshBasicMaterial({ color: '#3ec6b5', transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide }),
+      );
+      inner.rotation.x = -Math.PI / 2;
+      inner.position.y = 0.09;
+      this.smartArrow = new THREE.Group();
+      this.smartArrow.add(inner);
+      this.smartArrow.visible = false;
+      this.smartArrowMat = inner.material;
+      engine.scene.add(this.smartArrow);
+    }
 
     bus.on('cine:start', () => { this.cinematicLock = true; this.hud.hint(''); });
     bus.on('cine:done', () => { this.cinematicLock = false; });
@@ -392,6 +412,7 @@ export class MatchScene {
     this.restoreSpeed();
     this.hud.hideThreatMarker();
     this.hud.setSpinUrgent(false);
+    this.hud.hidePickleCoach();
     this.hud.hideSlide();
     this.hud.hidePicklePad();
     this.match.state.bases.forEach((occ, i) => {
@@ -1741,14 +1762,15 @@ export class MatchScene {
     const pk = this.pickle?.r ?? this.rundownView;
     const on = !!pk && pk.state === 'running';
     if (!on) {
-      if (this.youRing.visible || this.threatRing.visible) {
-        this.youRing.visible = this.threatRing.visible = false;
+      if (this.youRing.visible || this.threatRing.visible || this.smartArrow.visible) {
+        this.youRing.visible = this.threatRing.visible = this.smartArrow.visible = false;
         this.hud.hideBagTags();
         this.hud.hideYouMarker();
         this.hud.hideThreatMarker();
       }
       return;
     }
+    if (!this.pickle) this.smartArrow.visible = false; // defense: no offense arrow
     const holder = this.fieldingChars().find((c) => c.hasBall);
     const runnerPos = pk.char.group.position;
     const pulse = 1 + Math.sin(this.elapsed * 8) * 0.12;
@@ -1765,13 +1787,15 @@ export class MatchScene {
       this.threatRing.visible = true;
       this.threatRing.position.copy(threatChar.group.position).setY(0.07);
       this.threatRing.scale.setScalar(2 - pulse);
-      const ts = this.worldToScreen(threatChar.group.position);
-      const near = threatChar.group.position.distanceTo(runnerPos) < 3.2;
-      if (ts) this.hud.setThreatMarker(ts.x, ts.y - 40, near);
     } else {
       this.threatRing.visible = false;
-      this.hud.hideThreatMarker();
     }
+    // the red marker rides the BALL itself — held OR mid-throw, it never
+    // disappears at the exact moment you must decide
+    const bs = this.worldToScreen(this.ball.pos);
+    const nearBall = this.ball.pos.distanceTo(runnerPos) < 3.6;
+    if (bs) this.hud.setThreatMarker(bs.x, bs.y - 34, nearBall);
+    else this.hud.hideThreatMarker();
     if (this.pickle) {
       const ys = this.worldToScreen(pk.char.group.position);
       if (ys) this.hud.setYouMarker(ys.x, ys.y - 44);
@@ -1823,7 +1847,36 @@ export class MatchScene {
         holder.animator.play('holdball');
       }
       // SPIN cue: flash the button exactly when a lunge can be dodged
-      this.hud.setSpinUrgent(d < 2.8 && P.spinCd <= 0 && !P.sliding);
+      const spinNow = d < 2.8 && P.spinCd <= 0 && !P.sliding;
+      this.hud.setSpinUrgent(spinNow);
+
+      // LIVE COACH — one big instruction that always answers "what do I do":
+      // where is the ball along MY basepath, and is my current direction smart?
+      const fromPt = this.bagPos(r.fromBase);
+      const toPt = this.bagPos(r.targetBase);
+      const axis = toPt.clone().sub(fromPt);
+      const tBall = this.ball.pos.clone().sub(fromPt).dot(axis) / axis.lengthSq();
+      const tRun = r.sim.progressM / this.tuning.running.basePathM;
+      const pressOn = tBall < tRun - 0.04; // ball behind me -> keep going
+      const reverse = tBall > tRun + 0.04; // ball ahead of me -> turn around
+      let coach;
+      if (P.sliding) coach = ['SLIDE!!', 'slide'];
+      else if (spinNow) coach = ['SPIN NOW!', 'spin'];
+      else if (reverse) coach = ['REVERSE!', 'reverse'];
+      else if (pressOn) coach = ['GO GO GO!', 'go'];
+      else coach = ['PICK A SIDE!', 'go'];
+      this.hud.setPickleCoach(coach[0], coach[1]);
+      // glow the SMART pad button green (the bag AWAY from the ball)
+      const smartIsTarget = !reverse;
+      const smartSide = (smartIsTarget === this.pickleLeftIsTarget) ? 'left' : 'right';
+      this.hud.setPickleSmart(P.sliding ? null : smartSide);
+      // the ground arrow: from the runner toward the smart bag
+      const smartBag = smartIsTarget ? toPt : fromPt;
+      const runPos = r.char.group.position;
+      this.smartArrow.visible = !P.sliding;
+      this.smartArrow.position.set(runPos.x, 0, runPos.z);
+      this.smartArrow.rotation.y = Math.atan2(smartBag.x - runPos.x, smartBag.z - runPos.z);
+      this.smartArrowMat.color.set(reverse ? '#f5b312' : '#3ec6b5');
       // pulling away toward a bag → relay AHEAD of you to tighten the trap
       P.decideT -= dt;
       if (P.decideT <= 0) {
@@ -1878,6 +1931,7 @@ export class MatchScene {
     this.restoreSpeed();
     this.hud.hideThreatMarker();
     this.hud.setSpinUrgent(false);
+    this.hud.hidePickleCoach();
     this.hud.hideSlide();
     this.hud.hidePicklePad();
     this.hud.setLetterbox(false);

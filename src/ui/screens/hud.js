@@ -306,6 +306,33 @@ export class Hud {
     this.picklePad.querySelector('.pk-spin').classList.toggle('urgent', !!on);
   }
 
+  /** the LIVE COACH line — one big instruction, fixed spot above the pad */
+  setPickleCoach(text, kind) {
+    if (!this.coachEl) {
+      this.coachEl = document.createElement('div');
+      this.coachEl.className = 'pickle-coach';
+      this.el.appendChild(this.coachEl);
+    }
+    if (this._coachTxt !== text) {
+      this._coachTxt = text;
+      this.coachEl.textContent = text;
+      this.coachEl.className = `pickle-coach show ${kind}`;
+      void this.coachEl.offsetWidth; // re-fire the pop on every instruction change
+      this.coachEl.classList.add('pop');
+    }
+  }
+  hidePickleCoach() {
+    this._coachTxt = null;
+    this.coachEl?.classList.remove('show', 'pop');
+  }
+
+  /** green-glow the SMART pad button (the bag AWAY from the ball) */
+  setPickleSmart(side) {
+    this.picklePad.classList.toggle('guided', !!side);
+    this.picklePad.querySelector('.pk-left').classList.toggle('smart', side === 'left');
+    this.picklePad.querySelector('.pk-right').classList.toggle('smart', side === 'right');
+  }
+
   /** pulse the button matching the runner's CURRENT direction */
   setPickleDir(side) {
     this.picklePad.querySelector('.pk-left').classList.toggle('live', side === 'left');

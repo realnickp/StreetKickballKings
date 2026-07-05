@@ -1255,3 +1255,25 @@ body { display: flex; align-items: center; justify-content: center; }
   background: rgba(10,12,17,.9); border: 2px solid rgba(62,198,181,.6); border-radius: 8px; padding: 3px 9px;
   text-shadow: 0 1px 0 #000;
 }
+
+/* the pickle LIVE COACH: one big instruction, always in the same spot */
+.pickle-coach {
+  position: absolute; bottom: calc(136px + env(safe-area-inset-bottom)); left: 50%;
+  transform: translateX(-50%); z-index: 8; pointer-events: none; display: none;
+  font-family: var(--marker); font-size: min(30px, 7.4cqw); letter-spacing: 1px; white-space: nowrap;
+  -webkit-text-stroke: 1.5px #0b0d12; text-shadow: 0 4px 0 #000, 0 0 22px currentColor;
+}
+.pickle-coach.show { display: block; }
+.pickle-coach.go { color: var(--teal); }
+.pickle-coach.reverse { color: var(--gold); }
+.pickle-coach.spin, .pickle-coach.slide { color: #ff5e72; }
+.pickle-coach.pop { animation: coachPop .3s cubic-bezier(.2,1.6,.4,1); }
+@keyframes coachPop { from { transform: translateX(-50%) scale(.4); } 70% { transform: translateX(-50%) scale(1.15); } }
+/* smart-button guidance: the right choice glows green, the other dims */
+.pickle-pad button.smart {
+  border-color: #4ade80;
+  box-shadow: 0 0 24px rgba(74,222,128,.9);
+  animation: spinUrgent .45s ease-in-out infinite;
+}
+.pickle-pad button.smart small { color: #4ade80; }
+.pickle-pad.guided button:not(.smart):not(.pk-spin) { opacity: .45; }
