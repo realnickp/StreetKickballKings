@@ -1170,3 +1170,22 @@ body { display: flex; align-items: center; justify-content: center; }
 .coach-callout { font-size: min(17px, 4.2cqw); }
 .pitch-readout { font-size: min(18px, 4.4cqw); max-width: 94cqw; }
 .action-hint.above-pitch { font-size: min(19px, 4.2cqw); }
+
+/* ---------- PICKLE STAGE: the mini-game control strip ---------- */
+.pickle-pad {
+  position: absolute; bottom: calc(46px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
+  display: none; gap: 12px; z-index: 6;
+}
+.pickle-pad.show { display: flex; }
+.pickle-pad button {
+  pointer-events: auto; width: 88px; height: 76px; border-radius: 16px;
+  background: rgba(10,12,17,.92); border: 2.5px solid var(--teal); color: var(--ink);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  box-shadow: 0 6px 16px rgba(0,0,0,.5), 0 0 12px rgba(62,198,181,.35);
+}
+.pickle-pad button span { font-size: 26px; line-height: 1; }
+.pickle-pad button small { font-family: var(--marker); font-size: 13px; letter-spacing: 1px; color: var(--teal); }
+.pickle-pad .pk-spin { border-color: var(--gold); }
+.pickle-pad .pk-spin small { color: var(--gold); }
+.pickle-pad button.live { border-color: var(--gold); box-shadow: 0 0 20px rgba(245,179,18,.8); }
+.pickle-pad button:active { transform: scale(.93); }

@@ -55,6 +55,26 @@ export const SHOTS = {
     };
   },
 
+  // PICKLE STAGE: hard side-on duel view of the contested basepath — both
+  // bags at the screen edges, runner and taggers in profile. Shot from
+  // OUTSIDE the diamond so the infield never blocks the lens.
+  pickle: (c) => {
+    const A = c.pickleA ?? V(11.3, 0, -11.3);
+    const B = c.pickleB ?? V(0, 0, -22.6);
+    const mid = A.clone().add(B).multiplyScalar(0.5);
+    let px = -(B.z - A.z);
+    let pz = (B.x - A.x);
+    // perp pointed AWAY from the diamond centre (0,0,-11.3) = outside
+    if (px * mid.x + pz * (mid.z + 11.3) < 0) { px = -px; pz = -pz; }
+    const n = Math.hypot(px, pz) || 1;
+    const d = Math.max(11, A.distanceTo(B) * 0.95);
+    return {
+      pos: V(mid.x + (px / n) * d, 3.6, mid.z + (pz / n) * d),
+      look: V(mid.x, 1.0, mid.z),
+      fovScale: 0.85, stiffness: 30,
+    };
+  },
+
   // defense: frame your fielder + the ball (legacy live framing, spring-damped)
   defense: (c) => {
     const a = c.activeFielderPos ?? V(0, 0, -14);
