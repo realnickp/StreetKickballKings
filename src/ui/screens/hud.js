@@ -262,6 +262,45 @@ export class Hud {
   }
   hideThreatMarker() { this.threatEl?.classList.remove('show', 'hot'); }
 
+  /** teal YOU tag riding your runner's head on the pickle stage */
+  setYouMarker(x, y) {
+    if (!this.youEl) {
+      this.youEl = document.createElement('div');
+      this.youEl.className = 'you-marker';
+      this.youEl.textContent = 'YOU';
+      this.el.appendChild(this.youEl);
+    }
+    const H = this.el.getBoundingClientRect();
+    this.youEl.style.left = `${Math.max(24, Math.min(H.width - 24, x - H.left))}px`;
+    this.youEl.style.top = `${Math.max(50, y - H.top)}px`;
+    this.youEl.classList.add('show');
+  }
+  hideYouMarker() { this.youEl?.classList.remove('show'); }
+
+  /** floating bag name tags on the pickle stage — they MATCH the pad buttons */
+  setBagTags(tags) {
+    if (!this.bagTagBox) {
+      this.bagTagBox = document.createElement('div');
+      this.bagTagBox.className = 'bag-tags';
+      this.el.appendChild(this.bagTagBox);
+    }
+    const H = this.el.getBoundingClientRect();
+    const key = tags.map((t) => t.label + '|' + Math.round(t.x / 6) + '|' + Math.round(t.y / 6)).join(',');
+    if (key === this._bagKey) return;
+    this._bagKey = key;
+    this.bagTagBox.replaceChildren(...tags.map((t) => {
+      const el = document.createElement('b');
+      el.className = 'bag-tag';
+      el.textContent = t.label;
+      el.style.left = `${Math.max(26, Math.min(H.width - 26, t.x - H.left))}px`;
+      el.style.top = `${Math.max(60, t.y - H.top)}px`;
+      return el;
+    }));
+  }
+  hideBagTags() {
+    if (this._bagKey !== '') { this._bagKey = ''; this.bagTagBox?.replaceChildren(); }
+  }
+
   /** flash the SPIN button when the tagger is in lunge range — spin NOW */
   setSpinUrgent(on) {
     this.picklePad.querySelector('.pk-spin').classList.toggle('urgent', !!on);

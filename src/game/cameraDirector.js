@@ -67,11 +67,11 @@ export const SHOTS = {
     // perp pointed AWAY from the diamond centre (0,0,-11.3) = outside
     if (px * mid.x + pz * (mid.z + 11.3) < 0) { px = -px; pz = -pz; }
     const n = Math.hypot(px, pz) || 1;
-    const d = Math.max(11, A.distanceTo(B) * 0.95);
+    const d = Math.max(9.5, A.distanceTo(B) * 0.78);
     return {
-      pos: V(mid.x + (px / n) * d, 3.6, mid.z + (pz / n) * d),
-      look: V(mid.x, 1.0, mid.z),
-      fovScale: 0.85, stiffness: 30,
+      pos: V(mid.x + (px / n) * d, 2.9, mid.z + (pz / n) * d),
+      look: V(mid.x, 1.05, mid.z),
+      fovScale: 0.78, stiffness: 30,
     };
   },
 

@@ -149,6 +149,20 @@ export class MatchScene {
       return ring;
     });
 
+    // PICKLE STAGE identity rings: teal = YOUR man, red = the ball / the threat
+    const stageRing = (color) => {
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(0.55, 0.88, 28),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide }),
+      );
+      ring.rotation.x = -Math.PI / 2;
+      ring.visible = false;
+      engine.scene.add(ring);
+      return ring;
+    };
+    this.youRing = stageRing('#3ec6b5');
+    this.threatRing = stageRing('#d7263d');
+
     bus.on('cine:start', () => { this.cinematicLock = true; this.hud.hint(''); });
     bus.on('cine:done', () => { this.cinematicLock = false; });
     // a cutscene's return throw: the scene flies it and the pitcher catches
@@ -1720,6 +1734,57 @@ export class MatchScene {
     if (!wantsTarget) this.pickleReverse();
   }
 
+  /** WHO IS WHO on the pickle stage, every frame: teal ring + YOU tag on your
+   *  man, red ring + red marker on the threat, floating name tags on both bags
+   *  that MATCH the pad buttons. All of it strikes with the stage. */
+  updateStageMarkers() {
+    const pk = this.pickle?.r ?? this.rundownView;
+    const on = !!pk && pk.state === 'running';
+    if (!on) {
+      if (this.youRing.visible || this.threatRing.visible) {
+        this.youRing.visible = this.threatRing.visible = false;
+        this.hud.hideBagTags();
+        this.hud.hideYouMarker();
+        this.hud.hideThreatMarker();
+      }
+      return;
+    }
+    const holder = this.fieldingChars().find((c) => c.hasBall);
+    const runnerPos = pk.char.group.position;
+    const pulse = 1 + Math.sin(this.elapsed * 8) * 0.12;
+    // OFFENSE: you = the runner, threat = the ball-carrier.
+    // DEFENSE: you = your ball-carrier, threat(target) = the trapped runner.
+    const youChar = this.pickle ? pk.char : holder;
+    const threatChar = this.pickle ? holder : pk.char;
+    if (youChar) {
+      this.youRing.visible = true;
+      this.youRing.position.copy(youChar.group.position).setY(0.07);
+      this.youRing.scale.setScalar(pulse);
+    } else this.youRing.visible = false;
+    if (threatChar) {
+      this.threatRing.visible = true;
+      this.threatRing.position.copy(threatChar.group.position).setY(0.07);
+      this.threatRing.scale.setScalar(2 - pulse);
+      const ts = this.worldToScreen(threatChar.group.position);
+      const near = threatChar.group.position.distanceTo(runnerPos) < 3.2;
+      if (ts) this.hud.setThreatMarker(ts.x, ts.y - 40, near);
+    } else {
+      this.threatRing.visible = false;
+      this.hud.hideThreatMarker();
+    }
+    if (this.pickle) {
+      const ys = this.worldToScreen(pk.char.group.position);
+      if (ys) this.hud.setYouMarker(ys.x, ys.y - 44);
+    } else this.hud.hideYouMarker();
+    const label = (i) => (i < 0 ? 'HOME' : ['1ST', '2ND', '3RD', 'HOME'][i]);
+    const sa = this.worldToScreen(this.bagPos(pk.fromBase).setY(0.2));
+    const sb = this.worldToScreen(this.bagPos(pk.targetBase).setY(0.2));
+    const tags = [];
+    if (sa) tags.push({ x: sa.x, y: sa.y - 18, label: label(pk.fromBase) });
+    if (sb) tags.push({ x: sb.x, y: sb.y - 18, label: label(pk.targetBase) });
+    this.hud.setBagTags(tags);
+  }
+
   updatePickle(dt) {
     const P = this.pickle;
     const r = P.r;
@@ -1757,9 +1822,7 @@ export class MatchScene {
       } else if (holder.animator.name === 'run') {
         holder.animator.play('holdball');
       }
-      // READABILITY: red marker rides the ball-carrier; SPIN flashes in lunge range
-      const hs = this.worldToScreen(holder.group.position);
-      if (hs) this.hud.setThreatMarker(hs.x, hs.y - 40, d < 3.2);
+      // SPIN cue: flash the button exactly when a lunge can be dodged
       this.hud.setSpinUrgent(d < 2.8 && P.spinCd <= 0 && !P.sliding);
       // pulling away toward a bag → relay AHEAD of you to tighten the trap
       P.decideT -= dt;
@@ -2451,6 +2514,8 @@ export class MatchScene {
         this.ballControlled = true;
       }
     }
+
+    this.updateStageMarkers();
 
     // STEAL CHIPS: runners on 1st/3rd sit outside the kick framing — pin a
     // tappable chip per eligible runner instead (setStealChips dedupes).
