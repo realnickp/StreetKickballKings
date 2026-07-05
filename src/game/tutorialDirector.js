@@ -18,6 +18,11 @@ function el(html) {
 export const DRILLS = [
   {
     id: 'kick',
+    demo: `
+      <div class="tut-stage di-demo">
+        <div class="tut-meter"><i class="tut-meter-sweet"></i><i class="tut-meter-fill"></i></div>
+        <div class="dm-finger dm-slideflick">👆</div>
+      </div>`,
     title: 'KICKING',
     objective: 'KICK 2 FAIR BALLS',
     detail: 'Slide left or right to line up. FLICK UP right as the meter peaks — perfect timing is 🔥.',
@@ -38,6 +43,11 @@ export const DRILLS = [
   },
   {
     id: 'run',
+    demo: `
+      <div class="tut-stage di-demo">
+        <div class="tut-diamond"><i class="d1"></i><i class="d2"></i><i class="d3"></i><i class="dh"></i></div>
+        <div class="dm-finger dm-mash">👇<span></span></div>
+      </div>`,
     title: 'RUNNING',
     objective: 'BEAT THE THROW TO FIRST',
     detail: 'The second you kick it — MASH-TAP anywhere to sprint. No taps, no legs.',
@@ -55,6 +65,11 @@ export const DRILLS = [
   },
   {
     id: 'steal',
+    demo: `
+      <div class="tut-stage di-demo">
+        <div class="tut-diamond"><i class="d1 runner"></i><i class="d2"></i><i class="d3"></i><i class="dh"></i></div>
+        <div class="dm-finger dm-tap-first">👆</div>
+      </div>`,
     title: 'STEALING',
     objective: 'STEAL SECOND BASE',
     detail: 'You’ve got a man on first. TAP HIM while the pitch is rolling in — then mash.',
@@ -80,6 +95,12 @@ export const DRILLS = [
   },
   {
     id: 'go',
+    demo: `
+      <div class="tut-stage di-demo">
+        <button class="tut-pill teal dm-go">GO FOR 2!</button>
+        <button class="tut-pill red small">SLIDE!</button>
+        <div class="dm-finger dm-tap-go">👆</div>
+      </div>`,
     title: 'EXTRA BASES & THE PICKLE',
     objective: 'TAKE 2ND — SURVIVE THE PICKLE',
     detail: 'Kick, take first, hit GO FOR 2! You WILL get trapped — TAP reverses, SWIPE UP spins, SLIDE! wins.',
@@ -126,6 +147,11 @@ export const DRILLS = [
   },
   {
     id: 'pitch',
+    demo: `
+      <div class="tut-stage di-demo">
+        <svg class="tut-trace" viewBox="0 0 100 44"><polyline points="6,38 30,10 52,34 74,8 94,30" /></svg>
+        <div class="dm-finger dm-trace">👆</div>
+      </div>`,
     title: 'PITCHING',
     objective: 'DELIVER 2 PITCHES',
     detail: 'Your arm now. Pick a pitch, then TRACE the pattern — fast, tight strokes. Sloppy = meatball.',
@@ -146,6 +172,13 @@ export const DRILLS = [
   },
   {
     id: 'field',
+    demo: `
+      <div class="tut-stage di-demo">
+        <div class="tut-pad">
+          <b class="p2"><span>2ND</span></b><b class="p3"><span>3RD</span></b><b class="p1"><span>1ST</span></b><b class="ph"><span>HOME</span></b><b class="peg"><span>PEG</span></b>
+        </div>
+        <div class="dm-finger dm-tap-gold">👆</div>
+      </div>`,
     title: 'FIELDING',
     objective: 'GET AN OUT',
     detail: 'DRAG steers your glowing fielder, TAP a teammate to switch. Ball in hand → hit the GOLD bag.',
@@ -191,6 +224,7 @@ const SETTLED = new Set(['SETUP', 'PITCH', 'PITCH_SELECT', 'IDLE']);
 export class TutorialDirector {
   constructor({ scene, engine, bus, save, onExit }) {
     this.scene = scene;
+    this.engine = engine;
     this.bus = bus;
     this.save = save;
     this.onExit = onExit;
@@ -254,17 +288,24 @@ export class TutorialDirector {
     this.bus.emit('sfx', 'scratch');
   }
 
-  /** Full-screen INTRO SLAM: big title, one sentence, tap (or 3.2s) to start. */
+  /** Full-screen INTRO GATE: world FROZEN behind the blur, the gesture demo
+   *  loops, and NOTHING starts until the player presses START. */
   showIntro(d) {
     this.intro?.remove();
     this.introUp = true;
+    this.engine.paused = true; // freeze gameplay — rendering keeps going
     const box = el(`
       <div class="drill-intro">
         <div class="di-card">
           <small>DRILL ${this.idx + 1} OF ${DRILLS.length}</small>
           <h2>${d.title}</h2>
+          ${d.demo ?? ''}
           <p>${d.detail}</p>
-          <b class="di-go">TAP TO START</b>
+          <button class="di-start">▶ START</button>
+          <div class="di-links">
+            <button class="di-skip">skip drill ›</button>
+            <button class="di-exit">✕ exit tutorial</button>
+          </div>
         </div>
       </div>`);
     this.scene.hud.el.appendChild(box);
@@ -272,11 +313,23 @@ export class TutorialDirector {
     const dismiss = () => {
       if (!this.introUp) return;
       this.introUp = false;
+      this.engine.paused = false; // play ball
       box.classList.add('bye');
       setTimeout(() => box.remove(), 320);
     };
-    box.addEventListener('pointerdown', (e) => { e.stopPropagation(); dismiss(); });
-    setTimeout(dismiss, 3400);
+    box.querySelector('.di-start').addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      this.bus.emit('sfx', 'scratch');
+      dismiss();
+    });
+    box.querySelector('.di-skip').addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      this.completeDrill(true); // next intro takes over (stays paused)
+    });
+    box.querySelector('.di-exit').addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      this.exit();
+    });
   }
 
   render() {
@@ -300,6 +353,11 @@ export class TutorialDirector {
   finish() {
     if (this.finished) return;
     this.finished = true;
+    // finishing from a skip cascade happens UNDER an intro card — unfreeze,
+    // or the frame loop (and our own auto-exit timer) never runs again
+    this.intro?.remove();
+    this.introUp = false;
+    this.engine.paused = false;
     this.save.set('tutorialPlayed', true);
     this.scene.hud.banner('YOU’RE READY. RUN THE STREETS 👑', 'homer', { autoHideMs: 2400 });
     this.bus.emit('sfx', 'crowd-cheer');
@@ -351,6 +409,7 @@ export class TutorialDirector {
   }
 
   destroy() {
+    this.engine.paused = false; // never leave the world frozen
     this.offFrame?.();
     this.offFrame = null;
     this.scene.sendHeldRunner = this.origSend;

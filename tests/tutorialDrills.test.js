@@ -15,6 +15,8 @@ describe('playable tutorial drills', () => {
       expect(d.target).toBeGreaterThanOrEqual(1);
       expect(typeof d.tick).toBe('function');
       expect(typeof d.coach).toBe('function'); // contextual callouts for every drill
+      expect(d.demo).toContain('tut-stage');   // animated gesture demo in the intro
+      expect(d.demo).toContain('dm-finger');   // ...showing the EXACT finger motion
     }
   });
 

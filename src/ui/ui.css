@@ -1090,3 +1090,60 @@ body { display: flex; align-items: center; justify-content: center; }
 .menu-learn .menu-tutorial { color: var(--gold); border-color: rgba(245,179,18,.45); }
 .menu-learn .menu-howto { color: var(--teal); }
 .menu-howto { width: auto; }
+
+/* ---------- tutorial intro v2: gesture demos + START gate ---------- */
+.di-demo { height: 118px; margin: 2px 0 10px; }
+.dm-finger {
+  position: absolute; z-index: 3; font-size: 36px; left: 50%; top: 50%;
+  filter: drop-shadow(0 5px 8px rgba(0,0,0,.65));
+  pointer-events: none;
+}
+/* KICK: slide to aim, then FLICK up */
+.dm-slideflick { animation: dmSlideFlick 2.4s ease-in-out infinite; }
+@keyframes dmSlideFlick {
+  0%   { transform: translate(-60px, 10px); opacity: 1; }
+  30%  { transform: translate(20px, 10px); opacity: 1; }
+  45%  { transform: translate(-10px, 10px); opacity: 1; }
+  58%  { transform: translate(-10px, 12px); opacity: 1; }
+  74%  { transform: translate(-10px, -52px); opacity: .9; }
+  82%, 100% { transform: translate(-10px, -64px); opacity: 0; }
+}
+/* RUN: mash (reuses tutMash bounce + ripple) */
+.dm-mash { animation: tutMash .45s ease-in-out infinite; }
+.dm-mash span { position: absolute; left: 50%; bottom: -8px; width: 14px; height: 14px; border: 3px solid var(--teal); border-radius: 50%; transform: translateX(-50%); animation: tutRipple .45s ease-out infinite; }
+/* STEAL: your man glows on 1st; finger taps HIM */
+.tut-diamond .d1.runner { background: var(--teal); animation: tutBag 1s ease-in-out infinite; box-shadow: 0 0 14px rgba(62,198,181,.9); }
+.dm-tap-first { left: auto; right: 24%; top: 52%; animation: dmTap 1.1s ease-in-out infinite; }
+/* GO: finger taps the GO pill */
+.dm-tap-go { left: 30%; top: 40%; animation: dmTap 1.1s ease-in-out infinite; }
+/* FIELD: finger taps the GOLD bag (top of the pad) */
+.dm-tap-gold { left: 50%; top: 6%; animation: dmTap 1.1s ease-in-out infinite; }
+@keyframes dmTap {
+  0%, 100% { transform: translate(0, 14px) scale(1); }
+  35% { transform: translate(0, 2px) scale(.82); }
+  50% { transform: translate(0, 14px) scale(1); }
+}
+/* PITCH: finger rides the trace path (viewBox 100x44 -> 150x66px stage svg) */
+.dm-trace { left: calc(50% - 75px); top: calc(50% - 33px); margin: 0; animation: dmTrace 2.2s linear infinite; }
+@keyframes dmTrace {
+  0%   { transform: translate(9px, 57px); }
+  25%  { transform: translate(45px, 15px); }
+  50%  { transform: translate(78px, 51px); }
+  75%  { transform: translate(111px, 12px); }
+  92%, 100% { transform: translate(141px, 45px); }
+}
+/* the START gate */
+.di-start {
+  pointer-events: auto; display: block; width: 100%;
+  font-family: var(--marker); font-size: 23px; letter-spacing: 1px; color: #0b0d12;
+  background: linear-gradient(180deg, #ffd75e, var(--gold));
+  border: none; border-radius: 14px; padding: 13px 0; margin: 2px 0 10px;
+  box-shadow: 0 6px 0 #8a6206, 0 10px 26px rgba(245,179,18,.35);
+  animation: beatBounce .632s ease-in-out infinite;
+}
+.di-start:active { transform: translateY(3px); box-shadow: 0 3px 0 #8a6206; }
+.di-links { display: flex; justify-content: center; gap: 18px; }
+.di-links button {
+  pointer-events: auto; font-family: var(--sans); font-weight: 800; font-size: 11px; letter-spacing: 1px;
+  color: var(--muted); background: none; border: none; text-decoration: underline;
+}
