@@ -1043,43 +1043,75 @@ body { display: flex; align-items: center; justify-content: center; }
 .di-card p { font-size: 15px; line-height: 1.5; color: var(--ink); margin: 0 0 14px; }
 .di-go { display: inline-block; font-family: var(--marker); font-size: 16px; letter-spacing: 1px; color: var(--teal); animation: hintPulse .8s ease-in-out infinite; }
 
-/* coach callout: animated bubble + arrow at the exact control */
+/* coach callout: a SPRAY-PAINT TAG — irregular blob, satellite splatter,
+   and a paint DRIP as the pointer. Slams in with a wobble, keeps bobbing. */
 .coach-callout {
   position: absolute; z-index: 8; pointer-events: none;
-  font-family: var(--marker); font-size: 17px; letter-spacing: .5px; color: #0b0d12; white-space: nowrap;
-  background: linear-gradient(180deg, #ffd75e, var(--gold));
-  border-radius: 12px; padding: 7px 13px;
-  box-shadow: 0 6px 18px rgba(0,0,0,.55), 0 0 16px rgba(245,179,18,.5);
-  animation: calloutPop .32s cubic-bezier(.2,1.6,.4,1), calloutBob 1s .32s ease-in-out infinite;
+  font-family: var(--marker); font-size: min(17px, 4.2cqw); letter-spacing: .5px; color: #16120a; white-space: nowrap;
+  background: linear-gradient(168deg, #ffdf7a 0%, var(--gold) 55%, #e09c0c 100%);
+  border-radius: 54% 46% 58% 42% / 48% 62% 38% 52%; /* hand-sprayed blob */
+  padding: 9px 17px 10px;
+  rotate: -3deg;
+  filter: drop-shadow(0 6px 14px rgba(0,0,0,.55));
+  animation: splatIn .38s cubic-bezier(.2,1.7,.4,1), calloutBob 1.1s .38s ease-in-out infinite;
 }
+/* satellite spray dots around the tag */
+.coach-callout::before {
+  content: ''; position: absolute; inset: -16px; z-index: -1; color: var(--gold);
+  background:
+    radial-gradient(circle 5px at 7% 26%, currentColor 97%, transparent),
+    radial-gradient(circle 3px at 2% 62%, currentColor 97%, transparent),
+    radial-gradient(circle 6px at 95% 20%, currentColor 97%, transparent),
+    radial-gradient(circle 3.5px at 99% 58%, currentColor 97%, transparent),
+    radial-gradient(circle 3px at 42% 0%, currentColor 97%, transparent),
+    radial-gradient(circle 4px at 78% 99%, currentColor 97%, transparent),
+    radial-gradient(circle 2.5px at 22% 99%, currentColor 97%, transparent);
+  animation: splatDots .45s ease-out;
+}
+@keyframes splatDots { from { scale: .3; opacity: 0; } 60% { opacity: 1; } to { scale: 1; } }
+/* the paint DRIP doubles as the pointer */
 .coach-callout.down { transform: translate(-50%, -100%); }
 .coach-callout.down::after {
-  content: ''; position: absolute; left: 50%; top: 100%; transform: translateX(-50%);
-  border: 8px solid transparent; border-top-color: var(--gold); border-bottom: 0;
+  content: ''; position: absolute; left: 50%; top: 96%; transform: translateX(-50%);
+  width: 7px; height: 16px; background: #e09c0c;
+  border-radius: 3px 3px 8px 8px;
+  animation: dripDown .5s .15s cubic-bezier(.6,0,.8,1) both;
 }
+@keyframes dripDown { from { height: 4px; } to { height: 16px; } }
 .coach-callout.up { transform: translate(-50%, 0); }
 .coach-callout.up::after {
-  content: ''; position: absolute; left: 50%; bottom: 100%; transform: translateX(-50%);
-  border: 8px solid transparent; border-bottom-color: #ffd75e; border-top: 0;
+  content: ''; position: absolute; left: 50%; bottom: 96%; transform: translateX(-50%);
+  width: 7px; height: 14px; background: #ffdf7a; border-radius: 8px 8px 3px 3px;
 }
 .coach-callout.bye { opacity: 0; transition: opacity .25s; }
-@keyframes calloutPop { from { scale: .4; opacity: 0; } 70% { scale: 1.1; } }
+@keyframes splatIn { from { scale: .25; rotate: 7deg; opacity: 0; } 60% { scale: 1.14; rotate: -5deg; } 80% { scale: .97; } to { scale: 1; rotate: -3deg; } }
 @keyframes calloutBob { 0%, 100% { translate: 0 0; } 50% { translate: 0 -5px; } }
 
-/* GOAL pop: center burst when a goal unit lands */
+/* GOAL pop: spray-tag slam + paint-splatter BURST (box-shadow particles) */
 .goal-pop { position: absolute; left: 50%; top: 38%; z-index: 8; pointer-events: none; transform: translate(-50%, -50%); }
 .goal-pop span {
-  display: block; font-family: var(--marker); font-size: 42px; color: var(--gold);
+  display: block; font-family: var(--marker); font-size: 42px; color: var(--gold); rotate: -5deg;
   text-shadow: 0 5px 0 #000, 0 0 30px rgba(245,179,18,.8); -webkit-text-stroke: 1.5px #0b0d12;
   animation: goalSlam .9s cubic-bezier(.2,1.5,.4,1) forwards;
 }
 .goal-pop i {
-  position: absolute; left: 50%; top: 50%; width: 30px; height: 30px; border-radius: 50%;
-  border: 4px solid var(--gold); transform: translate(-50%, -50%);
-  animation: goalRing .7s ease-out forwards;
+  position: absolute; left: 50%; top: 50%; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--gold); color: var(--gold); transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 0 currentColor, 0 0 0 0 currentColor, 0 0 0 0 currentColor, 0 0 0 0 currentColor,
+              0 0 0 0 currentColor, 0 0 0 0 currentColor, 0 0 0 0 currentColor, 0 0 0 0 currentColor;
+  animation: splatBurst .75s cubic-bezier(.1,.8,.3,1) forwards;
+}
+@keyframes splatBurst {
+  30% { opacity: 1; }
+  to {
+    opacity: 0;
+    box-shadow: -52px -34px 0 -1px currentColor, 48px -28px 0 -2px currentColor,
+                -36px 40px 0 -2px currentColor, 42px 34px 0 -1px currentColor,
+                2px -56px 0 -3px currentColor, -58px 8px 0 -3px currentColor,
+                58px 12px 0 -3px currentColor, 10px 52px 0 -3px currentColor;
+  }
 }
 @keyframes goalSlam { from { scale: .3; opacity: 0; } 30% { scale: 1.15; opacity: 1; } 75% { scale: 1; opacity: 1; } to { scale: 1; opacity: 0; translate: 0 -18px; } }
-@keyframes goalRing { from { scale: .4; opacity: .95; } to { scale: 5; opacity: 0; } }
 
 /* menu: learn row (playable tutorial + controls reference) */
 .menu-learn { width: 100%; display: flex; gap: 10px; }
@@ -1189,3 +1221,51 @@ body { display: flex; align-items: center; justify-content: center; }
 .pickle-pad .pk-spin small { color: var(--gold); }
 .pickle-pad button.live { border-color: var(--gold); box-shadow: 0 0 20px rgba(245,179,18,.8); }
 .pickle-pad button:active { transform: scale(.93); }
+
+/* ---------- STREET RESPRAY: intro card, ribbon, chips, pads ---------- */
+/* intro card: hand-cut poster — tilted, blob corners, grain, corner splatter */
+.di-card {
+  rotate: -1.4deg;
+  border-radius: 22px 15px 24px 14px / 16px 24px 15px 22px;
+  position: relative; overflow: visible;
+}
+.di-card::before { /* paint grain */
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: .5;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.di-card::after { /* corner spray splatter */
+  content: ''; position: absolute; inset: -18px; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(circle 7px at 4% 10%, rgba(62,198,181,.9) 96%, transparent),
+    radial-gradient(circle 4px at 10% 4%, rgba(62,198,181,.75) 96%, transparent),
+    radial-gradient(circle 3px at 1% 22%, rgba(62,198,181,.6) 96%, transparent),
+    radial-gradient(circle 8px at 97% 92%, rgba(245,179,18,.9) 96%, transparent),
+    radial-gradient(circle 4.5px at 91% 98%, rgba(245,179,18,.7) 96%, transparent),
+    radial-gradient(circle 3px at 99% 80%, rgba(245,179,18,.55) 96%, transparent);
+}
+.di-card small {
+  display: inline-block; rotate: -2deg;
+  background: var(--teal); color: #0b0d12; padding: 3px 10px;
+  border-radius: 46% 54% 50% 50% / 60% 46% 54% 40%;
+}
+.di-card h2 { position: relative; display: inline-block; }
+.di-card h2::after { /* title paint drip */
+  content: ''; position: absolute; left: 12%; top: 88%;
+  width: 6px; height: 15px; background: var(--gold);
+  border-radius: 3px 3px 8px 8px; opacity: .85;
+}
+.di-start { rotate: -1deg; border-radius: 48% 52% 50% 50% / 62% 58% 42% 38%; }
+
+/* ribbon: sprayed strip, stencil chip */
+.drill-ribbon { rotate: -1.2deg; border-radius: 47% 53% 52% 48% / 58% 46% 54% 42%; }
+.drill-no { rotate: -4deg; border-radius: 44% 56% 48% 52% / 62% 44% 56% 38%; }
+
+/* gameplay pills join the crew: blobby, tilted a hair */
+.go-btn { border-radius: 46% 54% 49% 51% / 60% 44% 56% 40%; rotate: -1.5deg; }
+.slide-btn { border-radius: 52% 48% 55% 45% / 44% 60% 40% 56%; rotate: 1.5deg; }
+.steal-chip { border-radius: 46% 54% 50% 50% / 58% 44% 56% 42%; rotate: -2deg; }
+.sc-2 { rotate: 2deg; }
+.pickle-pad button { border-radius: 26% 22% 25% 23% / 24% 26% 22% 25%; }
+.pickle-pad .pk-left { rotate: -1.5deg; }
+.pickle-pad .pk-right { rotate: 1.5deg; }
+.action-hint { rotate: -.8deg; border-radius: 48% 52% 50% 50% / 70% 62% 38% 30%; }
