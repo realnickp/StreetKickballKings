@@ -21,12 +21,12 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.31,
-        "ry": 0.685
+        "oy": 0.35,
+        "ry": 0.645
       },
       "backdropGeo": {
         "r": 49,
-        "h": 59.1,
+        "h": 55.6,
         "bottom": 0.3
       },
       "status": "ready",
@@ -36,8 +36,8 @@
       "backdropBack": {
         "tex": "assets/textures/backdrop-blacktop-back.jpg",
         "video": "assets/video/backdrop-blacktop-back.mp4",
-        "oy": 0.34,
-        "ry": 0.655
+        "oy": 0.37,
+        "ry": 0.625
       }
     },
     {
@@ -86,12 +86,12 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.365,
-        "ry": 0.63
+        "oy": 0.39,
+        "ry": 0.605
       },
       "backdropGeo": {
         "r": 43,
-        "h": 59.2,
+        "h": 56.9,
         "bottom": 0.3
       },
       "status": "ready",
@@ -164,8 +164,8 @@
       "backdropBack": {
         "tex": "assets/textures/backdrop-boardwalk-kings-back.jpg",
         "video": "assets/video/backdrop-boardwalk-kings-back.mp4",
-        "oy": 0.37,
-        "ry": 0.625
+        "oy": 0.41,
+        "ry": 0.585
       }
     },
     {
@@ -214,12 +214,12 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.36,
-        "ry": 0.635
+        "oy": 0.42,
+        "ry": 0.575
       },
       "backdropGeo": {
         "r": 48,
-        "h": 62.2,
+        "h": 56.3,
         "bottom": 0.3
       },
       "status": "ready",
@@ -246,12 +246,12 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.38,
-        "ry": 0.615
+        "oy": 0.45,
+        "ry": 0.545
       },
       "backdropGeo": {
         "r": 45,
-        "h": 53.4,
+        "h": 47.3,
         "bottom": 0.3
       },
       "status": "ready",
@@ -260,8 +260,8 @@
       "backdropBack": {
         "tex": "assets/textures/backdrop-winter-classic-back.jpg",
         "video": "assets/video/backdrop-winter-classic-back.mp4",
-        "oy": 0.4,
-        "ry": 0.595
+        "oy": 0.42,
+        "ry": 0.575
       }
     },
     {
@@ -278,12 +278,12 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.42,
-        "ry": 0.575
+        "oy": 0.45,
+        "ry": 0.545
       },
       "backdropGeo": {
         "r": 49,
-        "h": 55.4,
+        "h": 52.5,
         "bottom": 0.3
       },
       "status": "ready",
