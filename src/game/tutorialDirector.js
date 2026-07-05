@@ -279,6 +279,9 @@ export class TutorialDirector {
     this.idx += 1;
     if (this.idx >= DRILLS.length) return this.finish();
     this.progress = 0;
+    this.awaiting = false;
+    this.completeAt = 0;
+    this.nextAt = 0;
     this.st = { goSentFlag: () => { const v = this.goSent; this.goSent = false; return v; } };
     this.pendingSetup = !!this.drill().setup;
     this.render();
@@ -341,11 +344,10 @@ export class TutorialDirector {
 
   completeDrill(skipped = false) {
     if (this.finished) return;
-    if (!skipped) {
-      this.scene.hud.call('DRILL COMPLETE!', 'crowned');
-      this.bus.emit('sfx', 'crowd-cheer');
-    }
-    this.nextDrill();
+    if (skipped) return this.nextDrill(); // intro card handles the transition
+    this.scene.hud.call('DRILL COMPLETE!', 'crowned');
+    this.bus.emit('sfx', 'crowd-cheer');
+    this.nextAt = this.elapsed + 1.4; // soak the moment before the next intro
   }
 
   finish() {
@@ -379,6 +381,25 @@ export class TutorialDirector {
     if (!d || this.introUp) return; // read first, play after
 
     const settled = SETTLED.has(s.phase) && !s.cinematicLock && !s.playFinalized;
+
+    // goal reached: wait for the play to fully resolve, breathe, THEN wrap
+    if (this.awaiting || this.nextAt) {
+      if (this.nextAt) {
+        if (this.elapsed >= this.nextAt) { this.nextAt = 0; this.nextDrill(); }
+        return;
+      }
+      if (settled) {
+        if (!this.completeAt) this.completeAt = this.elapsed + 0.8;
+        if (this.elapsed >= this.completeAt) {
+          this.awaiting = false;
+          this.completeAt = 0;
+          this.completeDrill();
+        }
+      } else {
+        this.completeAt = 0;
+      }
+      return;
+    }
     if (this.pendingSetup) {
       if (!settled) return;
       d.setup?.(s, this.st);
@@ -396,12 +417,12 @@ export class TutorialDirector {
     if (d.tick(s, this.st)) {
       this.progress += 1;
       this.render();
+      this.bus.emit('sfx', 'catchpop');
       if (this.progress >= d.target) {
         s.hud.goalPop('GOAL ✓');
-        this.completeDrill();
+        this.awaiting = true; // let the play FINISH — no abrupt cut to the next drill
       } else {
         s.hud.goalPop(`✓ ${this.progress}/${d.target}`);
-        this.bus.emit('sfx', 'catchpop');
       }
     }
   }

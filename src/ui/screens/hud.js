@@ -114,6 +114,11 @@ export class Hud {
       else this.onPickleMove?.(btn.classList.contains('pk-left') ? 'left' : 'right');
     });
 
+    // warm the sprayed-paint UI art so the first callout/pop never flashes blank
+    for (const asset of ['splat-gold', 'burst', 'poster', 'start-plate', 'chip-teal']) {
+      new Image().src = `/assets/ui/${asset}.webp`;
+    }
+
     this.onAim = null;
     this.onThrow = null;
     this.onSpecial = null;
@@ -292,8 +297,6 @@ export class Hud {
       cx = x - H.left;
       cy = y - H.top;
     } else return;
-    // keep the bubble fully ON screen — anchors near the edge would clip
-    cx = Math.max(70, Math.min(H.width - 70, cx));
     cy = Math.max(44, Math.min(H.height - 24, cy));
     const b = document.createElement('div');
     b.className = `coach-callout ${dir}`;
@@ -301,6 +304,9 @@ export class Hud {
     b.style.left = `${cx}px`;
     b.style.top = `${cy}px`;
     this.el.appendChild(b);
+    // clamp by MEASURED width so long tags never bleed off the phone
+    const half = b.getBoundingClientRect().width / 2 + 8;
+    b.style.left = `${Math.max(half, Math.min(H.width - half, cx))}px`;
     this._callouts.set(key, b);
     setTimeout(() => { b.classList.add('bye'); }, Math.max(200, ttl - 260));
     setTimeout(() => { b.remove(); this._callouts.delete(key); }, ttl);
