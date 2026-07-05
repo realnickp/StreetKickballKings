@@ -167,6 +167,7 @@ export class MatchScene {
     this.hud.onThrow = (t) => this.onPlayerThrow(t);
     this.hud.onGo = () => this.sendHeldRunner();
     this.hud.onSlide = () => this.doSlide();
+    this.hud.onSteal = (b) => this.startSteal(b);
     this.hud.onSpecial = () => {
       if (this.special.ready && this.kickingIsPlayer()) {
         this.specialArmed = true;
@@ -423,7 +424,7 @@ export class MatchScene {
     this.hud.hidePattern();
     const hasRunners = this.match.state.bases.some((b) => b !== null);
     this.hud.hint(hasRunners
-      ? 'FLICK UP TO KICK • TAP RUNNER = STEAL'
+      ? 'FLICK UP TO KICK!'
       : 'SLIDE TO AIM • FLICK UP TO KICK');
     this.kicker.group.position.x = 0; // start centred; you slide left/right to line up
     this._kickerPrevX = 0; // reset stride tracker so the recenter isn't read as a slide
@@ -2354,6 +2355,18 @@ export class MatchScene {
         this.ballControlled = true;
       }
     }
+
+    // STEAL CHIPS: runners on 1st/3rd sit outside the kick framing — pin a
+    // tappable chip per eligible runner instead (setStealChips dedupes).
+    const chipsOn = (this.phase === 'SETUP' || this.phase === 'PITCH')
+      && this.kickingIsPlayer() && !this.stealing && !this.cinematicLock && !this.playFinalized;
+    const chips = [];
+    if (chipsOn && this.baseChars) {
+      for (let b = 0; b < 3; b++) {
+        if (this.baseChars[b] && (b === 2 || this.match.state.bases[b + 1] === null)) chips.push(b);
+      }
+    }
+    this.hud.setStealChips(chips);
 
     // BROADCAST CAMERA: matchScene picks the shot for the situation; the
     // CameraDirector spring-damps toward it (and handles the contact CUT).
