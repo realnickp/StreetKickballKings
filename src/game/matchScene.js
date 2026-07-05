@@ -373,6 +373,7 @@ export class MatchScene {
     this.hud.hideGo();
     this.pickle = null;
     this.rundownView = null;
+    this.releasePickleFreeze();
     this.hud.hideSlide();
     this.hud.hidePicklePad();
     this.match.state.bases.forEach((occ, i) => {
@@ -1185,6 +1186,7 @@ export class MatchScene {
     // defense PICKLE STAGE strikes itself when the trapped runner settles
     if (this.rundownView && this.rundownView.state !== 'running') {
       this.rundownView = null;
+      this.releasePickleFreeze();
       this.hud.setLetterbox(false);
     }
 
@@ -1214,6 +1216,7 @@ export class MatchScene {
     this.hud.hideGo();
     if (this.pickle) { this.pickle = null; this.hud.hideSlide(); this.hud.hidePicklePad(); this.hud.setLetterbox(false); }
     if (this.rundownView) { this.rundownView = null; this.hud.setLetterbox(false); }
+    this.releasePickleFreeze();
 
     // nobody jogs in place once the play is dead — settle every defender
     // (updateDefense stops outside LIVE, so a looping run clip would stick)
@@ -1639,6 +1642,7 @@ export class MatchScene {
       runner.aiPickleRev = 0.7 + Math.random() * 0.6;
       this.rundownView = runner; // PICKLE STAGE camera for the defense too
       this.hud.setLetterbox(true);
+      this.freezeForPickle();
       this.hud.hint('RUNDOWN! PEG HIM!');
       this.hud.showThrowPad(true);
       this.hud.highlightBestBase(null);
@@ -1661,6 +1665,23 @@ export class MatchScene {
     this.hud.setLetterbox(true); // the PICKLE STAGE: cinematic side-on duel
     this.updatePickleSides(r);
     this.hud.hint('');
+    this.freezeForPickle();
+  }
+
+  /** FREEZE the world while the camera swings to the pickle stage — the
+   *  player gets a beat to read the duel and find the pad, then GO. (timeScale
+   *  0 stops gameplay but the camera spring keeps flying on rawDt.) */
+  freezeForPickle() {
+    this.engine.timeScale = 0;
+    this.pickleFreezeUntil = this.elapsed + 1.5;
+    this.hud.call('PICKLE!', 'pegged');
+    this.bus.emit('sfx', 'bassdrop');
+  }
+
+  releasePickleFreeze() {
+    if (!this.pickleFreezeUntil) return;
+    this.pickleFreezeUntil = 0;
+    this.engine.timeScale = 1;
   }
 
   /** map the two contested bags to SCREEN left/right for the pickle pad */
@@ -1773,6 +1794,7 @@ export class MatchScene {
     const P = this.pickle;
     if (!P) return;
     this.pickle = null;
+    this.releasePickleFreeze();
     this.hud.hideSlide();
     this.hud.hidePicklePad();
     this.hud.setLetterbox(false);
@@ -2278,6 +2300,12 @@ export class MatchScene {
   // ---------- frame update ----------
   update(dt, rawDt) {
     this.elapsed += rawDt;
+    // pickle-stage freeze: hold the world while the camera lands, then GO
+    if (this.pickleFreezeUntil && this.elapsed >= this.pickleFreezeUntil) {
+      this.releasePickleFreeze();
+      this.hud.goalPop('GO!');
+      this.bus.emit('sfx', 'juke');
+    }
     this.ball.update(dt);
     this.field.updateCrowd(this.elapsed);
     this.field.crowdEnergy = Math.max(0, this.field.crowdEnergy - rawDt * 0.25);
