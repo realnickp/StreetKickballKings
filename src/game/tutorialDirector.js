@@ -67,12 +67,12 @@ export const DRILLS = [
     id: 'steal',
     demo: `
       <div class="tut-stage di-demo">
-        <div class="tut-diamond"><i class="d1 runner"></i><i class="d2"></i><i class="d3"></i><i class="dh"></i></div>
-        <div class="dm-finger dm-tap-first">👆</div>
+        <button class="tut-pill teal dm-chip">🏃 STEAL 2ND</button>
+        <div class="dm-finger dm-tap-go">👆</div>
       </div>`,
     title: 'STEALING',
     objective: 'STEAL SECOND BASE',
-    detail: 'You’ve got a man on first. TAP HIM while the pitch is rolling in — then mash.',
+    detail: 'You’ve got a man on first. TAP the STEAL 2ND chip while the pitch rolls in — then mash.',
     target: 1,
     setup(s) { ensureRunnerOn(s, 0); },
     // idempotent — re-arms after a caught-stealing wipes the runner
@@ -87,10 +87,8 @@ export const DRILLS = [
     },
     coach(s, st, say) {
       if (s.stealing || s.phase === 'LIVE') return;
-      const runner = s.baseChars?.[0];
-      if (!runner) return;
-      const p = s.worldToScreen(runner.group.position);
-      if (p) say('TAP HIM!', { x: p.x, y: p.y - 26, dir: 'down', key: 'steal-tap', ttl: 1500 });
+      const chip = s.hud.el.querySelector('.steal-chip');
+      if (chip) say('TAP TO STEAL!', { el: chip, dir: 'down', key: 'steal-tap', ttl: 1500 });
     },
   },
   {

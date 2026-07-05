@@ -44,6 +44,7 @@ export class Hud {
       <div class="special-btn"><div class="core">👑</div></div>
       <button class="go-btn"><span></span></button>
       <button class="slide-btn"><span>SLIDE!</span></button>
+      <div class="steal-chips"></div>
     `;
     root.appendChild(this.el);
 
@@ -94,6 +95,9 @@ export class Hud {
 
     this.goBtn = this.el.querySelector('.go-btn');
     this.slideBtn = this.el.querySelector('.slide-btn');
+    this.stealChips = this.el.querySelector('.steal-chips');
+    this.onSteal = null;
+    this._chipKey = '';
 
     this.onAim = null;
     this.onThrow = null;
@@ -215,6 +219,32 @@ export class Hud {
   hideSlide() { this.slideBtn.classList.remove('show'); }
 
   /**
+   * STEAL CHIPS: runners on 1st/3rd sit OUTSIDE the kick camera's framing, so
+   * tapping them is impossible — each eligible runner gets a chip pinned to
+   * the screen edge on HIS side of the diamond (1st = right, 3rd = left,
+   * 2nd = top center). Tap the chip to send him.
+   */
+  setStealChips(bases) {
+    const key = bases.join(',');
+    if (key === this._chipKey) return;
+    this._chipKey = key;
+    this.stealChips.replaceChildren(...bases.map((b) => {
+      const chip = document.createElement('button');
+      chip.className = `steal-chip sc-${b}`;
+      const i = document.createElement('i');
+      i.textContent = '🏃';
+      const s = document.createElement('span');
+      s.textContent = `STEAL ${['2ND', '3RD', 'HOME'][b]}`;
+      chip.append(i, s);
+      chip.addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+        this.onSteal?.(b);
+      });
+      return chip;
+    }));
+  }
+
+  /**
    * CALLOUT: an animated coach bubble with an arrow, popped at the exact
    * moment + place a control matters. Anchor to a DOM element (el) or a
    * viewport point (x,y). Deduped by key while alive; auto-hides after ttl.
@@ -233,6 +263,9 @@ export class Hud {
       cx = x - H.left;
       cy = y - H.top;
     } else return;
+    // keep the bubble fully ON screen — anchors near the edge would clip
+    cx = Math.max(70, Math.min(H.width - 70, cx));
+    cy = Math.max(44, Math.min(H.height - 24, cy));
     const b = document.createElement('div');
     b.className = `coach-callout ${dir}`;
     b.textContent = text;
