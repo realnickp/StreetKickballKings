@@ -859,3 +859,22 @@ drills once (skippable, 'tutorialPlayed'); menu keeps 🎓 TUTORIAL forever.
   defense guns the double-off ('DOUBLED OFF!'/'SAFE — TAGGED UP!'), loose
   throws breed pickles organically. Empty-bases catches keep the ROBBED
   celebration.
+
+## 20) Session 10f (2026-07-05) — DUEL LANE, RING RECIPE, NO PAINTED GROUND, STALL HUNT (PRs #54-#57)
+
+- **#54**: drill-scoped RNG suppressors (tutorialNoCatch/NoHomer) — "so we
+  can do the damn pickle."
+- **#55**: THE RING RECIPE — both halves at fenceM+7/bottom 0.3; the
+  court-wall junction hides behind the chain-link from every camera.
+  Locked in worldConfig.test. (Process burn again: npm test | grep gates
+  on grep's exit code — check the suite exit code.)
+- **#56**: NO PAINTED GROUND — the "unnatural" common denominator across
+  11 dev screenshots was road pixels below building bases (asphalt
+  climbing a wall). All windows re-cut at the lowest building-base row.
+  Winter/block-party carry vantage in the ART — full fix = regeneration.
+- **#57**: PICKLE v3 — THE DUEL LANE (the fight is 1D → the UI is 1D: bag
+  chips + runner/ball tokens on a fat bar) + close side dolly (players
+  fill the frame). Steals earnable (auto 1.6, catcher react halved, 24m/s
+  gun). Stall hunt: skipped drills run their world transitions, setups
+  never fire mid-pitch, tag-up scrambles auto-run, 14s watchdog
+  force-settles ANY stuck play.
