@@ -1549,7 +1549,9 @@ export class MatchScene {
       // Stretched catches (ball near the edge of reach) drop more — positioning matters.
       if (this.catchRoll === null || this.catchRoll === undefined) {
         const reach = Math.min(1, ballDist / this.catchRadius()); // 0 = right on it … 1 = at full stretch
-        this.catchRoll = Math.random() < this.catchSkill() * (1 - 0.25 * reach);
+        this.catchRoll = this.tutorialNoCatch
+          ? false // drill mode: the ball ALWAYS drops — the lesson needs a live play
+          : Math.random() < this.catchSkill() * (1 - 0.25 * reach);
       }
       if (this.catchRoll) { c.animator.play('catch'); return this.catchOut(c); }
       // muffed: fall through, let it drop and play on as a grounder
@@ -2449,6 +2451,7 @@ export class MatchScene {
 
   homer() {
     if (this.hrFired) return;
+    if (this.tutorialNoHomer) return; // drill mode: keep it in the park
     this.hrFired = true;
     this.field.crowdEnergy = 1;
     // everyone on the basepaths trots home and scores

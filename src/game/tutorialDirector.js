@@ -52,6 +52,8 @@ export const DRILLS = [
     objective: 'BEAT THE THROW TO FIRST',
     detail: 'The second you kick it — MASH-TAP anywhere to sprint. No taps, no legs.',
     target: 1,
+    setup(s) { s.tutorialNoCatch = true; },   // a catch bypasses the lesson
+    teardown(s) { s.tutorialNoCatch = false; },
     tick(s) {
       const kr = s.runners.find((r) => r.char === s.kicker);
       return !!kr && (kr.state === 'held' || kr.state === 'scored');
@@ -106,9 +108,11 @@ export const DRILLS = [
     setup(s) {
       s.match.state.bases = [null, null, null]; // clean diamond for the lesson
       s.tutorialGo = true;                      // the GO button always offers here
+      s.tutorialNoCatch = true;                 // no catches and no homers —
+      s.tutorialNoHomer = true;                 // we're here to do the damn pickle
       s.nextAtBat();                            // clear any leftover base runner chars
     },
-    teardown(s) { s.tutorialGo = false; },
+    teardown(s) { s.tutorialGo = false; s.tutorialNoCatch = false; s.tutorialNoHomer = false; },
     tick(s, st) {
       if (st.goSentFlag?.()) st.sent = true;
       if (st.sent && !st.trapped) {
@@ -427,6 +431,8 @@ export class TutorialDirector {
     this.scene.sendHeldRunner = this.origSend;
     this.scene.tutorialGo = false;
     this.scene.tutorialQuiet = false;
+    this.scene.tutorialNoCatch = false;
+    this.scene.tutorialNoHomer = false;
     this.scene.hud.clearCallouts?.();
     this.intro?.remove();
     this.root.remove();
