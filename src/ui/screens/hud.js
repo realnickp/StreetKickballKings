@@ -326,6 +326,32 @@ export class Hud {
     this.coachEl?.classList.remove('show', 'pop');
   }
 
+  /** THE DUEL LANE: the pickle in 1D — runner token vs ball token on a fat
+   *  bar with bag names at the ends. The whole fight reads at a glance. */
+  setPickleLane({ runnerT, ballT, leftLabel, rightLabel, mine, hot }) {
+    if (!this.laneEl) {
+      this.laneEl = document.createElement('div');
+      this.laneEl.className = 'pickle-lane';
+      this.laneEl.innerHTML = `
+        <b class="pl-end pl-left"></b>
+        <div class="pl-track"><i class="pl-ball"></i><i class="pl-run">🏃</i></div>
+        <b class="pl-end pl-right"></b>`;
+      this.el.appendChild(this.laneEl);
+      this.plRun = this.laneEl.querySelector('.pl-run');
+      this.plBall = this.laneEl.querySelector('.pl-ball');
+      this.plL = this.laneEl.querySelector('.pl-left');
+      this.plR = this.laneEl.querySelector('.pl-right');
+    }
+    this.laneEl.classList.add('show');
+    this.laneEl.classList.toggle('theirs', !mine);
+    this.plRun.style.left = `${Math.max(0, Math.min(100, runnerT * 100))}%`;
+    this.plBall.style.left = `${Math.max(-4, Math.min(104, ballT * 100))}%`;
+    this.plBall.classList.toggle('hot', !!hot);
+    if (this.plL.textContent !== leftLabel) this.plL.textContent = leftLabel;
+    if (this.plR.textContent !== rightLabel) this.plR.textContent = rightLabel;
+  }
+  hidePickleLane() { this.laneEl?.classList.remove('show'); }
+
   /** green-glow the SMART pad button (the bag AWAY from the ball) */
   setPickleSmart(side) {
     this.picklePad.classList.toggle('guided', !!side);

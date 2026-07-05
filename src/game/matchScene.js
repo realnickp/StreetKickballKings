@@ -313,6 +313,7 @@ export class MatchScene {
       homeRunnerPos: homeR ? this.runnerWorldPos(homeR).p : null,
       pickleA: this.pickleCam ? this.bagPos(this.pickleCam.fromBase) : null,
       pickleB: this.pickleCam ? this.bagPos(this.pickleCam.targetBase) : null,
+      pickleRunnerPos: this.pickleCam ? this.pickleCam.char.group.position : null,
     };
   }
 
@@ -861,7 +862,7 @@ export class MatchScene {
     const r = this.stealing;
     if (!r || r.state !== 'running') return;
     const rate = this.kickingIsPlayer()
-      ? Math.max(3.2, this.input.tapRate(500, performance.now())) // auto-runs; mashing helps
+      ? Math.max(1.6, this.input.tapRate(500, performance.now())) // a lazy steal is a DEAD steal — mash it
       : r.aiRate;
     r.sim.tick(dt, rate);
     if (r.sim.arrived && this.stealResolving) {
@@ -953,12 +954,12 @@ export class MatchScene {
       this.after(0.8, done);
     };
     const throwDown = (reactionS) => {
-      const flightT = catcher.group.position.distanceTo(bag) / 20;
-      const out = reactionS + flightT < runnerT() - 0.05;
+      const flightT = catcher.group.position.distanceTo(bag) / 24; // catchers GUN it
+      const out = reactionS + flightT < runnerT() - 0.02;
       this.after(Math.max(0.05, reactionS), () => {
         this.faceTo(catcher, bag);
         catcher.animator.play('throw', {
-          onContact: () => this.ball.throwTo(bag.clone().setY(0.4), 20),
+          onContact: () => this.ball.throwTo(bag.clone().setY(0.4), 24),
           onDone: () => catcher.animator.play('idle'),
         });
       });
@@ -975,7 +976,7 @@ export class MatchScene {
       });
     } else {
       // AI defense reacts on its difficulty clock
-      const react = this.tuning.ai[this.difficulty].fieldReactMs / 1000 + 0.15 + Math.random() * 0.2;
+      const react = this.tuning.ai[this.difficulty].fieldReactMs / 1000 * 0.5 + 0.05 + Math.random() * 0.12;
       throwDown(react);
     }
   }
@@ -1143,7 +1144,7 @@ export class MatchScene {
         // A human who stops tapping can hover between bags while the ball is loose
         // (that's strategic). But once the defense SECURES the ball, a stalled
         // runner must commit to a bag — otherwise the play can never end.
-        if (isPlayerOffense && this.defenseHasBall && !this.throwing && useRate < 0.5) {
+        if (isPlayerOffense && (this.defenseHasBall || this.ball.mode === 'idle') && !this.throwing && useRate < 0.5) {
           r.stallT = (r.stallT ?? 0) + dt;
           if (r.stallT > 0.7) {
             const half = this.tuning.running.basePathM * 0.5;
@@ -1187,7 +1188,7 @@ export class MatchScene {
               // still not back to his time-of-pitch bag — keep scrambling
               r.fromBase = r.heldAt;
               r.targetBase = r.heldAt - 1;
-              r.sim = new RunnerSim({ tuning: this.tuning, human: this.kickingIsPlayer() });
+              r.sim = new RunnerSim({ tuning: this.tuning, human: false });
               r.state = 'running';
               r.char.animator.play('run');
             } else if (r.tagUp) {
@@ -1781,6 +1782,7 @@ export class MatchScene {
         this.hud.hideBagTags();
         this.hud.hideYouMarker();
         this.hud.hideThreatMarker();
+        this.hud.hidePickleLane();
       }
       return;
     }
@@ -1821,6 +1823,25 @@ export class MatchScene {
     if (sa) tags.push({ x: sa.x, y: sa.y - 18, label: label(pk.fromBase) });
     if (sb) tags.push({ x: sb.x, y: sb.y - 18, label: label(pk.targetBase) });
     this.hud.setBagTags(tags);
+
+    // THE DUEL LANE: the pickle is one-dimensional — show it in 1D. Runner
+    // token + ball token on a fat bar with the bag names at the ends; every
+    // decision (press/reverse/spin/slide) reads off token positions.
+    const fromPt2 = this.bagPos(pk.fromBase);
+    const toPt2 = this.bagPos(pk.targetBase);
+    const axis2 = toPt2.clone().sub(fromPt2);
+    const tRun2 = pk.sim.progressM / this.tuning.running.basePathM;
+    const tBall2 = Math.max(-0.06, Math.min(1.06,
+      this.ball.pos.clone().sub(fromPt2).dot(axis2) / axis2.lengthSq()));
+    const leftIsFrom = (sa && sb) ? sa.x < sb.x : true;
+    this.hud.setPickleLane({
+      runnerT: leftIsFrom ? tRun2 : 1 - tRun2,
+      ballT: leftIsFrom ? tBall2 : 1 - tBall2,
+      leftLabel: label(leftIsFrom ? pk.fromBase : pk.targetBase),
+      rightLabel: label(leftIsFrom ? pk.targetBase : pk.fromBase),
+      mine: !!this.pickle,
+      hot: this.ball.pos.distanceTo(pk.char.group.position) < 3.2,
+    });
   }
 
   updatePickle(dt) {
@@ -2403,12 +2424,13 @@ export class MatchScene {
         r.sim.progressM = Math.max(0, this.tuning.running.basePathM - r.sim.progressM);
         r.forced = false;
         r.tagUp = true;
+        r.sim.human = false; // scramble auto-runs — taps boost, silence can't stall the play
         racing += 1;
       } else if (r.state === 'held' && r.heldAt !== r.originBase && r.heldAt < 3) {
         // he completed an advance while the ball hung — send him scrambling back
         r.fromBase = r.heldAt;
         r.targetBase = r.heldAt - 1;
-        r.sim = new RunnerSim({ tuning: this.tuning, human: this.kickingIsPlayer() });
+        r.sim = new RunnerSim({ tuning: this.tuning, human: false }); // auto-scramble
         r.state = 'running';
         r.forced = false;
         r.tagUp = true;
@@ -2620,9 +2642,28 @@ export class MatchScene {
       if (!this.hrFired && this.kickHrEligible && dist >= this.fenceM - 0.3 && this.ball.pos.y > this.fenceTopY * 0.8 && this.ball.bounces === 0) {
         this.homer();
       }
-      // dead-ball safety net
+      // dead-ball safety net v2: after 14s NOTHING holds the play open —
+      // settle every stuck runner to his nearest bag, strike any stage,
+      // unfreeze, and let the play finalize (dev hit two live stalls)
       if (this.elapsed - this.liveStart > 14 && !this.playFinalized) {
+        for (const r of this.runners) {
+          if (r.state !== 'running') continue;
+          const past = r.sim.progressM > this.tuning.running.basePathM * 0.5;
+          if (past && r.targetBase === 3) { r.state = 'scored'; this.pendingRuns = (this.pendingRuns ?? 0) + 1; r.char.group.visible = false; }
+          else {
+            r.state = 'held';
+            r.heldAt = past ? Math.min(r.targetBase, 2) : Math.max(r.fromBase, 0);
+            r.tagUp = false;
+            r.char.group.position.copy(this.basePos(r.heldAt)).add(new THREE.Vector3(0.4, 0, 0.4));
+            r.char.animator.play('idle');
+          }
+        }
+        if (this.pickle) this.endPickle(false);
+        this.rundownView = null;
+        this.releasePickleFreeze();
+        this.restoreSpeed();
         this.ballControlled = true;
+        this.defenseHasBall = true;
       }
     }
 

@@ -214,7 +214,7 @@ function flipToDefense(s) {
 }
 
 // phases where it's safe to mutate match state / advance drills
-const SETTLED = new Set(['SETUP', 'PITCH', 'PITCH_SELECT', 'IDLE']);
+const SETTLED = new Set(['SETUP', 'PITCH_SELECT', 'IDLE']); // never mutate mid-pitch — a half-flip during a rolling serve strands it
 
 export class TutorialDirector {
   constructor({ scene, engine, bus, save, onExit }) {
@@ -271,6 +271,13 @@ export class TutorialDirector {
   drill() { return DRILLS[this.idx]; }
 
   nextDrill() {
+    // a SKIPPED drill still owes its world transition (e.g. PITCHING flips
+    // the half) — run the pending setup before moving on or later drills
+    // inherit a stranded world
+    if (this.pendingSetup) {
+      this.drill()?.setup?.(this.scene, this.st);
+      this.pendingSetup = false;
+    }
     this.drill()?.teardown?.(this.scene);
     this.scene.hud.clearCallouts();
     this.idx += 1;

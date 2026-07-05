@@ -1277,3 +1277,36 @@ body { display: flex; align-items: center; justify-content: center; }
 }
 .pickle-pad button.smart small { color: #4ade80; }
 .pickle-pad.guided button:not(.smart):not(.pk-spin) { opacity: .45; }
+
+/* THE DUEL LANE — the pickle rendered in 1D, impossible to misread */
+.pickle-lane {
+  position: absolute; bottom: calc(238px + env(safe-area-inset-bottom)); left: 50%;
+  transform: translateX(-50%); width: min(88cqw, 400px); z-index: 8; pointer-events: none;
+  display: none; align-items: center; gap: 8px;
+}
+.pickle-lane.show { display: flex; }
+.pl-end {
+  font-family: var(--marker); font-size: 15px; color: #0b0d12; letter-spacing: .5px;
+  background: linear-gradient(180deg, #6fe3d2, var(--teal)); border-radius: 9px; padding: 5px 9px;
+  box-shadow: 0 3px 8px rgba(0,0,0,.5);
+}
+.pl-track {
+  position: relative; flex: 1; height: 18px; border-radius: 999px;
+  background: linear-gradient(180deg, #0b0d13, #1a1e2b);
+  border: 2px solid rgba(62,198,181,.5);
+  box-shadow: inset 0 2px 6px rgba(0,0,0,.7), 0 0 14px rgba(62,198,181,.25);
+}
+.pl-run {
+  position: absolute; top: 50%; transform: translate(-50%, -58%); font-size: 30px; font-style: normal;
+  filter: drop-shadow(0 0 8px rgba(62,198,181,.95)) drop-shadow(0 3px 4px rgba(0,0,0,.6));
+  z-index: 2; transition: none;
+}
+.pl-ball {
+  position: absolute; top: 50%; width: 22px; height: 22px; border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle at 35% 30%, #ff8093, var(--red) 70%);
+  box-shadow: 0 0 12px rgba(215,38,61,.95), 0 2px 4px rgba(0,0,0,.6);
+  z-index: 1;
+}
+.pl-ball.hot { animation: spinUrgent .3s ease-in-out infinite; box-shadow: 0 0 20px rgba(215,38,61,1); }
+.pickle-lane.theirs .pl-end { background: linear-gradient(180deg, #ffd75e, var(--gold)); }
