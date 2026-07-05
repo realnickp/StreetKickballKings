@@ -47,6 +47,7 @@ const CAM = {
 };
 
 const LEAD_M = 1.4; // how far runners lead off their bag before the pitch
+const PICKLE_SLOWMO = 0.6; // the pickle stage runs in bullet-time — readable, reactable
 
 /** Directional stride for the kicker lining up: signed x-velocity (m/s) ->
  *  strafe clip name, or null when settled. Kicker faces the mound (-z), so
@@ -374,6 +375,9 @@ export class MatchScene {
     this.pickle = null;
     this.rundownView = null;
     this.releasePickleFreeze();
+    this.restoreSpeed();
+    this.hud.hideThreatMarker();
+    this.hud.setSpinUrgent(false);
     this.hud.hideSlide();
     this.hud.hidePicklePad();
     this.match.state.bases.forEach((occ, i) => {
@@ -1187,6 +1191,7 @@ export class MatchScene {
     if (this.rundownView && this.rundownView.state !== 'running') {
       this.rundownView = null;
       this.releasePickleFreeze();
+      this.restoreSpeed();
       this.hud.setLetterbox(false);
     }
 
@@ -1217,6 +1222,9 @@ export class MatchScene {
     if (this.pickle) { this.pickle = null; this.hud.hideSlide(); this.hud.hidePicklePad(); this.hud.setLetterbox(false); }
     if (this.rundownView) { this.rundownView = null; this.hud.setLetterbox(false); }
     this.releasePickleFreeze();
+    this.restoreSpeed();
+    this.hud.hideThreatMarker();
+    this.hud.setSpinUrgent(false);
 
     // nobody jogs in place once the play is dead — settle every defender
     // (updateDefense stops outside LIVE, so a looping run clip would stick)
@@ -1681,7 +1689,12 @@ export class MatchScene {
   releasePickleFreeze() {
     if (!this.pickleFreezeUntil) return;
     this.pickleFreezeUntil = 0;
-    this.engine.timeScale = 1;
+    this.engine.timeScale = (this.pickle || this.rundownView) ? PICKLE_SLOWMO : 1;
+  }
+
+  /** back to full speed once no pickle stage is live (never fights a cinematic) */
+  restoreSpeed() {
+    if (!this.cinematicLock) this.engine.timeScale = 1;
   }
 
   /** map the two contested bags to SCREEN left/right for the pickle pad */
@@ -1735,7 +1748,7 @@ export class MatchScene {
       const hp = holder.group.position;
       const d = hp.distanceTo(rp);
       if (d > 1.05) {
-        const spd = this.tuning.running.maxSpeedMs * (P.tagCd > 0 ? 0.35 : 0.82); // stumbled = slowed
+        const spd = this.tuning.running.maxSpeedMs * (P.tagCd > 0 ? 0.35 : 0.74); // stumbled = slowed
         const dir = rp.clone().sub(hp).setY(0);
         dir.normalize();
         hp.addScaledVector(dir, spd * dt);
@@ -1744,10 +1757,14 @@ export class MatchScene {
       } else if (holder.animator.name === 'run') {
         holder.animator.play('holdball');
       }
+      // READABILITY: red marker rides the ball-carrier; SPIN flashes in lunge range
+      const hs = this.worldToScreen(holder.group.position);
+      if (hs) this.hud.setThreatMarker(hs.x, hs.y - 40, d < 3.2);
+      this.hud.setSpinUrgent(d < 2.8 && P.spinCd <= 0 && !P.sliding);
       // pulling away toward a bag → relay AHEAD of you to tighten the trap
       P.decideT -= dt;
       if (P.decideT <= 0) {
-        P.decideT = { Rookie: 1.05, Street: 0.8, King: 0.6 }[this.difficulty] ?? 0.8;
+        P.decideT = { Rookie: 1.2, Street: 0.95, King: 0.75 }[this.difficulty] ?? 0.95;
         if (d > 4.5 && P.throwsLeft > 0 && !P.sliding) {
           P.throwsLeft -= 1;
           this.throwBall(holder, { base: r.targetBase });
@@ -1795,6 +1812,9 @@ export class MatchScene {
     if (!P) return;
     this.pickle = null;
     this.releasePickleFreeze();
+    this.restoreSpeed();
+    this.hud.hideThreatMarker();
+    this.hud.setSpinUrgent(false);
     this.hud.hideSlide();
     this.hud.hidePicklePad();
     this.hud.setLetterbox(false);

@@ -246,6 +246,27 @@ export class Hud {
     this.picklePad.classList.add('show');
   }
   hidePicklePad() { this.picklePad.classList.remove('show'); }
+  /** red marker riding the ball-carrier in the pickle — THE threat, always visible */
+  setThreatMarker(x, y, hot) {
+    if (!this.threatEl) {
+      this.threatEl = document.createElement('div');
+      this.threatEl.className = 'threat-marker';
+      this.threatEl.textContent = '▼';
+      this.el.appendChild(this.threatEl);
+    }
+    const H = this.el.getBoundingClientRect();
+    this.threatEl.style.left = `${Math.max(20, Math.min(H.width - 20, x - H.left))}px`;
+    this.threatEl.style.top = `${Math.max(50, y - H.top)}px`;
+    this.threatEl.classList.add('show');
+    this.threatEl.classList.toggle('hot', !!hot);
+  }
+  hideThreatMarker() { this.threatEl?.classList.remove('show', 'hot'); }
+
+  /** flash the SPIN button when the tagger is in lunge range — spin NOW */
+  setSpinUrgent(on) {
+    this.picklePad.querySelector('.pk-spin').classList.toggle('urgent', !!on);
+  }
+
   /** pulse the button matching the runner's CURRENT direction */
   setPickleDir(side) {
     this.picklePad.querySelector('.pk-left').classList.toggle('live', side === 'left');
