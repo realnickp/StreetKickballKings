@@ -1236,3 +1236,22 @@ body { display: flex; align-items: center; justify-content: center; }
 }
 .pickle-pad .pk-spin.urgent small { color: var(--red); }
 @keyframes spinUrgent { 0%, 100% { scale: 1; } 50% { scale: 1.12; } }
+
+/* pickle identity: YOU tag + bag name tags */
+.you-marker {
+  position: absolute; z-index: 8; pointer-events: none; display: none;
+  transform: translate(-50%, -100%);
+  font-family: var(--marker); font-size: 15px; letter-spacing: 1px; color: #06231f;
+  background: linear-gradient(180deg, #6fe3d2, var(--teal));
+  border-radius: 999px; padding: 3px 11px 4px;
+  box-shadow: 0 3px 10px rgba(0,0,0,.5), 0 0 12px rgba(62,198,181,.7);
+  animation: threatBob .5s ease-in-out infinite;
+}
+.you-marker.show { display: block; }
+.bag-tags { position: absolute; inset: 0; pointer-events: none; z-index: 7; }
+.bag-tag {
+  position: absolute; transform: translate(-50%, -100%);
+  font-family: var(--sans); font-weight: 900; font-size: 12px; letter-spacing: 1px; color: var(--teal);
+  background: rgba(10,12,17,.9); border: 2px solid rgba(62,198,181,.6); border-radius: 8px; padding: 3px 9px;
+  text-shadow: 0 1px 0 #000;
+}
