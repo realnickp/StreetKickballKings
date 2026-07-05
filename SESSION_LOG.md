@@ -759,3 +759,34 @@ tracked) through catches and celebrations.
 **Verification pattern that stuck:** vitest (106) + WebKit playthrough probe
 (power-meter-synced swipes; caught the GO-button-during-HR-replay bug) + in-
 engine screenshot sweeps via the hidden Chrome tab (CDP renders it anyway).
+
+## 16) Session 10b (2026-07-04) — THE TUTORIAL SAGA (PRs #39-#42)
+
+Four iterations driven by rapid dev feedback, ending at a premium guided
+experience:
+
+- **#39 cards**: 6-page HOW TO PLAY carousel, CSS dioramas mimicking the
+  real HUD (meter, GO pills, SLIDE!, throw pad, trace, crown). Kept as
+  "📖 CONTROLS" reference on the menu.
+- **#40 playable**: dev — "should be playable... goals before moving on."
+  TutorialDirector = skill-drill gauntlet ON the real MatchScene (endless
+  outs, Rookie AI, no intros): kick 2 fair / beat the throw / steal 2nd
+  (runner staged per attempt) / GO FOR 2 + force-staged pickle / 2 traced
+  pitches (half auto-flips) / field an out. Idempotent ensure() re-arms
+  after fails. Hooks: tutorialGo, tutorialQuiet. ?nosplash&tut harness.
+- **#41 UX**: dev — "hard to read... motion graphics, pop-ups, callouts."
+  Intro slam per drill, slim objective ribbon + pips, COACH CALLOUTS
+  (hud.callout(): gold arrow bubbles at the exact control at the exact
+  moment), GOAL ✓ burst pops. Game-wide text pass: hints became readable
+  pills, all instructions tightened to control-grammar.
+- **#42 gate + demos**: dev — "should not start until the user clicks
+  start... animations that show EXACTLY how." Intro = hard gate
+  (engine.paused freezes the world behind the blurred card, rendering
+  continues) until ▶ START; every card runs an animated finger doing the
+  real gesture (slide+flick, mash ripples, tap-your-runner, tap GO, ride
+  the trace path, tap the gold bag). Skip-cascade finish unfreezes.
+
+Verification pattern: WebKit E2E (tut-test.mjs — skip cascade, START
+freeze/unfreeze assert, live-play callout+pip capture) + Chrome CDP
+screenshots of every card/state. First-run: PLAY press launches the
+drills once (skippable, 'tutorialPlayed'); menu keeps 🎓 TUTORIAL forever.
