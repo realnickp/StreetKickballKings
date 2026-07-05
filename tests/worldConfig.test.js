@@ -13,7 +13,11 @@ describe('3d world config', () => {
     // true-to-life building scale AND correct aspect (tile arc / height
     // matches the source image within ~10%)
     expect(blacktop.backdropRepeat).toBe(6);
-    expect(blacktop.backdropGeo.r).toBe(blacktop.fenceM + 26);
+    // THE ring recipe (PR #55): every wall hugs the fence so the court-wall
+    // junction hides behind the chain-link from every camera — never visible,
+    // never "elevated" again
+    expect(blacktop.backdropGeo.r).toBe(blacktop.fenceM + 7);
+    expect(blacktop.backdropGeo.bottom).toBe(0.3);
     expect(blacktop.textures.sky).toBeUndefined(); // sky cap continues the dusk pano upward
     expect(blacktop.textures.backdropVideo).toBeTruthy();
   });
