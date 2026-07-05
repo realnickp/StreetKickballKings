@@ -790,3 +790,26 @@ Verification pattern: WebKit E2E (tut-test.mjs — skip cascade, START
 freeze/unfreeze assert, live-play callout+pip capture) + Chrome CDP
 screenshots of every card/state. First-run: PLAY press launches the
 drills once (skippable, 'tutorialPlayed'); menu keeps 🎓 TUTORIAL forever.
+
+## 17) Session 10c (2026-07-04) — STEAL CHIPS + THE PICKLE STAGE (PRs #43-#44)
+
+- **#43 steal chips + edge-safe text**: dev — "can't tap players on 1st/3rd
+  to steal, they're not visible" (kick cam never frames the corners; its
+  framing is input-critical and untouchable). Every eligible runner gets a
+  pulsing 🏃 STEAL chip PINNED TO THE SCREEN EDGE on his side (1st=right,
+  3rd=left, 2nd=top center) firing the same startSteal flow; chips clear on
+  launch/kick. Plus a clipping pass: coach callouts clamp on-screen,
+  cqw-clamped fonts for hints/alerts/ribbon/readout. Gotcha logged: first
+  localhost load can serve a STALE service-worker bundle — always reload
+  once before debugging "code not running".
+- **#44 the PICKLE STAGE**: dev — "when I said mini game I really meant
+  it... totally separate screen and camera view." Pickles now CUT to a
+  locked SIDE-ON duel cam ('pickle' shot: perpendicular to the contested
+  basepath, shot from OUTSIDE the diamond, both bags at screen edges) +
+  letterbox, both offense and defense. Offense gets the PICKLE PAD
+  (⬅bag / 🌀SPIN / bag➡, labels screen-side-mapped every frame, current
+  direction glows). ROOT CAUSE of "hard to navigate": taps reversed
+  direction while mash instinct has you tapping nonstop — taps now only
+  pump speed, direction lives on the pad. Deterministic E2E via tutorial
+  drill 4's force-staged rundown (pickle-test.mjs): stage up (letterbox +
+  mapped labels + pickleCam) → inputs → outcome → stage struck.
