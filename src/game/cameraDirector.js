@@ -71,11 +71,13 @@ export const SHOTS = {
     // diagram: both bags, every body, and all the distances read instantly
     // (the ground-level side angle left players unable to tell what the
     // camera was even facing)
-    const sep = A.distanceTo(B);
+    // CLOSE SIDE DOLLY tracking the runner — players fill the frame; the HUD
+    // duel LANE is the tactical readout now, not the camera
+    const rp = c.pickleRunnerPos ?? mid;
     return {
-      pos: V(mid.x + (px / n) * sep * 0.32, Math.max(13.5, sep * 1.05), mid.z + (pz / n) * sep * 0.32),
-      look: V(mid.x, 0, mid.z),
-      fovScale: 0.95, stiffness: 30,
+      pos: V(rp.x + (px / n) * 7.5, 2.2, rp.z + (pz / n) * 7.5),
+      look: V(rp.x, 1.15, rp.z),
+      fovScale: 0.95, stiffness: 16,
     };
   },
 
