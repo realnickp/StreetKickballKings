@@ -835,3 +835,27 @@ drills once (skippable, 'tutorialPlayed'); menu keeps 🎓 TUTORIAL forever.
   ball-carrier, SPIN button flashes red exactly in lunge-range+off-cooldown,
   tagger 0.74×, relay clock 1.2/0.95/0.75s. E2E asserts the full arc
   frozen→0.6→marker→outcome→full speed.
+
+## 19) Session 10e (2026-07-05) — PICKLE READABILITY ENDGAME + WORLD LEVELING + TAG-UPS (PRs #49-#53)
+
+- **#49 identity layer**: teal ring+YOU tag on your man, red ring on the
+  threat, floating bag tags matching the pad labels, tighter camera.
+- **#50 the APRON discovery**: "still super elevated" from the FIELDING
+  view was GEOMETRY — home half-ring at fenceM+26 left a 26m court apron
+  the high pitch cam reads as a cliff. Home ring now at fenceM+7, full
+  height, ODD tiles (even = mirror seam behind the plate). RULE: verify
+  backdrops from BOTH cameras.
+- **#51 global raise**: all 10 rings bottom -0.5 -> 2.2 ("every background
+  needs to be raised") — painted street lines land ON the court edge.
+- **#52 pickle TACTICAL CAM + LIVE COACH**: the side view itself was the
+  confusion ("can't tell what angle the camera is facing") — replaced
+  with a near-top-down play-diagram cam + fat SMART ARROW on the court
+  toward the recommended bag + one-line coach (GO GO GO!/REVERSE!/SPIN
+  NOW!/SLIDE!!) + green-glowing smart pad button + marker riding THE BALL
+  through throws. Tutorial callouts defer to the in-game coach.
+- **#53 LIVE TAG-UP RACE**: caught kicks stopped teleporting runners back
+  — kicker out, play stays live, runners scramble to their time-of-pitch
+  bags (originBase; mid-steal runner returns to the stolen-FROM bag),
+  defense guns the double-off ('DOUBLED OFF!'/'SAFE — TAGGED UP!'), loose
+  throws breed pickles organically. Empty-bases catches keep the ROBBED
+  celebration.
