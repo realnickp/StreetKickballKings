@@ -276,23 +276,33 @@ export function buildField(fieldData, scene) {
       // a field ships its backdropBack assets.
       const bk = fieldData.backdropBack ?? {};
       const w = fieldData.backdropWindow ?? {};
+      // The HOME half hugs the backstop (fence + 7m, not +26m): the high pitch
+      // camera looks straight down the fence-to-wall apron, and 26m of empty
+      // court there reads as "the field is a plateau above the city" (dev:
+      // "still super elevated — look at the fence"). Wall keeps the FRONT's
+      // full height (no sky-cap peek); fewer tiles on the shorter arc keep the
+      // painted proportions true — buildings loom bigger up close, correctly.
+      const rB = bk.r ?? Math.max((fieldData.fenceM ?? 38) + 7, 30);
+      // tile count must stay ODD so the scene CENTER faces home (even counts
+      // put a mirror seam dead behind the plate — kaleidoscope city)
+      const tilesB = bk.tiles ?? (fieldData.backdropRepeat ?? 6) / 2;
       const tuneBack = (t) => {
         t.colorSpace = THREE.SRGBColorSpace;
         t.wrapS = THREE.MirroredRepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
         if (bk.tex) {
           // own scene: center content faces home, own measured ground line
-          t.repeat.set((fieldData.backdropRepeat ?? 6) / 2, bk.ry ?? w.ry ?? 0.82);
+          t.repeat.set(tilesB, bk.ry ?? w.ry ?? 0.82);
           t.offset.set(0, bk.oy ?? w.oy ?? 0.18);
         } else {
           // fallback: right-side slice of the front painting
-          t.repeat.set(bk.tiles ?? 2, bk.ry ?? w.ry ?? 0.82);
+          t.repeat.set(tilesB, bk.ry ?? w.ry ?? 0.82);
           t.offset.set(bk.offX ?? 0.25, bk.oy ?? w.oy ?? 0.18);
         }
       };
       const backBuild = buildBackdropMat(bk.tex ?? fieldData.textures?.backdrop, bk.video ?? null, tuneBack);
       if (backBuild.video) handles.backdropVideoBack = backBuild.video;
       const back = new THREE.Mesh(
-        new THREE.CylinderGeometry(bdR, bdR, bdH, 48, 1, true, -Math.PI / 2, Math.PI),
+        new THREE.CylinderGeometry(rB, rB, bdH, 48, 1, true, -Math.PI / 2, Math.PI),
         backBuild.mat,
       );
       backdrop.add(front, back);
