@@ -25,9 +25,9 @@
         "ry": 0.685
       },
       "backdropGeo": {
-        "r": 68,
+        "r": 49,
         "h": 59.1,
-        "bottom": 2.2
+        "bottom": 0.3
       },
       "status": "ready",
       "world3d": false,
@@ -58,9 +58,9 @@
         "ry": 0.555
       },
       "backdropGeo": {
-        "r": 66,
+        "r": 47,
         "h": 52.6,
-        "bottom": 2.2
+        "bottom": 0.3
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-subway-yard.jpg",
@@ -90,9 +90,9 @@
         "ry": 0.63
       },
       "backdropGeo": {
-        "r": 62,
+        "r": 43,
         "h": 59.2,
-        "bottom": 2.2
+        "bottom": 0.3
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-block-party.jpg",
@@ -122,9 +122,9 @@
         "ry": 0.595
       },
       "backdropGeo": {
-        "r": 64,
+        "r": 45,
         "h": 53.2,
-        "bottom": 2.2
+        "bottom": 0.3
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-neon-night-court.jpg",
@@ -154,9 +154,9 @@
         "ry": 0.565
       },
       "backdropGeo": {
-        "r": 65,
+        "r": 46,
         "h": 53.1,
-        "bottom": 2.2
+        "bottom": 0.3
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-boardwalk-kings.jpg",
@@ -186,9 +186,9 @@
         "ry": 0.685
       },
       "backdropGeo": {
-        "r": 63,
+        "r": 44,
         "h": 59.3,
-        "bottom": 2.2
+        "bottom": 0.3
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-the-underpass.jpg",
@@ -218,9 +218,9 @@
         "ry": 0.635
       },
       "backdropGeo": {
-        "r": 67,
+        "r": 48,
         "h": 62.2,
-        "bottom": 2.2
+        "bottom": 0.3
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-rubber-yard.jpg",
@@ -250,9 +250,9 @@
         "ry": 0.615
       },
       "backdropGeo": {
-        "r": 64,
+        "r": 45,
         "h": 53.4,
-        "bottom": 2.2
+        "bottom": 0.3
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-winter-classic.jpg",
@@ -282,9 +282,9 @@
         "ry": 0.575
       },
       "backdropGeo": {
-        "r": 68,
+        "r": 49,
         "h": 55.4,
-        "bottom": 2.2
+        "bottom": 0.3
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-scorchyard.jpg",
@@ -314,9 +314,9 @@
         "ry": 0.665
       },
       "backdropGeo": {
-        "r": 66,
+        "r": 47,
         "h": 50,
-        "bottom": 2.2
+        "bottom": 0.3
       },
       "status": "ready",
       "backdropSkyTex": "assets/textures/sky-the-crown.jpg",
