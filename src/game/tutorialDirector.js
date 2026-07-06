@@ -98,12 +98,12 @@ export const DRILLS = [
     demo: `
       <div class="tut-stage di-demo">
         <button class="tut-pill teal dm-go">GO FOR 2!</button>
-        <button class="tut-pill red small">SLIDE!</button>
+        <button class="tut-pill amber small">GO!</button>
         <div class="dm-finger dm-tap-go">👆</div>
       </div>`,
-    title: 'EXTRA BASES & THE PICKLE',
-    objective: 'TAKE 2ND — SURVIVE THE PICKLE',
-    detail: 'Kick, take first, hit GO FOR 2! You WILL get trapped — then just do what the big coach line says: GO, REVERSE, SPIN, SLIDE!',
+    title: 'EXTRA BASES & THE DUEL',
+    objective: 'SURVIVE THE PICKLE — SMASH GO!',
+    detail: 'Kick, take first, hit GO FOR 2! You WILL get trapped — the DUEL starts. Your man runs HIMSELF. When the ball flies between fielders, SMASH the gold GO! button. Tagger lunges or winds up a peg? SWIPE UP to spin.',
     target: 1,
     setup(s) {
       s.match.state.bases = [null, null, null]; // clean diamond for the lesson
@@ -116,20 +116,20 @@ export const DRILLS = [
     tick(s, st) {
       if (st.goSentFlag?.()) st.sent = true;
       if (st.sent && !st.trapped) {
-        // stage the rundown mid-leg so the pickle ALWAYS happens (the lesson)
+        // stage the rundown mid-leg so the duel ALWAYS happens (the lesson)
         const r = s.runners.find((x) => x.state === 'running' && x.fromBase >= 0 && !x.forced);
-        if (r && r.sim.progressM > s.tuning.running.basePathM * 0.3 && !s.pickle) {
+        if (r && r.sim.progressM > s.tuning.running.basePathM * 0.3 && !s.duel) {
           s.startRundown(r, r.targetBase);
           st.trapped = true;
         }
       }
       if (st.trapped) {
-        if (st.sawPickle && !s.pickle) {
+        if (st.sawDuel && !s.duel) {
           const r = s.runners.find((x) => x.state === 'held' || x.state === 'scored');
           if (r) return true;            // escaped — safe on a bag
-          st.sent = st.trapped = st.sawPickle = false; // tagged — run it back
+          st.sent = st.trapped = st.sawDuel = st.taughtGo = st.taughtSpin = false; // tagged — run it back
         }
-        if (s.pickle) st.sawPickle = true;
+        if (s.duel) st.sawDuel = true;
       }
       return false;
     },
@@ -137,7 +137,19 @@ export const DRILLS = [
       if (s.goOffer && !st.sent) {
         say('HIT IT!', { el: s.hud.goBtn, dir: 'down', key: 'go-hit', ttl: 1400 });
       }
-      // the in-game LIVE COACH owns pickle instruction — no callouts on top
+      if (s.duel && s.kickingIsPlayer()) {
+        // teach each verb AT its moment — never all at once
+        if (s.duel.throwInfo && s.duel.throwInfo.toEnd !== -1 && !st.taughtGo) {
+          st.taughtGo = true;
+          say("BALL'S UP — HIT GO!", { el: s.hud.duelBtn, dir: 'up', key: 'duel-go', ttl: 2200 });
+        }
+        const holder = s.fieldingChars().find((c) => c.hasBall);
+        const close = holder && s.duel.r?.char && holder.group.position.distanceTo(s.duel.r.char.group.position) < 3.0;
+        if ((s.duel.brain.pegWindupT > 0 || close) && !st.taughtSpin) {
+          st.taughtSpin = true;
+          say('SWIPE UP — SPIN!', { x: centerX(s), y: midY(s), dir: 'down', key: 'duel-spin', ttl: 2200 });
+        }
+      }
     },
   },
   {
@@ -176,7 +188,7 @@ export const DRILLS = [
       </div>`,
     title: 'FIELDING',
     objective: 'GET AN OUT',
-    detail: 'DRAG steers your glowing fielder, TAP a teammate to switch. Ball in hand → hit the GOLD bag.',
+    detail: 'DRAG steers your glowing fielder, TAP a teammate to switch. Ball in hand → hit the GOLD bag. Trap a runner between bags and the DUEL flips: time THROW! to catch him leaning — or SWIPE at him to PEG.',
     target: 1,
     setup(s, st) { st.base = outsNow(s); },
     tick(s, st) {
@@ -192,6 +204,10 @@ export const DRILLS = [
       }
       if (s.hud.throwPad.classList.contains('show')) {
         say('GOLD BAG = THE OUT', { el: s.hud.throwPad, dir: 'down', key: 'fd-gold', ttl: 1600 });
+      }
+      if (s.duel && !s.kickingIsPlayer() && !st.taughtThrow) {
+        st.taughtThrow = true; // opportunistic — defense pickles are organic
+        say('HE BREAKS — THROW!', { el: s.hud.duelBtn, dir: 'up', key: 'duel-throw', ttl: 2200 });
       }
     },
   },

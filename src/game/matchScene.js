@@ -10,6 +10,8 @@ import { mashSpeed, humanRunSpeed, RunnerSim } from './baseRunning.js';
 import { resolveBaseThrow, resolvePeg } from './throwing.js';
 import { SpecialMeter } from './specialMoves.js';
 import { pickPitch, aiKickError, aiAim, aiWantsPeg, aiMashRate, aiJukes, aiThrowsFire } from './ai.js';
+import { PickleDuel, shuttleDir } from './pickleDuel.js';
+import { RunnerWatchdog } from './runnerWatchdog.js';
 import { PITCH_PATTERNS, PITCH_FAMILIES, pickVariant, scoreTrace } from './pitchPattern.js';
 import { igniteBall, douseBall } from '../cinematics/fx.js';
 import { ReplayRecorder } from '../cinematics/replay.js';
@@ -109,6 +111,8 @@ export class MatchScene {
     this.strikes = 0;
     this.timers = [];
     this.runners = [];
+    this.duel = null; // THE DUEL (pickle v4) — one stage object for both sides
+    this.watchdog = new RunnerWatchdog(tuning.duel.watchdogStallS);
     this.activeFielder = null;
     this.fielderTarget = null;
     this.lastDragAt = -10;
@@ -149,38 +153,16 @@ export class MatchScene {
       return ring;
     });
 
-    // PICKLE STAGE identity rings: teal = YOUR man, red = the ball / the threat
-    const stageRing = (color) => {
+    // DUEL identity: ONE teal ring under the character you control
+    {
       const ring = new THREE.Mesh(
         new THREE.RingGeometry(0.85, 1.25, 28),
-        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide }),
+        new THREE.MeshBasicMaterial({ color: '#3ec6b5', transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide }),
       );
       ring.rotation.x = -Math.PI / 2;
       ring.visible = false;
       engine.scene.add(ring);
-      return ring;
-    };
-    this.youRing = stageRing('#3ec6b5');
-    this.threatRing = stageRing('#d7263d');
-
-    // SMART ARROW: a fat play-diagram arrow painted on the court from your
-    // runner toward the bag the coach recommends — follow the arrow, live
-    {
-      const shape = new THREE.Shape();
-      shape.moveTo(-0.45, 0); shape.lineTo(-0.45, 1.7); shape.lineTo(-0.95, 1.7);
-      shape.lineTo(0, 3.0); shape.lineTo(0.95, 1.7); shape.lineTo(0.45, 1.7);
-      shape.lineTo(0.45, 0); shape.closePath();
-      const inner = new THREE.Mesh(
-        new THREE.ShapeGeometry(shape),
-        new THREE.MeshBasicMaterial({ color: '#3ec6b5', transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide }),
-      );
-      inner.rotation.x = -Math.PI / 2;
-      inner.position.y = 0.09;
-      this.smartArrow = new THREE.Group();
-      this.smartArrow.add(inner);
-      this.smartArrow.visible = false;
-      this.smartArrowMat = inner.material;
-      engine.scene.add(this.smartArrow);
+      this.youRing = ring;
     }
 
     bus.on('cine:start', () => { this.cinematicLock = true; this.hud.hint(''); });
@@ -201,10 +183,8 @@ export class MatchScene {
     this.hud.onPitchSelect = (id) => this.onPitchSelect(id);
     this.hud.onThrow = (t) => this.onPlayerThrow(t);
     this.hud.onGo = () => this.sendHeldRunner();
-    this.hud.onSlide = () => this.doSlide();
     this.hud.onSteal = (b) => this.startSteal(b);
-    this.hud.onPickleMove = (side) => this.pickleMove(side);
-    this.hud.onPickleSpin = () => this.pickleSpin();
+    this.hud.onDuel = () => this.onDuelButton();
     this.hud.onSpecial = () => {
       if (this.special.ready && this.kickingIsPlayer()) {
         this.specialArmed = true;
@@ -407,15 +387,11 @@ export class MatchScene {
     this.stealResolving = false;
     this.goOffer = null;
     this.hud.hideGo();
-    this.pickle = null;
-    this.rundownView = null;
+    this.duel = null;
     this.releasePickleFreeze();
     this.restoreSpeed();
-    this.hud.hideThreatMarker();
-    this.hud.setSpinUrgent(false);
-    this.hud.hidePickleCoach();
-    this.hud.hideSlide();
-    this.hud.hidePicklePad();
+    this.hud.hideDuel();
+    this.watchdog.reset();
     this.match.state.bases.forEach((occ, i) => {
       if (occ === null) return;
       const c = off[occ % off.length];
@@ -901,6 +877,7 @@ export class MatchScene {
     r.state = 'done';
     this.runners = this.runners.filter((q) => q !== r);
     this.stealing = null;
+    this.watchdog.clear(r.idx);
     this.refreshHud();
   }
 
@@ -909,6 +886,7 @@ export class MatchScene {
     if (!r) return;
     this.runners = this.runners.filter((q) => q !== r);
     this.stealing = null;
+    this.watchdog.clear(r.idx);
   }
 
   /**
@@ -928,6 +906,7 @@ export class MatchScene {
       this.stealResolving = false;
       this.hud.showThrowPad(false);
       this.stealDefense = null;
+      this.watchdog.clear(r.idx);
       if (out) {
         const bases = [...this.match.state.bases];
         bases[r.fromBase] = null;
@@ -983,7 +962,8 @@ export class MatchScene {
 
   /** On-screen banners of what each base-runner is doing (so you know where to throw). */
   updateRunnerAlerts() {
-    if (this.phase !== 'LIVE') { this.hud.setRunnerAlerts([]); return; } // only during the live play
+    // only during the live play — and never on the duel stage (one button, no noise)
+    if (this.phase !== 'LIVE' || this.duel) { this.hud.setRunnerAlerts([]); return; }
     const running = this.runners.filter((r) => r.state === 'running' && r.targetBase >= 0 && r.targetBase <= 3);
     if (!running.length) { this.hud.setRunnerAlerts([]); return; }
     running.sort((a, b) => (b.targetBase - a.targetBase) || (b.sim.progressM - a.sim.progressM));
@@ -1106,21 +1086,18 @@ export class MatchScene {
         const dz = r.char.group.position.z - holder.group.position.z;
         const d2 = dx * dx + dz * dz;
         if (d2 >= TAG2) continue;
-        const P = this.pickle?.r === r ? this.pickle : null;
-        if (P) {
-          if (P.tagCd > 0) continue; // tagger is still stumbling
-          if (P.spinT > 0) {
+        const duelHere = this.duel?.r === r ? this.duel : null;
+        if (duelHere) {
+          if (duelHere.tagCd > 0) continue; // tagger is still stumbling
+          if (duelHere.brain.tagAttempt() === 'dodged') {
             // SPIN MOVE — the lunge whiffs, tagger stumbles, you get separation
-            if (!P.dodged) {
-              P.dodged = true;
-              P.tagCd = 0.9;
-              holder.animator.play('stumble');
-              this.bus.emit('sfx', 'dodge');
-              this.hud.call('SPIN MOVE!', 'crowned');
-            }
+            duelHere.tagCd = 0.9;
+            holder.animator.play('stumble');
+            this.bus.emit('sfx', 'dodge');
+            this.hud.call('SPIN MOVE!', 'crowned');
             continue;
           }
-          if (P.sliding && d2 > 0.55) continue; // sliding low under the tag
+          if (r.char.animator.name === 'slide' && d2 > 0.55) continue; // sliding low under the tag
         }
         this.runnerOut(r, 'tag');
       }
@@ -1128,19 +1105,11 @@ export class MatchScene {
 
     for (const r of this.runners) {
       if (r.state === 'running') {
-        // AI runner in a PLAYER-DEFENSE rundown: work the pickle — reverse and
-        // juke on a timer so the defender has to time the throw
-        if (!isPlayerOffense && r.aiPickleFlips > 0 && this.defenseHasBall) {
-          r.aiPickleRev -= dt;
-          if (r.aiPickleRev <= 0) {
-            r.aiPickleFlips -= 1;
-            r.aiPickleRev = 0.7 + Math.random() * 0.6;
-            this.retreatRunner(r);
-            if (Math.random() < 0.5) r.sim.juke(Math.random() < 0.5 ? 'left' : 'right');
-          }
-        }
-        const sliding = this.pickle?.r === r && this.pickle.sliding;
-        const useRate = sliding ? 12 : (isPlayerOffense ? rate : r.aiRate);
+        // THE DUEL owns its runner's speed (auto-shuttle / committed burst) —
+        // taps neither steer nor pump in a pickle, on either side.
+        const inDuel = this.duel?.r === r;
+        if (inDuel && this.duel.brain.spinT > 0) r.char.group.rotation.y += dt * 16; // the whirl
+        const useRate = inDuel ? this.duel.brain.runRate() : (isPlayerOffense ? rate : r.aiRate);
         // A human who stops tapping can hover between bags while the ball is loose
         // (that's strategic). But once the defense SECURES the ball, a stalled
         // runner must commit to a bag — otherwise the play can never end.
@@ -1235,14 +1204,6 @@ export class MatchScene {
     }
     this.hud.setBases(liveBases);
 
-    // defense PICKLE STAGE strikes itself when the trapped runner settles
-    if (this.rundownView && this.rundownView.state !== 'running') {
-      this.rundownView = null;
-      this.releasePickleFreeze();
-      this.restoreSpeed();
-      this.hud.setLetterbox(false);
-    }
-
     // GO FOR 2: offer the extra base on the lead held runner while it's live
     this.updateGoOffer();
 
@@ -1267,12 +1228,9 @@ export class MatchScene {
     this.hud.setRunnerAlerts([]); // play's over — clear the runner banners
     this.goOffer = null;
     this.hud.hideGo();
-    if (this.pickle) { this.pickle = null; this.hud.hideSlide(); this.hud.hidePicklePad(); this.hud.setLetterbox(false); }
-    if (this.rundownView) { this.rundownView = null; this.hud.setLetterbox(false); }
+    if (this.duel) { this.duel = null; this.hud.hideDuel(); this.hud.setLetterbox(false); }
     this.releasePickleFreeze();
     this.restoreSpeed();
-    this.hud.hideThreatMarker();
-    this.hud.setSpinUrgent(false);
 
     // nobody jogs in place once the play is dead — settle every defender
     // (updateDefense stops outside LIVE, so a looping run clip would stick)
@@ -1663,6 +1621,42 @@ export class MatchScene {
     return best;
   }
 
+  /** Snap a stuck runner to his nearest sensible bag and let the play close.
+   *  Called by the phase-independent watchdog AND the 14s live safety net. */
+  forceSettleRunner(r) {
+    console.warn('[skk] watchdog: force-settling stuck runner', r.idx, 'phase', this.phase);
+    this.watchdog.clear(r.idx);
+    if (r === this.stealing) {
+      // stuck stealer: past halfway = award the bag, else send him back — then
+      // clear ALL steal bookkeeping so the pitch flow can't wait on him
+      if (r.sim.progressM > this.tuning.running.basePathM * 0.5) {
+        this.commitStealArrival(r);
+      } else {
+        r.state = 'done';
+        r.char.group.position.copy(this.basePos(r.fromBase)).add(new THREE.Vector3(0.4, 0, 0.4));
+        r.char.animator.play('idle');
+        this.baseChars[r.fromBase] = r.char;
+        this.runners = this.runners.filter((q) => q !== r);
+        this.stealing = null;
+        this.stealResolving = false;
+        this.stealDefense = null;
+      }
+      return;
+    }
+    const past = r.sim.progressM > this.tuning.running.basePathM * 0.5;
+    if (past && r.targetBase === 3) {
+      r.state = 'scored';
+      this.pendingRuns = (this.pendingRuns ?? 0) + 1;
+      r.char.group.visible = false;
+    } else {
+      r.state = 'held';
+      r.heldAt = past ? Math.min(r.targetBase, 2) : Math.max(r.fromBase, 0);
+      r.tagUp = false;
+      r.char.group.position.copy(this.basePos(r.heldAt)).add(new THREE.Vector3(0.4, 0, 0.4));
+      r.char.animator.play('idle');
+    }
+  }
+
   /** A non-forced runner caught off a base reverses toward the bag he came from. */
   retreatRunner(r) {
     if (r.fromBase < 0) return;
@@ -1694,18 +1688,21 @@ export class MatchScene {
     this.hud.stamp('PICKLE!', 'robbed');
     this.bus.emit('vo', 'pickle');
     if (this.playerControlled) {
-      // PLAYER DEFENSE: the AI runner works the pickle — reverses and jukes so
-      // you have to TIME your throws, not just spam a peg
-      runner.aiPickleFlips = this.difficulty === 'King' ? 4 : 3;
-      runner.aiPickleRev = 0.7 + Math.random() * 0.6;
-      this.rundownView = runner; // PICKLE STAGE camera for the defense too
+      // PLAYER DEFENSE: same duel — your verbs are THROW (button) and PEG (swipe)
+      this.duel = {
+        r: runner,
+        brain: new PickleDuel({ mine: false, difficulty: this.difficulty, tuning: this.tuning }),
+        backBase: runner.targetBase, // startRundown retreat-flipped him already
+        forwardBase: runner.fromBase,
+        throwInfo: null,
+        tagCd: 0,
+      };
+      runner.sim.human = false;
       this.hud.setLetterbox(true);
+      this.hud.showDuel('THROW!');
+      this.hud.showThrowPad(false); // the duel button replaces the pad here
+      this.hud.hint('');
       this.freezeForPickle();
-      this.hud.hint('RUNDOWN! PEG HIM!');
-      this.hud.showThrowPad(true);
-      this.hud.highlightBestBase(null);
-      this.showBaseRings(true);
-      this.after(6, () => { if (!this.playFinalized && !this.throwing) this.ballControlled = true; });
     } else if (this.kickingIsPlayer()) {
       this.startPickle(runner); // YOUR runner is trapped — mini-game on
     } else if (catcher) {
@@ -1713,15 +1710,22 @@ export class MatchScene {
     }
   }
 
-  // ---------- PICKLE mini-game (your runner is trapped) ----------
-  /** Controls: TAP = reverse direction • SWIPE left/right = juke • SWIPE UP =
-   *  spin move (dodges a tag, stumbles the tagger) • SLIDE! button near a bag.
-   *  The defense chases you down and relays the ball ahead of you. */
+  // ---------- THE DUEL (pickle v4): characters do the running, you make the calls ----------
+  /** Your runner is trapped. One button: GO! (lit while the ball flies — break
+   *  away from the throw). Swipe up: SPIN (i-frames — dodges tags AND pegs).
+   *  Left/right swipes still juke, and a well-timed juke slips a peg too. */
   startPickle(r) {
-    this.pickle = { r, spinT: 0, spinCd: 0, sliding: false, slideShown: false, dodged: false, tagCd: 0, decideT: 0.8, throwsLeft: 4 };
-    r.sim.human = false; // auto-trot — tapping still adds speed, but no mash needed
-    this.hud.setLetterbox(true); // the PICKLE STAGE: cinematic side-on duel
-    this.updatePickleSides(r);
+    this.duel = {
+      r,
+      brain: new PickleDuel({ mine: true, difficulty: this.difficulty, tuning: this.tuning }),
+      backBase: r.targetBase, // startRundown retreat-flipped him already
+      forwardBase: r.fromBase,
+      throwInfo: null,
+      tagCd: 0,
+    };
+    r.sim.human = false; // the duel drives his legs — you make the calls
+    this.hud.setLetterbox(true);
+    this.hud.showDuel('GO!');
     this.hud.hint('');
     this.freezeForPickle();
   }
@@ -1732,14 +1736,14 @@ export class MatchScene {
   freezeForPickle() {
     this.engine.timeScale = 0;
     this.pickleFreezeUntil = this.elapsed + 1.5;
-    this.hud.call('PICKLE!', 'pegged');
+    // (startRundown already slams the PICKLE! spray stamp — no double banner)
     this.bus.emit('sfx', 'bassdrop');
   }
 
   releasePickleFreeze() {
     if (!this.pickleFreezeUntil) return;
     this.pickleFreezeUntil = 0;
-    this.engine.timeScale = (this.pickle || this.rundownView) ? PICKLE_SLOWMO : 1;
+    this.engine.timeScale = this.duel ? PICKLE_SLOWMO : 1;
   }
 
   /** back to full speed once no pickle stage is live (never fights a cinematic) */
@@ -1747,228 +1751,180 @@ export class MatchScene {
     if (!this.cinematicLock) this.engine.timeScale = 1;
   }
 
-  /** map the two contested bags to SCREEN left/right for the pickle pad */
-  updatePickleSides(r) {
-    const sFrom = this.worldToScreen(this.bagPos(r.fromBase));
-    const sTo = this.worldToScreen(this.bagPos(r.targetBase));
-    const label = (i) => (i < 0 ? 'HOME' : ['1ST', '2ND', '3RD', 'HOME'][i]);
-    // default if a bag projects off-screen: fromBase on the left
-    const leftIsTarget = !!sFrom && !!sTo && sTo.x < sFrom.x;
-    this.pickleLeftIsTarget = leftIsTarget;
-    this.hud.showPicklePad(
-      label(leftIsTarget ? r.targetBase : r.fromBase),
-      label(leftIsTarget ? r.fromBase : r.targetBase),
-    );
-    this.hud.setPickleDir(leftIsTarget ? 'left' : 'right');
-  }
-
-  /** pickle pad arrows: break toward the bag on that SCREEN side */
-  pickleMove(side) {
-    const P = this.pickle;
-    if (!P || P.sliding || P.r.state !== 'running') return;
-    const wantsTarget = (side === 'left') === this.pickleLeftIsTarget;
-    if (!wantsTarget) this.pickleReverse();
-  }
-
-  /** WHO IS WHO on the pickle stage, every frame: teal ring + YOU tag on your
-   *  man, red ring + red marker on the threat, floating name tags on both bags
-   *  that MATCH the pad buttons. All of it strikes with the stage. */
+  /** Duel identity: ONE teal ring under the character you control. */
   updateStageMarkers() {
-    const pk = this.pickle?.r ?? this.rundownView;
-    const on = !!pk && pk.state === 'running';
-    if (!on) {
-      if (this.youRing.visible || this.threatRing.visible || this.smartArrow.visible) {
-        this.youRing.visible = this.threatRing.visible = this.smartArrow.visible = false;
-        this.hud.hideBagTags();
-        this.hud.hideYouMarker();
-        this.hud.hideThreatMarker();
-        this.hud.hidePickleLane();
-      }
-      return;
-    }
-    if (!this.pickle) this.smartArrow.visible = false; // defense: no offense arrow
+    const duel = this.duel;
+    const on = !!duel && duel.r.state === 'running';
+    if (!on) { this.youRing.visible = false; return; }
     const holder = this.fieldingChars().find((c) => c.hasBall);
-    const runnerPos = pk.char.group.position;
-    const pulse = 1 + Math.sin(this.elapsed * 8) * 0.12;
-    // OFFENSE: you = the runner, threat = the ball-carrier.
-    // DEFENSE: you = your ball-carrier, threat(target) = the trapped runner.
-    const youChar = this.pickle ? pk.char : holder;
-    const threatChar = this.pickle ? holder : pk.char;
-    if (youChar) {
-      this.youRing.visible = true;
-      this.youRing.position.copy(youChar.group.position).setY(0.07);
-      this.youRing.scale.setScalar(pulse);
-    } else this.youRing.visible = false;
-    if (threatChar) {
-      this.threatRing.visible = true;
-      this.threatRing.position.copy(threatChar.group.position).setY(0.07);
-      this.threatRing.scale.setScalar(2 - pulse);
-    } else {
-      this.threatRing.visible = false;
-    }
-    // the red marker rides the BALL itself — held OR mid-throw, it never
-    // disappears at the exact moment you must decide
-    const bs = this.worldToScreen(this.ball.pos);
-    const nearBall = this.ball.pos.distanceTo(runnerPos) < 3.6;
-    if (bs) this.hud.setThreatMarker(bs.x, bs.y - 34, nearBall);
-    else this.hud.hideThreatMarker();
-    if (this.pickle) {
-      const ys = this.worldToScreen(pk.char.group.position);
-      if (ys) this.hud.setYouMarker(ys.x, ys.y - 44);
-    } else this.hud.hideYouMarker();
-    const label = (i) => (i < 0 ? 'HOME' : ['1ST', '2ND', '3RD', 'HOME'][i]);
-    const sa = this.worldToScreen(this.bagPos(pk.fromBase).setY(0.2));
-    const sb = this.worldToScreen(this.bagPos(pk.targetBase).setY(0.2));
-    const tags = [];
-    if (sa) tags.push({ x: sa.x, y: sa.y - 18, label: label(pk.fromBase) });
-    if (sb) tags.push({ x: sb.x, y: sb.y - 18, label: label(pk.targetBase) });
-    this.hud.setBagTags(tags);
+    const youChar = this.kickingIsPlayer() ? duel.r.char : holder;
+    if (!youChar) { this.youRing.visible = false; return; }
+    this.youRing.visible = true;
+    this.youRing.position.copy(youChar.group.position).setY(0.07);
+    this.youRing.scale.setScalar(1 + Math.sin(this.elapsed * 8) * 0.12);
+  }
 
-    // THE DUEL LANE: the pickle is one-dimensional — show it in 1D. Runner
-    // token + ball token on a fat bar with the bag names at the ends; every
-    // decision (press/reverse/spin/slide) reads off token positions.
-    const fromPt2 = this.bagPos(pk.fromBase);
-    const toPt2 = this.bagPos(pk.targetBase);
-    const axis2 = toPt2.clone().sub(fromPt2);
-    const tRun2 = pk.sim.progressM / this.tuning.running.basePathM;
-    const tBall2 = Math.max(-0.06, Math.min(1.06,
-      this.ball.pos.clone().sub(fromPt2).dot(axis2) / axis2.lengthSq()));
-    const leftIsFrom = (sa && sb) ? sa.x < sb.x : true;
-    this.hud.setPickleLane({
-      runnerT: leftIsFrom ? tRun2 : 1 - tRun2,
-      ballT: leftIsFrom ? tBall2 : 1 - tBall2,
-      leftLabel: label(leftIsFrom ? pk.fromBase : pk.targetBase),
-      rightLabel: label(leftIsFrom ? pk.targetBase : pk.fromBase),
-      mine: !!this.pickle,
-      hot: this.ball.pos.distanceTo(pk.char.group.position) < 3.2,
+  /** THE DUEL, every frame: steer the auto-shuttle, drive the tagger, run the
+   *  AI side's clocks, keep the one button honest (lit = actionable NOW). */
+  updateDuel(dt) {
+    const duel = this.duel;
+    const r = duel.r;
+    const brain = duel.brain;
+    if (r.state !== 'running' || this.playFinalized) {
+      return this.endDuel();
+    }
+    brain.tick(dt);
+    duel.tagCd = Math.max(0, duel.tagCd - dt);
+
+    // --- lane geometry (0 = back/safety bag, 1 = forward bag) ---
+    const backPt = this.bagPos(duel.backBase);
+    const fwdPt = this.bagPos(duel.forwardBase);
+    const axis = fwdPt.clone().sub(backPt);
+    const rp = r.char.group.position;
+    const runnerT = Math.max(0, Math.min(1, rp.clone().sub(backPt).dot(axis) / axis.lengthSq()));
+    const ballT = Math.max(-0.06, Math.min(1.06, this.ball.pos.clone().sub(backPt).dot(axis) / axis.lengthSq()));
+    const dirNow = r.targetBase === duel.forwardBase ? 1 : -1;
+
+    // --- steer the runner: committed = locked sprint; else shuttle away from the ball ---
+    const wantDir = brain.committed ? brain.commitDir : shuttleDir({ runnerT, ballT });
+    if (wantDir !== dirNow && r.fromBase >= 0) {
+      this.retreatRunner(r);
+      r.sim.human = false;
+    }
+    // auto-slide: committed and closing on a bag — low under the tag, no input
+    const remaining = this.tuning.running.basePathM - r.sim.progressM;
+    if (brain.committed && remaining < 5.2 && r.char.animator.name !== 'slide') {
+      r.char.animator.play('slide');
+    }
+
+    const holder = this.fieldingChars().find((c) => c.hasBall);
+    if (this.kickingIsPlayer()) {
+      // ===== OFFENSE: the AI defense hunts; GO is lit while the ball flies =====
+      this.hud.setDuelLit(brain.canGo(!!duel.throwInfo && duel.throwInfo.toEnd !== -1));
+      if (holder && !this.throwing) {
+        duel.throwInfo = null; // ball in a glove — the GO window is shut
+        this.duelChase(holder, r, duel, dt);
+        const act = brain.aiDefense(dt, {
+          ballFlying: false,
+          holderDist: holder.group.position.distanceTo(rp),
+          runnerCommitted: brain.committed,
+        });
+        if (act === 'relay') this.duelRelay(holder);
+        else if (act === 'peg') this.duelPegAt(holder, r);
+      }
+    } else {
+      // ===== DEFENSE: you squeeze him; THROW is lit whenever you hold the ball =====
+      this.hud.setDuelLit(!!holder && !this.throwing && brain.canThrow());
+      if (holder && !this.throwing) {
+        duel.throwInfo = null;
+        this.duelChase(holder, r, duel, dt);
+      }
+      const act = brain.aiOffense(dt, {
+        ballFlying: !!duel.throwInfo && duel.throwInfo.toEnd !== -1,
+        flightFrac: duel.throwInfo ? Math.min(1, (this.elapsed - duel.throwInfo.t0) / duel.throwInfo.totalS) : 0,
+        throwToEnd: duel.throwInfo?.toEnd === 1 ? 1 : 0,
+        holderDist: holder ? holder.group.position.distanceTo(rp) : 99,
+        pegIncoming: brain.pegWindupT > 0,
+      });
+      if (act?.type === 'go') {
+        brain.go({ flightFrac: act.flightFrac, throwToEnd: act.throwToEnd });
+      } else if (act?.type === 'spin') {
+        if (brain.spin()) this.bus.emit('sfx', 'juke');
+      }
+    }
+  }
+
+  /** the ball-carrier closes on the trapped runner (both sides of the duel) */
+  duelChase(holder, r, duel, dt) {
+    const rp = this.runnerWorldPos(r).p;
+    const hp = holder.group.position;
+    const d = hp.distanceTo(rp);
+    if (d > 1.05) {
+      const spd = this.tuning.running.maxSpeedMs * (duel.tagCd > 0 ? 0.35 : 0.74); // stumbled = slowed
+      const dir = rp.clone().sub(hp).setY(0).normalize();
+      hp.addScaledVector(dir, spd * dt);
+      holder.faceYaw = Math.atan2(dir.x, dir.z);
+      if (holder.animator.name !== 'run' && holder.animator.name !== 'stumble') holder.animator.play('run');
+    } else if (holder.animator.name === 'run') {
+      holder.animator.play('holdball');
+    }
+  }
+
+  /** Relay to the lane end the runner is drifting toward (cut him off). The
+   *  flight is the GO window — throwInfo carries which end + the clock. */
+  duelRelay(holder) {
+    const duel = this.duel;
+    const r = duel.r;
+    const toEnd = r.targetBase === duel.forwardBase ? 1 : 0;
+    const base = toEnd === 1 ? duel.forwardBase : duel.backBase;
+    const basePt = this.bagPos(base);
+    duel.brain.relays += 1;
+    duel.throwInfo = {
+      toEnd,
+      t0: this.elapsed,
+      totalS: 0.5 + holder.group.position.distanceTo(basePt) / this.tuning.throwing.throwSpeedMs,
+    };
+    this.throwBall(holder, { base });
+  }
+
+  /** Telegraphed peg: a visible/audible windup beat (the SPIN window), then
+   *  the kill shot. Used by the AI on your runner AND by your swipe on theirs. */
+  duelPegAt(holder, r) {
+    const duel = this.duel;
+    if (!duel.brain.startPeg()) return;
+    holder.animator.play('holdball');
+    this.faceTo(holder, this.runnerWorldPos(r).p);
+    this.bus.emit('sfx', 'throw'); // the audible windup IS the tell
+    this.after(duel.brain.D.pegWindupS, () => {
+      if (!this.duel || this.playFinalized || !holder.hasBall || this.throwing) return;
+      this.duel.throwInfo = { toEnd: -1, t0: this.elapsed, totalS: 0.4 }; // a peg is NOT a GO window
+      this.throwBall(holder, { peg: true });
     });
   }
 
-  updatePickle(dt) {
-    const P = this.pickle;
-    const r = P.r;
-    if (r.state !== 'running' || this.playFinalized) {
-      // 'scored' has its own SAFE AT HOME! call — don't stack banners
-      return this.endPickle(r.state === 'held');
+  /** THE DUEL button: GO! on offense, THROW! on defense. Unlit = inert. */
+  onDuelButton() {
+    const duel = this.duel;
+    if (!duel || duel.r.state !== 'running') return;
+    if (this.kickingIsPlayer()) {
+      const ti = duel.throwInfo;
+      if (!ti || ti.toEnd === -1) return;
+      const flightFrac = Math.max(0, Math.min(1, (this.elapsed - ti.t0) / ti.totalS));
+      if (duel.brain.go({ flightFrac, throwToEnd: ti.toEnd })) {
+        this.bus.emit('sfx', 'juke');
+        this.hud.goalPop('GO!');
+      }
+    } else {
+      const holder = this.fieldingChars().find((c) => c.hasBall);
+      if (!holder || this.throwing || !duel.brain.canThrow()) return;
+      this.duelRelay(holder);
     }
-    P.spinT = Math.max(0, P.spinT - dt);
-    P.spinCd = Math.max(0, P.spinCd - dt);
-    P.tagCd = Math.max(0, P.tagCd - dt);
-    this.updatePickleSides(r); // camera settles/reverses shift the screen mapping
-    if (P.spinT > 0) r.char.group.rotation.y += dt * 16; // the whirl
+  }
 
-    // SLIDE! offer when he's closing on the bag ahead
-    const remaining = this.tuning.running.basePathM - r.sim.progressM;
-    const showSlide = !P.sliding && remaining < 5.2;
-    if (showSlide !== P.slideShown) {
-      P.slideShown = showSlide;
-      showSlide ? this.hud.showSlide() : this.hud.hideSlide();
-    }
-
-    // the ball-carrier hunts you down (updateDefense skips holders — we own him)
+  /** Swipe during a defense duel: PEG the runner (windup tell, dodgeable). */
+  onDuelPeg() {
+    const duel = this.duel;
     const holder = this.fieldingChars().find((c) => c.hasBall);
-    if (holder && !this.throwing) {
-      const rp = this.runnerWorldPos(r).p;
-      const hp = holder.group.position;
-      const d = hp.distanceTo(rp);
-      if (d > 1.05) {
-        const spd = this.tuning.running.maxSpeedMs * (P.tagCd > 0 ? 0.35 : 0.74); // stumbled = slowed
-        const dir = rp.clone().sub(hp).setY(0);
-        dir.normalize();
-        hp.addScaledVector(dir, spd * dt);
-        holder.faceYaw = Math.atan2(dir.x, dir.z);
-        if (holder.animator.name !== 'run' && holder.animator.name !== 'stumble') holder.animator.play('run');
-      } else if (holder.animator.name === 'run') {
-        holder.animator.play('holdball');
-      }
-      // SPIN cue: flash the button exactly when a lunge can be dodged
-      const spinNow = d < 2.8 && P.spinCd <= 0 && !P.sliding;
-      this.hud.setSpinUrgent(spinNow);
-
-      // LIVE COACH — one big instruction that always answers "what do I do":
-      // where is the ball along MY basepath, and is my current direction smart?
-      const fromPt = this.bagPos(r.fromBase);
-      const toPt = this.bagPos(r.targetBase);
-      const axis = toPt.clone().sub(fromPt);
-      const tBall = this.ball.pos.clone().sub(fromPt).dot(axis) / axis.lengthSq();
-      const tRun = r.sim.progressM / this.tuning.running.basePathM;
-      const pressOn = tBall < tRun - 0.04; // ball behind me -> keep going
-      const reverse = tBall > tRun + 0.04; // ball ahead of me -> turn around
-      let coach;
-      if (P.sliding) coach = ['SLIDE!!', 'slide'];
-      else if (spinNow) coach = ['SPIN NOW!', 'spin'];
-      else if (reverse) coach = ['REVERSE!', 'reverse'];
-      else if (pressOn) coach = ['GO GO GO!', 'go'];
-      else coach = ['PICK A SIDE!', 'go'];
-      this.hud.setPickleCoach(coach[0], coach[1]);
-      // glow the SMART pad button green (the bag AWAY from the ball)
-      const smartIsTarget = !reverse;
-      const smartSide = (smartIsTarget === this.pickleLeftIsTarget) ? 'left' : 'right';
-      this.hud.setPickleSmart(P.sliding ? null : smartSide);
-      // the ground arrow: from the runner toward the smart bag
-      const smartBag = smartIsTarget ? toPt : fromPt;
-      const runPos = r.char.group.position;
-      this.smartArrow.visible = !P.sliding;
-      this.smartArrow.position.set(runPos.x, 0, runPos.z);
-      this.smartArrow.rotation.y = Math.atan2(smartBag.x - runPos.x, smartBag.z - runPos.z);
-      this.smartArrowMat.color.set(reverse ? '#f5b312' : '#3ec6b5');
-      // pulling away toward a bag → relay AHEAD of you to tighten the trap
-      P.decideT -= dt;
-      if (P.decideT <= 0) {
-        P.decideT = { Rookie: 1.2, Street: 0.95, King: 0.75 }[this.difficulty] ?? 0.95;
-        if (d > 4.5 && P.throwsLeft > 0 && !P.sliding) {
-          P.throwsLeft -= 1;
-          this.throwBall(holder, { base: r.targetBase });
-        }
-      }
-    }
+    if (!duel || !holder || this.throwing) return;
+    this.duelPegAt(holder, duel.r);
   }
 
-  /** Tap during the pickle: reverse direction (back and forth is the game). */
-  pickleReverse() {
-    const P = this.pickle;
-    if (!P || P.sliding || P.r.state !== 'running' || P.r.fromBase < 0) return;
-    this.retreatRunner(P.r);
-    P.r.sim.human = false; // keep the auto-trot through the reverse
-    this.updatePickleSides(P.r);
-    this.bus.emit('sfx', 'juke');
+  /** Swipe up on the offense duel: SPIN (i-frames — dodges tags AND pegs). */
+  duelSpin() {
+    const duel = this.duel;
+    if (!duel || !this.kickingIsPlayer()) return;
+    if (duel.brain.spin()) this.bus.emit('sfx', 'juke');
   }
 
-  /** Swipe up during the pickle: spin move — brief i-frames; a tagger caught
-   *  mid-lunge stumbles and you get separation. */
-  pickleSpin() {
-    const P = this.pickle;
-    if (!P || P.sliding || P.spinCd > 0) return;
-    P.spinT = 0.5;
-    P.spinCd = 1.7;
-    P.dodged = false;
-    this.bus.emit('sfx', 'juke');
-  }
-
-  /** SLIDE! — commit: full burst at the bag, low to the ground, no turning back. */
-  doSlide() {
-    const P = this.pickle;
-    if (!P || P.sliding || P.r.state !== 'running') return;
-    P.sliding = true;
-    P.slideShown = false;
-    this.hud.hideSlide();
-    P.r.sim.jukeCooldown = 1e9; // committed
-    P.r.char.animator.play('slide');
-    this.bus.emit('sfx', 'juke');
-    this.hud.call('SLIDE!', 'crowned');
-  }
-
-  endPickle(safe) {
-    const P = this.pickle;
-    if (!P) return;
-    this.pickle = null;
+  /** The duel resolves into one of THREE outcomes: retreat-safe (small win),
+   *  forward steal (JACKPOT), or out. Always releases ball control cleanly. */
+  endDuel() {
+    const duel = this.duel;
+    if (!duel) return;
+    this.duel = null;
     this.releasePickleFreeze();
     this.restoreSpeed();
-    this.hud.hideThreatMarker();
-    this.hud.setSpinUrgent(false);
-    this.hud.hidePickleCoach();
-    this.hud.hideSlide();
-    this.hud.hidePicklePad();
+    this.hud.hideDuel();
     this.hud.setLetterbox(false);
     this.hud.hint('');
     // settle the tagger — updateDefense skips ball-holders, so without this
@@ -1978,22 +1934,39 @@ export class MatchScene {
     // the rundown WAS the play: once it resolves the defense controls the
     // ball, and the play must be allowed to END (dev: 'very glitchy when a
     // pickle ends — the game doesn't understand the play is over')
-    if (!this.throwing && !this.runners.some((r) => r.state === 'running')) {
+    if (!this.throwing && !this.runners.some((q) => q.state === 'running')) {
       this.defenseHasBall = true;
       this.ballControlled = true;
     } else if (!this.playerControlled && !this.throwing) {
       this.aiContinue(); // someone ELSE is still running — defense resumes the hunt
     }
-    if (safe) {
+    const r = duel.r;
+    if (this.kickingIsPlayer()) {
+      if (r.state === 'scored' || (r.state === 'held' && r.heldAt === duel.forwardBase)) {
+        // THE JACKPOT: stole the forward bag out of a rundown
+        this.special.add('pickleEscape');
+        this.refreshHud();
+        this.field.crowdEnergy = 1;
+        this.bus.emit('sfx', 'crowd-cheer');
+        this.bus.emit('vo', 'safe');
+        this.hud.call('STOLE THE BAG!', 'crowned');
+      } else if (r.state === 'held') {
+        // the small win: worked his way back to safety — no out, he lives
+        this.bus.emit('sfx', 'crowd-cheer');
+        this.hud.call('SAFE!', 'crowned');
+      }
+      // an out already got its OUT!/PEGGED! call from runnerOut
+    } else if (r.state !== 'running' && r.state !== 'held' && r.state !== 'scored') {
+      // defense converted the rundown — double-play-energy celebration
       this.bus.emit('sfx', 'crowd-cheer');
-      this.hud.call('SAFE!', 'crowned');
+      this.hud.call('GOT HIM!', 'pegged');
     }
   }
 
   /** What the AI does with the ball: force out → cut off the lead runner → peg. */
   aiThrowDecision(fielder) {
     if (!fielder.hasBall || this.playFinalized || this.phase === 'RESOLVE') return;
-    if (this.pickle) return; // the pickle mini-game owns the defense (updatePickle)
+    if (this.duel) return; // THE DUEL owns the defense (updateDuel)
     // 1) a force out is available → fire to the recommended bag (lead force
     //    under 2 outs; the EASIEST out with 2 outs)
     const forcedBase = this.recommendedThrowBase(fielder);
@@ -2043,6 +2016,23 @@ export class MatchScene {
   afterThrow() {
     if (this.playFinalized || this.phase === 'RESOLVE') return;
     if (!this.runners.some((r) => r.state === 'running')) { this.ballControlled = true; return; }
+    if (this.duel && this.playerControlled) {
+      // defense DUEL: the duel button owns the throws — no throw pad. Just make
+      // sure somebody holds the ball so the squeeze (and THROW) can continue.
+      let holder = this.fielders?.find((f) => f.char.hasBall)?.char;
+      if (!holder) {
+        holder = this.nearestFielderTo(this.ball.pos);
+        if (!holder) { this.ballControlled = true; return; }
+        holder.hasBall = true;
+        this.ball.place(holder.group.position.clone().setY(1.1));
+        this.ball.mode = 'idle';
+      }
+      this.chaser = holder;
+      this.activeFielder = holder;
+      this.defenseHasBall = true;
+      this.ballControlled = false;
+      return;
+    }
     if (!this.playerControlled) return this.aiContinue();
     // PLAYER defense: make sure a fielder has the ball, then re-arm the throw pad
     let holder = this.fielders?.find((f) => f.char.hasBall)?.char;
@@ -2132,9 +2122,25 @@ export class MatchScene {
           this.bus.emit('sfx', 'catchpop');
           this.hud.call('SAFE!', 'robbed');
         } else {
-          const hit = resolvePeg({ throwDistM: 0, runnerLateralM: lead.sim.lateral }, this.tuning).hit;
+          // in THE DUEL the brain resolves it: a timed SPIN or a live juke
+          // slips the peg — and a dodged duel peg = loose ball = FREE BAG
+          const duelPeg = this.duel?.r === lead;
+          const hit = duelPeg
+            ? this.duel.brain.pegImpact({ lateralM: lead.sim.lateral }) === 'hit'
+            : resolvePeg({ throwDistM: 0, runnerLateralM: lead.sim.lateral }, this.tuning).hit;
           if (hit) this.runnerOut(lead, 'pegged');
-          else { this.bus.emit('sfx', 'dodge'); this.hud.call('JUKED!', 'robbed'); }
+          else {
+            this.bus.emit('sfx', 'dodge');
+            this.hud.call(duelPeg ? 'SPUN OUT OF IT!' : 'JUKED!', 'robbed');
+            if (duelPeg) {
+              const duel = this.duel;
+              duel.throwInfo = null;
+              duel.brain.committed = true;
+              duel.brain.commitDir = 1;
+              duel.brain.goGrade = 1;
+              this.ballControlled = false; // ball's loose — the bag is his
+            }
+          }
         }
         this.afterThrow(); // keep the play alive if a runner is still going
       });
@@ -2180,9 +2186,9 @@ export class MatchScene {
         if (victim.tagUp) this.hud.call('DOUBLED OFF!', 'pegged');
         if (!this.tryDoublePlay(base)) this.afterThrow(); // turn two, or keep chasing the next runner
       } else if (caught && live && !victim.forced && !victim.tagUp) {
-        if (this.pickle?.r === victim) {
-          // pickle relay landed AHEAD of you — the bag man is the tagger now.
-          // No auto-reverse: which way you break is YOUR call.
+        if (this.duel?.r === victim) {
+          // duel relay landed — the bag man is the tagger now; the GO window
+          // just closed (updateDuel clears throwInfo when a holder appears)
           this.chaser = receiver;
           this.defenseHasBall = true;
         } else {
@@ -2268,14 +2274,20 @@ export class MatchScene {
       this.attemptKick({ align: true }, this.elapsed);
       return;
     }
-    // PICKLE: swipe up = spin move (i-frames — dodge the tag)
-    if (this.pickle && this.kickingIsPlayer() && e.dir === 'up') {
-      this.pickleSpin();
+    // DUEL, offense: swipe up = SPIN (i-frames — dodges the tag AND a peg)
+    if (this.duel && this.kickingIsPlayer() && e.dir === 'up') {
+      this.duelSpin();
       return;
     }
-    // juke while running (left/right only); in a pickle it's YOUR trapped runner
+    // DUEL, defense: any swipe = PEG attempt (the runner is centre frame)
+    if (this.duel && !this.kickingIsPlayer()) {
+      this.onDuelPeg();
+      return;
+    }
+    // juke while running (left/right only); in a duel it's YOUR trapped runner —
+    // a well-timed juke slips a peg too (pegImpact reads sim.lateral)
     if (this.phase === 'LIVE' && this.kickingIsPlayer() && (e.dir === 'left' || e.dir === 'right')) {
-      const lead = this.pickle?.r ?? this.leadRunner();
+      const lead = this.duel?.r ?? this.leadRunner();
       if (lead && lead.sim.juke(e.dir)) this.bus.emit('sfx', 'juke');
     }
   }
@@ -2291,8 +2303,8 @@ export class MatchScene {
 
   onTap(e) {
     if (this.cinematicLock) { this.bus.emit('cine:skip'); return; }
-    // PICKLE: taps just pump speed (mash) — direction lives on the pickle pad
-    if (this.pickle && this.kickingIsPlayer()) return;
+    // DUEL: taps are inert — mash instinct must never fire GO by accident
+    if (this.duel && this.kickingIsPlayer()) return;
     // OFFENSE, pre-kick: tap one of YOUR base runners to send him stealing
     if ((this.phase === 'PITCH' || this.phase === 'SETUP') && this.kickingIsPlayer() && !this.stealing) {
       const b = this.pickBaseRunnerAt(e.x, e.y);
@@ -2551,6 +2563,18 @@ export class MatchScene {
       }
     }
 
+    // P0 watchdog: ANY runner (incl. a pre-kick stealer) stuck 'running' with
+    // no progress gets settled — no phase can strand the game anymore. Runs
+    // BEFORE the phase blocks on purpose: if one of them throws, the frame
+    // recovers but everything after it is skipped — the watchdog must never
+    // sit downstream of the very failures it guards against.
+    for (const r of [...this.runners]) {
+      if (this.watchdog.check(r.idx, r.sim.progressM, r.state, this.elapsed)) {
+        this.forceSettleRunner(r);
+        if (this.duel?.r === r) this.endDuel();
+      }
+    }
+
     if (this.phase === 'PITCH_TRACE') {
       const window = this.tuning.pitch.traceTimerMs / 1000;
       const frac = (this.traceDeadline - this.elapsed) / window;
@@ -2629,7 +2653,7 @@ export class MatchScene {
 
     if (this.phase === 'LIVE' || this.phase === 'RESOLVE') {
       this.updateRunners(dt);
-      if (this.pickle) this.updatePickle(dt);
+      if (this.duel) this.updateDuel(dt);
     } else if (this.stealing) {
       this.updateStealRunner(dt); // pre-kick steal keeps moving during the pitch
     }
@@ -2646,20 +2670,10 @@ export class MatchScene {
       // settle every stuck runner to his nearest bag, strike any stage,
       // unfreeze, and let the play finalize (dev hit two live stalls)
       if (this.elapsed - this.liveStart > 14 && !this.playFinalized) {
-        for (const r of this.runners) {
-          if (r.state !== 'running') continue;
-          const past = r.sim.progressM > this.tuning.running.basePathM * 0.5;
-          if (past && r.targetBase === 3) { r.state = 'scored'; this.pendingRuns = (this.pendingRuns ?? 0) + 1; r.char.group.visible = false; }
-          else {
-            r.state = 'held';
-            r.heldAt = past ? Math.min(r.targetBase, 2) : Math.max(r.fromBase, 0);
-            r.tagUp = false;
-            r.char.group.position.copy(this.basePos(r.heldAt)).add(new THREE.Vector3(0.4, 0, 0.4));
-            r.char.animator.play('idle');
-          }
+        for (const r of [...this.runners]) {
+          if (r.state === 'running') this.forceSettleRunner(r);
         }
-        if (this.pickle) this.endPickle(false);
-        this.rundownView = null;
+        if (this.duel) this.endDuel();
         this.releasePickleFreeze();
         this.restoreSpeed();
         this.ballControlled = true;
@@ -2685,7 +2699,7 @@ export class MatchScene {
     // CameraDirector spring-damps toward it (and handles the contact CUT).
     if (!this.engine.cameraLock) {
       this.camDir.setBaseFov(this.engine.baseFov ?? 58);
-      const pkR = this.pickle?.r ?? this.rundownView;
+      const pkR = this.duel?.r ?? null;
       this.pickleCam = (pkR && pkR.state === 'running' && (this.phase === 'LIVE' || this.phase === 'RESOLVE')) ? pkR : null;
       if (this.pickleCam) {
         this.camDir.request('pickle', this.camCtx(), { cut: !this._pkCamOn });

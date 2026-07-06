@@ -52,16 +52,16 @@ export const TUTORIAL_PAGES = [
     ],
   },
   {
-    title: 'THE PICKLE',
+    title: 'THE PICKLE — THE DUEL',
     demo: `
       <div class="tut-stage">
-        <div class="tut-arrows"><span>⇤</span><span class="up">⤒</span><span>⇥</span></div>
-        <button class="tut-pill red">SLIDE!</button>
+        <button class="tut-pill amber">GO!</button>
+        <div class="tut-arrows"><span class="up">⤒</span></div>
       </div>`,
     lines: [
-      'Trapped between bags? Fight for your life:',
-      '<b>TAP</b> = reverse &nbsp;•&nbsp; <b>SWIPE UP</b> = spin move &nbsp;•&nbsp; <b>SLIDE!</b> when the bag is close.',
-      'Spin as the tagger lunges — he stumbles, you break free.',
+      'Trapped between bags? Your man runs <b>himself</b> — you make the calls.',
+      '<b>Ball in the air → smash GO!</b> He breaks the right way automatically.',
+      'Tagger lunges or winds up a peg? <b>SWIPE UP = SPIN.</b> Escape forward = JACKPOT.',
     ],
   },
   {
@@ -75,7 +75,7 @@ export const TUTORIAL_PAGES = [
     lines: [
       'Your glowing fielder <b>auto-chases</b>. DRAG to steer him. <b>TAP a teammate</b> to take over.',
       'Ball secured → the throw pad. The <b>GOLD bag</b> is the force out. <b>PEG</b> smokes the lead runner.',
-      'Runner stealing on you? <b>Quick-draw</b> — hit the right bag before he’s in.',
+      'Trap a runner and the DUEL flips: <b>THROW!</b> catches him leaning, <b>SWIPE at him</b> = PEG.',
     ],
   },
   {

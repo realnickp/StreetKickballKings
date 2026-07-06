@@ -61,12 +61,28 @@
   },
   "special": {
     "meterMax": 100,
-    "gain": { "PERFECT": 35, "catch": 25, "peg": 30, "homerun": 40 },
+    "gain": { "PERFECT": 35, "catch": 25, "peg": 30, "homerun": 40, "pickleEscape": 60 },
     "powerMult": 1.35
   },
   "ai": {
     "Rookie": { "kickTimingErrMs": [28, 340], "whiffChance": 0.10, "fieldReactMs": 560, "jukeChance": 0.15 },
     "Street": { "kickTimingErrMs": [18, 290], "whiffChance": 0.06, "fieldReactMs": 430, "jukeChance": 0.4 },
     "King":   { "kickTimingErrMs": [12, 220], "whiffChance": 0.03, "fieldReactMs": 280, "jukeChance": 0.7 }
+  },
+  "duel": {
+    "shuttleRate": 1.0,
+    "goRateBase": 2.6,
+    "goRateGradeBonus": 2.0,
+    "spinIframeS": 0.5,
+    "spinCooldownS": 1.7,
+    "spinRecoverS": 0.45,
+    "pegWindupS": 0.55,
+    "pegJukeDodgeM": 0.7,
+    "maxRelays": 6,
+    "aiRelayS":    { "Rookie": 1.35, "Street": 1.0,  "King": 0.8  },
+    "aiPegChance": { "Rookie": 0.25, "Street": 0.4,  "King": 0.55 },
+    "aiGoReactS":  { "Rookie": 0.55, "Street": 0.36, "King": 0.24 },
+    "aiSpinChance":{ "Rookie": 0.35, "Street": 0.55, "King": 0.75 },
+    "watchdogStallS": 6
   }
 }

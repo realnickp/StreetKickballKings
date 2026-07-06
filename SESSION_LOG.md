@@ -931,3 +931,60 @@ stabilization + the pickle, before ANY new features.**
   runner-stuck states — add regression tests when fixing.
 - Backdrops: dev accepted current state; Chicago/Philly full fix =
   regenerate scenes eye-level/frontal (~200 credits, offer stands).
+
+## 22) Session 11 (2026-07-05) — PICKLE v4 "THE DUEL" + THE RUNNER WATCHDOG (branch feat/pickle-v4-duel)
+
+Both §21 P0s addressed in one build (they were the same job — the glitchy
+paths WERE the rundown/steal state machines). Design brainstormed with the
+dev and approved: spec `docs/superpowers/specs/2026-07-05-pickle-v4-duel-design.md`,
+plan `docs/superpowers/plans/2026-07-05-pickle-v4-duel.md`.
+
+**The design shift after six failed versions:** stop making the player STEER
+— the characters do the running, the player makes timed calls.
+- OFFENSE: one gold **GO!** button, lit ONLY while the ball flies between
+  fielders; tap = full-commit break AWAY from the throw (earlier = bigger
+  burst). **SWIPE UP = SPIN** (i-frames — dodges tag lunges AND telegraphed
+  pegs; left/right jukes slip pegs too, dev requirement). Auto-shuttle runs
+  the legs (always away from the ball — direction is never a player choice),
+  auto-slide at the bag. Taps are INERT (mash instinct can't misfire).
+- DEFENSE: **THROW!** relays to cut him off; ANY swipe = telegraphed PEG the
+  AI runner can spin out of (miss = loose ball = he takes the extra bag).
+- Outcomes: retreat bag = SAFE! (small win, no out) · forward bag = **STOLE
+  THE BAG!** jackpot (+60 special meter, crowd, VO) · tagged/pegged = out,
+  defense conversion gets GOT HIM! celebration.
+- Counter-web: GO beats a slow relay → THROW beats a greedy GO → PEG kills a
+  committed runner → SPIN/juke beats a PEG.
+- DELETED the six stacked aids (pickle pad, duel lane, coach line, smart
+  arrow, threat/you markers, bag tags, SLIDE button, runner-alert banner on
+  stage). Remaining stage UI: letterbox + ONE teal ring + ONE button.
+  Kept: freeze intro, bullet-time 0.6, close dolly cam.
+
+**Architecture:** `src/game/pickleDuel.js` — headless duel brain (windows,
+timers, i-frames, AI clocks for BOTH sides), fully vitest-covered.
+`this.pickle` + `this.rundownView` unified into ONE `this.duel` used by both
+sides. Tuning in `tuning.json.duel` (note: RunnerSim caps at maxSpeedMs 8.3,
+so burst tiers live UNDER the cap: shuttle 4.55 / late break 6.2 / early
+break 8.3 m/s vs tagger 6.14).
+
+**P0 watchdog:** `src/game/runnerWatchdog.js` — ANY runner stuck 'running'
+~6s with no progress force-settles (`forceSettleRunner`, steal-aware
+cleanup), runs EVERY frame in EVERY phase. **Load-bearing placement:** it
+runs at the TOP of update(), before the phase blocks — a thrown frame
+recovers but skips everything downstream, so the watchdog must never sit
+below the failures it guards (found this live: staged PITCH state threw at
+`this.pitch.speedMph` and the bottom-placed watchdog never ran).
+
+**Verification:** 135 vitest green (22 new: duel brain + watchdog), build
+clean, `scripts/pickle-e2e.mjs` (Playwright WebKit, staged rundowns via
+window.__skk) — offense GO-commit arc, defense THROW+PEG arc, and the P0
+regression (stuck PITCH-phase runner settles in ~6.4s) all pass; stage
+screenshots verified by eye (offense + defense).
+**HONEST GAPS:** entry to the duel in the probe is staged (startRundown
+called directly), not played into organically; no phone playtest yet; the
+tutorial drill rewrite is copy+callouts on the old staging, not re-driven
+end-to-end. Dev needs to REALLY play it.
+
+**Gotchas:** ports 5173-5183 were squatted by STALE dev servers (the June
+"frozen fielding" trap again — the dev's localhost may serve old code; kill
+node before playtesting locally). WebKit probe flags localhost GLB fetches
+with access-control noise — filtered as warnings in pickle-e2e.mjs.
