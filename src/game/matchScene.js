@@ -962,7 +962,8 @@ export class MatchScene {
 
   /** On-screen banners of what each base-runner is doing (so you know where to throw). */
   updateRunnerAlerts() {
-    if (this.phase !== 'LIVE') { this.hud.setRunnerAlerts([]); return; } // only during the live play
+    // only during the live play — and never on the duel stage (one button, no noise)
+    if (this.phase !== 'LIVE' || this.duel) { this.hud.setRunnerAlerts([]); return; }
     const running = this.runners.filter((r) => r.state === 'running' && r.targetBase >= 0 && r.targetBase <= 3);
     if (!running.length) { this.hud.setRunnerAlerts([]); return; }
     running.sort((a, b) => (b.targetBase - a.targetBase) || (b.sim.progressM - a.sim.progressM));
@@ -1735,7 +1736,7 @@ export class MatchScene {
   freezeForPickle() {
     this.engine.timeScale = 0;
     this.pickleFreezeUntil = this.elapsed + 1.5;
-    this.hud.call('PICKLE!', 'pegged');
+    // (startRundown already slams the PICKLE! spray stamp — no double banner)
     this.bus.emit('sfx', 'bassdrop');
   }
 
@@ -2562,6 +2563,18 @@ export class MatchScene {
       }
     }
 
+    // P0 watchdog: ANY runner (incl. a pre-kick stealer) stuck 'running' with
+    // no progress gets settled — no phase can strand the game anymore. Runs
+    // BEFORE the phase blocks on purpose: if one of them throws, the frame
+    // recovers but everything after it is skipped — the watchdog must never
+    // sit downstream of the very failures it guards against.
+    for (const r of [...this.runners]) {
+      if (this.watchdog.check(r.idx, r.sim.progressM, r.state, this.elapsed)) {
+        this.forceSettleRunner(r);
+        if (this.duel?.r === r) this.endDuel();
+      }
+    }
+
     if (this.phase === 'PITCH_TRACE') {
       const window = this.tuning.pitch.traceTimerMs / 1000;
       const frac = (this.traceDeadline - this.elapsed) / window;
@@ -2643,15 +2656,6 @@ export class MatchScene {
       if (this.duel) this.updateDuel(dt);
     } else if (this.stealing) {
       this.updateStealRunner(dt); // pre-kick steal keeps moving during the pitch
-    }
-
-    // P0 watchdog: ANY runner (incl. a pre-kick stealer) stuck 'running' with
-    // no progress gets settled — no phase can strand the game anymore.
-    for (const r of [...this.runners]) {
-      if (this.watchdog.check(r.idx, r.sim.progressM, r.state, this.elapsed)) {
-        this.forceSettleRunner(r);
-        if (this.duel?.r === r) this.endDuel();
-      }
     }
     if (this.phase === 'LIVE') {
       this.updateDefense(dt);
