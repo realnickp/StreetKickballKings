@@ -75,3 +75,58 @@ describe('PEG resolution', () => {
     expect(d.pegImpact({ lateralM: 0 })).toBe('hit');
   });
 });
+
+describe('defense verbs', () => {
+  it('startPeg opens a windup and blocks a second peg / relay until it lands', () => {
+    const d = mk({ mine: false });
+    expect(d.startPeg()).toBe(true);
+    expect(d.pegWindupT).toBeCloseTo(tuning.duel.pegWindupS);
+    expect(d.startPeg()).toBe(false);
+    expect(d.canThrow()).toBe(false);
+    d.tick(tuning.duel.pegWindupS + 0.01);
+    expect(d.canThrow()).toBe(true);
+  });
+});
+
+describe('AI defense (player offense)', () => {
+  it('relays on its difficulty clock while the runner is uncommitted and far', () => {
+    const d = mk({ mine: true });
+    expect(d.aiDefense(0.1, { ballFlying: false, holderDist: 6, runnerCommitted: false })).toBe(null);
+    expect(d.aiDefense(tuning.duel.aiRelayS.Street, { ballFlying: false, holderDist: 6, runnerCommitted: false })).toBe('relay');
+  });
+  it('pegs a committed runner (rng under aiPegChance)', () => {
+    const d = mk({ mine: true, rng: () => 0.0 });
+    expect(d.aiDefense(tuning.duel.aiRelayS.Street, { ballFlying: false, holderDist: 6, runnerCommitted: true })).toBe('peg');
+  });
+  it('never relays while a throw is already up', () => {
+    const d = mk({ mine: true });
+    expect(d.aiDefense(5, { ballFlying: true, holderDist: 6, runnerCommitted: false })).toBe(null);
+  });
+  it('stops relaying after maxRelays (forces a resolution)', () => {
+    const d = mk({ mine: true, rng: () => 0.99 });
+    let relays = 0;
+    for (let i = 0; i < 20; i++) {
+      if (d.aiDefense(2.0, { ballFlying: false, holderDist: 6, runnerCommitted: false }) === 'relay') { relays++; d.relays++; }
+    }
+    expect(relays).toBeLessThanOrEqual(tuning.duel.maxRelays);
+  });
+});
+
+describe('AI offense (player defense)', () => {
+  it('breaks (go) after its reaction time once a throw is in the air', () => {
+    const d = mk({ mine: false });
+    expect(d.aiOffense(0.05, { ballFlying: true, flightFrac: 0.1, throwToEnd: 1, holderDist: 6, pegIncoming: false })).toBe(null);
+    const act = d.aiOffense(tuning.duel.aiGoReactS.Street, { ballFlying: true, flightFrac: 0.3, throwToEnd: 1, holderDist: 6, pegIncoming: false });
+    expect(act?.type).toBe('go');
+  });
+  it('spins against an incoming peg when the roll passes', () => {
+    const d = mk({ mine: false, rng: () => 0.0 });
+    const act = d.aiOffense(0.1, { ballFlying: false, flightFrac: 0, throwToEnd: 0, holderDist: 2, pegIncoming: true });
+    expect(act?.type).toBe('spin');
+  });
+  it('a failed spin roll never dodges within the same windup', () => {
+    const d = mk({ mine: false, rng: () => 0.99 });
+    expect(d.aiOffense(0.1, { ballFlying: false, flightFrac: 0, throwToEnd: 0, holderDist: 2, pegIncoming: true })).toBe(null);
+    expect(d.aiOffense(0.4, { ballFlying: false, flightFrac: 0, throwToEnd: 0, holderDist: 2, pegIncoming: true })).toBe(null);
+  });
+});

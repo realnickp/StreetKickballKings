@@ -89,4 +89,46 @@ export class PickleDuel {
     if (Math.abs(lateralM) >= this.D.pegJukeDodgeM) return 'dodged';
     return 'hit';
   }
+
+  // ---------- defense verbs ----------
+  canThrow() { return this.pegWindupT <= 0; }
+
+  startPeg() {
+    if (this.pegWindupT > 0) return false;
+    this.pegWindupT = this.D.pegWindupS;
+    return true;
+  }
+
+  // ---------- AI drivers (whichever side the human is NOT playing) ----------
+  /** AI defense vs the human runner. Call once per frame; returns an action. */
+  aiDefense(dt, { ballFlying, holderDist, runnerCommitted }) {
+    if (ballFlying || this.pegWindupT > 0) return null;
+    this._aiT -= dt;
+    if (this._aiT > 0) return null;
+    this._aiT = this.D.aiRelayS[this.difficulty] ?? 1.0;
+    const pegChance = this.D.aiPegChance[this.difficulty] ?? 0.4;
+    if (runnerCommitted && this.rng() < pegChance) return 'peg';
+    if (this.relays >= this.D.maxRelays) return null; // stop juggling — close for the tag
+    if (holderDist > 4.2) return 'relay';
+    return null; // close enough — keep chasing for the tag
+  }
+
+  /** AI runner vs the human defense. Mirrors the human verbs. */
+  aiOffense(dt, { ballFlying, flightFrac, throwToEnd, holderDist, pegIncoming }) {
+    // peg incoming: roll once per windup to schedule (or refuse) a dodge
+    if (pegIncoming && this._aiSpinAt < 0) {
+      const chance = this.D.aiSpinChance[this.difficulty] ?? 0.5;
+      this._aiSpinAt = this.rng() < chance ? 0 : 1e9; // now, or never this windup
+    }
+    if (!pegIncoming) this._aiSpinAt = -1;
+    if (pegIncoming && this._aiSpinAt === 0 && this.spinCd <= 0) return { type: 'spin' };
+    if (ballFlying && !this.committed) {
+      this._aiGoT += dt;
+      const react = this.D.aiGoReactS[this.difficulty] ?? 0.36;
+      if (this._aiGoT >= react) return { type: 'go', flightFrac, throwToEnd };
+    } else {
+      this._aiGoT = 0;
+    }
+    return null;
+  }
 }
