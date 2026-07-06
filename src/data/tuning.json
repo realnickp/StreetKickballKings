@@ -70,9 +70,9 @@
     "King":   { "kickTimingErrMs": [12, 220], "whiffChance": 0.03, "fieldReactMs": 280, "jukeChance": 0.7 }
   },
   "duel": {
-    "shuttleRate": 3.2,
-    "goRateBase": 8.0,
-    "goRateGradeBonus": 4.0,
+    "shuttleRate": 1.0,
+    "goRateBase": 2.6,
+    "goRateGradeBonus": 2.0,
     "spinIframeS": 0.5,
     "spinCooldownS": 1.7,
     "spinRecoverS": 0.45,

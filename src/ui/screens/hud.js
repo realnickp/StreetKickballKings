@@ -43,13 +43,8 @@ export class Hud {
       </div>
       <div class="special-btn"><div class="core">👑</div></div>
       <button class="go-btn"><span></span></button>
-      <button class="slide-btn"><span>SLIDE!</span></button>
       <div class="steal-chips"></div>
-      <div class="pickle-pad">
-        <button class="pk-left"><span>⬅</span><small></small></button>
-        <button class="pk-spin"><span>🌀</span><small>SPIN</small></button>
-        <button class="pk-right"><span>➡</span><small></small></button>
-      </div>
+      <button class="duel-btn"><span>GO!</span></button>
     `;
     root.appendChild(this.el);
 
@@ -99,19 +94,15 @@ export class Hud {
     this.patEnd = this.patternPad.querySelector('.pat-end');
 
     this.goBtn = this.el.querySelector('.go-btn');
-    this.slideBtn = this.el.querySelector('.slide-btn');
     this.stealChips = this.el.querySelector('.steal-chips');
     this.onSteal = null;
     this._chipKey = '';
-    this.picklePad = this.el.querySelector('.pickle-pad');
-    this.onPickleMove = null;
-    this.onPickleSpin = null;
-    this.picklePad.addEventListener('pointerdown', (e) => {
-      const btn = e.target.closest('button');
-      if (!btn) return;
+    // THE DUEL button: the one control on the pickle stage (GO!/THROW!)
+    this.duelBtn = this.el.querySelector('.duel-btn');
+    this.onDuel = null;
+    this.duelBtn.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
-      if (btn.classList.contains('pk-spin')) this.onPickleSpin?.();
-      else this.onPickleMove?.(btn.classList.contains('pk-left') ? 'left' : 'right');
+      this.onDuel?.();
     });
 
     // warm the sprayed-paint UI art so the first callout/pop never flashes blank
@@ -124,15 +115,10 @@ export class Hud {
     this.onSpecial = null;
     this.onPitchSelect = null;
     this.onGo = null;
-    this.onSlide = null;
 
     this.goBtn.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
       this.onGo?.();
-    });
-    this.slideBtn.addEventListener('pointerdown', (e) => {
-      e.stopPropagation();
-      this.onSlide?.();
     });
 
     this.pitchSelect.addEventListener('pointerdown', (e) => {
@@ -234,136 +220,14 @@ export class Hud {
     this.goBtn.classList.remove('show', 'risky');
   }
 
-  /** SLIDE! dive prompt — shows in a pickle when the runner closes on a bag. */
-  showSlide() { this.slideBtn.classList.add('show'); }
-  hideSlide() { this.slideBtn.classList.remove('show'); }
-
-  /** PICKLE PAD: the mini-game control strip — break left, spin, break right.
-   *  Labels carry the bag names as seen ON SCREEN in the side-on pickle cam. */
-  showPicklePad(leftLabel, rightLabel) {
-    this.picklePad.querySelector('.pk-left small').textContent = leftLabel;
-    this.picklePad.querySelector('.pk-right small').textContent = rightLabel;
-    this.picklePad.classList.add('show');
+  /** THE DUEL button: one verb, relabelled per side (GO! offense / THROW! defense). */
+  showDuel(label) {
+    this.duelBtn.querySelector('span').textContent = label;
+    this.duelBtn.classList.add('show');
   }
-  hidePicklePad() { this.picklePad.classList.remove('show'); }
-  /** red marker riding the ball-carrier in the pickle — THE threat, always visible */
-  setThreatMarker(x, y, hot) {
-    if (!this.threatEl) {
-      this.threatEl = document.createElement('div');
-      this.threatEl.className = 'threat-marker';
-      this.threatEl.textContent = '▼';
-      this.el.appendChild(this.threatEl);
-    }
-    const H = this.el.getBoundingClientRect();
-    this.threatEl.style.left = `${Math.max(20, Math.min(H.width - 20, x - H.left))}px`;
-    this.threatEl.style.top = `${Math.max(50, y - H.top)}px`;
-    this.threatEl.classList.add('show');
-    this.threatEl.classList.toggle('hot', !!hot);
-  }
-  hideThreatMarker() { this.threatEl?.classList.remove('show', 'hot'); }
-
-  /** teal YOU tag riding your runner's head on the pickle stage */
-  setYouMarker(x, y) {
-    if (!this.youEl) {
-      this.youEl = document.createElement('div');
-      this.youEl.className = 'you-marker';
-      this.youEl.textContent = 'YOU';
-      this.el.appendChild(this.youEl);
-    }
-    const H = this.el.getBoundingClientRect();
-    this.youEl.style.left = `${Math.max(24, Math.min(H.width - 24, x - H.left))}px`;
-    this.youEl.style.top = `${Math.max(50, y - H.top)}px`;
-    this.youEl.classList.add('show');
-  }
-  hideYouMarker() { this.youEl?.classList.remove('show'); }
-
-  /** floating bag name tags on the pickle stage — they MATCH the pad buttons */
-  setBagTags(tags) {
-    if (!this.bagTagBox) {
-      this.bagTagBox = document.createElement('div');
-      this.bagTagBox.className = 'bag-tags';
-      this.el.appendChild(this.bagTagBox);
-    }
-    const H = this.el.getBoundingClientRect();
-    const key = tags.map((t) => t.label + '|' + Math.round(t.x / 6) + '|' + Math.round(t.y / 6)).join(',');
-    if (key === this._bagKey) return;
-    this._bagKey = key;
-    this.bagTagBox.replaceChildren(...tags.map((t) => {
-      const el = document.createElement('b');
-      el.className = 'bag-tag';
-      el.textContent = t.label;
-      el.style.left = `${Math.max(26, Math.min(H.width - 26, t.x - H.left))}px`;
-      el.style.top = `${Math.max(60, t.y - H.top)}px`;
-      return el;
-    }));
-  }
-  hideBagTags() {
-    if (this._bagKey !== '') { this._bagKey = ''; this.bagTagBox?.replaceChildren(); }
-  }
-
-  /** flash the SPIN button when the tagger is in lunge range — spin NOW */
-  setSpinUrgent(on) {
-    this.picklePad.querySelector('.pk-spin').classList.toggle('urgent', !!on);
-  }
-
-  /** the LIVE COACH line — one big instruction, fixed spot above the pad */
-  setPickleCoach(text, kind) {
-    if (!this.coachEl) {
-      this.coachEl = document.createElement('div');
-      this.coachEl.className = 'pickle-coach';
-      this.el.appendChild(this.coachEl);
-    }
-    if (this._coachTxt !== text) {
-      this._coachTxt = text;
-      this.coachEl.textContent = text;
-      this.coachEl.className = `pickle-coach show ${kind}`;
-      void this.coachEl.offsetWidth; // re-fire the pop on every instruction change
-      this.coachEl.classList.add('pop');
-    }
-  }
-  hidePickleCoach() {
-    this._coachTxt = null;
-    this.coachEl?.classList.remove('show', 'pop');
-  }
-
-  /** THE DUEL LANE: the pickle in 1D — runner token vs ball token on a fat
-   *  bar with bag names at the ends. The whole fight reads at a glance. */
-  setPickleLane({ runnerT, ballT, leftLabel, rightLabel, mine, hot }) {
-    if (!this.laneEl) {
-      this.laneEl = document.createElement('div');
-      this.laneEl.className = 'pickle-lane';
-      this.laneEl.innerHTML = `
-        <b class="pl-end pl-left"></b>
-        <div class="pl-track"><i class="pl-ball"></i><i class="pl-run">🏃</i></div>
-        <b class="pl-end pl-right"></b>`;
-      this.el.appendChild(this.laneEl);
-      this.plRun = this.laneEl.querySelector('.pl-run');
-      this.plBall = this.laneEl.querySelector('.pl-ball');
-      this.plL = this.laneEl.querySelector('.pl-left');
-      this.plR = this.laneEl.querySelector('.pl-right');
-    }
-    this.laneEl.classList.add('show');
-    this.laneEl.classList.toggle('theirs', !mine);
-    this.plRun.style.left = `${Math.max(0, Math.min(100, runnerT * 100))}%`;
-    this.plBall.style.left = `${Math.max(-4, Math.min(104, ballT * 100))}%`;
-    this.plBall.classList.toggle('hot', !!hot);
-    if (this.plL.textContent !== leftLabel) this.plL.textContent = leftLabel;
-    if (this.plR.textContent !== rightLabel) this.plR.textContent = rightLabel;
-  }
-  hidePickleLane() { this.laneEl?.classList.remove('show'); }
-
-  /** green-glow the SMART pad button (the bag AWAY from the ball) */
-  setPickleSmart(side) {
-    this.picklePad.classList.toggle('guided', !!side);
-    this.picklePad.querySelector('.pk-left').classList.toggle('smart', side === 'left');
-    this.picklePad.querySelector('.pk-right').classList.toggle('smart', side === 'right');
-  }
-
-  /** pulse the button matching the runner's CURRENT direction */
-  setPickleDir(side) {
-    this.picklePad.querySelector('.pk-left').classList.toggle('live', side === 'left');
-    this.picklePad.querySelector('.pk-right').classList.toggle('live', side === 'right');
-  }
+  /** lit = the verb is actionable RIGHT NOW (gold pulse) */
+  setDuelLit(on) { this.duelBtn.classList.toggle('lit', !!on); }
+  hideDuel() { this.duelBtn.classList.remove('show', 'lit'); }
 
   /**
    * STEAL CHIPS: runners on 1st/3rd sit OUTSIDE the kick camera's framing, so
