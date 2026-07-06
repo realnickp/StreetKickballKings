@@ -878,3 +878,56 @@ drills once (skippable, 'tutorialPlayed'); menu keeps 🎓 TUTORIAL forever.
   gun). Stall hunt: skipped drills run their world transitions, setups
   never fire mid-pitch, tag-up scrambles auto-run, 14s watchdog
   force-settles ANY stuck play.
+
+## 21) HANDOFF — KNOWN-BROKEN STATE (2026-07-05, end of session 10)
+
+**Dev verdict: the game is VERY GLITCHY right now. Next session's job is
+stabilization + the pickle, before ANY new features.**
+
+### P0 — infinite-runner glitches (game-stopping)
+- **AI steal glitch**: whenever an AI runner tries to steal a base (or
+  similar), it glitches — the runner just RUNS INFINITELY and gameplay
+  stops. Dev hit this repeatedly ("a couple times... the gameplay just
+  got stopped because the runner infinitely runs or something glitches
+  out").
+- The 14s watchdog in update() (PR #57) apparently does NOT catch these
+  cases — suspicion: the stuck states are in the STEAL path (this.stealing
+  / updateStealRunner / resolveStealThrowdown / maybeAiSteal on the
+  DEFENSE half), which runs OUTSIDE the LIVE-phase watchdog (watchdog only
+  guards `this.elapsed - this.liveStart > 14` inside phase==='LIVE').
+  Steals happen pre-kick in SETUP/PITCH phases — no watchdog covers them.
+- Audit EVERY runner-motion loop for states with no exit: stealing (both
+  sides), steal throwdown waiting on player input, tag-up scrambles,
+  pickle runners, launchRunners' preserved stealer, aiPickleFlips path.
+  Add a phase-independent watchdog (any runner in 'running' > Ns with no
+  progress change => force-settle).
+
+### P0 — the pickle (still failed after 3 full redesigns)
+- Dev: "the pickle is terrible... nobody will understand this. and the
+  tutorial does not do the player any favors as it relates to the pickle."
+- Shipped so far (all insufficient): side-on cam + 3-button pad (#44),
+  freeze intro (#47), bullet time + threat marker (#48), identity rings/
+  tags (#49), tactical top-down + coach line + smart arrow (#52), DUEL
+  LANE 1D bar + close dolly (#57). The pile-up of SIX overlapping aids is
+  likely itself part of the confusion now.
+- Next session: STRIP IT BACK and redesign around "as user friendly as
+  possible" — probably: radically simplify to ONE obvious interaction
+  (e.g. a single timed button prompt sequence / QTE-style), remove the
+  layered aids that now compete for attention (coach line + arrow + lane +
+  rings + tags + flashing buttons all at once), and rebuild the tutorial
+  pickle drill to teach the ONE interaction step by step with forced
+  slow scenarios.
+- See memory `skk-minigame-ux-bar` for the full iteration history; treat
+  its "winning shape" claim as REFUTED by the dev's latest verdict.
+
+### Context for next session
+- Everything through PR #57 is merged + deployed to production.
+- Suspect ANY interaction between: steals (pre-kick), tag-up races
+  (post-catch), pickle stages, and the GO-button sends — these four
+  runner systems were built in separate passes and their state machines
+  overlap in this.runners/this.stealing/this.pickle/this.rundownView.
+  A unifying runner-state audit is probably the real P0 fix.
+- Tests are green (113) but none of them cover the AI-steal loop or
+  runner-stuck states — add regression tests when fixing.
+- Backdrops: dev accepted current state; Chicago/Philly full fix =
+  regenerate scenes eye-level/frontal (~200 credits, offer stands).
