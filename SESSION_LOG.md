@@ -988,3 +988,21 @@ end-to-end. Dev needs to REALLY play it.
 "frozen fielding" trap again — the dev's localhost may serve old code; kill
 node before playtesting locally). WebKit probe flags localhost GLB fetches
 with access-control noise — filtered as warnings in pickle-e2e.mjs.
+
+**Post-deploy dev report — "players just running in place" after a 3rd out
+while fielding (FIXED same night):** reproduced in <1 min with
+`scripts/stall-hunt.mjs` (WebKit plays hands-off defense innings; flags flow
+stalls + literal run-in-place: run-clip anim with a frozen position). Animator
+logs pinned TWO root causes in catchOut, both firing on any caught fly with
+runners on:
+1. the OUT KICKER got a bare `state='out'` with NO anim change — he treadmilled
+   the run clip frozen mid-basepath (often ON a bag) for the whole play;
+2. catchOut flips phase to RESOLVE where updateDefense stops — fielders caught
+   mid-chase looped run clips in place until finalize (up to ~10s of "glitch").
+Fixes: kicker gets his stumble; all mid-run fielders stand down at the catch;
+AND a rules fix matching the report — a 3rd-out catch now skips the pointless
+tag-up race entirely (half's over) and cuts straight to celebration + switch.
+Verified: 135 vitest, 3rd-out probe, 15 min of hunt play (51 at-bats, 0 stalls).
+LESSON for future stalls: the game recovering after 6-10s of treadmilling still
+READS as "game stopped" to the dev — settle every animator the moment its
+driver (updateDefense/updateRunners/updateDuel) stops owning it.

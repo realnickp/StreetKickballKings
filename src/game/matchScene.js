@@ -2422,13 +2422,41 @@ export class MatchScene {
     fielder.hasBall = true;
     this.field.crowdEnergy = 1;
 
+    // the kicker is OUT on the catch — settle his clip too, or he keeps
+    // looping 'run' frozen mid-basepath for the whole tag-up race (dev
+    // clip: "players just running in place")
+    const kr = this.runners.find((r) => r.char === this.kicker);
+    if (kr && kr.state !== 'out') {
+      kr.state = 'out';
+      kr.char.animator.play('stumble');
+    }
+    this.playOuts = (this.playOuts ?? 0) + 1;
+    this.lastOutReason = 'catch';
+    if (!this.kickingIsPlayer()) this.special.add('catch');
+
+    // RESOLVE stops updateDefense, so any fielder caught mid-chase would keep
+    // looping his run clip in place through the whole race — stand them down
+    for (const c of this.fieldingChars()) {
+      const n = c.animator.name;
+      if (c !== fielder && (n === 'run' || n === 'strafeL' || n === 'strafeR')) c.animator.play('idle');
+    }
+
+    // 3rd out on the catch: the HALF IS OVER — no tag-up race matters. Cut
+    // straight to the celebration + resolve instead of several seconds of
+    // meaningless scrambling limbo (dev: "got the 3rd out", then nothing).
+    if (this.match.state.outs + this.playOuts >= (this.tuning.match?.outsPerHalf ?? 3)) {
+      this.bus.emit('cine:robbed', { fielder, kicker: this.kicker });
+      this.after(1.1, () => this.finalizePlay(this.playOuts, 'catch', { restoreRunners: true }));
+      return;
+    }
+
     // TAG UP RACE (dev callout): on a caught fly the kicker is out and every
     // base runner must get BACK to his time-of-pitch bag — LIVE. The defense
     // can gun the bag behind him for a DOUBLE-OFF; a loose throw can spiral
     // into a rundown. No more teleport-safe.
     let racing = 0;
     for (const r of this.runners) {
-      if (r.char === this.kicker) { if (r.state !== 'out') r.state = 'out'; continue; }
+      if (r.char === this.kicker) continue; // already handled above
       if (r.state === 'running' && r.fromBase >= 0) {
         const t = r.targetBase;
         r.targetBase = r.fromBase;
@@ -2450,14 +2478,11 @@ export class MatchScene {
         racing += 1;
       }
     }
-    this.playOuts = (this.playOuts ?? 0) + 1; // the kicker's out, play stays LIVE
-    this.lastOutReason = 'catch';
-    if (!this.kickingIsPlayer()) this.special.add('catch');
 
     if (racing === 0) {
       // bases empty — the catch IS the play: full celebration cinematic
       this.bus.emit('cine:robbed', { fielder, kicker: this.kicker });
-      this.after(1.1, () => this.finalizePlay(1, 'catch', { restoreRunners: true }));
+      this.after(1.1, () => this.finalizePlay(this.playOuts, 'catch', { restoreRunners: true }));
       return;
     }
     // runners scrambling: no cinematic — the RACE is the drama
