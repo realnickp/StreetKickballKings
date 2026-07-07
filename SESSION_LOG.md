@@ -2,7 +2,9 @@
 
 > **Purpose:** Complete snapshot of this build so a fresh session gets up to speed instantly.
 > **To resume:** "Read SESSION_LOG.md to get up to speed."
-> Last updated: 2026-06-15 (session 5 — NY/Black announcers, Madden matchup screen w/ logo-on-jersey diverse players, portrait phone frame + PWA, big fielding/rules pass, deployed to GitHub/Vercel)
+> Last updated: 2026-07-07 (session 11 — pickle v4 THE DUEL + phase-independent runner
+> watchdog shipped as PR #58; same-night catch-out treadmill/3rd-out fixes hotfixed to
+> main. Both session-10 P0s addressed and LIVE on prod. Current state: §22.)
 
 This is the **browser/Three.js** rebuild of *Street Kickball Kings*. (There is an
 earlier **Unity** version at `C:\Unity Projects\KickballGame\` — its
@@ -881,6 +883,10 @@ drills once (skippable, 'tutorialPlayed'); menu keeps 🎓 TUTORIAL forever.
 
 ## 21) HANDOFF — KNOWN-BROKEN STATE (2026-07-05, end of session 10)
 
+> **STATUS 2026-07-07: SUPERSEDED — both P0s below were addressed in session 11
+> (§22): pickle v4 THE DUEL + the phase-independent RunnerWatchdog (PR #58,
+> merged + deployed), plus the catch-out treadmill fixes. Kept for history.**
+
 **Dev verdict: the game is VERY GLITCHY right now. Next session's job is
 stabilization + the pickle, before ANY new features.**
 
@@ -932,7 +938,7 @@ stabilization + the pickle, before ANY new features.**
 - Backdrops: dev accepted current state; Chicago/Philly full fix =
   regenerate scenes eye-level/frontal (~200 credits, offer stands).
 
-## 22) Session 11 (2026-07-05) — PICKLE v4 "THE DUEL" + THE RUNNER WATCHDOG (branch feat/pickle-v4-duel)
+## 22) Session 11 (2026-07-05 → 07-07) — PICKLE v4 "THE DUEL" + RUNNER WATCHDOG (PR #58, MERGED) + CATCH-OUT HOTFIX — ALL LIVE ON PROD
 
 Both §21 P0s addressed in one build (they were the same job — the glitchy
 paths WERE the rundown/steal state machines). Design brainstormed with the
@@ -1006,3 +1012,28 @@ Verified: 135 vitest, 3rd-out probe, 15 min of hunt play (51 at-bats, 0 stalls).
 LESSON for future stalls: the game recovering after 6-10s of treadmilling still
 READS as "game stopped" to the dev — settle every animator the moment its
 driver (updateDefense/updateRunners/updateDuel) stops owning it.
+
+### HANDOFF — state at session-11 end (2026-07-07)
+
+**LIVE ON PROD (street-kickball-kings.vercel.app):** PR #58 (duel + watchdog,
+dev-authorized "push") + direct-to-main hotfix `5401fdf` (catch-out fixes,
+verified-fix grant). main = `5401fdf`. 135 tests green.
+
+**AWAITING DEV VERDICT:** the duel UX itself — design goal was "a moment the
+player looks forward to" (dodge/spin + peg/throw-out fantasies). If it lands,
+possible follow-ups: jackpot frequency/reward tuning, Crowns bonus on escape
+(deferred — only the special-meter surge is wired), announcer duel calls.
+
+**REGRESSION TOOLS (use these on any "it glitched" report):**
+- `scripts/stall-hunt.mjs` — plays hands-off defense innings; flags flow
+  stalls + run-in-place chars, dumps state + anim history + screenshot.
+- `scripts/pickle-e2e.mjs` — duel arcs both sides + stuck-runner P0 check.
+- Both need `SKK_URL` env pointing at the dev server port.
+
+**HONEST GAPS:** duel entry in probes is staged (startRundown called
+directly), not played into organically; tutorial drill 4 rewrite not
+re-driven end-to-end on device; no dev phone verdict on the duel yet.
+
+**STANDING ITEMS:** Chicago/Philly backdrop regen offer (~200 credits);
+stale dev servers squat ports 5173-5183 on the dev box (kill node before
+local playtests or you test OLD code).
