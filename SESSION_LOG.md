@@ -2,9 +2,9 @@
 
 > **Purpose:** Complete snapshot of this build so a fresh session gets up to speed instantly.
 > **To resume:** "Read SESSION_LOG.md to get up to speed."
-> Last updated: 2026-07-07 (session 11 — pickle v4 THE DUEL + phase-independent runner
-> watchdog shipped as PR #58; same-night catch-out treadmill/3rd-out fixes hotfixed to
-> main. Both session-10 P0s addressed and LIVE on prod. Current state: §22.)
+> Last updated: 2026-07-07 (session 12 — dev reported "stealing is glitchy" + "froze
+> at the side switch": THREE reproduced root causes fixed in PR #59, verified live on
+> prod by probe. Current state: §23.)
 
 This is the **browser/Three.js** rebuild of *Street Kickball Kings*. (There is an
 earlier **Unity** version at `C:\Unity Projects\KickballGame\` — its
@@ -1037,3 +1037,64 @@ re-driven end-to-end on device; no dev phone verdict on the duel yet.
 **STANDING ITEMS:** Chicago/Philly backdrop regen offer (~200 credits);
 stale dev servers squat ports 5173-5183 on the dev box (kill node before
 local playtests or you test OLD code).
+
+## 23) Session 12 (2026-07-07) — STEAL-STATE CORRUPTION + THE SIDE-SWITCH FREEZE (PRs #59, #60)
+
+Dev: "the game is getting really glitchy, too much going on with stealing…
+some confusion in the code", then "it just froze when it was time to switch
+sides." Systematic audit of the four overlapping runner systems (§21's
+suspicion) — FIVE reproduced root causes across two PRs, every one
+reproduced live in WebKit BEFORE fixing. New regression probes:
+`scripts/steal-audit.mjs`, `scripts/catch-switch-hunt.mjs`,
+`scripts/catch-freeze-trace.mjs` (all take SKK_URL, work against prod).
+
+**PR #59 (merged + deployed, probe-verified AGAINST PROD):**
+1. **STALE originalBases (the big one):** finalizePlay(restoreRunners)
+   stamped bases captured at the LAST KICK (launchRunners = only writer)
+   over the live engine bases. Any strikeout / 4-foul-out after a hit or a
+   steal DELETED runners / resurrected scored ones / undid steals
+   (reproduced: runner on 1st vanished on the next strikeout). Masked on
+   3rd outs (endHalf clears bases) — why it survived. Fix: originalBases
+   syncs on every engine 'play' event + resets each nextAtBat.
+2. **UNFORCED MERGED STEALER:** launchRunners merged a mid-steal runner
+   without assigning forced from the force chain → no force out at his bag;
+   a beaten throw pickled him retreating INTO the kicker's bag (two runners
+   converge on one base; finalizePlay silently drops one on same-bag
+   settle). Fix: the merge assigns forced[baseIdx] like everyone else.
+3. **SAME-FRAME TIMER-CLEAR LEAK:** update() iterates a COPY of timers;
+   nextAtBat (fired FROM a timer at the switch) cleared the queue +
+   scheduled the new serve — a second stale timer due the same frame still
+   fired AND its splice(indexOf→-1) deleted the LAST queued timer = the
+   fresh serve. No serve = frozen in SETUP. Fix: de-queued timers skipped,
+   removal index-verified.
+
+**PR #60 (round 2 — dev hit it again on prod: "didn't trigger the catch
+animation and then froze when it was time to switch sides again"):**
+4. **CATCH ANIM STOMPED SAME-FRAME (deterministic):** on a half-ending
+   catch, catchOut plays 'catch' then synchronously emits cine:robbed whose
+   step 1 played 'holdball' — the catch clip never rendered ONE frame
+   (probe: anim `catch->holdball`). Fix: the robbed celebration opens with
+   a 0.55s camera-only "snag" beat so the real catch plays out. Verified:
+   `catch->catch`.
+5. **FRAME-LOOP DEATH (the remaining freeze, intermittent):** reproduced
+   once on prod WebKit — 12s after a 3rd-out catch: playFinalized false,
+   cinematicLock stuck, the 1.1s finalize timer FROZEN at 0.47s ⇒ ALL frame
+   callbacks (matchScene + director) stopped at catch+0.63s ⇒ rAF delivery
+   died (paused=false — the pause overlay needs a tap; probe sends none).
+   renderer.js's loop re-arms ONLY from inside itself: one dropped rAF
+   callback = game dead forever, zero errors, still renders the last frame.
+   Fix: rAF SAFETY PUMP (setInterval re-arms the loop if no frame >1.2s) +
+   rAF-timestamp dedupe so a late original callback can't double-pump.
+   HONEST GAP: WHY WebKit dropped the callback is not pinned — the pump
+   makes the game survive it regardless of trigger.
+
+**Verified (round 2):** 135 vitest, build clean, 4-min local hunt — 3
+half-ending catches: anim correct, every side switch completed; steal-audit
++ pickle-e2e green. catch-switch-hunt now carries a FRAME-DEATH WATCHDOG
+(setInterval survives a dead rAF loop and snapshots death context).
+
+**Process notes:** 11 stale dev servers were squatting ports 5173-5183 (the
+standing trap) — killed. Editing source while a probe runs kills it via
+Vite HMR reload (window.__skk vanishes) — finish edits first, then soak.
+Probes run fine against prod (street-kickball-kings.vercel.app) — best for
+verifying exactly what the dev's phone loads.

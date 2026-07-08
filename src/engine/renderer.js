@@ -152,10 +152,17 @@ export function createEngine(canvas) {
   const clock = new THREE.Clock();
   const shakeOffset = new THREE.Vector3();
   let running = true;
+  let lastFrameAt = performance.now();
+  let lastTs = -1;
 
-  function loop() {
+  function loop(ts) {
     if (!running) return;
+    if (ts !== undefined) {
+      if (ts === lastTs) return; // duplicate callback this frame (safety pump raced rAF) — drop this chain
+      lastTs = ts;
+    }
     requestAnimationFrame(loop);
+    lastFrameAt = performance.now();
     const rawDt = Math.min(clock.getDelta(), 0.05);
     const dt = rawDt * engine.timeScale;
 
@@ -186,8 +193,22 @@ export function createEngine(canvas) {
   }
   loop();
 
+  // rAF SAFETY PUMP: the loop only re-arms from inside itself, so ONE dropped
+  // rAF callback (WebKit does this — seen freezing the game mid-celebration on
+  // device and in headless WebKit) kills the game forever with no error. If
+  // frames stop while we should be running, re-arm; the timestamp dedupe above
+  // collapses things back to a single chain if the original callback also
+  // shows up late (e.g. returning from a backgrounded tab).
+  const pump = setInterval(() => {
+    if (running && performance.now() - lastFrameAt > 1200) {
+      lastFrameAt = performance.now(); // one re-arm per stall
+      requestAnimationFrame(loop);
+    }
+  }, 600);
+
   engine.dispose = () => {
     running = false;
+    clearInterval(pump);
   };
   return engine;
 }

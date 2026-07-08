@@ -171,7 +171,13 @@ export class CinematicDirector {
       new THREE.Vector3(p.x, 1.05, p.z),
     );
     this.run([
-      { // the snag: standing tall, ball in hands, full body in frame
+      { // THE SNAG plays out first — starting 'holdball' here stomped the
+        // 'catch' clip on its very first frame (dev: "didn't trigger the
+        // catch animation"). Hold the shot; the catch clip finishes itself.
+        dur: 0.55,
+        onUpdate: () => shot(3.0, 4.4),
+      },
+      { // then standing tall, ball in hands, full body in frame
         dur: 1.1,
         onStart: () => fielder.animator.play('holdball'),
         onUpdate: (k) => shot(3.0 - k * 0.4, 4.4 - k * 0.6), // slow push-in
