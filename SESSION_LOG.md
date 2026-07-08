@@ -1093,8 +1093,34 @@ half-ending catches: anim correct, every side switch completed; steal-audit
 + pickle-e2e green. catch-switch-hunt now carries a FRAME-DEATH WATCHDOG
 (setInterval survives a dead rAF loop and snapshots death context).
 
+### 23c) ROUND 3 — the OFFENSE tag-up race could never close (PR #61)
+
+Dev (twice + screenshot): "fielder caught the ball, my runner on first had
+to tag up, made it back — then it froze." Deterministic, reproduced against
+prod with `scripts/tagup-e2e.mjs`, and it's a REGRESSION from the session-11
+hotfix (5401fdf):
+
+6. **RESOLVE-PHASE GUARDS KILLED THE AI'S TAG-UP BRAIN:** 5401fdf made
+   catchOut flip phase to RESOLVE (to stop updateDefense looping run clips)
+   — but aiThrowDecision, afterThrow and aiContinue ALL bailed on
+   phase==='RESOLVE' (written when RESOLVE always meant "play over"). On the
+   PLAYER'S KICKING half (AI fields), every caught fly with runners aboard:
+   the AI never throws the double-off, never releases ballControlled, the
+   GO-offer decideT stays pinned (someoneAdvancing forever) → the play-end
+   condition can never fire. Watchdog doesn't cover 'held' runners; the 14s
+   net only ran in LIVE. Dev's screenshot showed it exactly: fielder
+   statuesque with the ball, GET BACK! MASH! + GO FOR 3! pinned forever.
+   Fixes: the three guards now bail on playFinalized ONLY (the real "play
+   over" signal — pre-finalize RESOLVE IS the tag-up race, the only such
+   path); the 14s net widened to pre-finalize RESOLVE. Why probes missed
+   it: every hunt drove ?match=field (player DEFENSE) — the offense-side
+   race was a coverage hole; tagup-e2e now covers it (AI throws + play
+   finalizes + next at-bat arrives).
+
 **Process notes:** 11 stale dev servers were squatting ports 5173-5183 (the
 standing trap) — killed. Editing source while a probe runs kills it via
 Vite HMR reload (window.__skk vanishes) — finish edits first, then soak.
 Probes run fine against prod (street-kickball-kings.vercel.app) — best for
-verifying exactly what the dev's phone loads.
+verifying exactly what the dev's phone loads. Probe coverage must exercise
+BOTH halves (?match AND ?match=field) — the tag-up freeze hid on the
+offense half while every hunt played defense.

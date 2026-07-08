@@ -1982,7 +1982,12 @@ export class MatchScene {
 
   /** What the AI does with the ball: force out → cut off the lead runner → peg. */
   aiThrowDecision(fielder) {
-    if (!fielder.hasBall || this.playFinalized || this.phase === 'RESOLVE') return;
+    // NOTE: RESOLVE does NOT mean the play is over — the tag-up race runs in
+    // RESOLVE (catchOut) and the AI must still gun the double-off there. A
+    // phase==='RESOLVE' bail here left the AI holding the ball forever on the
+    // player's kicking half — runner tags up safe, play never closes (dev
+    // froze twice). playFinalized is the real "play is over" signal.
+    if (!fielder.hasBall || this.playFinalized) return;
     if (this.duel) return; // THE DUEL owns the defense (updateDuel)
     // 1) a force out is available → fire to the recommended bag (lead force
     //    under 2 outs; the EASIEST out with 2 outs)
@@ -2007,7 +2012,7 @@ export class MatchScene {
    * runner, work the rundown — until everyone is OUT or HELD. (No more strolling home.)
    */
   aiContinue() {
-    if (this.playerControlled || this.playFinalized || this.phase === 'RESOLVE') return;
+    if (this.playerControlled || this.playFinalized) return; // RESOLVE hosts the tag-up race — keep hunting
     if (!this.runners.some((r) => r.state === 'running')) { this.ballControlled = true; return; }
     let holder = this.fielders?.find((f) => f.char.hasBall)?.char;
     if (!holder) {
@@ -2031,7 +2036,10 @@ export class MatchScene {
    * play is truly over. If nobody's advancing, settle so the play finalizes.
    */
   afterThrow() {
-    if (this.playFinalized || this.phase === 'RESOLVE') return;
+    // playFinalized only — RESOLVE still hosts the live tag-up race (see
+    // aiThrowDecision). Bailing here never released ballControlled, so the
+    // race could never finalize.
+    if (this.playFinalized) return;
     if (!this.runners.some((r) => r.state === 'running')) { this.ballControlled = true; return; }
     if (this.duel && this.playerControlled) {
       // defense DUEL: the duel button owns the throws — no throw pad. Just make
@@ -2714,19 +2722,23 @@ export class MatchScene {
       if (!this.hrFired && this.kickHrEligible && dist >= this.fenceM - 0.3 && this.ball.pos.y > this.fenceTopY * 0.8 && this.ball.bounces === 0) {
         this.homer();
       }
-      // dead-ball safety net v2: after 14s NOTHING holds the play open —
-      // settle every stuck runner to his nearest bag, strike any stage,
-      // unfreeze, and let the play finalize (dev hit two live stalls)
-      if (this.elapsed - this.liveStart > 14 && !this.playFinalized) {
-        for (const r of [...this.runners]) {
-          if (r.state === 'running') this.forceSettleRunner(r);
-        }
-        if (this.duel) this.endDuel();
-        this.releasePickleFreeze();
-        this.restoreSpeed();
-        this.ballControlled = true;
-        this.defenseHasBall = true;
+    }
+
+    // dead-ball safety net v2: after 14s NOTHING holds the play open —
+    // settle every stuck runner to his nearest bag, strike any stage,
+    // unfreeze, and let the play finalize (dev hit two live stalls).
+    // Covers RESOLVE too: the tag-up race runs there pre-finalize, and a
+    // race that can't close must never strand the game (dev froze twice).
+    if ((this.phase === 'LIVE' || this.phase === 'RESOLVE') && !this.playFinalized
+        && this.elapsed - this.liveStart > 14) {
+      for (const r of [...this.runners]) {
+        if (r.state === 'running') this.forceSettleRunner(r);
       }
+      if (this.duel) this.endDuel();
+      this.releasePickleFreeze();
+      this.restoreSpeed();
+      this.ballControlled = true;
+      this.defenseHasBall = true;
     }
 
     this.updateStageMarkers();
