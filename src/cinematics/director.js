@@ -90,24 +90,41 @@ export class CinematicDirector {
 
   // ---------- moments ----------
   perfectKick({ kicker, ball }) {
-    // pure FEEL, no camera cut: slow-mo ramp, bloom surge, fire+lightning ball.
-    // (Camera cuts to flat sprites read badly — big moments get video cutscenes.)
+    // IMPACT CAM (dev ask): hard-cut to a low hero shot of the boot blasting
+    // the ball while time crawls — foot-through-ball + fire igniting held in
+    // slow-mo — then hold the shot as time snaps back and the fireball ROCKETS
+    // out of frame, then release to the broadcast flight camera. (The old
+    // "no camera cut" rule was from the flat-sprite era; the mocap 3D chars
+    // read great up close.)
     this.fx.start(ball);
     this.bus.emit('sfx', 'fireball'); // prominent whoosh+boom for the perfect kick
     this.engine.shake(0.5);
+
+    // SIDE-ON shot, perpendicular to the ball's flight: the fireball streaks
+    // ACROSS the frame and recedes instead of flying into the lens (a forward
+    // camera whited out the whole frame — fire + bloom at 2m eats everything).
+    // Shot from the side away from the pull so the body never blocks the ball.
+    const p = kicker.group.position.clone();
+    const side = (ball.vel?.x ?? 0) >= 0 ? -1 : 1;
+    // portrait aspect = narrow horizontal FOV: ~5m side distance is what it
+    // takes to hold the full body PLUS a lane of ball flight in frame
+    const look = new THREE.Vector3(p.x, 0.9, p.z - 1.0);
 
     this.run([
       {
         dur: 0.9,
         onStart: () => {
           this.engine.timeScale = 0.18;
-          this.engine.fx.bloomPass.strength = 1.6;
+          this.engine.fx.bloomPass.strength = 1.1; // hot fire near the lens — a full surge floods the frame
           if (this.engine.fx.gradePass) this.engine.fx.gradePass.uniforms.caAmount.value = 0.002;
         },
-        onUpdate: () => {},
+        onUpdate: (k) => this.cam(
+          new THREE.Vector3(p.x + side * (5.0 - k * 0.6), 0.72 + k * 0.1, p.z - 0.8),
+          look,
+        ),
       },
       {
-        dur: 0.3,
+        dur: 0.35, // time snaps back, shot holds — the fireball streaks off
         onStart: () => {
           this.engine.timeScale = 1;
           this.engine.fx.bloomPass.strength = 0.9;
@@ -119,7 +136,9 @@ export class CinematicDirector {
           setTimeout(() => this.fx.stop(), 2600);
         },
       },
-    ], { lockCamera: false });
+      // noSkip: mash-to-run taps during the beat must not strike the moment
+      // (GestureInput still counts them, so runner speed builds through it)
+    ], { lockCamera: true, noSkip: true });
   }
 
   /**

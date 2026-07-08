@@ -1117,6 +1117,28 @@ hotfix (5401fdf):
    race was a coverage hole; tagup-e2e now covers it (AI throws + play
    finalizes + next at-bat arrives).
 
+### 23d) FEATURE — perfect-kick IMPACT CAM (dev ask, PR #62)
+
+Dev: "a cinematic whenever a perfect kick happens… show the foot kicking
+the ball." Built as a LIVE slow-mo cut riding the existing perfectKick beat
+(NOT a replay — the ball is live and the player must run; replays stay for
+homers/pegs): hard cut at contact to a low SIDE-ON hero shot, 0.9s at
+timeScale 0.18 (fire igniting off the boot), shot holds 0.35s while time
+snaps back and the fireball rockets out of frame, then release to the
+broadcast flight cam. Fires for AI perfect kicks too. noSkip — run-mash
+must not strike the beat (GestureInput still counts taps, so runner speed
+builds through it). The old "no camera cut" rule in perfectKick was
+flat-sprite-era.
+
+SHOT DESIGN (screenshot-iterated — don't relearn): side-on PERPENDICULAR
+to the ball's flight (a forward camera ate the fireball: fire+bloom at 2m
+= total whiteout); portrait aspect = ~33° horizontal FOV, so full body +
+ball lane needs ~5m side distance (2.6m framed only the torso); bloom
+surge capped at 1.1. `scripts/perfect-cam-e2e.mjs` drives a REAL perfect
+kick (attemptKick with tapTime=pitchArrival, kicker aligned → errMs 0),
+asserts engage → hold → clean release → play still closes, and screenshots
+the money frame.
+
 **Process notes:** 11 stale dev servers were squatting ports 5173-5183 (the
 standing trap) — killed. Editing source while a probe runs kills it via
 Vite HMR reload (window.__skk vanishes) — finish edits first, then soak.
