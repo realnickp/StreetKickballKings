@@ -91,6 +91,42 @@ const closed = await (async () => {
 })();
 ok(closed, 'play resolved and the next at-bat arrived');
 
+// --- scenario 2: HR-ELIGIBLE but NOT perfect (dev's homer had no cinematic) ---
+// sharp timing (20ms -> meter 0.94 >= hrPower) but 0.35m off-line: alignment
+// folds into the quality judge (effErr ~81ms = GOOD) while the HR gate checks
+// it separately (0.35 <= hrAlignM 0.6). The impact cam must STILL fire.
+console.log('\n--- scenario 2: HR-eligible GOOD kick gets the cam ---');
+const hrKick = await (async () => {
+  const t0 = Date.now();
+  while (Date.now() - t0 < 40000) {
+    const did = await page.evaluate(() => {
+      const s = window.__skk;
+      if (s.phase !== 'PITCH' || s.kicked || !isFinite(s.pitchArrival)) return false;
+      if (s.pitchArrival - s.elapsed > 0.06) return false;
+      s.kicker.group.position.x = s.ball.pos.x + 0.35; // slightly off-line
+      s.attemptKick({ align: true }, s.pitchArrival + 0.02); // 20ms late
+      return { quality: s.judged?.quality, hr: s.kickHrEligible };
+    });
+    if (did) return did;
+    await page.waitForTimeout(16);
+  }
+  return null;
+})();
+ok(hrKick && hrKick.quality !== 'PERFECT' && hrKick.hr === true,
+  `staged the gap case: quality=${hrKick?.quality}, hrEligible=${hrKick?.hr}`);
+const hrEngaged = await (async () => {
+  const t0 = Date.now();
+  while (Date.now() - t0 < 1500) {
+    const st = await page.evaluate(() => ({
+      lock: window.__skk.engine.cameraLock, ts: window.__skk.engine.timeScale,
+    }));
+    if (st.lock && st.ts < 0.3) return st;
+    await new Promise((r) => setTimeout(r, 40));
+  }
+  return null;
+})();
+ok(!!hrEngaged, `impact cam fired on the HR-eligible GOOD kick (timeScale ${hrEngaged?.ts})`);
+
 await browser.close();
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures ? 1 : 0);

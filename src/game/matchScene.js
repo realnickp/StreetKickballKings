@@ -700,9 +700,14 @@ export class MatchScene {
       return;
     }
 
-    if (judged.quality === 'PERFECT') {
+    // The impact cam + fire fire on PERFECT *or* any HR-eligible bomb: the HR
+    // gate (raw meter + alignment checked separately, plus crown super-kicks)
+    // is met by kicks the quality judge calls GOOD (alignment folds into its
+    // error) — the dev homered with no cinematic and no fire on the ball.
+    // The special-meter PERFECT reward stays PERFECT-only (meter economy).
+    if (judged.quality === 'PERFECT' || this.kickHrEligible) {
       this.bus.emit('cine:perfect', { kicker: this.kicker, ball: this.ball });
-      if (this.kickingIsPlayer()) this.special.add('PERFECT');
+      if (judged.quality === 'PERFECT' && this.kickingIsPlayer()) this.special.add('PERFECT');
     }
 
     this.landDist = Math.hypot(lp.x, lp.z);
