@@ -206,6 +206,12 @@ export class MatchScene {
       { firstKick },
     );
     this.match.bus.on('halfEnd', () => { this.halfJustEnded = true; });
+    // originalBases = "the bases when this pitch left" — restoreRunners plays
+    // (strikeout / foul-out / 3rd-out catch) put runners BACK there. It must
+    // track every engine base change, not just kicks (launchRunners): a
+    // strikeout after a hit or a steal was stamping the PREVIOUS play's bases
+    // over the live ones — runners vanished, steals silently undone.
+    this.match.bus.on('play', () => { this.originalBases = [...this.match.state.bases]; });
     this.special.value = 0;
     this.specialArmed = false;
     this.bus.emit('vo', 'playball');
@@ -382,6 +388,9 @@ export class MatchScene {
     this.kicker.animator.play('plate');
 
     this.baseChars = [null, null, null];
+    // fresh at-bat: "time-of-pitch" bases start as the live engine bases (also
+    // covers staged bases — tutorial drills — that bypass the engine's bus)
+    this.originalBases = [...this.match.state.bases];
     this.stealing = null;
     this.stealDefense = null;
     this.stealResolving = false;
@@ -773,7 +782,15 @@ export class MatchScene {
     const stealer = this.stealing?.state === 'running' ? this.stealing : null;
     this.match.state.bases.forEach((occ, baseIdx) => {
       if (occ === null) return;
-      if (stealer && stealer.idx === occ) { this.runners.push(stealer); return; }
+      if (stealer && stealer.idx === occ) {
+        // the kick re-computes his force status: a stealer from 1st with the
+        // kicker coming behind him CAN'T retreat — without this flag a beaten
+        // throw to 2nd wasn't an out and the rundown retreated him INTO the
+        // kicker's bag (two runners converging on one base = the steal chaos)
+        stealer.forced = forced[baseIdx];
+        this.runners.push(stealer);
+        return;
+      }
       const char = off[occ % off.length];
       char.group.visible = true;
       const r = this.makeRunner(occ, char, baseIdx);
@@ -2580,9 +2597,15 @@ export class MatchScene {
     this.carryHeldBall();
 
     for (const timer of [...this.timers]) {
+      // a timer that fired earlier THIS frame may have rebuilt the queue
+      // (nextAtBat's clearTimers at a side switch): a de-queued timer must not
+      // fire, and splicing by indexOf(-1) deletes the LAST queued timer — that
+      // silently ate the fresh serve timer and froze the game at the switch
+      const qi = this.timers.indexOf(timer);
+      if (qi === -1) continue;
       timer.t -= rawDt;
       if (timer.t <= 0) {
-        this.timers.splice(this.timers.indexOf(timer), 1);
+        this.timers.splice(qi, 1);
         // a throwing timer (e.g. a flaky audio/announce call) must not stall the play
         try { timer.fn(); } catch (e) { console.error('[skk] timer error (recovered):', e); }
       }
