@@ -1146,3 +1146,54 @@ Probes run fine against prod (street-kickball-kings.vercel.app) — best for
 verifying exactly what the dev's phone loads. Probe coverage must exercise
 BOTH halves (?match AND ?match=field) — the tag-up freeze hid on the
 offense half while every hunt played defense.
+
+## Session 24 — 2026-07-16 (remote control)
+
+### 24a) FEATURE — CITY ELEMENTS (Street Rules pillar 1 of 4)
+
+Fun round designed over remote-control cards (spec:
+docs/superpowers/specs/2026-07-16-street-rules-design.md — 4 approved
+pillars: City Elements → Crew Heat → Street Calls → Crew Trophies).
+Pillar 1 shipped this session: every field has ONE signature element,
+fixed identity + intensity re-rolled per inning, arcade-loud (HUD chip
+with pips + wind arrow, proc callouts, real physics — never hidden nudges).
+
+The 10 (teams from teams.json — NOT guessed cities; dev corrected v1):
+Blacktop/Bullies=EL TRAIN RUMBLE (proc: shake + ±45ms·i kick wobble),
+Subway Yard/Snappers=STEAM VENTS (2 rolled outfield clouds screen+slow
+fielders 0.75×), Block Party/Funk=DJ DROP (100 BPM, ±70ms on-beat = +0.08
+power01 — can tip HR eligibility), Neon Court/Hustlers=NIGHT HUSTLE
+(steal lead +1.5m·i), Boardwalk/Threshers=SEA BREEZE (constant −z wind),
+The Mall/Metros=MOTORCADE (proc: throws 22→17.2 m/s, race distances
+scaled to match), Rubber Yard/Marauders=EXTRA BOUNCE (restitution ×1.15-
+1.45 capped 0.9 total + bounced-exit-over-wall = GROUND RULE DOUBLE via
+applyPlay double), Winter Classic/Kestrals=THE HAWK (rolled dir/strength
+3.4·i m/s²), Scorchyard/Gilas=HEAT WAVE (carry ×1.08·i, fielder fatigue
+−5%·i/inning floor 0.82), The Crown/Monarchs=HEAVY AIR (carry ×0.91·i).
+
+Architecture: src/game/cityElements.js is headless + seeded-rng testable
+(13 unit tests); ball.js gained wind accel + restitutionScale +
+exitedOverFence (4 tests); matchScene wires rolls on startMatch + each
+new inning (subscription lives in startMatch — constructor subs die on
+rematch), carry multiplies launch.speed AFTER launchParams so flight AND
+predictLanding stay consistent; CPU kickers get windBiasDeg (kickTiming)
+= home-advantage-by-skill. VO hook emits `vo: element-<id>` — no-ops
+until announcer lines are generated (needs dev auth for ElevenLabs).
+
+VERIFIED (claude-in-chrome, dev server): all 10 elements probed in-engine
+via window.__skk — the Hawk bent a dead-straight kick −6.1m in 2s (matches
+½at² exactly), motorcade/el-train procs fire + chip pulses + wobble only
+during proc, steam sprites render (radial-gradient CanvasTexture — the
+first flat-sprite version read as ugly glass rectangles), GRD exit flag
+triggers on a bounced ball crossing above the wall. 153/153 vitest, exit
+code checked (NOT grep-gated). CAVEAT: Chrome window was occluded → rAF
+throttled → real-time interactive play impossible this session; physics
+verified by pumping the real update loop. Dev phone playtest on prod
+remains the true gate per workflow.
+
+ASSETS STAGED: dev uploaded 3 mocap FBX (Diving Catch, Fence Climb Up/
+Down) → tools/anims-src/ (gitignored sources) — these are for pillar 3
+Street Calls (dive call + fence rob); bake via tools/retarget.html when
+that pillar starts.
+
+PARKED: backdrop regen (dev said hold off again); credits now 3379.

@@ -254,9 +254,22 @@ export class MatchScene {
     this.steamSprites ??= [];
     for (const s of this.steamSprites) s.visible = false;
     if (this.elements.id !== 'steam-vents') return;
+    if (!this._steamTex) {
+      // soft round puff: radial gradient baked once — a bare SpriteMaterial is a hard-edged card
+      const cv = document.createElement('canvas');
+      cv.width = cv.height = 128;
+      const g = cv.getContext('2d').createRadialGradient(64, 64, 8, 64, 64, 62);
+      g.addColorStop(0, 'rgba(255,255,255,0.9)');
+      g.addColorStop(0.55, 'rgba(235,240,244,0.45)');
+      g.addColorStop(1, 'rgba(235,240,244,0)');
+      const ctx = cv.getContext('2d');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, 128, 128);
+      this._steamTex = new THREE.CanvasTexture(cv);
+    }
     const clouds = this.elements.steamClouds();
     while (this.steamSprites.length < clouds.length) {
-      const mat = new THREE.SpriteMaterial({ color: 0xdfe6ea, transparent: true, opacity: 0.34, depthWrite: false });
+      const mat = new THREE.SpriteMaterial({ map: this._steamTex, color: 0xdfe6ea, transparent: true, opacity: 0.34, depthWrite: false });
       const sp = new THREE.Sprite(mat);
       this.engine.scene.add(sp);
       this.steamSprites.push(sp);
