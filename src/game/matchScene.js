@@ -244,8 +244,29 @@ export class MatchScene {
     const w = this.elements.windAccel();
     this.ball.wind = w;
     this.ball.restitutionScale = this.elements.bounceScale();
+    this.buildSteamSprites();
     this.bus.emit('element:roll', roll);
     this.bus.emit('vo', `element-${roll.id}`); // no-ops until VO assets exist
+  }
+
+  /** Steam-vent visuals: one soft reused sprite per rolled cloud (never per-frame allocs). */
+  buildSteamSprites() {
+    this.steamSprites ??= [];
+    for (const s of this.steamSprites) s.visible = false;
+    if (this.elements.id !== 'steam-vents') return;
+    const clouds = this.elements.steamClouds();
+    while (this.steamSprites.length < clouds.length) {
+      const mat = new THREE.SpriteMaterial({ color: 0xdfe6ea, transparent: true, opacity: 0.34, depthWrite: false });
+      const sp = new THREE.Sprite(mat);
+      this.engine.scene.add(sp);
+      this.steamSprites.push(sp);
+    }
+    clouds.forEach((c, i) => {
+      const sp = this.steamSprites[i];
+      sp.position.set(c.x, 2.2, c.z);
+      sp.scale.set(c.r * 2.2, c.r * 1.4, 1);
+      sp.visible = true;
+    });
   }
 
   /** Element-aware throw speed — use instead of raw tuning at throw sites. */
@@ -2688,6 +2709,14 @@ export class MatchScene {
       if (procEv.proc === 'start') this.engine.shake(this.elements.id === 'el-train' ? 0.35 : 0.15);
     }
     if (this.elements.procActive && this.elements.id === 'el-train') this.engine.shake(0.12);
+
+    // steam clouds breathe (reused sprites, opacity only)
+    if (this.steamSprites?.length && this.elements.id === 'steam-vents') {
+      for (let i = 0; i < this.steamSprites.length; i++) {
+        const sp = this.steamSprites[i];
+        if (sp.visible) sp.material.opacity = 0.28 + Math.sin(this.elapsed * 0.7 + i * 2.1) * 0.08;
+      }
+    }
 
     this.ball.update(dt);
     this.field.updateCrowd(this.elapsed);
