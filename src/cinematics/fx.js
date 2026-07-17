@@ -2,7 +2,7 @@
 // crackling lightning bolts that regenerate every few frames.
 import * as THREE from 'three';
 
-function makeGlowTexture(inner, outer) {
+export function makeGlowTexture(inner, outer) {
   const c = document.createElement('canvas');
   c.width = c.height = 64;
   const ctx = c.getContext('2d');
