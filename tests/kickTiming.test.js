@@ -43,6 +43,13 @@ it('late timing pushes direction, early pulls it', () => {
   expect(early.directionDeg).toBeLessThan(0);
 });
 
+it('windBiasDeg shifts the launch direction (city element wind awareness)', () => {
+  const judged = judgeKick(0, tuning);
+  const calm = launchParams(judged, { aim: 'center', rng: () => 0.5 }, tuning);
+  const windy = launchParams(judged, { aim: 'center', rng: () => 0.5, windBiasDeg: 10 }, tuning);
+  expect(windy.directionDeg - calm.directionDeg).toBeCloseTo(10);
+});
+
 it('special move multiplies power', () => {
   const v = launchParams(judgeKick(0, tuning), { aim: 'center', powerMult: 1.35 }, tuning);
   const k = tuning.kick;

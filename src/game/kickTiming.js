@@ -63,7 +63,8 @@ export function launchParams(judged, opts, tuning) {
   return {
     speed: (k.baseBallSpeedMs + power01 * (k.maxBallSpeedMs - k.baseBallSpeedMs)) * mult,
     loftDeg: k.loftDeg[judged.quality],
-    directionDeg: base + timingBias,
+    // windBiasDeg: city-element wind awareness (CPU kicks downwind on windy fields)
+    directionDeg: base + timingBias + (opts.windBiasDeg ?? 0),
   };
 }
 
