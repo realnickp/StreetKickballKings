@@ -2814,13 +2814,19 @@ export class MatchScene {
     const reach = (this.tuning.fielding.scoopRadiusM ?? 2.6) * 1.1;
     const now = Math.hypot(this.ball.pos.x - f.group.position.x, this.ball.pos.z - f.group.position.z);
     if (now <= reach && this.ball.pos.y < 1.7) {
+      // freeze the snag NOW, let the layout read for a beat, THEN resolve — an
+      // immediate catchOut/possessBall stomps the dive clip with 'catch'
+      this.ball.place(f.group.position.clone().setY(0.45));
       if (!this.ball.onGround && this.ball.bounces === 0) {
         this.hud.call('DIVING CATCH!', 'crowned');
-        this.catchOut(f); // robbed-tier heat + tag-up race flow from the canonical path
+        this.after(0.35, () => this.catchOut(f)); // robbed-tier heat + tag-up race flow
       } else {
         this.hud.call('DIVE STOP!', 'pegged');
-        this.possessBall(f); // canonical ground pickup (throw pad, AI decision, etc.)
-        this.noteHeat(this.match.fieldingSide(), 'catch');
+        this.after(0.3, () => {
+          if (this.playFinalized || this.fieldingChars().some((x) => x.hasBall)) return;
+          this.possessBall(f); // canonical ground pickup (throw pad, AI decision, etc.)
+          this.noteHeat(this.match.fieldingSide(), 'catch');
+        });
       }
     } else {
       // whiffed: he's on the pavement while the ball rolls away
