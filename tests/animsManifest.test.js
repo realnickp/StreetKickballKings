@@ -6,6 +6,7 @@ const REQUIRED = [
   'idle', 'plate', 'crouch', 'holdball', 'run', 'strafeL', 'strafeR',
   'kick', 'throw', 'pitch', 'catch', 'slide', 'juke', 'stumble',
   'walk', 'swagger', 'dance1', 'dance2', 'dance3', 'dance4', 'dejected',
+  'dive', 'climb', 'climbDown', // Street Calls: dive call + fence rob
 ];
 
 describe('anims manifest', () => {

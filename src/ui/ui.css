@@ -1251,3 +1251,39 @@ body { display: flex; align-items: center; justify-content: center; }
   from { filter: brightness(1); box-shadow: 0 0 3px 0 rgba(255,90,42,.6); }
   to { filter: brightness(1.6); box-shadow: 0 0 8px 2px rgba(255,120,42,.9); }
 }
+
+/* STREET CALL button (dive/rob): duel-button geometry, always-lit gold —
+   it only exists while the call window is open */
+.call-btn {
+  pointer-events: auto;
+  position: absolute;
+  left: 50%;
+  bottom: calc(7cqw + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: 34cqw;
+  height: 34cqw;
+  max-width: 180px;
+  max-height: 180px;
+  border-radius: 50%;
+  border: 3px solid #ffd23f;
+  background: radial-gradient(circle at 35% 30%, #ffe27a, #f5a912);
+  color: #14100a;
+  font-family: var(--marker);
+  font-weight: 900;
+  font-size: 7cqw;
+  letter-spacing: 0.04em;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 9;
+  box-shadow: 0 0 26px rgba(255, 200, 60, 0.75);
+  animation: duelPulse 0.4s ease-in-out infinite alternate;
+}
+.call-btn.show { display: flex; }
+
+/* steal chips run hot during the wind-up — tap NOW for the jump */
+.steal-chips.hot .steal-chip {
+  border-color: #ffd23f;
+  box-shadow: 0 0 14px rgba(255, 200, 60, 0.8);
+  animation: elementPulse 0.4s ease-in-out infinite alternate;
+}

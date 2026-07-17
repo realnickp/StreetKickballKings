@@ -45,6 +45,7 @@ export class Hud {
       <button class="go-btn"><span></span></button>
       <div class="steal-chips"></div>
       <button class="duel-btn"><span>GO!</span></button>
+      <button class="call-btn"><span></span></button>
     `;
     root.appendChild(this.el);
 
@@ -103,6 +104,13 @@ export class Hud {
     this.duelBtn.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
       this.onDuel?.();
+    });
+    // STREET CALL button: dive/rob — lit only while the call window is open
+    this.callBtn = this.el.querySelector('.call-btn');
+    this.onCall = null;
+    this.callBtn.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      this.onCall?.();
     });
 
     // warm the sprayed-paint UI art so the first callout/pop never flashes blank
@@ -253,6 +261,20 @@ export class Hud {
       });
       return chip;
     }));
+  }
+
+  /** STREET CALL button (dive/rob): shown = actionable right now. One verb. */
+  showCall(label) {
+    this.callBtn.querySelector('span').textContent = label;
+    this.callBtn.classList.add('show');
+  }
+  hideCall() {
+    this.callBtn.classList.remove('show');
+  }
+
+  /** Pulse the steal chips while the pitcher is mid-wind-up (hot jump window). */
+  setStealHot(on) {
+    this.stealChips.classList.toggle('hot', !!on);
   }
 
   /** Crew heat bars under each score chip; on-fire side pulses. Values 0..1. */

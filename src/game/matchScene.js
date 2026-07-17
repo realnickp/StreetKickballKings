@@ -198,6 +198,10 @@ export class MatchScene {
     this.hud.onGo = () => this.sendHeldRunner();
     this.hud.onSteal = (b) => this.startSteal(b);
     this.hud.onDuel = () => this.onDuelButton();
+    this.hud.onCall = () => this.onCallButton();
+    this.call = null;     // open street-call window: {kind:'dive'|'rob', until?}
+    this.robbing = null;  // fence-rob climb state: {fielder, phase, t, topY}
+    this.stealHot = false;
     this.hud.onSpecial = () => {
       if (this.special.ready && this.kickingIsPlayer()) {
         this.specialArmed = true;
@@ -675,9 +679,11 @@ export class MatchScene {
         const swing = dur + Math.max(-0.25, Math.min(0.45, (Number.isFinite(errMs) ? errMs : 0) / 1000));
         this.after(swing, () => this.attemptKick({ aim: aiAim(this.difficulty), errMs }, this.elapsed));
       }
+      this.stealHot = false; // ball's away — the hot-jump window closes
     };
     this.pitchArrival = Infinity; // nothing may judge arrival until the ball is live
     this.kicked = false;
+    this.stealHot = true; // wind-up: a steal called NOW gets the hot jump
     pitcher.animator.play('pitch', {
       onContact: launch,
       onDone: () => pitcher.animator.play('idle'),
@@ -839,6 +845,8 @@ export class MatchScene {
     this.liveStart = this.elapsed;
     this.hrFired = false;
     this.grdFired = false;
+    this.diveUsed = false;   // one dive call per play
+    this.aiCallRolled = false;
     this.ballCamUntil = this.elapsed + 1.3; // trail the ball before cutting to the infield
     this.camTarget = CAM.live;
     // broadcast CUT: 0.4s low hero cam at the moment of contact, then the
@@ -970,7 +978,10 @@ export class MatchScene {
     const r = this.makeRunner(occ, char, baseIdx);
     r.forced = false;
     r.stealing = true;
-    r.sim.progressM = LEAD_M + this.elements.stealHeadStartM(); // night hustle: hot jump
+    // jump quality: called during the wind-up = HOT jump; after the ball's away = standard
+    const hotMult = this.stealHot ? 1.6 : 1;
+    r.sim.progressM = LEAD_M * hotMult + this.elements.stealHeadStartM(); // + night hustle
+    if (this.stealHot && this.kickingIsPlayer()) this.hud.call('HOT JUMP!', 'crowned');
     this.stealing = r;
     this.runners.push(r);
     char.animator.play('run');
@@ -2722,6 +2733,154 @@ export class MatchScene {
     this.after(1.2, tryNext);
   }
 
+  // ---------- STREET CALLS: dive + fence rob (one lit button, timed windows) ----------
+  /** Open/close the call windows each frame; CPU defense rolls its own calls. */
+  updateCallWindows() {
+    if (this.phase !== 'LIVE') { if (this.call) this.closeCall(); return; }
+    const defIsPlayer = !this.kickingIsPlayer();
+
+    // FENCE ROB: an HR-bound ball entering the final stretch to the wall
+    if (!this.call && !this.robbing && this.kickHrEligible && !this.hrFired && !this.grdFired
+        && this.ball.mode === 'flying' && this.ball.bounces === 0
+        && this.landDist > this.fenceM - 2) {
+      const d = Math.hypot(this.ball.pos.x, this.ball.pos.z);
+      if (d > this.fenceM - 6.5 && d < this.fenceM) {
+        if (defIsPlayer) {
+          this.call = { kind: 'rob' };
+          this.hud.showCall('ROB IT!');
+        } else if (!this.aiCallRolled) {
+          // a CPU wall-rob is a rare scream moment — Kings only
+          this.aiCallRolled = true;
+          if (this.difficulty === 'King' && Math.random() < 0.2) this.resolveRob();
+        }
+      }
+    }
+
+    // DIVE: a low liner/grounder about to shoot past the chaser
+    if (!this.call && !this.diveUsed && !this.isFly && this.chaser && !this.chaser.hasBall
+        && (this.ball.mode === 'flying' || this.ball.vel.lengthSq() > 36)) {
+      const c = this.chaser.group.position;
+      const dist = Math.hypot(this.ball.pos.x - c.x, this.ball.pos.z - c.z);
+      const speed = Math.hypot(this.ball.vel.x, this.ball.vel.z);
+      if (speed > 6 && dist < 5 && dist > 1.2 && this.ball.pos.y < 2.2) {
+        if (defIsPlayer) {
+          this.call = { kind: 'dive', until: this.elapsed + 0.55 };
+          this.hud.showCall('DIVE!');
+        } else if (!this.aiCallRolled) {
+          this.aiCallRolled = true;
+          const p = this.difficulty === 'King' ? 0.45 : this.difficulty === 'Street' ? 0.25 : 0.1;
+          if (Math.random() < p) this.resolveDive();
+        }
+      }
+    }
+
+    // window expiry — the moment passed
+    if (this.call?.kind === 'dive' && (this.elapsed > this.call.until || this.ball.vel.lengthSq() < 4)) this.closeCall();
+    if (this.call?.kind === 'rob' && (this.hrFired || this.ball.mode !== 'flying'
+        || Math.hypot(this.ball.pos.x, this.ball.pos.z) >= this.fenceM)) this.closeCall();
+  }
+
+  closeCall() {
+    this.call = null;
+    this.hud.hideCall();
+  }
+
+  onCallButton() {
+    const call = this.call;
+    if (!call) return;
+    this.closeCall();
+    if (call.kind === 'dive') this.resolveDive();
+    else if (call.kind === 'rob') this.resolveRob();
+  }
+
+  /** Lay out for the ball. In reach = the snag (air = diving catch, ground =
+   *  dive stop into the normal possession flow). Out of reach = he's DOWN and
+   *  the ball rolls on — a failed dive is worse than no dive. */
+  resolveDive() {
+    const f = this.chaser;
+    if (!f || f.hasBall || this.diveUsed) return;
+    this.diveUsed = true;
+    const lead = this.ballLeadPoint();
+    const dx = lead.x - f.group.position.x, dz = lead.z - f.group.position.z;
+    const dist = Math.hypot(dx, dz) || 1;
+    const nx = dx / dist, nz = dz / dist;
+    // code-driven lunge (the clip is inPlace): lay him out toward the lead point
+    const lunge = Math.min(dist, 2.4);
+    f.group.position.x += nx * lunge;
+    f.group.position.z += nz * lunge;
+    f.faceYaw = Math.atan2(nx, nz);
+    f.animator.play('dive');
+    this.bus.emit('sfx', 'juke');
+    const reach = (this.tuning.fielding.scoopRadiusM ?? 2.6) * 1.1;
+    const now = Math.hypot(this.ball.pos.x - f.group.position.x, this.ball.pos.z - f.group.position.z);
+    if (now <= reach && this.ball.pos.y < 1.7) {
+      // freeze the snag NOW, let the layout read for a beat, THEN resolve — an
+      // immediate catchOut/possessBall stomps the dive clip with 'catch'
+      this.ball.place(f.group.position.clone().setY(0.45));
+      if (!this.ball.onGround && this.ball.bounces === 0) {
+        this.hud.call('DIVING CATCH!', 'crowned');
+        this.after(0.35, () => this.catchOut(f)); // robbed-tier heat + tag-up race flow
+      } else {
+        this.hud.call('DIVE STOP!', 'pegged');
+        this.after(0.3, () => {
+          if (this.playFinalized || this.fieldingChars().some((x) => x.hasBall)) return;
+          this.possessBall(f); // canonical ground pickup (throw pad, AI decision, etc.)
+          this.noteHeat(this.match.fieldingSide(), 'catch');
+        });
+      }
+    } else {
+      // whiffed: he's on the pavement while the ball rolls away
+      f.animator.play('stumble');
+      this.chaseDelay = this.elapsed - this.liveStart + 0.9;
+      this.hud.call('MISSED IT!', 'pegged');
+    }
+  }
+
+  /** Wall climb: snap the chaser to where the ball will cross, ride him up the
+   *  fence, take the homer back at the top, climb down with it. */
+  resolveRob() {
+    if (this.robbing || this.hrFired) return;
+    const f = this.chaser ?? this.fieldingChars().find((c) => !c.hasBall);
+    if (!f) return;
+    // crossing point: project the ball's horizontal direction to the fence radius
+    const vx = this.ball.vel.x, vz = this.ball.vel.z;
+    const vlen = Math.hypot(vx, vz) || 1;
+    const wx = this.ball.pos.x + (vx / vlen) * 6;
+    const wz = this.ball.pos.z + (vz / vlen) * 6;
+    const wlen = Math.hypot(wx, wz) || 1;
+    const r = this.fenceM - 0.6;
+    f.group.position.set((wx / wlen) * r, 0, (wz / wlen) * r);
+    f.faceYaw = Math.atan2(wx / wlen, wz / wlen); // face the wall
+    f.animator.play('climb');
+    this.bus.emit('sfx', 'juke');
+    this.robbing = { fielder: f, phase: 'up', t: 0, topY: Math.max(1.2, this.fenceTopY - 1.3) };
+  }
+
+  /** Frame driver for the rob climb (runs through RESOLVE — catchOut stops
+   *  updateDefense, not this). */
+  updateRobbing(rawDt) {
+    const rob = this.robbing;
+    if (!rob) return;
+    const f = rob.fielder;
+    rob.t += rawDt;
+    if (rob.phase === 'up') {
+      f.group.position.y = rob.topY * Math.min(1, rob.t / 0.45);
+      if (rob.t >= 0.45) {
+        rob.phase = 'hold';
+        rob.t = 0;
+        if (this.phase === 'LIVE' && !this.hrFired) {
+          this.hud.call('ROBBED!', 'crowned');
+          this.catchOut(f); // heat 'robbed' (kickHrEligible) + cine flow from the canonical path
+        }
+      }
+    } else if (rob.phase === 'hold') {
+      if (rob.t > 0.55) { rob.phase = 'down'; rob.t = 0; f.animator.play('climbDown'); }
+    } else if (rob.phase === 'down') {
+      f.group.position.y = rob.topY * Math.max(0, 1 - rob.t / 0.5);
+      if (rob.t >= 0.5) { f.group.position.y = 0; this.robbing = null; }
+    }
+  }
+
   /** Extra Bounce payoff: a bounced ball hopped the wall — dead ball, everyone
    *  advances exactly two bases from the pitch (the standard ground rule). */
   groundRuleDouble() {
@@ -2782,6 +2941,8 @@ export class MatchScene {
 
     this.heat.update(rawDt);
     this.refreshHeatHud();
+    this.updateCallWindows();
+    this.updateRobbing(rawDt);
 
     // steam puffs breathe + drift (reused sprites, opacity/position only)
     if (this.steamSprites?.length && this.elements.id === 'steam-vents') {
@@ -2929,7 +3090,7 @@ export class MatchScene {
       const dist = Math.hypot(this.ball.pos.x, this.ball.pos.z);
       // a homer must clear the wall IN THE AIR (containment bounces shorter balls
       // back) AND be a crown super-kick — ordinary perfect contact stays in the park
-      if (!this.hrFired && this.kickHrEligible && dist >= this.fenceM - 0.3 && this.ball.pos.y > this.fenceTopY * 0.8 && this.ball.bounces === 0) {
+      if (!this.hrFired && !this.robbing && this.kickHrEligible && dist >= this.fenceM - 0.3 && this.ball.pos.y > this.fenceTopY * 0.8 && this.ball.bounces === 0) {
         this.homer();
       }
       // extra-bounce payoff: a BOUNCED ball that hops the wall = ground rule double
@@ -2969,6 +3130,7 @@ export class MatchScene {
       }
     }
     this.hud.setStealChips(chips);
+    this.hud.setStealHot(chips.length > 0 && this.stealHot);
 
     // BROADCAST CAMERA: matchScene picks the shot for the situation; the
     // CameraDirector spring-damps toward it (and handles the contact CUT).

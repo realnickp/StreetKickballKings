@@ -1232,3 +1232,34 @@ kick/field 1.12 + throwSpeed 22→25.3, DOM bars 100%/55% on the correct
 chips (home=SNAP right), 4-play burn-down → afterglow 25. 158/158
 vitest exit 0. Same caveat as 24a: occluded-window rAF throttle blocked
 real-time play; phone playtest on prod is the gate.
+
+### 24c) FEATURE — STREET CALLS (Street Rules pillar 3 of 4)
+
+Three timed one-lit-button calls per the minigame UX bar (chars run, you
+make the call): DIVE! (defense: low liner shooting past the chaser —
+window opens <5m at speed>6, 0.55s; tap = code-driven 2.4m lunge + dive
+clip; airborne snag = catchOut (robbed-tier heat), grounder = possessBall,
+whiff = stumble + 0.9s chase stun — worse than not diving), ROB IT!
+(defense: HR-eligible ball in the last 6.5m to the wall; tap = chaser
+snaps to the crossing point, climbs the fence (code-driven Y to
+fenceTopY−1.3 while 'climb' plays), catchOut at the top TAKES THE HOMER
+BACK — homer() gated on !robbing — then climbDown), HOT JUMP steals
+(offense: steal chips pulse gold during the pitcher wind-up — stealHot
+true from serve to launch; steal called hot = LEAD_M×1.6). CPU defense
+rolls its own dives (Rookie .1/Street .25/King .45) and King-only 20%
+wall-robs.
+
+MOCAP: dev's 3 Mixamo FBX staged→ baked as dive/climb/climbDown on all 6
+archetypes. Found + fixed a HARNESS BUG while baking: Hips.position is a
+bone-LOCAL track but retarget.js scaled deltas to WORLD units — the rigs
+carry a 0.01 armature scale so ALL clips' vertical hip motion shipped
+100× too small (idle bob flat, kick crouch flattened; a dive would have
+floated at standing height). scale = rig.hipRestPos.y/src.hipY. Every
+clip regained real vertical motion (kick now dips 85→114 local units;
+dive drops to 16 = body on the pavement). In-game stance sanity-checked.
+
+VERIFIED via real-flow pumping (PITCH_SELECT→TRACE→PITCH→LIVE, then
+staged situations): dive window+button+catch (playOuts 1, RESOLVE), rob
+window+climb (peakY 2.7)+homer-taken-back (hrFired false)+heat robbed
+(+22/steal 15)+climb-down, stealHot true during wind-up / false at
+launch. 158/158 vitest exit 0. Anim LOOK on device = dev phone verdict.

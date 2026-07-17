@@ -178,7 +178,11 @@ function retargetWorld(entry, src, rig) {
     conv.set(tName, { sBone, C });
   }
   const sHips = sBones[src.hipName];
-  const scale = rig.hipY / (src.hipY || 100);
+  // Hips.position is a BONE-LOCAL track: scale source deltas into the rig's
+  // local units (hipRestPos is local, hipY is world — rigs carry a 0.01
+  // armature scale, so world-scaled deltas baked 100x too small: every clip's
+  // vertical hip motion was flattened. The dive/climb clips exposed it.)
+  const scale = rig.hipRestPos.y / (src.hipY || 100);
 
   const mixer = new THREE.AnimationMixer(src.fbx);
   const action = mixer.clipAction(src.clip);
