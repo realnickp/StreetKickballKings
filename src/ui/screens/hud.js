@@ -9,13 +9,13 @@ export class Hud {
     this.el.className = 'hud';
     this.el.innerHTML = `
       <div class="score-bug">
-        <div class="team"><span class="abbr" data-abbr-away></span><span class="runs" data-away>0</span></div>
+        <div class="team"><span class="abbr" data-abbr-away></span><span class="runs" data-away>0</span><div class="heat-bar"><div class="heat-fill" data-heat-away></div></div></div>
         <div class="mid">
           <span class="inning" data-inning>▲ 1</span>
           <span class="outs"><i></i><i></i><i></i></span>
           <span class="diamond"><b data-b="1"></b><b data-b="2"></b><b data-b="3"></b></span>
         </div>
-        <div class="team"><span class="abbr" data-abbr-home></span><span class="runs" data-home>0</span></div>
+        <div class="team"><span class="abbr" data-abbr-home></span><span class="runs" data-home>0</span><div class="heat-bar"><div class="heat-fill" data-heat-home></div></div></div>
       </div>
       <div class="pitch-readout"><span class="type"></span> <span class="mph"></span></div>
       <div class="timing-ring"><div class="ring"></div><div class="target"></div></div>
@@ -253,6 +253,22 @@ export class Hud {
       });
       return chip;
     }));
+  }
+
+  /** Crew heat bars under each score chip; on-fire side pulses. Values 0..1. */
+  setHeat({ home, away, fireHome, fireAway }) {
+    this.heatFills ??= {
+      home: this.el.querySelector('[data-heat-home]'),
+      away: this.el.querySelector('[data-heat-away]'),
+    };
+    const set = (side, v, fire) => {
+      const f = this.heatFills[side];
+      if (!f) return;
+      f.style.width = `${Math.round(Math.max(0, Math.min(1, v)) * 100)}%`;
+      f.parentElement.classList.toggle('on-fire', !!fire);
+    };
+    set('home', home, fireHome);
+    set('away', away, fireAway);
   }
 
   /** City element chip: label + intensity pips (+ wind arrow on wind fields).
