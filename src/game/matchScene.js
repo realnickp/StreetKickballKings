@@ -171,6 +171,12 @@ export class MatchScene {
 
     bus.on('cine:start', () => { this.cinematicLock = true; this.hud.hint(''); });
     bus.on('cine:done', () => { this.cinematicLock = false; });
+    // city element chip: inning rolls set it, procs pulse it
+    bus.on('element:roll', (r) => this.hud.setElement(r));
+    bus.on('element:proc', (p) => {
+      this.hud.flashElement(p.active);
+      if (p.active) this.hud.callout(p.label + '!', { x: window.innerWidth / 2, y: 90, dir: 'down', ttl: 1600, key: 'element-proc' });
+    });
     // a cutscene's return throw: the scene flies it and the pitcher catches
     bus.on('cine:returnThrow', () => this.flyBallToPitcher(14));
 
