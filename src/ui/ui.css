@@ -1231,3 +1231,23 @@ body { display: flex; align-items: center; justify-content: center; }
   from { box-shadow: 0 0 0 0 rgba(255,215,94,0); }
   to { box-shadow: 0 0 12px 2px rgba(255,215,94,.7); }
 }
+
+/* crew heat: slim momentum bar under each score chip; a full bar BURNS */
+.score-bug .team { position: relative; }
+.heat-bar {
+  position: absolute; left: 6%; right: 6%; bottom: 2px;
+  height: 3px; border-radius: 2px;
+  background: rgba(255,255,255,.14); overflow: hidden;
+}
+.heat-fill {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, #3ec6b5, #f5b312 60%, #ff5a2a);
+  border-radius: 2px;
+  transition: width .3s ease;
+}
+.heat-bar.on-fire { background: rgba(255,90,42,.25); }
+.heat-bar.on-fire .heat-fill { animation: heatBurn .4s ease-in-out infinite alternate; }
+@keyframes heatBurn {
+  from { filter: brightness(1); box-shadow: 0 0 3px 0 rgba(255,90,42,.6); }
+  to { filter: brightness(1.6); box-shadow: 0 0 8px 2px rgba(255,120,42,.9); }
+}

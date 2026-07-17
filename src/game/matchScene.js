@@ -17,6 +17,7 @@ import { igniteBall, douseBall } from '../cinematics/fx.js';
 import { ReplayRecorder } from '../cinematics/replay.js';
 import { Ball } from './ball.js';
 import { CityElements } from './cityElements.js';
+import { CrewHeat } from './crewHeat.js';
 import { CameraDirector } from './cameraDirector.js';
 import { buildField, FIELD_LAYOUT } from './field.js';
 import { Hud } from '../ui/screens/hud.js';
@@ -88,6 +89,8 @@ export class MatchScene {
     // City element: this field's signature modifier (Street Rules pillar 1)
     this.elements = new CityElements({ elementId: fieldData.element ?? 'sea-breeze' });
     this.elementInning = 1;
+    // Crew heat: per-team momentum (Street Rules pillar 2); rebuilt each startMatch
+    this.heat = new CrewHeat();
 
     this.hud = new Hud(hudRoot, {
       homeAbbr: teams.home.name.split(' ').pop().slice(0, 4).toUpperCase(),
@@ -225,6 +228,17 @@ export class MatchScene {
     // element re-rolls each new inning (fixed identity, fresh strength/direction)
     this.elementInning = 1;
     this.applyElementRoll();
+    // fresh momentum every match; rules-engine outcomes feed the heat meter here
+    // (scene-only moments — PERFECT, robbed, peg, pickle — feed at their call sites)
+    this.heat = new CrewHeat();
+    this.match.bus.on('play', ({ type, side }) => {
+      const def = side === 'home' ? 'away' : 'home';
+      if (['double', 'triple', 'homerun', 'steal'].includes(type)) this.noteHeat(side, type);
+      else if (['strikeout', 'caught-stealing'].includes(type)) this.noteHeat(def, type);
+      else if (type === 'foulout') this.noteHeat(def, 'catch'); // live catches count at catchOut
+      this.heat.notePlay();
+      this.refreshHeatHud(true);
+    });
     this.match.bus.on('halfEnd', () => {
       if (this.match.state.inning !== this.elementInning) {
         this.elementInning = this.match.state.inning;
@@ -282,9 +296,33 @@ export class MatchScene {
     });
   }
 
-  /** Element-aware throw speed — use instead of raw tuning at throw sites. */
+  /** Element+heat-aware throw speed — use instead of raw tuning at throw sites. */
   throwSpeed() {
-    return this.tuning.throwing.throwSpeedMs * this.elements.throwZipScale();
+    return this.tuning.throwing.throwSpeedMs * this.elements.throwZipScale()
+      * this.heat.throwSpeedScale(this.match.fieldingSide());
+  }
+
+  /** Feed a heat event and stage the ON FIRE moment when a bar fills. */
+  noteHeat(side, evt) {
+    if (this.heat.add(side, evt) === 'ignited') {
+      this.hud.call(this.teamShort(side).toUpperCase() + ' ON FIRE!', 'crowned');
+      this.bus.emit('sfx', 'crowd-cheer');
+      this.bus.emit('vo', 'fire'); // no-ops until a VO line exists
+      this.field.crowdEnergy = 1;
+    }
+    this.refreshHeatHud(true);
+  }
+
+  /** Push heat values to the HUD; unforced calls are throttled to 4Hz. */
+  refreshHeatHud(force = false) {
+    if (!force && this.elapsed - (this._heatHudAt ?? -1) < 0.25) return;
+    this._heatHudAt = this.elapsed;
+    this.hud.setHeat({
+      home: this.heat.value.home / 100,
+      away: this.heat.value.away / 100,
+      fireHome: this.heat.onFire('home'),
+      fireAway: this.heat.onFire('away'),
+    });
   }
 
   kickingIsPlayer() {
@@ -710,6 +748,8 @@ export class MatchScene {
       }
       this.specialArmed = false;
     }
+    // crew on fire: every kick is juiced while the bar burns
+    powerMult *= this.heat.kickPowerMult(this.match.kickingSide());
     // HR gate: a player kick leaves the park on a sweet-zone meter lock AND a lined-up
     // kicker — OR a consumed crown super-kick (kept as a bonus path).
     this.kickHrEligible = isPlayerKick && (
@@ -766,6 +806,7 @@ export class MatchScene {
     }
 
     this.ball.launch(launch.speed, launch.loftDeg, launch.directionDeg);
+    if (this.heat.onFire(this.match.kickingSide())) igniteBall(this.ball); // burning crew = burning ball
     this.engine.shake(judged.quality === 'PERFECT' ? 0.55 : 0.25);
     this.bus.emit('sfx', judged.quality === 'PERFECT' ? 'crush' : 'kick');
     this.field.crowdEnergy = judged.quality === 'PERFECT' ? 1 : 0.5;
@@ -788,6 +829,7 @@ export class MatchScene {
     if (judged.quality === 'PERFECT' || this.kickHrEligible) {
       this.bus.emit('cine:perfect', { kicker: this.kicker, ball: this.ball });
       if (judged.quality === 'PERFECT' && this.kickingIsPlayer()) this.special.add('PERFECT');
+      if (judged.quality === 'PERFECT') this.noteHeat(this.match.kickingSide(), 'PERFECT');
     }
 
     this.landDist = Math.hypot(lp.x, lp.z);
@@ -1349,6 +1391,7 @@ export class MatchScene {
       this.hud.call(triple ? 'TRIPLE PLAY!' : 'DOUBLE PLAY!', 'crowned');
       this.bus.emit('vo', triple ? 'tripleplay' : 'doubleplay');
       this.bus.emit('sfx', 'crowd-cheer');
+      this.noteHeat(this.match.fieldingSide(), 'doubleplay');
     }
 
     const finalBases = [null, null, null];
@@ -1506,9 +1549,11 @@ export class MatchScene {
   }
 
   fielderSpeed(char, role) {
-    // city element drag: heat-wave fatigue builds by inning; steam clouds slow anyone inside
+    // city element drag: heat-wave fatigue builds by inning; steam clouds slow anyone inside.
+    // A crew ON FIRE runs hotter — the scales compose.
     const el = this.elements.fielderSpeedScale(this.match.state.inning)
-      * (this.elements.inSteam(char.group.position.x, char.group.position.z) ? 0.75 : 1);
+      * (this.elements.inSteam(char.group.position.x, char.group.position.z) ? 0.75 : 1)
+      * this.heat.fielderSpeedScale(this.match.fieldingSide());
     if (this.playerControlled && role === 'chase') return this.tuning.fielding.dragSpeedMs * el;
     const speed = char.data?.stats?.speed ?? 5;
     const glove = char.data?.stats?.glove ?? 5;
@@ -2047,6 +2092,12 @@ export class MatchScene {
       this.aiContinue(); // someone ELSE is still running — defense resumes the hunt
     }
     const r = duel.r;
+    // heat: the rundown's outcome swings momentum for whoever won it
+    if (r.state === 'scored' || (r.state === 'held' && r.heldAt === duel.forwardBase)) {
+      this.noteHeat(this.match.kickingSide(), 'pickleEscape');
+    } else if (r.state === 'out') {
+      this.noteHeat(this.match.fieldingSide(), 'pickleWin');
+    }
     if (this.kickingIsPlayer()) {
       if (r.state === 'scored' || (r.state === 'held' && r.heldAt === duel.forwardBase)) {
         // THE JACKPOT: stole the forward bag out of a rundown
@@ -2520,6 +2571,7 @@ export class MatchScene {
     if (reason === 'pegged') {
       this.bus.emit('cine:pegged', { runner: runner.char }); // director fires the 'pegged' call
       if (!this.kickingIsPlayer()) this.special.add('peg');
+      this.noteHeat(this.match.fieldingSide(), 'peg');
     } else {
       this.bus.emit('sfx', 'catchpop');
       this.bus.emit('vo', 'forced'); // out call
@@ -2548,6 +2600,10 @@ export class MatchScene {
     this.playOuts = (this.playOuts ?? 0) + 1;
     this.lastOutReason = 'catch';
     if (!this.kickingIsPlayer()) this.special.add('catch');
+    // heat: a deep or homer-eligible ball snagged = a ROBBERY, else a plain catch
+    // (live catches count HERE, once — the finalizePlay 'catch' label is skipped)
+    const heatRobbed = this.kickHrEligible || this.landDist > this.fenceM * 0.7;
+    this.noteHeat(this.match.fieldingSide(), heatRobbed ? 'robbed' : 'catch');
 
     // RESOLVE stops updateDefense, so any fielder caught mid-chase would keep
     // looping his run clip in place through the whole race — stand them down
@@ -2722,6 +2778,9 @@ export class MatchScene {
       if (procEv.proc === 'start') this.engine.shake(this.elements.id === 'el-train' ? 0.35 : 0.15);
     }
     if (this.elements.procActive && this.elements.id === 'el-train') this.engine.shake(0.12);
+
+    this.heat.update(rawDt);
+    this.refreshHeatHud();
 
     // steam clouds breathe (reused sprites, opacity only)
     if (this.steamSprites?.length && this.elements.id === 'steam-vents') {
