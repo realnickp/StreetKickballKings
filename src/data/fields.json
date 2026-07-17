@@ -7,6 +7,7 @@
       "fenceM": 42,
       "fenceHeightM": 4,
       "flavor": "none",
+      "element": "el-train",
       "sky": "golden-hour",
       "palette": {
         "ground": "#3c3f44",
@@ -46,6 +47,7 @@
       "homeTeam": "snappers",
       "fenceM": 40,
       "flavor": "trains",
+      "element": "steam-vents",
       "sky": "sodium-night",
       "textures": {
         "ground": "assets/textures/ground-subway-yard.jpg",
@@ -78,6 +80,7 @@
       "homeTeam": "funk",
       "fenceM": 36,
       "flavor": "hydrant",
+      "element": "dj-drop",
       "sky": "dusk",
       "textures": {
         "ground": "assets/textures/ground-block-party.jpg",
@@ -110,6 +113,7 @@
       "homeTeam": "hustlers",
       "fenceM": 38,
       "flavor": "wet-reflections",
+      "element": "night-hustle",
       "sky": "neon-night",
       "textures": {
         "ground": "assets/textures/ground-neon-night-court.jpg",
@@ -142,6 +146,7 @@
       "homeTeam": "threshers",
       "fenceM": 39,
       "flavor": "gulls",
+      "element": "sea-breeze",
       "sky": "golden-hour",
       "textures": {
         "ground": "assets/textures/ground-boardwalk-kings.jpg",
@@ -174,6 +179,7 @@
       "homeTeam": "metros",
       "fenceM": 37,
       "flavor": "echo",
+      "element": "motorcade",
       "sky": "day",
       "textures": {
         "ground": "assets/textures/ground-the-underpass.jpg",
@@ -206,6 +212,7 @@
       "homeTeam": "marauders",
       "fenceM": 41,
       "flavor": "smoke",
+      "element": "extra-bounce",
       "sky": "overcast",
       "textures": {
         "ground": "assets/textures/ground-rubber-yard.jpg",
@@ -238,6 +245,7 @@
       "homeTeam": "kestrals",
       "fenceM": 38,
       "flavor": "snow",
+      "element": "the-hawk",
       "sky": "winter",
       "textures": {
         "ground": "assets/textures/ground-winter-classic.jpg",
@@ -270,6 +278,7 @@
       "homeTeam": "gilas",
       "fenceM": 42,
       "flavor": "heat-haze",
+      "element": "heat-wave",
       "sky": "desert-sunset",
       "textures": {
         "ground": "assets/textures/ground-scorchyard.jpg",
@@ -302,6 +311,7 @@
       "homeTeam": "monarchs",
       "fenceM": 40,
       "flavor": "fireworks",
+      "element": "heavy-air",
       "sky": "stadium-night",
       "textures": {
         "ground": "assets/textures/ground-the-crown.jpg",
