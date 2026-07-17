@@ -13,7 +13,7 @@ import { pickPitch, aiKickError, aiAim, aiWantsPeg, aiMashRate, aiJukes, aiThrow
 import { PickleDuel, shuttleDir } from './pickleDuel.js';
 import { RunnerWatchdog } from './runnerWatchdog.js';
 import { PITCH_PATTERNS, PITCH_FAMILIES, pickVariant, scoreTrace } from './pitchPattern.js';
-import { igniteBall, douseBall } from '../cinematics/fx.js';
+import { igniteBall, douseBall, makeGlowTexture } from '../cinematics/fx.js';
 import { ReplayRecorder } from '../cinematics/replay.js';
 import { Ball } from './ball.js';
 import { CityElements } from './cityElements.js';
@@ -263,36 +263,37 @@ export class MatchScene {
     this.bus.emit('vo', `element-${roll.id}`); // no-ops until VO assets exist
   }
 
-  /** Steam-vent visuals: one soft reused sprite per rolled cloud (never per-frame allocs). */
+  /** Steam-vent visuals: a small cluster of ADDITIVE glow puffs per cloud.
+   *  Additive is the recipe proven on-device by the fire FX — normal alpha
+   *  blending rendered as a hard-edged white card on the dev's phone, and a
+   *  single big billboard read as a flat slab from the high pitch camera. */
   buildSteamSprites() {
     this.steamSprites ??= [];
     for (const s of this.steamSprites) s.visible = false;
     if (this.elements.id !== 'steam-vents') return;
-    if (!this._steamTex) {
-      // soft round puff: radial gradient baked once — a bare SpriteMaterial is a hard-edged card
-      const cv = document.createElement('canvas');
-      cv.width = cv.height = 128;
-      const g = cv.getContext('2d').createRadialGradient(64, 64, 8, 64, 64, 62);
-      g.addColorStop(0, 'rgba(255,255,255,0.9)');
-      g.addColorStop(0.55, 'rgba(235,240,244,0.45)');
-      g.addColorStop(1, 'rgba(235,240,244,0)');
-      const ctx = cv.getContext('2d');
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, 128, 128);
-      this._steamTex = new THREE.CanvasTexture(cv);
-    }
+    this._steamTex ??= makeGlowTexture('rgba(235,242,247,0.8)', 'rgba(190,202,212,0.3)');
     const clouds = this.elements.steamClouds();
-    while (this.steamSprites.length < clouds.length) {
-      const mat = new THREE.SpriteMaterial({ map: this._steamTex, color: 0xdfe6ea, transparent: true, opacity: 0.34, depthWrite: false });
+    const PUFFS = 3;
+    const need = clouds.length * PUFFS;
+    while (this.steamSprites.length < need) {
+      const mat = new THREE.SpriteMaterial({
+        map: this._steamTex, color: 0x9aa6ae, blending: THREE.AdditiveBlending,
+        transparent: true, opacity: 0.4, depthWrite: false,
+      });
       const sp = new THREE.Sprite(mat);
+      sp.userData.phase = this.steamSprites.length * 1.7;
       this.engine.scene.add(sp);
       this.steamSprites.push(sp);
     }
     clouds.forEach((c, i) => {
-      const sp = this.steamSprites[i];
-      sp.position.set(c.x, 2.2, c.z);
-      sp.scale.set(c.r * 2.2, c.r * 1.4, 1);
-      sp.visible = true;
+      for (let j = 0; j < PUFFS; j++) {
+        const sp = this.steamSprites[i * PUFFS + j];
+        const a = (j / PUFFS) * Math.PI * 2 + i * 1.3;
+        sp.position.set(c.x + Math.cos(a) * c.r * 0.35, 1.5 + j * 0.9, c.z + Math.sin(a) * c.r * 0.35);
+        const sc = c.r * (1.0 + j * 0.3);
+        sp.scale.set(sc, sc * 0.7, 1);
+        sp.visible = true;
+      }
     });
   }
 
@@ -2782,11 +2783,14 @@ export class MatchScene {
     this.heat.update(rawDt);
     this.refreshHeatHud();
 
-    // steam clouds breathe (reused sprites, opacity only)
+    // steam puffs breathe + drift (reused sprites, opacity/position only)
     if (this.steamSprites?.length && this.elements.id === 'steam-vents') {
       for (let i = 0; i < this.steamSprites.length; i++) {
         const sp = this.steamSprites[i];
-        if (sp.visible) sp.material.opacity = 0.28 + Math.sin(this.elapsed * 0.7 + i * 2.1) * 0.08;
+        if (!sp.visible) continue;
+        const ph = this.elapsed * 0.5 + sp.userData.phase;
+        sp.material.opacity = 0.32 + Math.sin(ph) * 0.12;
+        sp.position.y += Math.sin(ph * 0.7) * 0.0025;
       }
     }
 
