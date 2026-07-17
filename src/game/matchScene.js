@@ -16,6 +16,7 @@ import { PITCH_PATTERNS, PITCH_FAMILIES, pickVariant, scoreTrace } from './pitch
 import { igniteBall, douseBall } from '../cinematics/fx.js';
 import { ReplayRecorder } from '../cinematics/replay.js';
 import { Ball } from './ball.js';
+import { CityElements } from './cityElements.js';
 import { CameraDirector } from './cameraDirector.js';
 import { buildField, FIELD_LAYOUT } from './field.js';
 import { Hud } from '../ui/screens/hud.js';
@@ -84,6 +85,9 @@ export class MatchScene {
     this.fenceM = fieldData.fenceM;
     this.fenceTopY = fieldData.fenceHeightM ?? 4.5;
     this.ball.setFence(this.fenceM, this.fenceTopY);
+    // City element: this field's signature modifier (Street Rules pillar 1)
+    this.elements = new CityElements({ elementId: fieldData.element ?? 'sea-breeze' });
+    this.elementInning = 1;
 
     this.hud = new Hud(hudRoot, {
       homeAbbr: teams.home.name.split(' ').pop().slice(0, 4).toUpperCase(),
@@ -167,6 +171,12 @@ export class MatchScene {
 
     bus.on('cine:start', () => { this.cinematicLock = true; this.hud.hint(''); });
     bus.on('cine:done', () => { this.cinematicLock = false; });
+    // city element chip: inning rolls set it, procs pulse it
+    bus.on('element:roll', (r) => this.hud.setElement(r));
+    bus.on('element:proc', (p) => {
+      this.hud.flashElement(p.active);
+      if (p.active) this.hud.callout(p.label + '!', { x: window.innerWidth / 2, y: 90, dir: 'down', ttl: 1600, key: 'element-proc' });
+    });
     // a cutscene's return throw: the scene flies it and the pitcher catches
     bus.on('cine:returnThrow', () => this.flyBallToPitcher(14));
 
@@ -212,6 +222,15 @@ export class MatchScene {
     // strikeout after a hit or a steal was stamping the PREVIOUS play's bases
     // over the live ones — runners vanished, steals silently undone.
     this.match.bus.on('play', () => { this.originalBases = [...this.match.state.bases]; });
+    // element re-rolls each new inning (fixed identity, fresh strength/direction)
+    this.elementInning = 1;
+    this.applyElementRoll();
+    this.match.bus.on('halfEnd', () => {
+      if (this.match.state.inning !== this.elementInning) {
+        this.elementInning = this.match.state.inning;
+        this.applyElementRoll();
+      }
+    });
     this.special.value = 0;
     this.specialArmed = false;
     this.bus.emit('vo', 'playball');
@@ -220,6 +239,54 @@ export class MatchScene {
   }
 
   // ---------- helpers ----------
+  applyElementRoll() {
+    const roll = this.elements.rollInning(this.match.state.inning);
+    const w = this.elements.windAccel();
+    this.ball.wind = w;
+    this.ball.restitutionScale = this.elements.bounceScale();
+    this.buildSteamSprites();
+    this.bus.emit('element:roll', roll);
+    this.bus.emit('vo', `element-${roll.id}`); // no-ops until VO assets exist
+  }
+
+  /** Steam-vent visuals: one soft reused sprite per rolled cloud (never per-frame allocs). */
+  buildSteamSprites() {
+    this.steamSprites ??= [];
+    for (const s of this.steamSprites) s.visible = false;
+    if (this.elements.id !== 'steam-vents') return;
+    if (!this._steamTex) {
+      // soft round puff: radial gradient baked once — a bare SpriteMaterial is a hard-edged card
+      const cv = document.createElement('canvas');
+      cv.width = cv.height = 128;
+      const g = cv.getContext('2d').createRadialGradient(64, 64, 8, 64, 64, 62);
+      g.addColorStop(0, 'rgba(255,255,255,0.9)');
+      g.addColorStop(0.55, 'rgba(235,240,244,0.45)');
+      g.addColorStop(1, 'rgba(235,240,244,0)');
+      const ctx = cv.getContext('2d');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, 128, 128);
+      this._steamTex = new THREE.CanvasTexture(cv);
+    }
+    const clouds = this.elements.steamClouds();
+    while (this.steamSprites.length < clouds.length) {
+      const mat = new THREE.SpriteMaterial({ map: this._steamTex, color: 0xdfe6ea, transparent: true, opacity: 0.34, depthWrite: false });
+      const sp = new THREE.Sprite(mat);
+      this.engine.scene.add(sp);
+      this.steamSprites.push(sp);
+    }
+    clouds.forEach((c, i) => {
+      const sp = this.steamSprites[i];
+      sp.position.set(c.x, 2.2, c.z);
+      sp.scale.set(c.r * 2.2, c.r * 1.4, 1);
+      sp.visible = true;
+    });
+  }
+
+  /** Element-aware throw speed — use instead of raw tuning at throw sites. */
+  throwSpeed() {
+    return this.tuning.throwing.throwSpeedMs * this.elements.throwZipScale();
+  }
+
   kickingIsPlayer() {
     return this.match.kickingSide() === this.playerSide;
   }
@@ -597,7 +664,15 @@ export class MatchScene {
     this.kickHrEligible = false;
     const isPlayerKick = this.kickingIsPlayer();
     // AI passes its intended errMs directly; the human's comes from release timing
-    const errMs = aimSpec.errMs !== undefined ? aimSpec.errMs : (tapTime - this.pitchArrival) * 1000;
+    const rawErrMs = aimSpec.errMs !== undefined ? aimSpec.errMs : (tapTime - this.pitchArrival) * 1000;
+    // city element timing effects: el-train rumble wobbles contact, dj-drop pays on the beat
+    const elMods = this.elements.kickMods(this.elapsed);
+    const errMs = rawErrMs + elMods.wobbleMs;
+    // CPU kickers play their city: bias the kick downwind (home-advantage-by-skill)
+    const elWind = this.elements.windAccel();
+    if (aimSpec.errMs !== undefined && (elWind.x !== 0 || elWind.z !== 0)) {
+      aimSpec.windBiasDeg = Math.max(-14, Math.min(14, elWind.x * 4));
+    }
 
     // Player kick: lining the kicker up under the ball matters as much as timing.
     // Fold the lateral miss into an effective error (1m off ≈ 175ms) and let the
@@ -615,7 +690,9 @@ export class MatchScene {
     this.hud.hidePowerMeter();
     // Fire pitch narrows the human's window: dividing the error shrinks the sweet
     // zone and drops the power marker off faster (matches the meter-feed scaling).
-    const power01 = isPlayerKick ? powerFromError(errMs / this.kickWindowScale(), this.tuning) : null;
+    const power01 = isPlayerKick
+      ? Math.min(1, powerFromError(errMs / this.kickWindowScale(), this.tuning) + elMods.beatBonus01)
+      : null;
 
     if (effErr > this.tuning.kick.okWindowMs * 1.6) {
       this.strike('WHIFF!');
@@ -643,6 +720,9 @@ export class MatchScene {
       { ...aimSpec, ...(aimDeg != null ? { aimDeg } : {}), powerMult, ...(power01 != null ? { power01 } : {}) },
       this.tuning,
     );
+    // city air: heat carries it, harbor humidity kills it (applies to flight AND
+    // the landing prediction below, so fielders and foul calls stay consistent)
+    launch.speed *= this.elements.carryScale();
     this.judged = judged;
     this.launchSpec = launch;
 
@@ -715,6 +795,7 @@ export class MatchScene {
     this.phase = 'LIVE';
     this.liveStart = this.elapsed;
     this.hrFired = false;
+    this.grdFired = false;
     this.ballCamUntil = this.elapsed + 1.3; // trail the ball before cutting to the infield
     this.camTarget = CAM.live;
     // broadcast CUT: 0.4s low hero cam at the moment of contact, then the
@@ -846,7 +927,7 @@ export class MatchScene {
     const r = this.makeRunner(occ, char, baseIdx);
     r.forced = false;
     r.stealing = true;
-    r.sim.progressM = LEAD_M;
+    r.sim.progressM = LEAD_M + this.elements.stealHeadStartM(); // night hustle: hot jump
     this.stealing = r;
     this.runners.push(r);
     char.animator.play('run');
@@ -1340,7 +1421,7 @@ export class MatchScene {
   }
 
   /** Fly the ball from wherever it is to the pitcher, who catches it clean. */
-  flyBallToPitcher(speed = this.tuning.throwing.throwSpeedMs) {
+  flyBallToPitcher(speed = this.throwSpeed()) {
     const pitcher = this.fieldingChars().find((c) => c.spot?.id === 'P');
     if (!pitcher) return;
     const flight = this.ball.throwTo(pitcher.group.position.clone().setY(1.15), speed);
@@ -1425,10 +1506,13 @@ export class MatchScene {
   }
 
   fielderSpeed(char, role) {
-    if (this.playerControlled && role === 'chase') return this.tuning.fielding.dragSpeedMs;
+    // city element drag: heat-wave fatigue builds by inning; steam clouds slow anyone inside
+    const el = this.elements.fielderSpeedScale(this.match.state.inning)
+      * (this.elements.inSteam(char.group.position.x, char.group.position.z) ? 0.75 : 1);
+    if (this.playerControlled && role === 'chase') return this.tuning.fielding.dragSpeedMs * el;
     const speed = char.data?.stats?.speed ?? 5;
     const glove = char.data?.stats?.glove ?? 5;
-    return 5.5 + speed * 0.2 + (role === 'chase' ? glove * 0.12 : 0);
+    return (5.5 + speed * 0.2 + (role === 'chase' ? glove * 0.12 : 0)) * el;
   }
 
   /** Where a fielder should run to cut the ball off (lead a moving ball). */
@@ -1884,7 +1968,7 @@ export class MatchScene {
     duel.throwInfo = {
       toEnd,
       t0: this.elapsed,
-      totalS: 0.5 + holder.group.position.distanceTo(basePt) / this.tuning.throwing.throwSpeedMs,
+      totalS: 0.5 + holder.group.position.distanceTo(basePt) / this.throwSpeed(),
     };
     this.throwBall(holder, { base });
   }
@@ -2143,7 +2227,7 @@ export class MatchScene {
       }
       const { p } = this.runnerWorldPos(lead);
       this.faceTo(fielder, p);
-      const flight = this.ball.throwTo(p.clone().setY(0.9), this.tuning.throwing.throwSpeedMs);
+      const flight = this.ball.throwTo(p.clone().setY(0.9), this.throwSpeed());
       this.after(flight, () => {
         fielder.hasBall = false;
         this.throwing = false;
@@ -2192,11 +2276,12 @@ export class MatchScene {
       const rate = this.kickingIsPlayer() ? this.input.tapRate(500, performance.now()) : victim.aiRate;
       const runnerSpeedMs = this.kickingIsPlayer() ? humanRunSpeed(rate, this.tuning) : mashSpeed(rate, this.tuning);
       res = resolveBaseThrow(
-        { throwDistM: fielder.group.position.distanceTo(basePt), runnerRemainingM: remaining, runnerSpeedMs },
+        // a motorcade-slowed throw races like a longer one — scale the distance
+        { throwDistM: fielder.group.position.distanceTo(basePt) / this.elements.throwZipScale(), runnerRemainingM: remaining, runnerSpeedMs },
         this.tuning,
       );
     }
-    const flight = this.ball.throwTo(basePt.clone().setY(0.9), this.tuning.throwing.throwSpeedMs);
+    const flight = this.ball.throwTo(basePt.clone().setY(0.9), this.throwSpeed());
     this.after(flight, () => {
       fielder.hasBall = false;
       this.throwing = false;
@@ -2580,6 +2665,47 @@ export class MatchScene {
     this.after(1.2, tryNext);
   }
 
+  /** Extra Bounce payoff: a bounced ball hopped the wall — dead ball, everyone
+   *  advances exactly two bases from the pitch (the standard ground rule). */
+  groundRuleDouble() {
+    if (this.playFinalized) return;
+    this.playFinalized = true;
+    this.phase = 'RESOLVE';
+    this.hud.setRunnerAlerts([]);
+    this.goOffer = null;
+    this.hud.hideGo();
+    if (this.duel) { this.duel = null; this.hud.hideDuel(); this.hud.setLetterbox(false); }
+    this.releasePickleFreeze();
+    this.restoreSpeed();
+    for (const c of this.fieldingChars()) {
+      const n = c.animator.name;
+      if (!c.hasBall && (n === 'run' || n === 'strafeL' || n === 'strafeR')) c.animator.play('idle');
+    }
+    this.field.crowdEnergy = 1;
+    this.hud.clearStamps();
+    this.hud.call('GROUND RULE DOUBLE!', 'crowned');
+    this.bus.emit('sfx', 'crowd-cheer');
+    // applyPlay advances every pre-pitch runner +2 (dest past 3rd scores) — any
+    // run a runner already crossed for mid-play is covered by that math, so the
+    // live-play tally must be discarded, not added on top.
+    this.pendingRuns = 0;
+    this.match.applyPlay({ type: 'double' });
+    this.refreshHud();
+    if (this.match.state.phase === 'GAME_END') {
+      const fireOver = () => {
+        if (this.cinematicLock) return this.after(0.3, fireOver);
+        this.bus.emit('matchOver', { winner: this.match.winner(), score: this.match.state.score });
+      };
+      this.after(0.6, fireOver);
+      return;
+    }
+    const tryNext = () => {
+      if (this.cinematicLock) return this.after(0.3, tryNext);
+      this.nextAtBat();
+    };
+    this.after(1.4, tryNext);
+  }
+
   // ---------- frame update ----------
   update(dt, rawDt) {
     this.elapsed += rawDt;
@@ -2589,6 +2715,22 @@ export class MatchScene {
       this.hud.goalPop('GO!');
       this.bus.emit('sfx', 'juke');
     }
+    // city element procs (el-train pass / motorcade sweep): flash the HUD, rattle the camera
+    const procEv = this.elements.update(dt);
+    if (procEv) {
+      this.bus.emit('element:proc', { id: this.elements.id, label: this.elements.def.label, active: procEv.proc === 'start' });
+      if (procEv.proc === 'start') this.engine.shake(this.elements.id === 'el-train' ? 0.35 : 0.15);
+    }
+    if (this.elements.procActive && this.elements.id === 'el-train') this.engine.shake(0.12);
+
+    // steam clouds breathe (reused sprites, opacity only)
+    if (this.steamSprites?.length && this.elements.id === 'steam-vents') {
+      for (let i = 0; i < this.steamSprites.length; i++) {
+        const sp = this.steamSprites[i];
+        if (sp.visible) sp.material.opacity = 0.28 + Math.sin(this.elapsed * 0.7 + i * 2.1) * 0.08;
+      }
+    }
+
     this.ball.update(dt);
     this.field.updateCrowd(this.elapsed);
     this.field.crowdEnergy = Math.max(0, this.field.crowdEnergy - rawDt * 0.25);
@@ -2726,6 +2868,11 @@ export class MatchScene {
       // back) AND be a crown super-kick — ordinary perfect contact stays in the park
       if (!this.hrFired && this.kickHrEligible && dist >= this.fenceM - 0.3 && this.ball.pos.y > this.fenceTopY * 0.8 && this.ball.bounces === 0) {
         this.homer();
+      }
+      // extra-bounce payoff: a BOUNCED ball that hops the wall = ground rule double
+      if (!this.grdFired && !this.hrFired && this.ball.exitedOverFence && this.ball.bounces > 0) {
+        this.grdFired = true;
+        this.groundRuleDouble();
       }
     }
 

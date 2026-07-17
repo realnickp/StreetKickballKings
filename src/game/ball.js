@@ -28,6 +28,9 @@ export class Ball {
     this.bounces = 0;
     this.fenceR = 9999;     // outfield fence radius (matchScene sets it)
     this.fenceTopY = 9999;  // a ball must clear this height to leave the park
+    this.wind = { x: 0, z: 0 };      // element wind accel, m/s² (matchScene sets it)
+    this.restitutionScale = 1;       // element bounce liveliness (extra-bounce > 1)
+    this.exitedOverFence = false;    // set when the ball leaves the park above the wall
   }
 
   /** Define the outfield wall: balls below topY at the radius bounce back in. */
@@ -75,6 +78,7 @@ export class Ball {
     this.mode = 'flying';
     this.bounces = 0;
     this.onGround = false;
+    this.exitedOverFence = false;
   }
 
   /** Throw the ball along a flat-ish arc toward a target point. */
@@ -112,12 +116,15 @@ export class Ball {
     if (this.mode !== 'flying') return;
 
     this.vel.y -= G * dt;
+    this.vel.x += this.wind.x * dt;
+    this.vel.z += this.wind.z * dt;
     this.mesh.position.addScaledVector(this.vel, dt);
     this.mesh.rotation.x -= this.vel.length() * dt * 0.8;
 
     // outfield fence: a ball below the wall height bounces back into the park
     if (this.fenceR < 900) {
       const d = Math.hypot(this.mesh.position.x, this.mesh.position.z);
+      if (d >= this.fenceR && this.mesh.position.y > this.fenceTopY) this.exitedOverFence = true;
       if (d >= this.fenceR && this.mesh.position.y <= this.fenceTopY) {
         const nx = this.mesh.position.x / d;
         const nz = this.mesh.position.z / d;
@@ -136,7 +143,8 @@ export class Ball {
     if (this.mesh.position.y <= BALL_R) {
       this.mesh.position.y = BALL_R;
       if (Math.abs(this.vel.y) > 1.2) {
-        this.vel.y = -this.vel.y * RESTITUTION;
+        // 0.9 cap: a >1 coefficient would gain energy every hop and never settle
+        this.vel.y = -this.vel.y * Math.min(0.9, RESTITUTION * this.restitutionScale);
         this.vel.x *= 0.85;
         this.vel.z *= 0.85;
         this.bounces += 1;

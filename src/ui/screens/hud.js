@@ -255,6 +255,27 @@ export class Hud {
     }));
   }
 
+  /** City element chip: label + intensity pips (+ wind arrow on wind fields).
+   *  Screen mapping: up = toward the outfield (−z), right = +x, so the arrow
+   *  rotation is 90° − windDirDeg (element dir is "blows toward", 0 = +z). */
+  setElement({ id, label, intensity, windDirDeg }) {
+    if (!this.elChip) {
+      this.elChip = document.createElement('div');
+      this.elChip.className = 'element-chip';
+      this.el.appendChild(this.elChip);
+    }
+    const n = Math.max(1, Math.round(intensity * 3));
+    const pips = '●'.repeat(n) + '○'.repeat(3 - n);
+    const wind = (id === 'the-hawk' || id === 'sea-breeze')
+      ? `<span class="element-wind" style="transform:rotate(${90 - windDirDeg}deg)">➤</span>` : '';
+    this.elChip.innerHTML = `${wind}<span class="element-label">${label}</span><span class="element-pips">${pips}</span>`;
+  }
+
+  /** Pulse the chip while a proc (train pass / motorcade) is live. */
+  flashElement(active) {
+    this.elChip?.classList.toggle('element-live', active);
+  }
+
   /**
    * CALLOUT: an animated coach bubble with an arrow, popped at the exact
    * moment + place a control matters. Anchor to a DOM element (el) or a
