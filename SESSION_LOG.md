@@ -1197,3 +1197,38 @@ Street Calls (dive call + fence rob); bake via tools/retarget.html when
 that pillar starts.
 
 PARKED: backdrop regen (dev said hold off again); credits now 3379.
+
+### 24b) FEATURE — CREW HEAT (Street Rules pillar 2 of 4)
+
+Per-team momentum meter (src/game/crewHeat.js, headless, 5 unit tests).
+Big plays build heat (PERFECT 15, double 12, triple 18, HR 30, steal 10,
+pickle escape 25); defensive plays build AND steal (strikeout 12/6,
+catch 8/4, caught-stealing 15/10, double play 25/15, ROBBED catch 22/15,
+peg 15/8, pickle win 25/15). Bar hits 100 → ON FIRE for the next 4 plays
+(either side's — a play is a play): kicks ×1.12 powerMult, fielders
+×1.12, throws ×1.15, ball literally ignites on contact (igniteBall
+reuse), "<TEAM> ON FIRE!" call + crowd. Fire expires → afterglow 25.
+Passive decay 0.35/s pauses while burning.
+
+ONE-CHANNEL RULE (double-count guard): rules-engine outcomes feed from
+match.bus 'play' labels (double/triple/homerun/steal offense;
+strikeout/caught-stealing/foulout defense); scene-only moments feed at
+call sites (PERFECT at the cine:perfect block — side-aware, NOT gated on
+kickingIsPlayer like the special meter; catch/ROBBED once inside
+catchOut — robbed = kickHrEligible || landDist > fence*0.7 — so the
+finalizePlay 'catch' label is deliberately NOT mapped; peg at runnerOut;
+pickle outcomes at endDuel top). A duel-ending peg fires peg+pickleWin —
+intended stacking, a rundown peg IS huge. Heat modifiers MULTIPLY into
+the same accessors elements touch (fielderSpeed, throwSpeed, powerMult)
+so element×heat compose.
+
+HUD: 3px gradient heat bar under each score chip (teal→gold→orange),
+on-fire = burn pulse. setHeat throttled 4Hz from the frame loop, forced
+on events.
+
+VERIFIED in-engine (dev server, __skk): HR +30, DP +25/steal 15,
+ignition through the real noteHeat path (callout+sfx fired), mods
+kick/field 1.12 + throwSpeed 22→25.3, DOM bars 100%/55% on the correct
+chips (home=SNAP right), 4-play burn-down → afterglow 25. 158/158
+vitest exit 0. Same caveat as 24a: occluded-window rAF throttle blocked
+real-time play; phone playtest on prod is the gate.
