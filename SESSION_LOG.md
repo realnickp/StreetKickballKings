@@ -1263,3 +1263,18 @@ staged situations): dive window+button+catch (playOuts 1, RESOLVE), rob
 window+climb (peakY 2.7)+homer-taken-back (hrFired false)+heat robbed
 (+22/steal 15)+climb-down, stealHot true during wind-up / false at
 launch. 158/158 vitest exit 0. Anim LOOK on device = dev phone verdict.
+
+### 24d) FEATURE — CONTACT CAM on every kick (dev ask)
+
+Dev: "you can never actually see the ball being kicked. not on either
+side… I need it more pronounced." Root cause: the impact cam only fired
+on PERFECT/HR-eligible kicks — every ordinary contact played out in the
+wide broadcast framing (kicker small, contact unreadable; worse from the
+defense view). Fix: cine:contact on EVERY other contact (fouls included,
+both sides) → contactKick() in the director: the proven perfect-kick
+side-on hero shot (5m side, low, away from the pull), 0.5s @ timeScale
+0.3 (fouls 0.38s), 0.18s snap-back hold, then release to the flight cam.
+No fire/bloom — perfectKick stays the big brother. noSkip so run-mash
+taps can't strike the beat. Verified by real-flow pump: GOOD kick →
+timeScale 0.3 + cameraLock mid-beat, kicker fills the frame at the
+plate; play flows to LIVE normally after.
