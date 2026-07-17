@@ -24,6 +24,7 @@ export class CinematicDirector {
     this.danceIdx = Math.floor(Math.random() * 4);
 
     bus.on('cine:perfect', (p) => this.perfectKick(p));
+    bus.on('cine:contact', (p) => this.contactKick(p));
     bus.on('cine:crowned', (p) => this.crowned(p));
     bus.on('cine:robbed', (p) => this.robbed(p));
     bus.on('cine:pegged', (p) => this.pegged(p));
@@ -89,6 +90,47 @@ export class CinematicDirector {
   }
 
   // ---------- moments ----------
+  /**
+   * CONTACT CAM (dev ask: "you can never actually see the ball being kicked"):
+   * EVERY contact — both sides, fouls included — gets a quick beat of the
+   * perfect-kick hero shot: hard cut to the low side-on angle, brief slow-mo
+   * as the boot goes through the ball, snap back, release to the flight cam.
+   * No fire, no bloom surge — the perfect kick stays the big brother.
+   * Same shot rules as perfectKick: side-on perpendicular to flight (never in
+   * front), ~5m side distance for the portrait FOV, shot from the side away
+   * from the pull so the body never blocks the ball.
+   */
+  contactKick({ kicker, ball, quality }) {
+    const p = kicker.group.position.clone();
+    const side = (ball.vel?.x ?? 0) >= 0 ? -1 : 1;
+    const look = new THREE.Vector3(p.x, 0.9, p.z - 1.0);
+    const foul = quality === 'FOUL';
+    this.engine.shake(0.2);
+
+    this.run([
+      {
+        dur: foul ? 0.38 : 0.5, // a shank gets a quicker beat than a clean strike
+        onStart: () => {
+          this.engine.timeScale = 0.3;
+          if (this.engine.fx.gradePass) this.engine.fx.gradePass.uniforms.caAmount.value = 0.0012;
+        },
+        onUpdate: (k) => this.cam(
+          new THREE.Vector3(p.x + side * (5.0 - k * 0.5), 0.72 + k * 0.08, p.z - 0.8),
+          look,
+        ),
+      },
+      {
+        dur: 0.18, // time snaps back, shot holds a blink — the ball streaks off
+        onStart: () => {
+          this.engine.timeScale = 1;
+          if (this.engine.fx.gradePass) this.engine.fx.gradePass.uniforms.caAmount.value = 0.0004;
+        },
+        onUpdate: () => {},
+      },
+      // noSkip: mash-to-run taps during the beat must not strike the moment
+    ], { lockCamera: true, noSkip: true });
+  }
+
   perfectKick({ kicker, ball }) {
     // IMPACT CAM (dev ask): hard-cut to a low hero shot of the boot blasting
     // the ball while time crawls — foot-through-ball + fire igniting held in

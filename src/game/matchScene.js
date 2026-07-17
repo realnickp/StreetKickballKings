@@ -806,6 +806,7 @@ export class MatchScene {
       // weak mistimed contact dribbles foul
       this.ball.launch(launch.speed * 0.5, 70, (Math.random() - 0.5) * 90);
       this.bus.emit('sfx', 'kick');
+      this.bus.emit('cine:contact', { kicker: this.kicker, ball: this.ball, quality: 'FOUL' });
       this.phase = 'FOUL';
       this.ballCamUntil = this.elapsed + 1.0;
       this.after(0.9, () => this.foulBall('FOUL!'));
@@ -837,6 +838,10 @@ export class MatchScene {
       this.bus.emit('cine:perfect', { kicker: this.kicker, ball: this.ball });
       if (judged.quality === 'PERFECT' && this.kickingIsPlayer()) this.special.add('PERFECT');
       if (judged.quality === 'PERFECT') this.noteHeat(this.match.kickingSide(), 'PERFECT');
+    } else {
+      // every OTHER contact gets the quick boot-on-ball beat — the dev could
+      // never actually SEE the kick from the broadcast framing, either side
+      this.bus.emit('cine:contact', { kicker: this.kicker, ball: this.ball, quality: judged.quality });
     }
 
     this.landDist = Math.hypot(lp.x, lp.z);
