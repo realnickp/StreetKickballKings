@@ -3,6 +3,13 @@
 // Pure DOM; matchScene drives it.
 import { PITCH_FAMILY_MENU } from '../../game/pitchPattern.js';
 
+// keyed on the cityElements registry ids — Pillar B's intro card reuses this
+export const ELEMENT_ICONS = {
+  'el-train': '🚇', 'steam-vents': '💨', 'dj-drop': '🎧', 'night-hustle': '🌙',
+  'sea-breeze': '🌊', 'motorcade': '🚨', 'extra-bounce': '⚡', 'the-hawk': '🦅',
+  'heat-wave': '🔥', 'heavy-air': '🌫️',
+};
+
 export class Hud {
   constructor(root, { homeAbbr, awayAbbr }) {
     this.el = document.createElement('div');
@@ -287,10 +294,35 @@ export class Hud {
       const f = this.heatFills[side];
       if (!f) return;
       f.style.width = `${Math.round(Math.max(0, Math.min(1, v)) * 100)}%`;
-      f.parentElement.classList.toggle('on-fire', !!fire);
+      const bar = f.parentElement;
+      if (!bar.querySelector('.heat-flame')) {
+        const fl = document.createElement('span');
+        fl.className = 'heat-flame';
+        fl.textContent = '🔥';
+        bar.appendChild(fl);
+      }
+      bar.classList.toggle('on-fire', !!fire);
+      bar.classList.toggle('hot', v >= 0.7 && !fire);
     };
     set('home', home, fireHome);
     set('away', away, fireAway);
+  }
+
+  /** Float a "+N" above a crew's heat bar so gains are FELT, not inferred. */
+  heatFloat(side, delta) {
+    if (!(delta > 0)) return;
+    const fill = this.el.querySelector(side === 'home' ? '[data-heat-home]' : '[data-heat-away]');
+    const bar = fill?.parentElement;
+    if (!bar) return;
+    const r = bar.getBoundingClientRect();
+    const H = this.el.getBoundingClientRect();
+    const f = document.createElement('span');
+    f.className = 'heat-float';
+    f.textContent = `+${Math.round(delta)}`;
+    f.style.left = `${r.left - H.left + r.width / 2}px`;
+    f.style.top = `${r.bottom - H.top + 2}px`;
+    this.el.appendChild(f);
+    setTimeout(() => f.remove(), 1000);
   }
 
   /** City element chip: label + intensity pips (+ wind arrow on wind fields).
@@ -306,7 +338,10 @@ export class Hud {
     const pips = '●'.repeat(n) + '○'.repeat(3 - n);
     const wind = (id === 'the-hawk' || id === 'sea-breeze')
       ? `<span class="element-wind" style="transform:rotate(${90 - windDirDeg}deg)">➤</span>` : '';
-    this.elChip.innerHTML = `${wind}<span class="element-label">${label}</span><span class="element-pips">${pips}</span>`;
+    const icon = ELEMENT_ICONS[id] ?? '⭐';
+    this.elChip.innerHTML =
+      `<span class="element-top"><span class="element-icon">${icon}</span>${wind}<span class="element-label">${label}</span></span>` +
+      `<span class="element-pips">${pips}</span>`;
   }
 
   /** Pulse the chip while a proc (train pass / motorcade) is live. */
@@ -319,6 +354,23 @@ export class Hud {
    * moment + place a control matters. Anchor to a DOM element (el) or a
    * viewport point (x,y). Deduped by key while alive; auto-hides after ttl.
    */
+  /** Shrink a popup's font until its box fits on screen (phones: long banner
+   *  strings overflowed both edges). Keeps the one-line slam look intact. */
+  _fitText(el, { minPx = 14, pad = 16 } = {}) {
+    const max = this.el.getBoundingClientRect().width - pad;
+    if (max <= 0) return; // HUD not laid out yet — nothing sane to fit against
+    // scrollWidth, not rect width: a max-width cap freezes the BOX at the limit
+    // while the nowrap text keeps painting past it — the rect never reports the
+    // overflow (this exact miss shipped "SNAPPERS ON FI—" on a 430px window)
+    const wide = () => Math.max(el.getBoundingClientRect().width, el.scrollWidth) > max;
+    let size = parseFloat(getComputedStyle(el).fontSize);
+    let guard = 24;
+    while (guard-- > 0 && size > minPx && wide()) {
+      size *= 0.92;
+      el.style.fontSize = `${size}px`;
+    }
+  }
+
   callout(text, { el = null, x = null, y = null, dir = 'down', ttl = 1800, key = text } = {}) {
     this._callouts ??= new Map();
     if (this._callouts.has(key)) return;
@@ -340,9 +392,16 @@ export class Hud {
     b.style.left = `${cx}px`;
     b.style.top = `${cy}px`;
     this.el.appendChild(b);
-    // clamp by MEASURED width so long tags never bleed off the phone
-    const half = b.getBoundingClientRect().width / 2 + 8;
+    // clamp by MEASURED width so long tags never bleed off the phone; a tag
+    // wider than the screen shrinks first (clamping can't save those).
+    // Measure with the entrance animation suppressed — splatIn starts at
+    // scale(.25), so a mid-flight measurement lies about the real width.
+    b.style.animation = 'none';
+    this._fitText(b, { minPx: 12, pad: 20 });
+    // ×1.15: splatIn overshoots to scale(1.14) mid-slam — keep even the wobble on-screen
+    const half = (b.getBoundingClientRect().width / 2) * 1.15 + 6;
     b.style.left = `${Math.max(half, Math.min(H.width - half, cx))}px`;
+    b.style.animation = ''; // release: splatIn plays from the clamped spot
     this._callouts.set(key, b);
     setTimeout(() => { b.classList.add('bye'); }, Math.max(200, ttl - 260));
     setTimeout(() => { b.remove(); this._callouts.delete(key); }, ttl);
@@ -363,6 +422,7 @@ export class Hud {
     s.textContent = text;
     g.appendChild(s);
     this.el.appendChild(g);
+    this._fitText(s, { minPx: 18 });
     setTimeout(() => g.remove(), 1100);
   }
 
@@ -494,6 +554,8 @@ export class Hud {
     if (!b) { b = this.cineBanner = document.createElement('div'); b.className = 'cine-banner'; this.el.appendChild(b); }
     b.textContent = text;
     b.className = `cine-banner ${kind || ''}`;
+    b.style.fontSize = ''; // re-measure from the CSS clamp for each new string
+    this._fitText(b);
     void b.offsetWidth; // reflow so the slide-up transition re-fires each time
     b.classList.add('show');
     clearTimeout(this._bannerT);

@@ -18,15 +18,15 @@ export const FIELD_LAYOUT = {
 // low light, so intensities stay high across the board. Keyed by fields.json `sky`.
 const SKY_PRESETS = {
   'day':           { hemiSky: '#cfe0ff', hemiGround: '#7a756a', sun: '#fff4e0', sunI: 2.1, hemiI: 1.35, amb: '#5b6172', ambI: 0.25 },
-  'sodium-night':  { hemiSky: '#6a6486', hemiGround: '#4a4030', sun: '#ffd6a0', sunI: 2.3, hemiI: 1.3,  amb: '#5a4f46', ambI: 0.4 },
-  'dusk':          { hemiSky: '#b3a3c6', hemiGround: '#5a4f55', sun: '#ffcaa0', sunI: 2.1, hemiI: 1.35, amb: '#5a5260', ambI: 0.35 },
-  'neon-night':    { hemiSky: '#7e7cba', hemiGround: '#403a58', sun: '#d2c4ff', sunI: 2.1, hemiI: 1.3,  amb: '#4a4670', ambI: 0.4 },
+  'sodium-night':  { hemiSky: '#6a6486', hemiGround: '#4a4030', sun: '#ffd6a0', sunI: 2.3, hemiI: 1.5,  amb: '#5a4f46', ambI: 0.46 },
+  'dusk':          { hemiSky: '#b3a3c6', hemiGround: '#5a4f55', sun: '#ffcaa0', sunI: 2.1, hemiI: 1.45, amb: '#5a5260', ambI: 0.35 },
+  'neon-night':    { hemiSky: '#7e7cba', hemiGround: '#403a58', sun: '#d2c4ff', sunI: 2.1, hemiI: 1.5,  amb: '#4a4670', ambI: 0.46 },
   'golden-hour':   { hemiSky: '#d2e2f2', hemiGround: '#6a5642', sun: '#ffd9a0', sunI: 2.2, hemiI: 1.35, amb: '#6a5a4a', ambI: 0.3 },
-  'shaft-light':   { hemiSky: '#b4c0cc', hemiGround: '#52525a', sun: '#fff2dd', sunI: 2.1, hemiI: 1.25, amb: '#56565e', ambI: 0.3 },
+  'shaft-light':   { hemiSky: '#b4c0cc', hemiGround: '#52525a', sun: '#fff2dd', sunI: 2.1, hemiI: 1.45, amb: '#56565e', ambI: 0.36 },
   'overcast':      { hemiSky: '#cdd2d8', hemiGround: '#6a665e', sun: '#e8e4dc', sunI: 1.8, hemiI: 1.7,  amb: '#888c92', ambI: 0.35 },
   'winter':        { hemiSky: '#dde8f5', hemiGround: '#aab4c0', sun: '#f4f8ff', sunI: 2.1, hemiI: 1.7,  amb: '#9aa6b4', ambI: 0.35 },
   'desert-sunset': { hemiSky: '#d6b6c6', hemiGround: '#7a5642', sun: '#ffc88e', sunI: 2.2, hemiI: 1.35, amb: '#6a544a', ambI: 0.3 },
-  'stadium-night': { hemiSky: '#868eba', hemiGround: '#42424f', sun: '#ffffff', sunI: 2.5, hemiI: 1.35, amb: '#4a4a5a', ambI: 0.4 },
+  'stadium-night': { hemiSky: '#868eba', hemiGround: '#42424f', sun: '#ffffff', sunI: 2.5, hemiI: 1.5,  amb: '#4a4a5a', ambI: 0.46 },
 };
 
 export function buildField(fieldData, scene) {
