@@ -130,3 +130,37 @@ describe('AI offense (player defense)', () => {
     expect(d.aiOffense(0.4, { ballFlying: false, flightFrac: 0, throwToEnd: 0, holderDist: 2, pegIncoming: true })).toBe(null);
   });
 });
+
+describe('REVERSE (v5 dev override: your runner, your juke)', () => {
+  it('flips the drift direction and keeps flipping on repeat taps', () => {
+    const d = mk();
+    expect(d.reverse(1)).toBe(true);
+    expect(d.manualDir).toBe(-1);
+    d.reverse(-1);
+    expect(d.manualDir).toBe(1);
+  });
+  it('cancels a committed GO (the juke)', () => {
+    const d = mk();
+    d.committed = true;
+    d.commitDir = 1;
+    d.reverse(1);
+    expect(d.committed).toBe(false);
+    expect(d.manualDir).toBe(-1);
+  });
+  it('is refused while stumble-recovering', () => {
+    const d = mk();
+    d.recoverT = 0.5;
+    expect(d.reverse(1)).toBe(false);
+  });
+  it('AI runner may juke when the chaser is on top of him', () => {
+    const d = mk({ mine: false, difficulty: 'King', rng: () => 0 });
+    const act = d.aiOffense(0.016, { ballFlying: false, flightFrac: 0, throwToEnd: 0, holderDist: 1.6, pegIncoming: false });
+    expect(act).toEqual({ type: 'reverse' });
+  });
+  it('AI juke respects its cooldown', () => {
+    const d = mk({ mine: false, difficulty: 'King', rng: () => 0 });
+    d.aiOffense(0.016, { ballFlying: false, flightFrac: 0, throwToEnd: 0, holderDist: 1.6, pegIncoming: false });
+    const again = d.aiOffense(0.016, { ballFlying: false, flightFrac: 0, throwToEnd: 0, holderDist: 1.6, pegIncoming: false });
+    expect(again).toBeNull();
+  });
+});
