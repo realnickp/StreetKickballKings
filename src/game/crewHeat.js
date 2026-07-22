@@ -18,6 +18,7 @@ export const HEAT_EVENTS = {
   'caught-stealing': { gain: 15, steal: 10 },
   doubleplay:        { gain: 25, steal: 15 },
   robbed:            { gain: 22, steal: 15 },
+  rumbleKick:        { gain: 10 }, // el-train: clean contact THROUGH the rumble
   peg:               { gain: 15, steal: 8 },
   pickleWin:         { gain: 25, steal: 15 },
 };

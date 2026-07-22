@@ -176,9 +176,20 @@ export class MatchScene {
     bus.on('cine:done', () => { this.cinematicLock = false; });
     // city element chip: inning rolls set it, procs pulse it
     bus.on('element:roll', (r) => this.hud.setElement(r));
+    // Play It: a proc is a telegraphed WINDOW with a decision — tell the player
+    // exactly what to do while it's open, loud and center screen.
+    const PROC_CALLS = {
+      'el-train': "TRAIN'S ROLLING — HOLD YOUR NERVE!",
+      'motorcade': "SIRENS — RUN ON 'EM!",
+      'sea-breeze': 'GUST — KICK NOW!',
+      'the-hawk': 'THE HAWK IS HOWLING!',
+    };
     bus.on('element:proc', (p) => {
       this.hud.flashElement(p.active);
-      if (p.active) this.hud.callout(p.label + '!', { x: window.innerWidth / 2, y: 90, dir: 'down', ttl: 1600, key: 'element-proc' });
+      if (p.active) {
+        const line = PROC_CALLS[this.elements.id] ?? `${p.label}!`;
+        this.hud.call(line, 'homer');
+      }
     });
     // a cutscene's return throw: the scene flies it and the pitcher catches
     bus.on('cine:returnThrow', () => this.flyBallToPitcher(14));
@@ -477,6 +488,15 @@ export class MatchScene {
     this.strikes = 0;
     this.fouls = 0;
     this.runners = [];
+    this._hopCalled = false;
+    // heat-wave moment (Play It): tell the offense ONCE per half that the
+    // defense is gassed — then the pulsing steal chips carry the message
+    const halfKey = `${this.match.state.inning}-${this.match.state.half}`;
+    if (this.elements.id === 'heat-wave' && this.match.state.inning >= 3
+        && this.kickingIsPlayer() && this._gassedHalf !== halfKey) {
+      this._gassedHalf = halfKey;
+      this.after(1.2, () => this.hud.call("THEY'RE GASSED — TAKE OFF!", 'homer'));
+    }
     this.throwing = false;
     this.ballControlled = false;
     this.playFinalized = false;
@@ -795,6 +815,12 @@ export class MatchScene {
     if (isPlayerKick && elMods.beatBonus01 > 0 && judged.quality !== 'FOUL') {
       this.hud.call('ON THE BEAT! +POWER', 'homer');
     }
+    // el-train moment: clean contact THROUGH the rumble = juiced + heat
+    if (this.elements.id === 'el-train' && this.elements.procActive && judged.quality === 'PERFECT') {
+      powerMult *= 1.15;
+      this.noteHeat(this.match.kickingSide(), 'rumbleKick');
+      this.hud.call('THROUGH THE RUMBLE!', 'crowned');
+    }
     // A meatball kicked by the CPU gets PUNISHED (Play Fair): the kick hunts the
     // widest fielder gap and carries a bump that can genuinely leave the yard.
     if (!isPlayerKick && this.pitch?.bad && judged.quality !== 'FOUL') {
@@ -1083,9 +1109,11 @@ export class MatchScene {
     r.forced = false;
     r.stealing = true;
     // jump quality: called during the wind-up = HOT jump; after the ball's away = standard
-    const hotMult = this.stealHot ? 1.6 : 1;
+    // hot jump: wind-up timing, OR the element says so (sirens up / gassed legs)
+    const hot = this.stealHot || this.elementStealWindow();
+    const hotMult = hot ? 1.6 : 1;
     r.sim.progressM = LEAD_M * hotMult + this.elements.stealHeadStartM(); // + night hustle
-    if (this.stealHot && this.kickingIsPlayer()) this.hud.call('HOT JUMP! MONSTER LEAD', 'crowned');
+    if (hot && this.kickingIsPlayer()) this.hud.call('HOT JUMP! MONSTER LEAD', 'crowned');
     this.stealing = r;
     this.runners.push(r);
     char.animator.play('run');
@@ -1298,10 +1326,23 @@ export class MatchScene {
     return defT - runnerT;
   }
 
+  /** Element-driven steal windows (Play It): sirens live, or gassed legs late. */
+  elementStealWindow() {
+    if (this.elements.id === 'motorcade') return this.elements.procActive;
+    if (this.elements.id === 'heat-wave') return this.match.state.inning >= 3;
+    return false;
+  }
+
   /** Show/hide the GO button for the lead held runner (called every frame). */
   updateGoOffer() {
     const r = this.goCandidate();
-    const margin = r ? this.goMargin(r) : -Infinity;
+    let margin = r ? this.goMargin(r) : -Infinity;
+    // steam stretch (Play It): the fielder's screened — the stretch is THERE
+    if (r && this.elements.id === 'steam-vents'
+        && this.elements.inSteam(this.ball.pos.x, this.ball.pos.z)) {
+      margin += 0.5;
+      this.hud.callout('STRETCH IT!', { x: window.innerWidth / 2, y: window.innerHeight * 0.4, ttl: 900, key: 'stretch' });
+    }
     // tutorialGo: the extra-bases drill always offers the button (the lesson)
     if (margin > -0.9 || (this.tutorialGo && r)) {
       // risky = a genuine race — taking it invites the throw-down / rundown
@@ -2871,7 +2912,10 @@ export class MatchScene {
         && this.ball.mode === 'flying' && this.ball.bounces === 0
         && this.landDist > this.fenceM - 2) {
       const d = Math.hypot(this.ball.pos.x, this.ball.pos.z);
-      if (d > this.fenceM - 6.5 && d < this.fenceM) {
+      // heavy-air showcase (Play It): dead bombs hang at the track — the rob
+      // window opens EARLY on this field
+      const robBand = this.elements.id === 'heavy-air' ? 9.5 : 6.5;
+      if (d > this.fenceM - robBand && d < this.fenceM) {
         if (defIsPlayer) {
           this.call = { kind: 'rob' };
           this.hud.showCall('ROB IT!');
@@ -3233,6 +3277,12 @@ export class MatchScene {
       if (!this.hrFired && !this.robbing && this.kickHrEligible && dist >= this.fenceM - 0.3 && this.ball.pos.y > this.fenceTopY * 0.8 && this.ball.bounces === 0) {
         this.homer();
       }
+      // extra-bounce moment (Play It): call the monster hop AS it happens
+      if (!this._hopCalled && this.elements.id === 'extra-bounce'
+          && this.ball.bounces > 0 && this.elements.bounceScale() > 1.35) {
+        this._hopCalled = true;
+        this.hud.callout('BIG HOP!', { x: window.innerWidth / 2, y: window.innerHeight * 0.35, ttl: 900, key: 'hop' });
+      }
       // extra-bounce payoff: a BOUNCED ball that hops the wall = ground rule double
       if (!this.grdFired && !this.hrFired && this.ball.exitedOverFence && this.ball.bounces > 0) {
         this.grdFired = true;
@@ -3270,7 +3320,7 @@ export class MatchScene {
       }
     }
     this.hud.setStealChips(chips);
-    this.hud.setStealHot(chips.length > 0 && this.stealHot);
+    this.hud.setStealHot(chips.length > 0 && (this.stealHot || this.elementStealWindow()));
 
     // BROADCAST CAMERA: matchScene picks the shot for the situation; the
     // CameraDirector spring-damps toward it (and handles the contact CUT).
