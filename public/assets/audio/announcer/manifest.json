@@ -56,6 +56,60 @@
     "gameover": [
       "gameover_0.mp3",
       "gameover_1.mp3"
+    ],
+    "element-el-train": [
+      "element-el-train_0.mp3",
+      "element-el-train_1.mp3"
+    ],
+    "element-steam-vents": [
+      "element-steam-vents_0.mp3",
+      "element-steam-vents_1.mp3"
+    ],
+    "element-dj-drop": [
+      "element-dj-drop_0.mp3",
+      "element-dj-drop_1.mp3"
+    ],
+    "element-night-hustle": [
+      "element-night-hustle_0.mp3",
+      "element-night-hustle_1.mp3"
+    ],
+    "element-sea-breeze": [
+      "element-sea-breeze_0.mp3",
+      "element-sea-breeze_1.mp3"
+    ],
+    "element-motorcade": [
+      "element-motorcade_0.mp3",
+      "element-motorcade_1.mp3"
+    ],
+    "element-extra-bounce": [
+      "element-extra-bounce_0.mp3",
+      "element-extra-bounce_1.mp3"
+    ],
+    "element-the-hawk": [
+      "element-the-hawk_0.mp3",
+      "element-the-hawk_1.mp3"
+    ],
+    "element-heat-wave": [
+      "element-heat-wave_0.mp3",
+      "element-heat-wave_1.mp3"
+    ],
+    "element-heavy-air": [
+      "element-heavy-air_0.mp3",
+      "element-heavy-air_1.mp3"
+    ],
+    "fire": [
+      "fire_0.mp3",
+      "fire_1.mp3"
+    ],
+    "ball": [
+      "ball_0.mp3",
+      "ball_1.mp3",
+      "ball_2.mp3"
+    ],
+    "walk": [
+      "walk_0.mp3",
+      "walk_1.mp3",
+      "walk_2.mp3"
     ]
   },
   "crowned": {

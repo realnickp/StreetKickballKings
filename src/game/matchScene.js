@@ -265,7 +265,16 @@ export class MatchScene {
     this.ball.restitutionScale = this.elements.bounceScale();
     this.buildSteamSprites();
     this.bus.emit('element:roll', roll);
-    this.bus.emit('vo', `element-${roll.id}`); // no-ops until VO assets exist
+    this.bus.emit('vo', `element-${roll.id}`);
+    // teach → telegraph → payoff: FIRST roll gets the full-screen teach card;
+    // every later inning roll gets a compact "what changed" callout
+    if (!this._elementIntroShown) {
+      this._elementIntroShown = true;
+      this.hud.elementIntro(roll);
+    } else {
+      const pips = '●'.repeat(Math.max(1, Math.round(roll.intensity * 3)));
+      this.hud.callout(`${roll.label.toUpperCase()} ${pips}`, { x: window.innerWidth / 2, y: 120, ttl: 2000, key: 'element-reroll' });
+    }
   }
 
   /** Steam-vent visuals: a small cluster of ADDITIVE glow puffs per cloud.
@@ -782,6 +791,10 @@ export class MatchScene {
     this.kickHrEligible = isPlayerKick && (
       isHrEligible({ power01, alignErrM }, this.tuning) || this.kickWasSpecial
     );
+    // payoff readout: kicked ON the DJ's beat (dj-drop pays in power)
+    if (isPlayerKick && elMods.beatBonus01 > 0 && judged.quality !== 'FOUL') {
+      this.hud.call('ON THE BEAT! +POWER', 'homer');
+    }
     // A meatball kicked by the CPU gets PUNISHED (Play Fair): the kick hunts the
     // widest fielder gap and carries a bump that can genuinely leave the yard.
     if (!isPlayerKick && this.pitch?.bad && judged.quality !== 'FOUL') {
@@ -1072,7 +1085,7 @@ export class MatchScene {
     // jump quality: called during the wind-up = HOT jump; after the ball's away = standard
     const hotMult = this.stealHot ? 1.6 : 1;
     r.sim.progressM = LEAD_M * hotMult + this.elements.stealHeadStartM(); // + night hustle
-    if (this.stealHot && this.kickingIsPlayer()) this.hud.call('HOT JUMP!', 'crowned');
+    if (this.stealHot && this.kickingIsPlayer()) this.hud.call('HOT JUMP! MONSTER LEAD', 'crowned');
     this.stealing = r;
     this.runners.push(r);
     char.animator.play('run');
@@ -1655,7 +1668,7 @@ export class MatchScene {
     // city element drag: heat-wave fatigue builds by inning; steam clouds slow anyone inside.
     // A crew ON FIRE runs hotter — the scales compose.
     const el = this.elements.fielderSpeedScale(this.match.state.inning)
-      * (this.elements.inSteam(char.group.position.x, char.group.position.z) ? 0.75 : 1)
+      * (this.elements.inSteam(char.group.position.x, char.group.position.z) ? 0.6 : 1)
       * this.heat.fielderSpeedScale(this.match.fieldingSide());
     if (this.playerControlled && role === 'chase') return this.tuning.fielding.dragSpeedMs * el;
     const speed = char.data?.stats?.speed ?? 5;
@@ -2722,6 +2735,10 @@ export class MatchScene {
     // (live catches count HERE, once — the finalizePlay 'catch' label is skipped)
     const heatRobbed = this.kickHrEligible || this.landDist > this.fenceM * 0.7;
     this.noteHeat(this.match.fieldingSide(), heatRobbed ? 'robbed' : 'catch');
+    // payoff readout: heavy air visibly ate a would-be bomb
+    if (heatRobbed && this.elements.carryScale() < 0.95) {
+      this.after(0.5, () => this.hud.call('HEAVY AIR ATE THAT BOMB', 'robbed'));
+    }
 
     // RESOLVE stops updateDefense, so any fielder caught mid-chase would keep
     // looping his run clip in place through the whole race — stand them down
@@ -2815,6 +2832,10 @@ export class MatchScene {
     this.pendingRuns = 0;
     this.bus.emit('cine:crowned', { kicker: this.kicker, team: this.teams[this.match.kickingSide()].id });
     if (this.kickingIsPlayer()) this.special.add('homerun');
+    // payoff readout: the element carried it out
+    if (this.elements.carryScale() > 1.05) {
+      this.after(2.2, () => this.hud.callout('THE HEAT CARRIED IT!', { x: window.innerWidth / 2, y: window.innerHeight * 0.3, ttl: 1600, key: 'carry' }));
+    }
     this.finalizePlayHR(runs);
   }
 
@@ -3005,7 +3026,7 @@ export class MatchScene {
     }
     this.field.crowdEnergy = 1;
     this.hud.clearStamps();
-    this.hud.call('GROUND RULE DOUBLE!', 'crowned');
+    this.hud.call('GROUND RULE DOUBLE — OVER ON A HOP!', 'crowned');
     this.bus.emit('sfx', 'crowd-cheer');
     // applyPlay advances every pre-pitch runner +2 (dest past 3rd scores) — any
     // run a runner already crossed for mid-play is covered by that math, so the
