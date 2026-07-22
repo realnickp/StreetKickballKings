@@ -8,7 +8,7 @@ const BASE = process.env.SKK_URL ?? 'http://localhost:5173';
 let failures = 0;
 const ok = (cond, label) => { console.log(`${cond ? 'PASS' : 'FAIL'}  ${label}`); if (!cond) failures += 1; };
 
-const inside = (r, w, h) => r && r.left >= -0.5 && r.top >= -0.5 && r.right <= w + 0.5 && r.bottom <= h + 0.5;
+const inside = (r, w, h) => r && !r.clipped && r.left >= -0.5 && r.top >= -0.5 && r.right <= w + 0.5 && r.bottom <= h + 0.5;
 
 const browser = await webkit.launch();
 for (const vp of [{ w: 390, h: 844 }, { w: 360, h: 780 }]) {
@@ -20,12 +20,20 @@ for (const vp of [{ w: 390, h: 844 }, { w: 360, h: 780 }]) {
     const el = document.querySelector(s);
     if (!el) return null;
     const r = el.getBoundingClientRect();
-    return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+    // clipped: nowrap text painting past a max-width-capped box — the rect
+    // alone can't see it (the box stops at the cap, the glyphs don't).
+    // scrollWidth vs clientWidth: BOTH are untransformed layout-space; the
+    // rect is post-transform (scale/rotate) and must not be mixed in.
+    return { left: r.left, top: r.top, right: r.right, bottom: r.bottom,
+             clipped: el.scrollWidth > el.clientWidth + 1 };
   }, sel);
 
-  // longest banner string the game produces today
+  // longest banner strings the game produces today
   await page.evaluate(() => window.__skk.hud.banner('GROUND RULE DOUBLE!', 'homer'));
   ok(inside(await rect('.cine-banner'), vp.w, vp.h), `${vp.w}w banner long-string`);
+  // the string that shipped clipped ("SNAPPERS ON FI—") before the scrollWidth fix
+  await page.evaluate(() => window.__skk.hud.banner('SNAPPERS ON FIRE!', 'homer'));
+  ok(inside(await rect('.cine-banner'), vp.w, vp.h), `${vp.w}w banner on-fire string`);
 
   // callouts anchored at the extreme screen edges
   for (const x of [4, vp.w - 4]) {

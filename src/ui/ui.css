@@ -1217,7 +1217,8 @@ body { display: flex; align-items: center; justify-content: center; }
 
 /* city element chip: what's live on this block, and how hard it's blowing */
 .element-chip {
-  position: absolute; top: 64px; right: 8px;
+  /* below the score bug — at 64px it sat ON the right chip's heat bar */
+  position: absolute; top: calc(88px + env(safe-area-inset-top)); right: 8px;
   display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
   padding: 7px 12px; border-radius: 12px;
   background: rgba(0,0,0,.62); border: 1.5px solid rgba(255,215,94,.5);

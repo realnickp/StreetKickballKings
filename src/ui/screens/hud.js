@@ -359,9 +359,13 @@ export class Hud {
   _fitText(el, { minPx = 14, pad = 16 } = {}) {
     const max = this.el.getBoundingClientRect().width - pad;
     if (max <= 0) return; // HUD not laid out yet — nothing sane to fit against
+    // scrollWidth, not rect width: a max-width cap freezes the BOX at the limit
+    // while the nowrap text keeps painting past it — the rect never reports the
+    // overflow (this exact miss shipped "SNAPPERS ON FI—" on a 430px window)
+    const wide = () => Math.max(el.getBoundingClientRect().width, el.scrollWidth) > max;
     let size = parseFloat(getComputedStyle(el).fontSize);
     let guard = 24;
-    while (guard-- > 0 && size > minPx && el.getBoundingClientRect().width > max) {
+    while (guard-- > 0 && size > minPx && wide()) {
       size *= 0.92;
       el.style.fontSize = `${size}px`;
     }
