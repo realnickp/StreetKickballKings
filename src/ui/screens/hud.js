@@ -354,10 +354,15 @@ export class Hud {
     b.style.top = `${cy}px`;
     this.el.appendChild(b);
     // clamp by MEASURED width so long tags never bleed off the phone; a tag
-    // wider than the screen shrinks first (clamping can't save those)
+    // wider than the screen shrinks first (clamping can't save those).
+    // Measure with the entrance animation suppressed — splatIn starts at
+    // scale(.25), so a mid-flight measurement lies about the real width.
+    b.style.animation = 'none';
     this._fitText(b, { minPx: 12, pad: 20 });
-    const half = b.getBoundingClientRect().width / 2 + 8;
+    // ×1.15: splatIn overshoots to scale(1.14) mid-slam — keep even the wobble on-screen
+    const half = (b.getBoundingClientRect().width / 2) * 1.15 + 6;
     b.style.left = `${Math.max(half, Math.min(H.width - half, cx))}px`;
+    b.style.animation = ''; // release: splatIn plays from the clamped spot
     this._callouts.set(key, b);
     setTimeout(() => { b.classList.add('bye'); }, Math.max(200, ttl - 260));
     setTimeout(() => { b.remove(); this._callouts.delete(key); }, ttl);
