@@ -109,13 +109,53 @@ smart — that stays the home advantage).
   `unlocks.crews` (team ids) and `equip` (`{ ball, kickStyle }`), plus
   `map.progress`. Quick Match stays in the menu for casual play.
 
+## Pillar E — PLAY FAIR (dev goal additions, 2026-07-21)
+
+Added via /goal after spec approval ("I want all of this done"):
+
+- **Pickle direction control**: in a pickle, the player changes their
+  runner's direction THEMSELVES. This is an explicit dev override of the
+  no-steering minigame rule for pickles only: a big, always-visible
+  REVERSE control while your runner is in a rundown — every tap instantly
+  flips the runner's direction; defense AI reacts with a human-ish delay,
+  so well-timed jukes beat the throw. CPU runners keep the existing
+  auto-juke logic.
+- **Bad pitches are BAD PITCHES**: the pitch-trace quality now matters.
+  A badly-traced pitch: (1) counts as a BALL — HUD shows the ball count,
+  and **4 balls = a walk** (batter to first, forces advance) via a new
+  MatchEngine ball/walk path; (2) if the kicker kicks it anyway, the kick
+  is rewarded — aim biased away from the fielder coverage and a slight
+  home-run odds bump. Announcer sells it ("that one got away from him —
+  ball two!"). Trace quality thresholds tuned by real play so honest
+  pitching stays safe and sloppy tracing walks people.
+
+## Pillar F — LEVEL THE BLOCK (backdrops, off hold permanently)
+
+The dev has flagged this repeatedly: backdrops are too zoomed-in,
+background people look huge next to the players, the field reads as
+elevated. Requirements, non-negotiable this time:
+
+- **Horizon level with the playing field** — eye-level camera in every
+  generated scene; no downhill/elevated look from either gameplay camera.
+- **Proportional**: background people/objects must read as DISTANT and
+  smaller than the 3D players at all times.
+- Regenerate per-field backdrops (Higgsfield, one cohesive animated scene
+  per the standing backdrop style rule — never flat comic or stitched
+  layers), pilot one field, horizon-gate every still BEFORE animating,
+  and verify scale/level from BOTH gameplay cameras before rollout.
+  Credits available: ~3379 at last count.
+
 ## Build order (one PR each)
 
 1. **A — See It**: brightness + containment + HUD upsize. Pure
    presentation; instant felt change on the phone.
-2. **B — Know It**: intro cards, payoff banners, retune, VO generation.
-3. **C — Play It**: proc windows + per-field moments.
-4. **D — Win It**: map, trophies, equip, crown.
+2. **E — Play Fair**: pickle reversal, balls/walks, bad-pitch punishment.
+   Core-loop fairness lands before any theater.
+3. **F — Level the Block**: backdrop regen (generation jobs start early
+   and run concurrently with the code pillars; rollout is its own PR).
+4. **B — Know It**: intro cards, payoff banners, retune, VO generation.
+5. **C — Play It**: proc windows + per-field moments.
+6. **D — Win It**: map, trophies, equip, crown.
 
 Built strictly in order. Per the standing deploy workflow, each merge to
 main waits for the dev's explicit "push" authorization; his phone verdict
