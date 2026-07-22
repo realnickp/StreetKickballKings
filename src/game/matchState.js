@@ -21,9 +21,37 @@ export class MatchEngine {
       outs: 0,
       score: { home: 0, away: 0 },
       bases: [null, null, null], // 1st, 2nd, 3rd — hold kicker indices
+      balls: 0, // sloppy-pitch count for the CURRENT at-bat; 4 = walk
       phase: 'PRE_PITCH', // PRE_PITCH | GAME_END
       kickerIdx: { home: 0, away: 0 },
     };
+  }
+
+  /** A pitch too sloppy to be legal. 4 of them walk the kicker. */
+  noteBall() {
+    if (this.state.phase === 'GAME_END') return null;
+    this.state.balls += 1;
+    this.bus.emit('ball', { balls: this.state.balls, side: this.kickingSide() });
+    if (this.state.balls >= 4) { this.applyWalk(); return 'walk'; }
+    return 'ball';
+  }
+
+  /** Free pass: kicker to 1st, forced runners push, forced-home scores. */
+  applyWalk() {
+    const side = this.kickingSide();
+    const bases = this.state.bases;
+    let carry = this.currentKickerIdx();
+    for (let i = 0; i < 3 && carry !== null; i++) {
+      const tmp = bases[i];
+      bases[i] = carry;
+      carry = tmp; // displaced runner keeps pushing only while the chain is forced
+    }
+    if (carry !== null) {
+      this.state.score[side] += 1;
+      this.bus.emit('score', { side, runs: 1, score: { ...this.state.score } });
+    }
+    this.advanceKicker(side);
+    this.bus.emit('play', { type: 'walk', side });
   }
 
   kickingSide() {
@@ -111,6 +139,7 @@ export class MatchEngine {
 
   advanceKicker(side) {
     this.state.kickerIdx[side] = (this.state.kickerIdx[side] + 1) % 8;
+    this.state.balls = 0; // fresh count for the next kicker
   }
 
   endHalf() {
@@ -131,6 +160,7 @@ export class MatchEngine {
     }
     this.state.outs = 0;
     this.state.bases = [null, null, null];
+    this.state.balls = 0;
   }
 
   winner() {
