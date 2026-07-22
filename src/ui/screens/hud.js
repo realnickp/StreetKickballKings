@@ -292,6 +292,11 @@ export class Hud {
     this.callBtn.classList.remove('show');
   }
 
+  /** DJ Drop: the ring flashes gold ON the beat — kick when it burns. */
+  setBeat(on) {
+    this.ringEl.classList.toggle('on-beat', !!on);
+  }
+
   /** Ball count pips (B ●●●). 0 hides the row — no count, no clutter. */
   setCount(balls) {
     const row = this.el.querySelector('[data-ballct]');
