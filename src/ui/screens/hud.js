@@ -287,10 +287,35 @@ export class Hud {
       const f = this.heatFills[side];
       if (!f) return;
       f.style.width = `${Math.round(Math.max(0, Math.min(1, v)) * 100)}%`;
-      f.parentElement.classList.toggle('on-fire', !!fire);
+      const bar = f.parentElement;
+      if (!bar.querySelector('.heat-flame')) {
+        const fl = document.createElement('span');
+        fl.className = 'heat-flame';
+        fl.textContent = '🔥';
+        bar.appendChild(fl);
+      }
+      bar.classList.toggle('on-fire', !!fire);
+      bar.classList.toggle('hot', v >= 0.7 && !fire);
     };
     set('home', home, fireHome);
     set('away', away, fireAway);
+  }
+
+  /** Float a "+N" above a crew's heat bar so gains are FELT, not inferred. */
+  heatFloat(side, delta) {
+    if (!(delta > 0)) return;
+    const fill = this.el.querySelector(side === 'home' ? '[data-heat-home]' : '[data-heat-away]');
+    const bar = fill?.parentElement;
+    if (!bar) return;
+    const r = bar.getBoundingClientRect();
+    const H = this.el.getBoundingClientRect();
+    const f = document.createElement('span');
+    f.className = 'heat-float';
+    f.textContent = `+${Math.round(delta)}`;
+    f.style.left = `${r.left - H.left + r.width / 2}px`;
+    f.style.top = `${r.bottom - H.top + 2}px`;
+    this.el.appendChild(f);
+    setTimeout(() => f.remove(), 1000);
   }
 
   /** City element chip: label + intensity pips (+ wind arrow on wind fields).

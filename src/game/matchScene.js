@@ -309,7 +309,12 @@ export class MatchScene {
 
   /** Feed a heat event and stage the ON FIRE moment when a bar fills. */
   noteHeat(side, evt) {
-    if (this.heat.add(side, evt) === 'ignited') {
+    const before = this.heat.value[side];
+    const res = this.heat.add(side, evt);
+    // exact applied delta (respects the 100 clamp + pegged-while-burning)
+    const gained = this.heat.value[side] - before;
+    if (gained > 0) this.hud.heatFloat(side, gained);
+    if (res === 'ignited') {
       this.hud.call(this.teamShort(side).toUpperCase() + ' ON FIRE!', 'crowned');
       this.bus.emit('sfx', 'crowd-cheer');
       this.bus.emit('vo', 'fire'); // no-ops until a VO line exists
