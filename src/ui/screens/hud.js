@@ -7,7 +7,7 @@ import { PITCH_FAMILY_MENU } from '../../game/pitchPattern.js';
 export const ELEMENT_ICONS = {
   'el-train': '🚇', 'steam-vents': '💨', 'dj-drop': '🎧', 'night-hustle': '🌙',
   'sea-breeze': '🌊', 'motorcade': '🚨', 'extra-bounce': '⚡', 'the-hawk': '🦅',
-  'heat-wave': '🔥', 'heavy-air': '🌫️',
+  'heat-wave': '🔥', 'heavy-air': '☁️',
 };
 
 export class Hud {

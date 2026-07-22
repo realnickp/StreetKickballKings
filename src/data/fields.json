@@ -320,8 +320,8 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.3,
-        "ry": 0.68
+        "oy": 0.4,
+        "ry": 0.58
       },
       "backdropGeo": {
         "r": 47,
@@ -334,8 +334,8 @@
       "backdropBack": {
         "tex": "assets/textures/backdrop-the-crown-back.jpg",
         "video": "assets/video/backdrop-the-crown-back.mp4",
-        "oy": 0.3,
-        "ry": 0.68
+        "oy": 0.4,
+        "ry": 0.58
       }
     }
   ]
