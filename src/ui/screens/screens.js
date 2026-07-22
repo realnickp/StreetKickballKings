@@ -82,7 +82,7 @@ export function MenuScreen(ctx) {
           <img class="menu-logo" src="assets/branding/logo-square.png" alt="" />
           <button class="big-play bounce-beat">PLAY 1v1<small>VS AI · THE BLACKTOP</small></button>
           <div class="mode-cards">
-            <div class="mode-card locked">CITY LEAGUE<small>SEASON — COMING SOON</small></div>
+            <div class="mode-card map-card">RUN THE MAP<small>${save.get('kingOfStreets', false) ? '👑 KING OF THE STREETS' : `${save.get('unlocks.crews', []).length}/9 CROWNS CLAIMED`}</small></div>
             <div class="mode-card locked">DERBY<small>COMING SOON</small></div>
           </div>
           <div class="daily-card">DAILY CHALLENGE<small>Hit 3 home runs — 0/3</small><b>+500 XP</b></div>
@@ -98,6 +98,11 @@ export function MenuScreen(ctx) {
         if (!save.get('tutorialPlayed', false)) return ctx.startTutorial?.();
         ctx.router.go('teamSelect');
       });
+      s.querySelector('.map-card').addEventListener('pointerdown', () => {
+        ctx.bus.emit('sfx', 'scratch');
+        if (!save.get('tutorialPlayed', false)) return ctx.startTutorial?.();
+        ctx.router.go('map');
+      });
       s.querySelector('.menu-tutorial').addEventListener('pointerdown', () => {
         ctx.bus.emit('sfx', 'scratch');
         ctx.startTutorial?.();
@@ -107,6 +112,67 @@ export function MenuScreen(ctx) {
         ctx.router.go('tutorial');
       });
       s.querySelector('.menu-settings').addEventListener('pointerdown', (e) => { e.stopPropagation(); ctx.showSettings?.(); });
+    },
+  };
+}
+
+// ---------- RUN THE MAP (Win It): beat every crew ON THEIR turf, take their
+//            ball. 9 crowns = KING OF THE STREETS. No currency — winning IS
+//            the economy. ----------
+export function MapScreen(ctx) {
+  return {
+    mount(root) {
+      const save = ctx.save;
+      const { claimTrophy, hasTrophy, equipCrew, equippedCrew } = ctx.trophies;
+      void claimTrophy;
+      const teams = ctx.data.teams.filter((t) => t.status === 'ready');
+      const fieldByTeam = Object.fromEntries(ctx.data.fields.map((f) => [f.homeTeam, f]));
+      const count = save.get('unlocks.crews', []).length;
+      const king = save.get('kingOfStreets', false);
+      const equipped = equippedCrew(save);
+
+      const s = el(`
+        <div class="screen map-screen">
+          <h1 class="screen-title gold">${king ? '👑 KING OF THE STREETS' : 'RUN THE MAP'}</h1>
+          <p class="map-sub">${king ? 'Every block answers to you.' : `Beat every crew ON THEIR turf. ${count}/9 crowns claimed.`}</p>
+          <div class="map-grid"></div>
+          <p class="map-equip-label">TROPHY CASE — TAP A BEATEN CREW TO REP THEIR BALL</p>
+          <div class="map-equip"></div>
+          <div class="coin-buttons"><button data-act="menu">MAIN MENU</button></div>
+        </div>`);
+      const grid = s.querySelector('.map-grid');
+      for (const t of teams) {
+        const won = hasTrophy(save, t.id);
+        const field = fieldByTeam[t.id];
+        const node = el(`
+          <div class="map-node ${won ? 'won' : ''}">
+            <img src="assets/logos/${t.id}.png" alt="" onerror="this.remove()" />
+            <b>${t.name.split(' ').pop().toUpperCase()}</b>
+            <small>${field?.label ?? ''}</small>
+            <span class="map-mark">${won ? '👑' : 'CHALLENGE'}</span>
+          </div>`);
+        if (!won) {
+          node.addEventListener('pointerdown', () => {
+            ctx.bus.emit('sfx', 'scratch');
+            ctx.mapTarget = t.id; // TeamSelect locks the HOME side to this crew
+            ctx.router.go('teamSelect');
+          });
+        }
+        grid.appendChild(node);
+      }
+      const equipRow = s.querySelector('.map-equip');
+      const beaten = teams.filter((t) => hasTrophy(save, t.id));
+      const classic = el(`<div class="equip-chip ${equipped === null ? 'on' : ''}" style="--c:#c83232">CLASSIC</div>`);
+      classic.addEventListener('pointerdown', () => { equipCrew(save, null); ctx.router.go('map'); });
+      equipRow.appendChild(classic);
+      for (const t of beaten) {
+        const chip = el(`<div class="equip-chip ${equipped === t.id ? 'on' : ''}" style="--c:${t.colors.primary}">${t.name.split(' ').pop().toUpperCase()}</div>`);
+        chip.addEventListener('pointerdown', () => { ctx.bus.emit('sfx', 'scratch'); equipCrew(save, t.id); ctx.router.go('map'); });
+        equipRow.appendChild(chip);
+      }
+      if (!beaten.length) equipRow.appendChild(el('<small class="map-none">No trophies yet — go take one.</small>'));
+      s.querySelector('[data-act="menu"]').addEventListener('pointerdown', () => ctx.router.go('menu'));
+      root.appendChild(s);
     },
   };
 }
@@ -121,6 +187,12 @@ export function TeamSelectScreen(ctx) {
       const ready = ctx.data.teams.filter(t => t.status === 'ready');
       const sel = { away: 0, home: Math.min(1, ready.length - 1) }; // away = you, home = their field
       const kit = { away: 'dark', home: 'light' }; // default contrasting kits (one dark, one light)
+      // Run the Map challenge: the HOME side is the crew you called out — locked.
+      const mapLock = ctx.mapTarget && ready.some((t) => t.id === ctx.mapTarget);
+      if (mapLock) {
+        sel.home = ready.findIndex((t) => t.id === ctx.mapTarget);
+        if (sel.away === sel.home) sel.away = (sel.home + 1) % ready.length;
+      }
 
       const sideHtml = (side, tag) => `
         <div class="m-side ${side}">
@@ -186,6 +258,7 @@ export function TeamSelectScreen(ctx) {
       };
 
       const cycle = (side, dir) => {
+        if (mapLock && side === 'home') return; // you called THEM out — no swapping rivals
         const other = side === 'away' ? 'home' : 'away';
         let i = sel[side];
         do { i = (i + dir + ready.length) % ready.length; } while (i === sel[other]); // can't pick the same team
@@ -309,12 +382,21 @@ export function PostGameScreen(ctx) {
       save.set('streak', won ? save.get('streak', 0) + 1 : 0);
       ctx.bus.emit('vo', 'gameover');
 
+      // Win It: beat the HOME crew on THEIR field = take their trophy
+      let trophy = null;
+      if (won && playerSide === 'away' && ctx.trophies) {
+        const res = ctx.trophies.claimTrophy(save, teams.home.id);
+        if (res.claimed) trophy = res;
+      }
+
       const s = el(`
         <div class="screen postgame-screen">
-          <h1 class="screen-title ${won ? 'gold' : ''}">${won ? '👑 CROWNED!' : 'TOOK THE L'}</h1>
+          <h1 class="screen-title ${won ? 'gold' : ''}">${trophy?.king ? '👑 KING OF THE STREETS!' : won ? '👑 CROWNED!' : 'TOOK THE L'}</h1>
           <div class="mixtape">
             <div class="tape-row"><span data-side-a></span><b>${Number(score.away)}</b></div>
             <div class="tape-row"><span data-side-b></span><b>${Number(score.home)}</b></div>
+            ${trophy ? `<div class="tape-row gold-row"><span>🏆 TROPHY CLAIMED</span><b>${teams.home.name.split(' ').pop().toUpperCase()}'S BALL</b></div>` : ''}
+            ${trophy ? `<div class="tape-row dim"><span>CROWNS CLAIMED</span><b>${trophy.count}/9</b></div>` : ''}
             <div class="tape-row dim"><span>RESPECT EARNED</span><b>+${xpGain} XP</b></div>
             <div class="tape-row dim"><span>CROWNS</span><b>+${crownGain} 🪙</b></div>
             <div class="tape-row dim"><span>WIN STREAK</span><b>${save.get('streak', 0)} 🔥</b></div>

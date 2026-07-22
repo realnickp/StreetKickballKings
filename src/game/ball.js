@@ -21,8 +21,13 @@ export class Ball {
     // the time anyway; a soft contact blob can replace this later if grounding is wanted.
     this.mesh.castShadow = false;
     scene.add(this.mesh);
+    this._baseColor = '#c83232';
     this.vel = new THREE.Vector3();
     this.active = false;
+    this.setStyle = (color) => {
+      // trophy ball (Win It): rep a beaten crew's colors; null = classic red
+      this.mesh.material.color.set(color ?? this._baseColor);
+    };
     this.mode = 'idle'; // idle | rolling-pitch | flying
     this.onGround = false;
     this.bounces = 0;

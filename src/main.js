@@ -15,7 +15,8 @@ import { ReplayPlayer } from './cinematics/replay.js';
 import { playVideo } from './cinematics/videoPlayer.js';
 import { showLogoClash } from './cinematics/introSequence.js';
 import { ScreenRouter } from './ui/router.js';
-import { TitleScreen, MenuScreen, TeamSelectScreen, CoinTossScreen, PostGameScreen } from './ui/screens/screens.js';
+import { TitleScreen, MenuScreen, TeamSelectScreen, CoinTossScreen, PostGameScreen, MapScreen } from './ui/screens/screens.js';
+import * as trophies from './meta/trophies.js';
 import { TutorialScreen } from './ui/screens/tutorial.js';
 import { TutorialDirector } from './game/tutorialDirector.js';
 import fieldsData from './data/fields.json';
@@ -152,8 +153,9 @@ if (params.has('match')) {
 // ---------- the real flow ----------
 async function bootFlow() {
   const ctx = {
-    engine, input, bus, audio, save,
+    engine, input, bus, audio, save, trophies,
     data: { teams: teamsData.teams, fields: fieldsData.fields, tuning },
+    mapTarget: null, // Run the Map: crew called out (locks TeamSelect's HOME side)
     router: null,
     scene: null,
     director: null,
@@ -173,6 +175,7 @@ async function bootFlow() {
   router.register('teamSelect', TeamSelectScreen);
   router.register('coinToss', CoinTossScreen);
   router.register('postGame', PostGameScreen);
+  router.register('map', MapScreen);
   router.register('tutorial', TutorialScreen);
 
   // ---------- pause button + pause/sound overlay ----------
@@ -291,6 +294,11 @@ async function bootFlow() {
       autoStart: false,
     });
     window.__skk = ctx.scene; // dev/debug handle
+    ctx.mapTarget = null; // challenge consumed — future selects cycle freely
+    // Win It: rep a beaten crew's ball (cosmetic — no stat changes)
+    const repId = trophies.equippedCrew(save);
+    const repTeam = repId && teamsData.teams.find((x) => x.id === repId);
+    if (repTeam) ctx.scene.ball.setStyle(repTeam.colors.primary);
     // director + replay follow the CURRENT scene (rebuilt every match)
     ctx.replayPlayer = ctx.replayPlayer ?? new ReplayPlayer({ engine, hud: ctx.scene.hud, bus });
     ctx.replayPlayer.hud = ctx.scene.hud;

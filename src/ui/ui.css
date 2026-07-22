@@ -1271,6 +1271,38 @@ body { display: flex; align-items: center; justify-content: center; }
   to { box-shadow: 0 0 12px 2px rgba(255,215,94,.7); }
 }
 
+/* RUN THE MAP (Win It): the city ladder + trophy case */
+.map-screen { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 18px 12px calc(16px + env(safe-area-inset-bottom)); overflow-y: auto; }
+.map-sub { margin: 0; font-size: 13px; color: var(--muted); text-align: center; }
+.map-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; width: 100%; max-width: 420px;
+}
+.map-node {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 10px 6px 8px; border-radius: 12px;
+  background: var(--panel); border: 2px solid #2e3344;
+  cursor: pointer;
+}
+.map-node img { width: 40px; height: 40px; object-fit: contain; }
+.map-node b { font-family: var(--marker); font-size: 14px; letter-spacing: .5px; }
+.map-node small { font-size: 10px; color: var(--muted); letter-spacing: .5px; }
+.map-node .map-mark { font-family: var(--marker); font-size: 11px; color: var(--red); letter-spacing: 1px; margin-top: 2px; }
+.map-node.won { border-color: rgba(245,179,18,.6); box-shadow: 0 0 12px rgba(245,179,18,.18); cursor: default; }
+.map-node.won .map-mark { font-size: 16px; }
+.map-equip-label { margin: 4px 0 0; font-size: 10px; letter-spacing: 1.5px; color: var(--muted); }
+.map-equip { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-width: 420px; }
+.equip-chip {
+  font-family: var(--marker); font-size: 12px; letter-spacing: .5px; color: var(--ink);
+  padding: 6px 12px; border-radius: 999px; border: 2px solid var(--c, #666);
+  background: rgba(0,0,0,.35); cursor: pointer;
+  display: flex; align-items: center; gap: 6px;
+}
+.equip-chip::before { content: ''; width: 12px; height: 12px; border-radius: 50%; background: var(--c, #666); }
+.equip-chip.on { background: var(--c); color: #0b0d12; font-weight: 900; }
+.map-none { color: var(--muted); }
+.tape-row.gold-row { color: var(--gold); }
+.mode-card.map-card { border-color: rgba(245,179,18,.5); color: var(--gold); cursor: pointer; }
+
 /* element teach card: full-screen "know your block" intro (Know It pillar) */
 .element-intro {
   position: absolute; inset: 0; z-index: 40;
