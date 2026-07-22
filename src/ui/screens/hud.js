@@ -434,6 +434,27 @@ export class Hud {
     this._callouts.clear();
   }
 
+  /** Full-screen element teach card (Know It): LEARN it before first pitch. */
+  elementIntro({ id, label, blurb, tip }) {
+    const icon = ELEMENT_ICONS[id] ?? '⭐';
+    const card = document.createElement('div');
+    card.className = 'element-intro';
+    card.innerHTML =
+      `<div class="ei-box"><span class="ei-icon">${icon}</span>` +
+      `<h2>${label}</h2><p>${blurb ?? ''}</p><p class="ei-tip">${tip ?? ''}</p>` +
+      `<span class="ei-go">TAP TO PLAY</span></div>`;
+    const close = () => {
+      if (card._closed) return;
+      card._closed = true;
+      card.classList.add('bye');
+      setTimeout(() => card.remove(), 320);
+    };
+    card.addEventListener('pointerdown', (e) => { e.stopPropagation(); close(); });
+    this.el.appendChild(card);
+    this._fitText(card.querySelector('h2'), { minPx: 22 });
+    setTimeout(close, 4500);
+  }
+
   /** Big juicy center pop for scoring a tutorial goal ("GOAL ✓ 1/2"). */
   goalPop(text) {
     const g = document.createElement('div');

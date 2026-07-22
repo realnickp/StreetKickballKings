@@ -33,6 +33,20 @@ const EVENTS = {
   doubleplay: ['DOUBLE PLAY! Two for the price of one!', 'They turn TWO — what a play!', 'Around the horn — DOUBLE play, gone!'],
   tripleplay: ['TRIPLE PLAY! Are you SERIOUS?!', 'THREE outs on one play — UNREAL!'],
   gameover: ['And THAT is the BALLGAME!', 'It is OVER — what a finish, man!'],
+  // Fun Overhaul (Know It): elements, fire, balls and walks
+  'element-el-train':     ['The el is rolling tonight — hold your nerve when she rumbles!', 'Train is coming through, baby — time it through the shake!'],
+  'element-steam-vents':  ['Steam is UP in the outfield — they cannot catch what they cannot see!', 'Vents are cooking tonight — kick it into the fog!'],
+  'element-dj-drop':      ['DJ is in the booth — kick it ON the beat for that extra sauce!', 'Find the rhythm, baby — the drop pays POWER!'],
+  'element-night-hustle': ['Night hustle rules — them jumps are HOT under the neon!', 'The neon is buzzing — runners eat FREE tonight!'],
+  'element-sea-breeze':   ['That sea breeze is blowing OUT — deep balls gonna FLY!', 'Wind off the water, baby — send one to the sand!'],
+  'element-motorcade':    ['Motorcade in the area — when them sirens sweep, arms go COLD!', 'Sirens rolling through — run on em while they flinch!'],
+  'element-extra-bounce': ['Rubber ground tonight — this rock got BOUNCE!', 'Watch them hops, man — one big bounce is a FREE double!'],
+  'element-the-hawk':     ['The HAWK is out tonight, Chicago — watch that flag!', 'That wind will bend your best kick sideways — respect the Hawk!'],
+  'element-heat-wave':    ['Heat wave, baby — the ball flies and the legs DIE!', 'It is a scorcher — deep balls carry and fielders fade LATE!'],
+  'element-heavy-air':    ['Heavy air off the harbor — bombs come here to DIE!', 'Thick night at The Crown — small ball wins this one!'],
+  fire: ['THEY ARE ON FIRE! Every kick is JUICED!', 'The bar is FULL, baby — this crew is BURNING!'],
+  ball: ['That one got away from him — take your base vibes coming!', 'Ball! He did NOT want that pitch!', 'Way outside — the count is climbing!'],
+  walk: ['Ball four — take a walk, big man!', 'Four bad ones and he STROLLS on down!', 'Free bag! The arm let him DOWN!'],
 };
 const CROWNED = {
   he:  ['CROWNED! He sent that to the MOON!', 'Oh that is GONE — no-doubt BOMB off his foot!', 'GET UP, get up — SEE YA! Home run!'],

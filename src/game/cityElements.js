@@ -3,25 +3,35 @@
 
 export const ELEMENTS = {
   'el-train':     { label: 'El Train Rumble', kind: 'proc',
-    blurb: 'The el roars past — timing wobbles while it rumbles.' },
+    blurb: 'The el roars past — timing wobbles while it rumbles.',
+    tip: 'Hold your nerve: a clean kick through the rumble hits HARD.' },
   'steam-vents':  { label: 'Steam Vents', kind: 'steam',
-    blurb: 'Outfield steam screens the fielders.' },
+    blurb: 'Outfield steam screens the fielders.',
+    tip: 'Kick into the clouds — they can’t catch what they can’t see.' },
   'dj-drop':      { label: 'DJ Drop', kind: 'beat',
-    blurb: 'Kick ON the beat for bonus power.' },
+    blurb: 'The DJ’s beat pulses all night.',
+    tip: 'Kick ON the beat for bonus power.' },
   'night-hustle': { label: 'Night Hustle', kind: 'steal',
-    blurb: 'Runners get hot jumps under the neon.' },
+    blurb: 'Runners get hot jumps under the neon.',
+    tip: 'When the steal chip burns gold — SEND HIM.' },
   'sea-breeze':   { label: 'Sea Breeze', kind: 'wind',
-    blurb: 'Onshore wind carries deep kicks out.' },
+    blurb: 'Onshore wind carries deep kicks out.',
+    tip: 'Swing big — the breeze wants that ball GONE.' },
   'motorcade':    { label: 'Motorcade', kind: 'proc',
-    blurb: 'Sirens sweep past — throws lose zip.' },
+    blurb: 'Sirens sweep past — throws lose zip.',
+    tip: 'Sirens up? RUN — their arms are late.' },
   'extra-bounce': { label: 'Extra Bounce', kind: 'bounce',
-    blurb: 'Rubber ground: wild hops, bounce-out doubles.' },
+    blurb: 'Rubber ground: wild hops everywhere.',
+    tip: 'A monster hop over the wall = free double.' },
   'the-hawk':     { label: 'The Hawk', kind: 'wind',
-    blurb: 'Chicago wind bends every deep kick.' },
+    blurb: 'Chicago wind bends every deep kick.',
+    tip: 'Watch the arrow — kick WITH the Hawk, never against it.' },
   'heat-wave':    { label: 'Heat Wave', kind: 'carry',
-    blurb: 'Ball flies farther; fielders tire late.' },
+    blurb: 'Ball flies farther; fielders tire late.',
+    tip: 'Late innings they’re gassed — take the extra base.' },
   'heavy-air':    { label: 'Heavy Air', kind: 'carry',
-    blurb: 'Harbor humidity kills deep kicks at the track.' },
+    blurb: 'Harbor humidity kills deep kicks at the track.',
+    tip: 'Bombs die here. Play small ball and RUN.' },
 };
 
 // ---- engine ----------------------------------------------------------------
@@ -61,7 +71,7 @@ export class CityElements {
     this._procActive = false;
     this._procT = 0;
     this._nextProcAt = PROC.gapMinS + this.rng() * (PROC.gapMaxS - PROC.gapMinS);
-    return { id: this.id, label: this.def.label, intensity: this._intensity, windDirDeg: this.windDirDeg };
+    return { id: this.id, label: this.def.label, blurb: this.def.blurb, tip: this.def.tip, intensity: this._intensity, windDirDeg: this.windDirDeg };
   }
 
   /** Advance proc clock. Returns {proc:'start'|'end'} on transitions, else null. */
@@ -85,14 +95,16 @@ export class CityElements {
   /** Wind acceleration on a flying ball, m/s². windDirDeg = direction it blows TOWARD (0 = +z, 180 = −z/outfield). */
   windAccel() {
     if (this.def.kind !== 'wind' || this._intensity === 0) return { x: 0, z: 0 };
-    const mag = (this.id === 'the-hawk' ? 3.4 : 2.2) * this._intensity;
+    // arcade-loud retune (Know It): a full-strength Hawk visibly BENDS a kick
+    const mag = (this.id === 'the-hawk' ? 4.6 : 3.0) * this._intensity;
     const rad = (this.windDirDeg * Math.PI) / 180;
     return { x: Math.sin(rad) * mag, z: Math.cos(rad) * mag };
   }
 
   carryScale() {
-    if (this.id === 'heat-wave') return 1 + 0.08 * this._intensity;
-    if (this.id === 'heavy-air') return 1 - 0.09 * this._intensity;
+    // arcade-loud: heat visibly launches balls; heavy air visibly eats them
+    if (this.id === 'heat-wave') return 1 + 0.2 * this._intensity;
+    if (this.id === 'heavy-air') return 1 - 0.22 * this._intensity;
     return 1;
   }
 
@@ -106,11 +118,11 @@ export class CityElements {
   }
 
   throwZipScale() {
-    return this.id === 'motorcade' && this._procActive ? 0.78 : 1;
+    return this.id === 'motorcade' && this._procActive ? 0.7 : 1;
   }
 
   stealHeadStartM() {
-    return this.id === 'night-hustle' ? 1.5 * this._intensity : 0;
+    return this.id === 'night-hustle' ? 2.2 * this._intensity : 0;
   }
 
   /** Timing effects on the kick. nowS = scene clock seconds. */
@@ -118,7 +130,7 @@ export class CityElements {
     let wobbleMs = 0;
     let beatBonus01 = 0;
     if (this.id === 'el-train' && this._procActive) {
-      wobbleMs = Math.sin(nowS * 9) * 45 * this._intensity;
+      wobbleMs = Math.sin(nowS * 9) * 60 * this._intensity;
     }
     if (this.id === 'dj-drop') {
       const off = Math.abs(nowS % BEAT_S);

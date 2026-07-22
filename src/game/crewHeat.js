@@ -69,7 +69,8 @@ export class CrewHeat {
     }
   }
 
-  kickPowerMult(side)     { return this.onFire(side) ? 1.12 : 1; }
-  fielderSpeedScale(side) { return this.onFire(side) ? 1.12 : 1; }
-  throwSpeedScale(side)   { return this.onFire(side) ? 1.15 : 1; }
+  // arcade-loud (Know It): a burning crew is unmistakably juiced
+  kickPowerMult(side)     { return this.onFire(side) ? 1.25 : 1; }
+  fielderSpeedScale(side) { return this.onFire(side) ? 1.2 : 1; }
+  throwSpeedScale(side)   { return this.onFire(side) ? 1.25 : 1; }
 }

@@ -120,7 +120,7 @@ describe('CityElements engine', () => {
   it('night-hustle grants a steal head start, others none', () => {
     const nh = new CityElements({ elementId: 'night-hustle', rng: seq([1]) });
     nh.rollInning(1);
-    expect(nh.stealHeadStartM()).toBeCloseTo(1.5);
+    expect(nh.stealHeadStartM()).toBeCloseTo(2.2);
     const sb = new CityElements({ elementId: 'sea-breeze', rng: seq([1]) });
     sb.rollInning(1);
     expect(sb.stealHeadStartM()).toBe(0);
