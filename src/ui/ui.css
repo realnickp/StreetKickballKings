@@ -541,6 +541,7 @@ body { display: flex; align-items: center; justify-content: center; }
   z-index: 8;
   white-space: nowrap;
   text-align: center;
+  max-width: calc(100% - 10px);
   transition: opacity .26s ease, transform .42s cubic-bezier(.17, .84, .3, 1.25);
 }
 .cine-banner.show { opacity: 1; transform: translate(-50%, 0) scale(1); }

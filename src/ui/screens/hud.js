@@ -319,6 +319,19 @@ export class Hud {
    * moment + place a control matters. Anchor to a DOM element (el) or a
    * viewport point (x,y). Deduped by key while alive; auto-hides after ttl.
    */
+  /** Shrink a popup's font until its box fits on screen (phones: long banner
+   *  strings overflowed both edges). Keeps the one-line slam look intact. */
+  _fitText(el, { minPx = 14, pad = 16 } = {}) {
+    const max = this.el.getBoundingClientRect().width - pad;
+    if (max <= 0) return; // HUD not laid out yet — nothing sane to fit against
+    let size = parseFloat(getComputedStyle(el).fontSize);
+    let guard = 24;
+    while (guard-- > 0 && size > minPx && el.getBoundingClientRect().width > max) {
+      size *= 0.92;
+      el.style.fontSize = `${size}px`;
+    }
+  }
+
   callout(text, { el = null, x = null, y = null, dir = 'down', ttl = 1800, key = text } = {}) {
     this._callouts ??= new Map();
     if (this._callouts.has(key)) return;
@@ -340,7 +353,9 @@ export class Hud {
     b.style.left = `${cx}px`;
     b.style.top = `${cy}px`;
     this.el.appendChild(b);
-    // clamp by MEASURED width so long tags never bleed off the phone
+    // clamp by MEASURED width so long tags never bleed off the phone; a tag
+    // wider than the screen shrinks first (clamping can't save those)
+    this._fitText(b, { minPx: 12, pad: 20 });
     const half = b.getBoundingClientRect().width / 2 + 8;
     b.style.left = `${Math.max(half, Math.min(H.width - half, cx))}px`;
     this._callouts.set(key, b);
@@ -363,6 +378,7 @@ export class Hud {
     s.textContent = text;
     g.appendChild(s);
     this.el.appendChild(g);
+    this._fitText(s, { minPx: 18 });
     setTimeout(() => g.remove(), 1100);
   }
 
@@ -494,6 +510,8 @@ export class Hud {
     if (!b) { b = this.cineBanner = document.createElement('div'); b.className = 'cine-banner'; this.el.appendChild(b); }
     b.textContent = text;
     b.className = `cine-banner ${kind || ''}`;
+    b.style.fontSize = ''; // re-measure from the CSS clamp for each new string
+    this._fitText(b);
     void b.offsetWidth; // reflow so the slide-up transition re-fires each time
     b.classList.add('show');
     clearTimeout(this._bannerT);
