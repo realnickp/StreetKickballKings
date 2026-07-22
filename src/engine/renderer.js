@@ -16,6 +16,7 @@ const GradeShader = {
     tDiffuse: { value: null },
     vignette: { value: 0.3 },
     caAmount: { value: 0.0004 },
+    sat: { value: 1.12 },
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -28,6 +29,7 @@ const GradeShader = {
     uniform sampler2D tDiffuse;
     uniform float vignette;
     uniform float caAmount;
+    uniform float sat;
     varying vec2 vUv;
     void main() {
       vec2 center = vUv - 0.5;
@@ -36,6 +38,7 @@ const GradeShader = {
       float r = texture2D(tDiffuse, vUv + dir * caAmount * 12.0).r;
       vec2 gb = texture2D(tDiffuse, vUv - dir * caAmount * 12.0).gb;
       vec3 col = vec3(r, gb);
+      col = mix(vec3(dot(col, vec3(0.2126, 0.7152, 0.0722))), col, sat);
       col *= 1.0 - vignette * smoothstep(0.35, 0.85, dist);
       gl_FragColor = vec4(col, 1.0);
     }
@@ -48,6 +51,9 @@ export function createEngine(canvas) {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  // ACES at default exposure reads muddy on phones — lift the whole image.
+  // Dev directive 2026-07-21: "the graphics need to be brighter."
+  renderer.toneMappingExposure = 1.22;
 
   const scene = new THREE.Scene();
 
@@ -72,7 +78,9 @@ export function createEngine(canvas) {
 
   const composer = new EffectComposer(renderer);
   const renderPass = new RenderPass(scene, camera);
-  const bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.18, 0.4, 0.95);
+  // threshold 1.0 (was .95): the exposure lift above would otherwise push
+  // ordinary surfaces over the bloom cutoff and everything would glow
+  const bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.18, 0.4, 1.0);
   const gradePass = new ShaderPass(GradeShader);
   const outputPass = new OutputPass();
 
