@@ -2776,9 +2776,12 @@ export class MatchScene {
     // (live catches count HERE, once — the finalizePlay 'catch' label is skipped)
     const heatRobbed = this.kickHrEligible || this.landDist > this.fenceM * 0.7;
     this.noteHeat(this.match.fieldingSide(), heatRobbed ? 'robbed' : 'catch');
-    // payoff readout: heavy air visibly ate a would-be bomb
+    // payoff readout: heavy air visibly ate a would-be bomb — or the Hawk
+    // blowing IN knocked it down at the track
     if (heatRobbed && this.elements.carryScale() < 0.95) {
       this.after(0.5, () => this.hud.call('HEAVY AIR ATE THAT BOMB', 'robbed'));
+    } else if (heatRobbed && this.elements.id === 'the-hawk' && this.elements.windAccel().z > 1.5) {
+      this.after(0.5, () => this.hud.call('THE HAWK KNOCKED IT DOWN!', 'robbed'));
     }
 
     // RESOLVE stops updateDefense, so any fielder caught mid-chase would keep
@@ -2873,9 +2876,13 @@ export class MatchScene {
     this.pendingRuns = 0;
     this.bus.emit('cine:crowned', { kicker: this.kicker, team: this.teams[this.match.kickingSide()].id });
     if (this.kickingIsPlayer()) this.special.add('homerun');
-    // payoff readout: the element carried it out
+    // payoff readout: the element carried it out (heat carry OR an outward wind)
+    const hrWind = this.elements.windAccel();
     if (this.elements.carryScale() > 1.05) {
       this.after(2.2, () => this.hud.callout('THE HEAT CARRIED IT!', { x: window.innerWidth / 2, y: window.innerHeight * 0.3, ttl: 1600, key: 'carry' }));
+    } else if (hrWind.z < -1.5) {
+      const line = this.elements.id === 'the-hawk' ? 'THE HAWK TOOK IT OUT!' : 'THE BREEZE TOOK IT!';
+      this.after(2.2, () => this.hud.callout(line, { x: window.innerWidth / 2, y: window.innerHeight * 0.3, ttl: 1600, key: 'carry' }));
     }
     this.finalizePlayHR(runs);
   }
@@ -3186,6 +3193,11 @@ export class MatchScene {
         this.throwPlayerPitch(this.selectedPitch, 0.2, /*fire=*/false);
       }
     }
+
+    // dj-drop telegraph: the timing ring burns gold exactly while the beat
+    // window is open — the pulse IS the tell (spec: beat rendered ON the kick UI)
+    this.hud.setBeat(this.phase === 'PITCH' && this.kickingIsPlayer()
+      && this.elements.id === 'dj-drop' && this.elements.kickMods(this.elapsed).beatBonus01 > 0);
 
     if (this.phase === 'PITCH' && this.kickingIsPlayer()) {
       const remain = this.pitchArrival - this.elapsed;
