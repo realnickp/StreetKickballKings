@@ -74,9 +74,10 @@ export class CityElements {
     return { id: this.id, label: this.def.label, blurb: this.def.blurb, tip: this.def.tip, intensity: this._intensity, windDirDeg: this.windDirDeg };
   }
 
-  /** Advance proc clock. Returns {proc:'start'|'end'} on transitions, else null. */
+  /** Advance proc clock. Returns {proc:'start'|'end'} on transitions, else null.
+   *  Wind elements gust (Play It): same clock, the window doubles the blow. */
   update(dt) {
-    if (this.def.kind !== 'proc') return null;
+    if (this.def.kind !== 'proc' && this.def.kind !== 'wind') return null;
     this._procT += dt;
     if (!this._procActive && this._procT >= this._nextProcAt) {
       this._procActive = true;
@@ -95,8 +96,10 @@ export class CityElements {
   /** Wind acceleration on a flying ball, m/s². windDirDeg = direction it blows TOWARD (0 = +z, 180 = −z/outfield). */
   windAccel() {
     if (this.def.kind !== 'wind' || this._intensity === 0) return { x: 0, z: 0 };
-    // arcade-loud retune (Know It): a full-strength Hawk visibly BENDS a kick
-    const mag = (this.id === 'the-hawk' ? 4.6 : 3.0) * this._intensity;
+    // arcade-loud retune (Know It): a full-strength Hawk visibly BENDS a kick.
+    // GUST window (Play It): kick NOW and the wind carries nearly double.
+    const gust = this._procActive ? 1.8 : 1;
+    const mag = (this.id === 'the-hawk' ? 4.6 : 3.0) * this._intensity * gust;
     const rad = (this.windDirDeg * Math.PI) / 180;
     return { x: Math.sin(rad) * mag, z: Math.cos(rad) * mag };
   }
