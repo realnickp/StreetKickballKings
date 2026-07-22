@@ -3,6 +3,13 @@
 // Pure DOM; matchScene drives it.
 import { PITCH_FAMILY_MENU } from '../../game/pitchPattern.js';
 
+// keyed on the cityElements registry ids — Pillar B's intro card reuses this
+export const ELEMENT_ICONS = {
+  'el-train': '🚇', 'steam-vents': '💨', 'dj-drop': '🎧', 'night-hustle': '🌙',
+  'sea-breeze': '🌊', 'motorcade': '🚨', 'extra-bounce': '⚡', 'the-hawk': '🦅',
+  'heat-wave': '🔥', 'heavy-air': '🌫️',
+};
+
 export class Hud {
   constructor(root, { homeAbbr, awayAbbr }) {
     this.el = document.createElement('div');
@@ -331,7 +338,10 @@ export class Hud {
     const pips = '●'.repeat(n) + '○'.repeat(3 - n);
     const wind = (id === 'the-hawk' || id === 'sea-breeze')
       ? `<span class="element-wind" style="transform:rotate(${90 - windDirDeg}deg)">➤</span>` : '';
-    this.elChip.innerHTML = `${wind}<span class="element-label">${label}</span><span class="element-pips">${pips}</span>`;
+    const icon = ELEMENT_ICONS[id] ?? '⭐';
+    this.elChip.innerHTML =
+      `<span class="element-top"><span class="element-icon">${icon}</span>${wind}<span class="element-label">${label}</span></span>` +
+      `<span class="element-pips">${pips}</span>`;
   }
 
   /** Pulse the chip while a proc (train pass / motorcade) is live. */
