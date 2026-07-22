@@ -119,6 +119,12 @@ body { display: flex; align-items: center; justify-content: center; }
   background: #323848;
 }
 .score-bug .outs i.on { background: var(--red); box-shadow: 0 0 6px var(--red); }
+/* ball count: teal pips with a B tag — only shows once a count exists */
+.score-bug .ballct { display: none; gap: 4px; margin-top: 3px; align-items: center; }
+.score-bug .ballct.show { display: flex; }
+.score-bug .ballct em { font-style: normal; font-size: 9px; font-weight: 900; color: var(--muted); margin-right: 1px; }
+.score-bug .ballct i { width: 7px; height: 7px; border-radius: 50%; background: #323848; }
+.score-bug .ballct i.on { background: var(--teal); box-shadow: 0 0 6px var(--teal); }
 
 .hud .pitch-readout {
   position: absolute;

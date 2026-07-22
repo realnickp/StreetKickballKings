@@ -20,6 +20,7 @@ export class Hud {
         <div class="mid">
           <span class="inning" data-inning>▲ 1</span>
           <span class="outs"><i></i><i></i><i></i></span>
+          <span class="ballct" data-ballct><em>B</em><i></i><i></i><i></i></span>
           <span class="diamond"><b data-b="1"></b><b data-b="2"></b><b data-b="3"></b></span>
         </div>
         <div class="team"><span class="abbr" data-abbr-home></span><span class="runs" data-home>0</span><div class="heat-bar"><div class="heat-fill" data-heat-home></div></div></div>
@@ -289,6 +290,14 @@ export class Hud {
   }
   hideCall() {
     this.callBtn.classList.remove('show');
+  }
+
+  /** Ball count pips (B ●●●). 0 hides the row — no count, no clutter. */
+  setCount(balls) {
+    const row = this.el.querySelector('[data-ballct]');
+    if (!row) return;
+    row.classList.toggle('show', balls > 0);
+    row.querySelectorAll('i').forEach((p, i) => p.classList.toggle('on', i < balls));
   }
 
   /** Pulse the steal chips while the pitcher is mid-wind-up (hot jump window). */

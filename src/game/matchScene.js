@@ -435,6 +435,7 @@ export class MatchScene {
     this.hud.setScore(s.score);
     this.hud.setInning(s.inning, s.half, s.outs);
     this.hud.setBases(s.bases);
+    this.hud.setCount(s.balls);
     this.hud.showSpecial(this.kickingIsPlayer()); // crown super-kick is ONLY for when you're kicking
     this.hud.setSpecial(this.special.value, this.special.ready, this.specialArmed, this.teams[this.playerSide].special.label);
   }
@@ -564,6 +565,9 @@ export class MatchScene {
   /** Serve the next pitch, branching on role. */
   serve() {
     if (this.match.state.phase === 'GAME_END') return;
+    // stale-timer guard: never re-serve over a live pitch/trace/kick — a
+    // double serve kills the ball mid-flight and eats the play silently
+    if (this.phase !== 'SETUP' && this.phase !== 'PITCH_SELECT') return;
     if (this.kickingIsPlayer()) this.startAutoPitch();
     else this.startPitchSelect();
   }
@@ -633,7 +637,8 @@ export class MatchScene {
     });
     this.hud.hidePattern();
     const fire = res.quality >= this.tuning.pitch.fireQualityThreshold;
-    const label = fire ? 'NASTY!' : res.quality > 0.6 ? 'GOOD HEAT' : 'WOBBLER';
+    const bad = res.quality < this.tuning.pitch.badQuality;
+    const label = fire ? 'NASTY!' : res.quality > 0.6 ? 'GOOD HEAT' : bad ? 'BALL?' : 'WOBBLER';
     this.hud.pitchGrade(label, res.quality > 0.6); // small top badge, not a big center stamp
     this.throwPlayerPitch(this.selectedPitch, res.quality, fire);
     if (fire) this.hud.fireBadge(true);
@@ -646,7 +651,8 @@ export class MatchScene {
     const speedMph = Math.round(def.speedMph[1] * (Q.weakSpeedFactor + (1 - Q.weakSpeedFactor) * q));
     const curveM = def.curveM * (Q.minBreakFactor + (1 - Q.minBreakFactor) * q);
     const wildX = (1 - q) * Q.maxWildM * (Math.random() - 0.5) * 2; // sloppy = off-target
-    this.pitch = { id, speedMph, curveM, ease: def.ease, bounce: def.bounce, q, fire }; // q drives AI kick difficulty
+    const bad = q < this.tuning.pitch.badQuality; // a BALL if the kicker lays off
+    this.pitch = { id, speedMph, curveM, ease: def.ease, bounce: def.bounce, q, fire, bad }; // q drives AI kick difficulty
     this.phase = 'PITCH';
     this.hud.hint('');
     this.servePitch(this.pitch, /*aiKicks=*/true, wildX);
@@ -678,12 +684,20 @@ export class MatchScene {
       });
       this.pitchArrival = this.elapsed + dur;
       if (aiKicks) {
-        // The full error drives the JUDGE (whiff/foul/contact). But cap WHEN the
-        // AI actually swings to ±0.45s of arrival so a big miss never leaves the
-        // ball just sitting there ("frozen"). NaN-guarded so it can't hang.
-        const errMs = aiKickError(this.difficulty, this.tuning, pitch);
-        const swing = dur + Math.max(-0.25, Math.min(0.45, (Number.isFinite(errMs) ? errMs : 0) / 1000));
-        this.after(swing, () => this.attemptKick({ aim: aiAim(this.difficulty), errMs }, this.elapsed));
+        // A sloppy trace is a BALL if taken — disciplined kickers lay off,
+        // especially protecting a 3-ball count (Play Fair pillar).
+        const [normal, protect] = this.tuning.pitch.layOff[this.difficulty] ?? [0.3, 0.8];
+        const layChance = pitch.bad ? (this.match.state.balls >= 3 ? protect : normal) : 0;
+        if (pitch.bad && Math.random() < layChance) {
+          this.after(dur + 0.5, () => this.resolveBallTaken()); // he watches it roll by
+        } else {
+          // The full error drives the JUDGE (whiff/foul/contact). But cap WHEN the
+          // AI actually swings to ±0.45s of arrival so a big miss never leaves the
+          // ball just sitting there ("frozen"). NaN-guarded so it can't hang.
+          const errMs = aiKickError(this.difficulty, this.tuning, pitch);
+          const swing = dur + Math.max(-0.25, Math.min(0.45, (Number.isFinite(errMs) ? errMs : 0) / 1000));
+          this.after(swing, () => this.attemptKick({ aim: aiAim(this.difficulty), errMs }, this.elapsed));
+        }
       }
       this.stealHot = false; // ball's away — the hot-jump window closes
     };
@@ -784,6 +798,44 @@ export class MatchScene {
     // into the kick. The swing animation plays cosmetically around it.
     this.kicker.animator.play('kick');
     this.onKickContact(judged, launch);
+  }
+
+  /** The kicker laid off a sloppy pitch — a BALL. Four of them walk him. */
+  resolveBallTaken() {
+    if (this.playFinalized || this.phase !== 'PITCH') return;
+    douseBall(this.ball);
+    this.bus.emit('sfx', 'whiff');
+    const res = this.match.noteBall();
+    const n = this.match.state.balls;
+    if (res === 'walk') return this.playWalk();
+    this.hud.call(`BALL ${['', 'ONE', 'TWO', 'THREE'][n] ?? n}!`, 'robbed');
+    this.hud.setCount(n);
+    this.bus.emit('vo', 'ball');
+    const resume = () => {
+      this.phase = 'SETUP';
+      this.kicker.animator.play('plate');
+      this.serve();
+    };
+    // a steal was in flight and the pitch is dead → the defense throws down
+    if (this.stealing?.state === 'running') this.after(0.3, () => this.resolveStealThrowdown(resume));
+    else this.after(1.0, resume);
+  }
+
+  /** Ball four: free pass. The ENGINE already moved everyone (applyWalk). */
+  playWalk() {
+    this.hud.call('WALKED HIM!', 'robbed');
+    this.hud.setCount(0);
+    this.bus.emit('vo', 'walk');
+    this.bus.emit('sfx', 'crowd-cheer');
+    const k = this.kicker;
+    if (k) {
+      k.animator.play('run');
+      const to = this.basePos(0);
+      this.faceTo(k, to, true);
+      this._walkJog = { char: k, to };
+      this.after(1.4, () => { this._walkJog = null; });
+    }
+    this.after(1.6, () => this.nextAtBat());
   }
 
   strike(label) {
@@ -3102,6 +3154,19 @@ export class MatchScene {
       this._kickerPrevX = kx;
     } else if (this.kicker) {
       this._kickerPrevX = this.kicker.group.position.x;
+    }
+
+    // walk beat: the freshly-walked kicker jogs to 1st (cosmetic — nextAtBat
+    // re-places everyone from engine state right after)
+    if (this._walkJog) {
+      const { char, to } = this._walkJog;
+      const p = char.group.position;
+      const dir = to.clone().sub(p).setY(0);
+      if (dir.length() > 0.25) {
+        dir.normalize();
+        p.addScaledVector(dir, this.tuning.running.maxSpeedMs * 0.85 * dt);
+        char.faceYaw = Math.atan2(dir.x, dir.z);
+      }
     }
 
     if (this.phase === 'LIVE' || this.phase === 'RESOLVE') {
