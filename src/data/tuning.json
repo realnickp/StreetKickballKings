@@ -21,7 +21,10 @@
     "fireKickWindowScale": 0.6,
     "cpuFireChance": { "Rookie": 0.0, "Street": 0.12, "King": 0.25 },
     "trace": { "tolerance": 0.16, "speedFastMs": 600, "speedSlowMs": 2600 },
-    "quality": { "weakSpeedFactor": 0.6, "maxWildM": 1.4, "minBreakFactor": 0.4 }
+    "quality": { "weakSpeedFactor": 0.6, "maxWildM": 1.4, "minBreakFactor": 0.4 },
+    "badQuality": 0.32,
+    "layOff": { "Rookie": [0.15, 0.5], "Street": [0.3, 0.8], "King": [0.5, 0.95] },
+    "badKickPowerBonus": 0.06
   },
   "kick": {
     "perfectWindowMs": 38,

@@ -7,7 +7,7 @@ import { PITCH_FAMILY_MENU } from '../../game/pitchPattern.js';
 export const ELEMENT_ICONS = {
   'el-train': '🚇', 'steam-vents': '💨', 'dj-drop': '🎧', 'night-hustle': '🌙',
   'sea-breeze': '🌊', 'motorcade': '🚨', 'extra-bounce': '⚡', 'the-hawk': '🦅',
-  'heat-wave': '🔥', 'heavy-air': '🌫️',
+  'heat-wave': '🔥', 'heavy-air': '☁️',
 };
 
 export class Hud {
@@ -20,6 +20,7 @@ export class Hud {
         <div class="mid">
           <span class="inning" data-inning>▲ 1</span>
           <span class="outs"><i></i><i></i><i></i></span>
+          <span class="ballct" data-ballct><em>B</em><i></i><i></i><i></i></span>
           <span class="diamond"><b data-b="1"></b><b data-b="2"></b><b data-b="3"></b></span>
         </div>
         <div class="team"><span class="abbr" data-abbr-home></span><span class="runs" data-home>0</span><div class="heat-bar"><div class="heat-fill" data-heat-home></div></div></div>
@@ -52,6 +53,7 @@ export class Hud {
       <button class="go-btn"><span></span></button>
       <div class="steal-chips"></div>
       <button class="duel-btn"><span>GO!</span></button>
+      <button class="reverse-btn"><span>⇄ REVERSE</span></button>
       <button class="call-btn"><span></span></button>
     `;
     root.appendChild(this.el);
@@ -111,6 +113,13 @@ export class Hud {
     this.duelBtn.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
       this.onDuel?.();
+    });
+    // v5 REVERSE: dedicated always-visible juke button for YOUR runner's duels
+    this.reverseBtn = this.el.querySelector('.reverse-btn');
+    this.onReverse = null;
+    this.reverseBtn.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      this.onReverse?.();
     });
     // STREET CALL button: dive/rob — lit only while the call window is open
     this.callBtn = this.el.querySelector('.call-btn');
@@ -242,7 +251,11 @@ export class Hud {
   }
   /** lit = the verb is actionable RIGHT NOW (gold pulse) */
   setDuelLit(on) { this.duelBtn.classList.toggle('lit', !!on); }
-  hideDuel() { this.duelBtn.classList.remove('show', 'lit'); }
+  hideDuel() { this.duelBtn.classList.remove('show', 'lit'); this.hideReverse(); }
+
+  /** REVERSE is always actionable while shown — no lit state to learn. */
+  showReverse() { this.reverseBtn.classList.add('show'); }
+  hideReverse() { this.reverseBtn.classList.remove('show'); }
 
   /**
    * STEAL CHIPS: runners on 1st/3rd sit OUTSIDE the kick camera's framing, so
@@ -277,6 +290,14 @@ export class Hud {
   }
   hideCall() {
     this.callBtn.classList.remove('show');
+  }
+
+  /** Ball count pips (B ●●●). 0 hides the row — no count, no clutter. */
+  setCount(balls) {
+    const row = this.el.querySelector('[data-ballct]');
+    if (!row) return;
+    row.classList.toggle('show', balls > 0);
+    row.querySelectorAll('i').forEach((p, i) => p.classList.toggle('on', i < balls));
   }
 
   /** Pulse the steal chips while the pitcher is mid-wind-up (hot jump window). */

@@ -89,3 +89,58 @@ it('rotates the kicking order through the roster indices', () => {
   for (let i = 0; i < 7; i++) m.applyPlay({ type: 'single' });
   expect(m.currentKickerIdx()).toBe(0);
 });
+
+// ---------- balls & walks (Fun Overhaul pillar E) ----------
+
+it('counts balls and walks the kicker on the 4th', () => {
+  const m = newGame();
+  expect(m.noteBall()).toBe('ball');
+  expect(m.state.balls).toBe(1);
+  m.noteBall();
+  m.noteBall();
+  const k = m.currentKickerIdx();
+  expect(m.noteBall()).toBe('walk');
+  expect(m.state.balls).toBe(0);
+  expect(m.state.bases[0]).toBe(k);
+  expect(m.currentKickerIdx()).toBe(k + 1);
+});
+
+it('walk pushes only forced runners (1st+3rd: 3rd holds)', () => {
+  const m = newGame();
+  m.state.bases = [5, null, 6];
+  m.state.balls = 3;
+  const k = m.currentKickerIdx();
+  m.noteBall();
+  expect(m.state.bases).toEqual([k, 5, 6]);
+});
+
+it('walk with bases loaded forces in a run', () => {
+  const m = newGame();
+  m.state.bases = [1, 2, 3];
+  m.state.balls = 3;
+  const side = m.kickingSide();
+  const before = m.state.score[side];
+  const k = m.currentKickerIdx();
+  m.noteBall();
+  expect(m.state.score[side]).toBe(before + 1);
+  expect(m.state.bases).toEqual([k, 1, 2]);
+});
+
+it('walk emits ball + play events', () => {
+  const m = newGame();
+  const balls = [];
+  const plays = [];
+  m.bus.on('ball', (b) => balls.push(b.balls));
+  m.bus.on('play', (p) => plays.push(p.type));
+  m.state.balls = 3;
+  m.noteBall();
+  expect(balls).toEqual([4]);
+  expect(plays).toEqual(['walk']);
+});
+
+it('count resets when the at-bat ends any other way', () => {
+  const m = newGame();
+  m.noteBall();
+  m.applyPlay({ type: 'single' });
+  expect(m.state.balls).toBe(0);
+});

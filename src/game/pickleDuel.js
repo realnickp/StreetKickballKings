@@ -17,6 +17,8 @@ export class PickleDuel {
     this.rng = rng;
     this.committed = false;
     this.commitDir = 0;
+    this.manualDir = 0;  // v5: player-flipped drift; 0 = auto (away from ball)
+    this._aiRevCd = 0;   // AI juke cooldown
     this.goGrade = 0;
     this.spinT = 0;
     this.spinCd = 0;
@@ -60,6 +62,14 @@ export class PickleDuel {
     this.spinT = this.D.spinIframeS;
     this.spinCd = this.D.spinCooldownS;
     this._spinDodged = false;
+    return true;
+  }
+
+  /** v5 dev override: the runner changes direction HIMSELF. Cancels a GO. */
+  reverse(currentDir) {
+    if (this.recoverT > 0) return false;
+    this.manualDir = -(this.manualDir || currentDir || 1);
+    if (this.committed) { this.committed = false; this.goGrade = 0; }
     return true;
   }
 
@@ -122,6 +132,13 @@ export class PickleDuel {
     }
     if (!pegIncoming) this._aiSpinAt = -1;
     if (pegIncoming && this._aiSpinAt === 0 && this.spinCd <= 0) return { type: 'spin' };
+    // close-quarters juke: flip under the chaser's nose (difficulty-gated)
+    this._aiRevCd = Math.max(0, this._aiRevCd - dt);
+    if (!pegIncoming && holderDist < 2.1 && this._aiRevCd <= 0) {
+      const chance = { Rookie: 0.15, Street: 0.35, King: 0.6 }[this.difficulty] ?? 0.3;
+      this._aiRevCd = 1.1;
+      if (this.rng() < chance) return { type: 'reverse' };
+    }
     if (ballFlying && !this.committed) {
       this._aiGoT += dt;
       const react = this.D.aiGoReactS[this.difficulty] ?? 0.36;
