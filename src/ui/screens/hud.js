@@ -52,6 +52,7 @@ export class Hud {
       <button class="go-btn"><span></span></button>
       <div class="steal-chips"></div>
       <button class="duel-btn"><span>GO!</span></button>
+      <button class="reverse-btn"><span>⇄ REVERSE</span></button>
       <button class="call-btn"><span></span></button>
     `;
     root.appendChild(this.el);
@@ -111,6 +112,13 @@ export class Hud {
     this.duelBtn.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
       this.onDuel?.();
+    });
+    // v5 REVERSE: dedicated always-visible juke button for YOUR runner's duels
+    this.reverseBtn = this.el.querySelector('.reverse-btn');
+    this.onReverse = null;
+    this.reverseBtn.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      this.onReverse?.();
     });
     // STREET CALL button: dive/rob — lit only while the call window is open
     this.callBtn = this.el.querySelector('.call-btn');
@@ -242,7 +250,11 @@ export class Hud {
   }
   /** lit = the verb is actionable RIGHT NOW (gold pulse) */
   setDuelLit(on) { this.duelBtn.classList.toggle('lit', !!on); }
-  hideDuel() { this.duelBtn.classList.remove('show', 'lit'); }
+  hideDuel() { this.duelBtn.classList.remove('show', 'lit'); this.hideReverse(); }
+
+  /** REVERSE is always actionable while shown — no lit state to learn. */
+  showReverse() { this.reverseBtn.classList.add('show'); }
+  hideReverse() { this.reverseBtn.classList.remove('show'); }
 
   /**
    * STEAL CHIPS: runners on 1st/3rd sit OUTSIDE the kick camera's framing, so

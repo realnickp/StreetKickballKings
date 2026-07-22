@@ -335,6 +335,35 @@ body { display: flex; align-items: center; justify-content: center; }
   to   { transform: translateX(-50%) scale(1.07); }
 }
 
+/* v5 REVERSE — the runner's own juke. Dedicated button, never double-duty;
+   sits left of the GO button, always hot while shown. */
+.reverse-btn {
+  pointer-events: auto;
+  position: absolute;
+  left: 7cqw;
+  bottom: calc(11cqw + env(safe-area-inset-bottom));
+  width: 24cqw;
+  height: 24cqw;
+  max-width: 128px;
+  max-height: 128px;
+  border-radius: 50%;
+  border: 3px solid #1d6e63;
+  background: radial-gradient(circle at 35% 30%, #46e0c8, #1f9a87);
+  color: #062420;
+  font-family: var(--marker);
+  font-weight: 900;
+  font-size: 4.6cqw;
+  letter-spacing: 0.04em;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  z-index: 8;
+  box-shadow: 0 0 18px rgba(62, 198, 181, 0.55);
+}
+.reverse-btn.show { display: flex; }
+.reverse-btn:active { transform: scale(0.93); }
+
 /* PITCH role: 5-pitch picker */
 .pitch-select {
   position: absolute;

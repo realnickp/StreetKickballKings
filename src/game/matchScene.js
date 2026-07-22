@@ -198,6 +198,7 @@ export class MatchScene {
     this.hud.onGo = () => this.sendHeldRunner();
     this.hud.onSteal = (b) => this.startSteal(b);
     this.hud.onDuel = () => this.onDuelButton();
+    this.hud.onReverse = () => this.duelReverse();
     this.hud.onCall = () => this.onCallButton();
     this.call = null;     // open street-call window: {kind:'dive'|'rob', until?}
     this.robbing = null;  // fence-rob climb state: {fielder, phase, t, topY}
@@ -1899,6 +1900,7 @@ export class MatchScene {
     r.sim.human = false; // the duel drives his legs — you make the calls
     this.hud.setLetterbox(true);
     this.hud.showDuel('GO!');
+    this.hud.showReverse(); // v5: your runner, your juke — always available
     this.hud.hint('');
     this.freezeForPickle();
   }
@@ -1958,8 +1960,9 @@ export class MatchScene {
     const ballT = Math.max(-0.06, Math.min(1.06, this.ball.pos.clone().sub(backPt).dot(axis) / axis.lengthSq()));
     const dirNow = r.targetBase === duel.forwardBase ? 1 : -1;
 
-    // --- steer the runner: committed = locked sprint; else shuttle away from the ball ---
-    const wantDir = brain.committed ? brain.commitDir : shuttleDir({ runnerT, ballT });
+    // --- steer the runner: committed = locked sprint; manual = the player's own
+    // juke (v5 REVERSE); else shuttle away from the ball ---
+    const wantDir = brain.committed ? brain.commitDir : (brain.manualDir || shuttleDir({ runnerT, ballT }));
     if (wantDir !== dirNow && r.fromBase >= 0) {
       this.retreatRunner(r);
       r.sim.human = false;
@@ -2003,6 +2006,8 @@ export class MatchScene {
         brain.go({ flightFrac: act.flightFrac, throwToEnd: act.throwToEnd });
       } else if (act?.type === 'spin') {
         if (brain.spin()) this.bus.emit('sfx', 'juke');
+      } else if (act?.type === 'reverse') {
+        if (brain.reverse(dirNow)) this.bus.emit('sfx', 'juke');
       }
     }
   }
@@ -2087,6 +2092,17 @@ export class MatchScene {
     const duel = this.duel;
     if (!duel || !this.kickingIsPlayer()) return;
     if (duel.brain.spin()) this.bus.emit('sfx', 'juke');
+  }
+
+  /** v5 REVERSE button: flip YOUR trapped runner's direction on demand. */
+  duelReverse() {
+    const duel = this.duel;
+    if (!duel || duel.r.state !== 'running' || !this.kickingIsPlayer()) return;
+    const dirNow = duel.r.targetBase === duel.forwardBase ? 1 : -1;
+    if (duel.brain.reverse(dirNow)) {
+      this.bus.emit('sfx', 'juke');
+      this.hud.callout('REVERSED!', { x: window.innerWidth / 2, y: window.innerHeight * 0.42, ttl: 700, key: 'rev' });
+    }
   }
 
   /** The duel resolves into one of THREE outcomes: retreat-safe (small win),
