@@ -782,6 +782,16 @@ export class MatchScene {
     this.kickHrEligible = isPlayerKick && (
       isHrEligible({ power01, alignErrM }, this.tuning) || this.kickWasSpecial
     );
+    // A meatball kicked by the CPU gets PUNISHED (Play Fair): the kick hunts the
+    // widest fielder gap and carries a bump that can genuinely leave the yard.
+    if (!isPlayerKick && this.pitch?.bad && judged.quality !== 'FOUL') {
+      powerMult *= 1 + this.tuning.pitch.badKickPowerBonus;
+      aimDeg = this.widestGapDeg();
+      if (judged.quality === 'PERFECT' || (judged.quality === 'GOOD' && Math.random() < 0.35)) {
+        this.kickHrEligible = true;
+        this.hud.call('MEATBALL — CRUSHED!', 'pegged');
+      }
+    }
     const launch = launchParams(
       judged,
       { ...aimSpec, ...(aimDeg != null ? { aimDeg } : {}), powerMult, ...(power01 != null ? { power01 } : {}) },
@@ -836,6 +846,24 @@ export class MatchScene {
       this.after(1.4, () => { this._walkJog = null; });
     }
     this.after(1.6, () => this.nextAtBat());
+  }
+
+  /** Widest angular gap between fielders (deg, + = right) seen from the plate. */
+  widestGapDeg() {
+    const spread = this.tuning.kick.aimSpreadDeg * 0.8;
+    const angles = this.fieldingChars()
+      .filter((c) => c.group.visible && Math.hypot(c.group.position.x, c.group.position.z) > 6)
+      .map((c) => THREE.MathUtils.radToDeg(Math.atan2(c.group.position.x, -c.group.position.z)))
+      .filter((a) => Math.abs(a) < spread + 10)
+      .sort((a, b) => a - b);
+    let best = { mid: 0, size: -1 };
+    let prev = -spread;
+    for (const a of [...angles, spread]) {
+      const size = a - prev;
+      if (size > best.size) best = { mid: prev + size / 2, size };
+      prev = a;
+    }
+    return best.mid;
   }
 
   strike(label) {
