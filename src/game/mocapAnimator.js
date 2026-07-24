@@ -42,6 +42,13 @@ export class MocapAnimator {
       }
     };
     this.mixer.addEventListener('finished', this._mixerFinished);
+    // hip FLOOR guard: some baked one-shots (stumble) drive the hips all the
+    // way to local 0 = pelvis at ground = legs through the pavement ("players
+    // sinking into the floor", dev). Clamp animated hips to lying-on-the-
+    // ground height; dive's pavement pose (~0.17 of rest) stays untouched.
+    this._hips = null;
+    root.traverse((o) => { if (!this._hips && o.isBone && /hips/i.test(o.name)) this._hips = o; });
+    this._hipMinY = this._hips ? Math.abs(this._hips.position.y) * 0.15 : 0;
     if (this.clips.has('idle')) this.play('idle');
   }
 
@@ -85,6 +92,7 @@ export class MocapAnimator {
       this._active.timeScale = this._speed * Math.max(0.35, this.ctx.speedFactor);
     }
     this.mixer.update(dt);
+    if (this._hips && this._hips.position.y < this._hipMinY) this._hips.position.y = this._hipMinY;
     if (this._active && !this._contactFired && this._meta?.contactAt != null) {
       const clip = this._active.getClip();
       if (this._active.time / clip.duration >= this._meta.contactAt) {
