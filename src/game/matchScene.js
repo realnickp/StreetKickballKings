@@ -489,6 +489,7 @@ export class MatchScene {
     this.fouls = 0;
     this.runners = [];
     this._hopCalled = false;
+    this._kickApproach = null;
     // heat-wave moment (Play It): tell the offense ONCE per half that the
     // defense is gassed — then the pulsing steal chips carry the message
     const halfKey = `${this.match.state.inning}-${this.match.state.half}`;
@@ -843,10 +844,34 @@ export class MatchScene {
     this.launchSpec = launch;
 
     this.phase = 'KICK_ANIM';
-    // Launch the instant contact is made (no freeze) — the pitch flows straight
-    // into the kick. The swing animation plays cosmetically around it.
-    this.kicker.animator.play('kick');
-    this.onKickContact(judged, launch);
+    // THE KICK MUST READ (dev): "we only see the ball hit the player, never
+    // the actual kick." The swing is no longer cosmetic — the slow-mo beat
+    // starts NOW, the pitched ball glides the last stretch into the foot, and
+    // the launch fires at the clip's CONTACT FRAME (the pitcher's release-
+    // frame trick, applied to the boot). The judge already ran at tap time —
+    // gameplay timing is untouched, only the presentation is re-synced.
+    const holdS = this.kicker.animator.contactDelayS?.('kick') || 0.2;
+    this._kickApproach = {
+      t: 0,
+      dur: holdS,
+      from: this.ball.pos.clone(),
+      to: new THREE.Vector3(this.ball.pos.x, 0.22, this.kicker.group.position.z - 0.5),
+    };
+    if (judged.quality === 'PERFECT' || this.kickHrEligible) {
+      this.bus.emit('cine:perfect', { kicker: this.kicker, ball: this.ball, holdS });
+    } else {
+      this.bus.emit('cine:contact', { kicker: this.kicker, ball: this.ball, quality: judged.quality, holdS });
+    }
+    let launched = false;
+    const launchNow = () => {
+      if (launched) return;
+      launched = true;
+      this._kickApproach = null;
+      this.onKickContact(judged, launch);
+    };
+    this.kicker.animator.play('kick', { onContact: launchNow });
+    // safety: a clip without a contact mark must never stall the play
+    this.after(holdS + 0.35, launchNow);
   }
 
   /** The kicker laid off a sloppy pitch — a BALL. Four of them walk him. */
@@ -928,10 +953,9 @@ export class MatchScene {
 
   onKickContact(judged, launch) {
     if (judged.quality === 'FOUL') {
-      // weak mistimed contact dribbles foul
+      // weak mistimed contact dribbles foul (the contact beat began at tap)
       this.ball.launch(launch.speed * 0.5, 70, (Math.random() - 0.5) * 90);
       this.bus.emit('sfx', 'kick');
-      this.bus.emit('cine:contact', { kicker: this.kicker, ball: this.ball, quality: 'FOUL' });
       this.phase = 'FOUL';
       this.ballCamUntil = this.elapsed + 1.0;
       this.after(0.9, () => this.foulBall('FOUL!'));
@@ -959,14 +983,10 @@ export class MatchScene {
     // is met by kicks the quality judge calls GOOD (alignment folds into its
     // error) — the dev homered with no cinematic and no fire on the ball.
     // The special-meter PERFECT reward stays PERFECT-only (meter economy).
-    if (judged.quality === 'PERFECT' || this.kickHrEligible) {
-      this.bus.emit('cine:perfect', { kicker: this.kicker, ball: this.ball });
-      if (judged.quality === 'PERFECT' && this.kickingIsPlayer()) this.special.add('PERFECT');
-      if (judged.quality === 'PERFECT') this.noteHeat(this.match.kickingSide(), 'PERFECT');
-    } else {
-      // every OTHER contact gets the quick boot-on-ball beat — the dev could
-      // never actually SEE the kick from the broadcast framing, either side
-      this.bus.emit('cine:contact', { kicker: this.kicker, ball: this.ball, quality: judged.quality });
+    // (the impact/contact beat began at tap so the full swing reads in slow-mo)
+    if (judged.quality === 'PERFECT') {
+      if (this.kickingIsPlayer()) this.special.add('PERFECT');
+      this.noteHeat(this.match.kickingSide(), 'PERFECT');
     }
 
     this.landDist = Math.hypot(lp.x, lp.z);
@@ -3259,6 +3279,15 @@ export class MatchScene {
       this._kickerPrevX = kx;
     } else if (this.kicker) {
       this._kickerPrevX = this.kicker.group.position.x;
+    }
+
+    // kick approach: the pitched ball glides its last stretch INTO the foot so
+    // the clip's contact frame meets it exactly (attemptKick owns the launch)
+    if (this._kickApproach) {
+      const a = this._kickApproach;
+      a.t = Math.min(a.dur, a.t + dt);
+      const k = a.dur > 0 ? a.t / a.dur : 1;
+      this.ball.place(new THREE.Vector3().lerpVectors(a.from, a.to, k));
     }
 
     // walk beat: the freshly-walked kicker jogs to 1st (cosmetic — nextAtBat

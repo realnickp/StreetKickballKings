@@ -235,6 +235,13 @@ class GlbCodeAnimator {
     this.ctx.speedFactor = speedFactor;
   }
 
+  /** Game-time seconds from play(name) until the clip's contact mark. */
+  contactDelayS(name) {
+    const clip = CLIPS[name];
+    if (!clip || clip.contactAt == null) return 0;
+    return clip.dur * clip.contactAt; // contactAt is normalized here
+  }
+
   // rest-relative euler rotation on a logical joint
   r(joint, x, y, z) {
     const bn = this.b[joint]; if (!bn) return;

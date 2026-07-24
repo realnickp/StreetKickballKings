@@ -70,6 +70,15 @@ export class MocapAnimator {
     this._contactFired = false; this._doneFired = false;
   }
 
+  /** Game-time seconds from play(name) until the clip's contact mark fires.
+   *  Lets the scene sync world events (ball launch) to the animation. */
+  contactDelayS(name) {
+    const clip = this.clips.get(name);
+    const meta = META.get(name);
+    if (!clip || meta?.contactAt == null) return 0;
+    return (clip.duration * meta.contactAt) / ((meta.rate ?? 1));
+  }
+
   update(dt) {
     // loops track ctx.speedFactor live — matchScene writes it every frame for runs
     if (this._active && this._meta?.loop) {
