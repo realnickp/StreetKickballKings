@@ -193,6 +193,17 @@ export class MatchScene {
     });
     // a cutscene's return throw: the scene flies it and the pitcher catches
     bus.on('cine:returnThrow', () => this.flyBallToPitcher(14));
+    // strike-screen set pieces CUT STRAIGHT to the next play when they end
+    // (dev: no banner, no trot, no lingering celebration after the card)
+    bus.on('cine:videoDone', ({ kind }) => {
+      if (kind !== 'crowned') return;
+      this.clearTimers(); // finalizePlayHR's delayed handoff is superseded
+      if (this.match.state.phase === 'GAME_END') {
+        this.bus.emit('matchOver', { winner: this.match.winner(), score: this.match.state.score });
+      } else {
+        this.nextAtBat();
+      }
+    });
 
     this.offTap = input.on('tap', (e) => this.onTap(e));
     this.offSwipe = input.on('swipe', (e) => this.onSwipe(e));
@@ -284,7 +295,8 @@ export class MatchScene {
       this.hud.elementIntro(roll);
     } else {
       const pips = '●'.repeat(Math.max(1, Math.round(roll.intensity * 3)));
-      this.hud.callout(`${roll.label.toUpperCase()} ${pips}`, { x: window.innerWidth / 2, y: 120, ttl: 2000, key: 'element-reroll' });
+      // y 150: below the pitch-grade slot so the two never stack (overlap fix)
+      this.hud.callout(`${roll.label.toUpperCase()} ${pips}`, { x: window.innerWidth / 2, y: 150, ttl: 2000, key: 'element-reroll' });
     }
   }
 
@@ -812,6 +824,14 @@ export class MatchScene {
     this.kickHrEligible = isPlayerKick && (
       isHrEligible({ power01, alignErrM }, this.tuning) || this.kickWasSpecial
     );
+    // Not every perfect is a bomb (dev): ~45% become a SCREAMING gap shot —
+    // aimed at the widest hole in the defense, dying at the track instead of
+    // clearing it. Crown super-kicks always leave the yard (their identity).
+    if (this.kickHrEligible && !this.kickWasSpecial && Math.random() < 0.45) {
+      this.kickHrEligible = false;
+      aimDeg = this.widestGapDeg();
+      powerMult *= 0.93;
+    }
     // payoff readout: kicked ON the DJ's beat (dj-drop pays in power)
     if (isPlayerKick && elMods.beatBonus01 > 0 && judged.quality !== 'FOUL') {
       this.hud.call('ON THE BEAT! +POWER', 'homer');

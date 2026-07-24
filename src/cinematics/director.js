@@ -224,73 +224,28 @@ export class CinematicDirector {
   }
 
   crowned({ kicker }) {
-    // Higgsfield set piece (dev: "redo the cinematics"): the generic crowned
-    // video IS the homer moment now. Plays in full per the standing no-skip
-    // home-run call; the announcer + banner ride over the return to the game.
+    // Strike-screen set piece. The video says HOME RUN! itself — when it ends
+    // we CUT STRAIGHT to the next play (dev: no banner, no trot, no wait).
     this.bus.emit('vo', { event: 'crowned', gender: kicker.gender });
     this.engine.paused = true; // freeze play under the set piece; render continues
     playVideo('assets/video/cut-crowned.mp4', { skippable: false }).then(() => {
       this.engine.paused = false;
-      this.hud.banner('HOME RUN!', 'homer');
-      setTimeout(() => this.hud.hideBanner(), 1600);
+      this.bus.emit('cine:videoDone', { kind: 'crowned' });
     });
   }
 
-  /**
-   * Catch celebration (dev-directed): NOT a raw replay — the fielder stands
-   * there WITH the ball (carryHeldBall keeps it in his hands), soaks it in,
-   * celebrates, then throws the ball back into play. Camera holds a low 3/4.
-   */
+  /** Strike-screen set piece. The video IS the celebration — when it ends we
+   *  cut straight back: ball to the mound, next play sets up (dev: no
+   *  lingering in-engine celebration after the card). */
   robbed({ fielder }) {
-    // Higgsfield set piece first (tap-skippable), then the dev-directed
-    // in-engine celebration — it owns gameplay continuity (ball throwback).
-    // Gameplay freezes under the video (render continues) so the celebration
-    // plays AFTER it instead of invisibly underneath.
     this.engine.paused = true;
-    playVideo('assets/video/cut-caught.mp4', { skippable: true }).then(() => { this.engine.paused = false; });
-    this.bus.emit('vo', 'robbed');
-    this.bus.emit('sfx', 'crowd-cheer');
-    this.hud.setLetterbox(true);
-    this.hud.banner('ROBBED!', 'robbed');
-    // face the camera NOW — the faceYaw lerp is gated during the cinematic,
-    // so rotate the body directly (camera sits +x/+z; yaw = atan2(dx, dz))
-    const yaw = Math.atan2(3.0, 4.4);
-    fielder.faceYaw = yaw;
-    fielder.group.rotation.y = yaw;
-    const p = fielder.group.position;
-    const shot = (offX, offZ) => this.cam(
-      new THREE.Vector3(p.x + offX, 1.7, p.z + offZ),
-      new THREE.Vector3(p.x, 1.05, p.z),
-    );
-    this.run([
-      { // THE SNAG plays out first — starting 'holdball' here stomped the
-        // 'catch' clip on its very first frame (dev: "didn't trigger the
-        // catch animation"). Hold the shot; the catch clip finishes itself.
-        dur: 0.55,
-        onUpdate: () => shot(3.0, 4.4),
-      },
-      { // then standing tall, ball in hands, full body in frame
-        dur: 1.1,
-        onStart: () => fielder.animator.play('holdball'),
-        onUpdate: (k) => shot(3.0 - k * 0.4, 4.4 - k * 0.6), // slow push-in
-      },
-      { // soak it in
-        dur: 1.3,
-        onStart: () => fielder.animator.play('dance3'),
-        onUpdate: (k) => shot(2.6 + k * 0.5, 3.8),
-      },
-      { // fire it back to the MOUND — the scene flies it and the pitcher catches
-        dur: 0.9,
-        onStart: () => fielder.animator.play('throw', {
-          onContact: () => {
-            fielder.hasBall = false; // stop pinning the ball to his hands
-            this.bus.emit('cine:returnThrow');
-          },
-          onDone: () => fielder.animator.play('idle'),
-        }),
-        onUpdate: (k) => shot(3.1, 3.8 + k * 1.0), // ease back out
-      },
-    ], { noSkip: true }); // the catch celebration always plays out in full
+    playVideo('assets/video/cut-caught.mp4', { skippable: true }).then(() => {
+      this.engine.paused = false;
+      fielder.hasBall = false; // ball heads straight back to the mound
+      fielder.animator.play('idle');
+      this.bus.emit('cine:returnThrow');
+      this.bus.emit('cine:videoDone', { kind: 'robbed' });
+    });
   }
 
   pegged({ runner }) {
