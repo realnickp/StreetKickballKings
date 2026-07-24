@@ -37,8 +37,8 @@
       "backdropBack": {
         "tex": "assets/textures/backdrop-blacktop-back.jpg",
         "video": "assets/video/backdrop-blacktop-back.mp4",
-        "oy": 0.3,
-        "ry": 0.68
+        "oy": 0.42,
+        "ry": 0.55
       }
     },
     {
@@ -103,8 +103,8 @@
       "backdropBack": {
         "tex": "assets/textures/backdrop-block-party-back.jpg",
         "video": "assets/video/backdrop-block-party-back.mp4",
-        "oy": 0.3,
-        "ry": 0.68
+        "oy": 0.42,
+        "ry": 0.55
       }
     },
     {
@@ -136,8 +136,8 @@
       "backdropBack": {
         "tex": "assets/textures/backdrop-neon-night-court-back.jpg",
         "video": "assets/video/backdrop-neon-night-court-back.mp4",
-        "oy": 0.3,
-        "ry": 0.68
+        "oy": 0.42,
+        "ry": 0.55
       }
     },
     {
@@ -301,8 +301,8 @@
       "backdropBack": {
         "tex": "assets/textures/backdrop-scorchyard-back.jpg",
         "video": "assets/video/backdrop-scorchyard-back.mp4",
-        "oy": 0.3,
-        "ry": 0.68
+        "oy": 0.42,
+        "ry": 0.55
       }
     },
     {

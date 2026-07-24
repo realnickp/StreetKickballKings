@@ -9,6 +9,7 @@
 // Every cinematic is tap-skippable ('cine:skip' on the bus).
 import * as THREE from 'three';
 import { BallFx } from './fx.js';
+import { playVideo } from './videoPlayer.js';
 
 const DANCES = ['dance1', 'dance2', 'dance3', 'dance4'];
 
@@ -203,11 +204,15 @@ export class CinematicDirector {
   }
 
   crowned({ kicker }) {
-    this.replayMoment({
-      focusChar: kicker, seconds: 3.2,
-      banner: 'HOME RUN!', bannerKind: 'homer',
-      vo: { event: 'crowned', gender: kicker.gender }, // he/she-aware home-run call
-      noSkip: true, // home-run replays always play out in full (dev call)
+    // Higgsfield set piece (dev: "redo the cinematics"): the generic crowned
+    // video IS the homer moment now. Plays in full per the standing no-skip
+    // home-run call; the announcer + banner ride over the return to the game.
+    this.bus.emit('vo', { event: 'crowned', gender: kicker.gender });
+    this.engine.paused = true; // freeze play under the set piece; render continues
+    playVideo('assets/video/cut-crowned.mp4', { skippable: false }).then(() => {
+      this.engine.paused = false;
+      this.hud.banner('HOME RUN!', 'homer');
+      setTimeout(() => this.hud.hideBanner(), 1600);
     });
   }
 
@@ -217,6 +222,12 @@ export class CinematicDirector {
    * celebrates, then throws the ball back into play. Camera holds a low 3/4.
    */
   robbed({ fielder }) {
+    // Higgsfield set piece first (tap-skippable), then the dev-directed
+    // in-engine celebration — it owns gameplay continuity (ball throwback).
+    // Gameplay freezes under the video (render continues) so the celebration
+    // plays AFTER it instead of invisibly underneath.
+    this.engine.paused = true;
+    playVideo('assets/video/cut-caught.mp4', { skippable: true }).then(() => { this.engine.paused = false; });
     this.bus.emit('vo', 'robbed');
     this.bus.emit('sfx', 'crowd-cheer');
     this.hud.setLetterbox(true);
