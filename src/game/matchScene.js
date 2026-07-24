@@ -2488,38 +2488,72 @@ export class MatchScene {
       if (!this.kickingIsPlayer() && aiJukes(this.difficulty, this.tuning)) {
         lead.sim.juke(Math.random() < 0.5 ? 'left' : 'right');
       }
-      const { p } = this.runnerWorldPos(lead);
-      this.faceTo(fielder, p);
-      const flight = this.ball.throwTo(p.clone().setY(0.9), this.throwSpeed());
+      // LEAD the throw (dev: "looks safe, gets called out"): aim where the
+      // runner will BE when the ball lands, not where he was when it left —
+      // the visual flight and the call must tell the same story.
+      const { p, dir } = this.runnerWorldPos(lead);
+      const runRate = this.duel?.r === lead ? this.duel.brain.runRate() : (lead.aiRate ?? 4);
+      const spdM = mashSpeed(runRate, this.tuning);
+      const t0 = p.distanceTo(fielder.group.position) / this.throwSpeed();
+      const aim = p.clone().addScaledVector(new THREE.Vector3(dir.x, 0, dir.z), spdM * t0 * 0.9);
+      this.faceTo(fielder, aim);
+      const flight = this.ball.throwTo(aim.clone().setY(0.9), this.throwSpeed());
       this.after(flight, () => {
         fielder.hasBall = false;
         this.throwing = false;
         this.ballControlled = true;
+        let deferred = false;
         if (lead.state !== 'running') { // runner already reached a bag — no peg
           this.bus.emit('sfx', 'catchpop');
           this.hud.call('SAFE!', 'robbed');
         } else {
-          // in THE DUEL the brain resolves it: a timed SPIN or a live juke
-          // slips the peg — and a dodged duel peg = loose ball = FREE BAG
           const duelPeg = this.duel?.r === lead;
-          const hit = duelPeg
-            ? this.duel.brain.pegImpact({ lateralM: lead.sim.lateral }) === 'hit'
-            : resolvePeg({ throwDistM: 0, runnerLateralM: lead.sim.lateral }, this.tuning).hit;
-          if (hit) this.runnerOut(lead, 'pegged');
-          else {
+          const rp = this.runnerWorldPos(lead).p;
+          const missM = Math.hypot(this.ball.pos.x - rp.x, this.ball.pos.z - rp.z);
+          // PROXIMITY TRUTH: if the ball visibly missed, it IS a miss — what
+          // the player sees is the call, no exceptions
+          const freeBag = () => {
+            if (!duelPeg) return;
+            const duel = this.duel;
+            duel.throwInfo = null;
+            duel.brain.committed = true;
+            duel.brain.commitDir = 1;
+            duel.brain.goGrade = 1;
+            this.ballControlled = false; // ball's loose — the bag is his
+          };
+          if (missM > 1.15) {
             this.bus.emit('sfx', 'dodge');
-            this.hud.call(duelPeg ? 'SPUN OUT OF IT!' : 'JUKED!', 'robbed');
-            if (duelPeg) {
-              const duel = this.duel;
-              duel.throwInfo = null;
-              duel.brain.committed = true;
-              duel.brain.commitDir = 1;
-              duel.brain.goGrade = 1;
-              this.ballControlled = false; // ball's loose — the bag is his
+            this.hud.call('SAILED WIDE!', 'robbed');
+            freeBag();
+          } else {
+            // in THE DUEL the brain resolves it: a timed SPIN or a live juke
+            // slips the peg — and a dodged duel peg = loose ball = FREE BAG
+            const hit = duelPeg
+              ? this.duel.brain.pegImpact({ lateralM: lead.sim.lateral }) === 'hit'
+              : resolvePeg({ throwDistM: 0, runnerLateralM: lead.sim.lateral }, this.tuning).hit;
+            if (hit) {
+              // the SMACK must read on camera: hit-stop, THEN the out call
+              this.engine.shake(0.5);
+              this.bus.emit('sfx', 'peg');
+              if (duelPeg) {
+                deferred = true;
+                this.engine.timeScale = 0.25;
+                this.after(0.1, () => {
+                  this.engine.timeScale = 1;
+                  this.runnerOut(lead, 'pegged');
+                  this.afterThrow();
+                });
+              } else {
+                this.runnerOut(lead, 'pegged');
+              }
+            } else {
+              this.bus.emit('sfx', 'dodge');
+              this.hud.call(duelPeg ? 'SPUN OUT OF IT!' : 'JUKED!', 'robbed');
+              freeBag();
             }
           }
         }
-        this.afterThrow(); // keep the play alive if a runner is still going
+        if (!deferred) this.afterThrow(); // keep the play alive if a runner is still going
       });
       return;
     }
