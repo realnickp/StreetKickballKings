@@ -234,18 +234,35 @@ export class CinematicDirector {
     });
   }
 
-  /** Strike-screen set piece. The video IS the celebration — when it ends we
-   *  cut straight back: ball to the mound, next play sets up (dev: no
-   *  lingering in-engine celebration after the card). */
+  /** THE SNAG reads first (dev: "show the player catch the ball"), THEN the
+   *  strike-screen card, then straight back: ball to the mound, next play. */
   robbed({ fielder }) {
-    this.engine.paused = true;
-    playVideo('assets/video/cut-caught.mp4', { skippable: true }).then(() => {
-      this.engine.paused = false;
-      fielder.hasBall = false; // ball heads straight back to the mound
-      fielder.animator.play('idle');
-      this.bus.emit('cine:returnThrow');
-      this.bus.emit('cine:videoDone', { kind: 'robbed' });
-    });
+    const p = fielder.group.position.clone();
+    this.run([
+      { // brief slow-mo hold on the fielder finishing the catch clip
+        dur: 0.6,
+        onStart: () => { this.engine.timeScale = 0.35; },
+        onUpdate: () => this.cam(
+          new THREE.Vector3(p.x + 3.0, 1.7, p.z + 4.4),
+          new THREE.Vector3(p.x, 1.05, p.z),
+        ),
+      },
+      { // then the card takes over; gameplay freezes under it
+        dur: 0.2,
+        onStart: () => {
+          this.engine.timeScale = 1;
+          this.engine.paused = true;
+          playVideo('assets/video/cut-caught.mp4', { skippable: true }).then(() => {
+            this.engine.paused = false;
+            fielder.hasBall = false; // ball heads straight back to the mound
+            fielder.animator.play('idle');
+            this.bus.emit('cine:returnThrow');
+            this.bus.emit('cine:videoDone', { kind: 'robbed' });
+          });
+        },
+        onUpdate: () => {},
+      },
+    ], { lockCamera: true, noSkip: true });
   }
 
   pegged({ runner }) {
