@@ -376,6 +376,9 @@ const ARCHETYPES = [
   '/assets/models/archetypes/arch-bald.glb',
   '/assets/models/archetypes/arch-afro.glb',
   '/assets/models/archetypes/arch-twists.glb',
+  // batch-1 diversity roll-out (dev-approved designs, 2026-07-25) — first
+  // convert landed as the pilot; the rest join here as they're converted
+  '/assets/models/archetypes/arch-pilot.glb',
 ];
 const FALLBACK_MODEL = '/assets/models/monarchs-23.glb';
 const FEMALE_ARCHETYPES = new Set([2, 5]); // arch-braids, arch-twists
