@@ -10,13 +10,20 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 
-// Combined vignette + chromatic aberration grade. Cheap single pass.
+// Combined vignette + chromatic aberration + scene tint + film grain grade.
+// Cheap single pass. Tint and grain exist to marry the clean 3D layer to the
+// AI-rendered backdrop videos: tint pulls the live layer toward the scene's
+// palette, grain matches the videos' noise floor so the two stop reading as
+// separate media (dev bar: "the field and players need to match it").
 const GradeShader = {
   uniforms: {
     tDiffuse: { value: null },
     vignette: { value: 0.3 },
     caAmount: { value: 0.0004 },
     sat: { value: 1.12 },
+    tint: { value: new THREE.Vector3(1, 1, 1) },
+    grain: { value: 0.028 },
+    time: { value: 0 },
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -30,7 +37,13 @@ const GradeShader = {
     uniform float vignette;
     uniform float caAmount;
     uniform float sat;
+    uniform vec3 tint;
+    uniform float grain;
+    uniform float time;
     varying vec2 vUv;
+    float hash(vec2 p) {
+      return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+    }
     void main() {
       vec2 center = vUv - 0.5;
       float dist = length(center);
@@ -39,6 +52,8 @@ const GradeShader = {
       vec2 gb = texture2D(tDiffuse, vUv - dir * caAmount * 12.0).gb;
       vec3 col = vec3(r, gb);
       col = mix(vec3(dot(col, vec3(0.2126, 0.7152, 0.0722))), col, sat);
+      col *= tint;
+      col += (hash(vUv * 719.0 + fract(time) * 61.0) - 0.5) * grain;
       col *= 1.0 - vignette * smoothstep(0.35, 0.85, dist);
       gl_FragColor = vec4(col, 1.0);
     }
@@ -61,8 +76,9 @@ export function createEngine(canvas) {
   // MeshStandardMaterial real reflectance/specular so surfaces stop reading flat. This
   // is the cheapest material-quality win. Wrapped because a missing/renamed addon must
   // NEVER blank the screen — on failure we just skip the env map and keep rendering.
+  let pmrem = null;
   try {
-    const pmrem = new THREE.PMREMGenerator(renderer);
+    pmrem = new THREE.PMREMGenerator(renderer);
     scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     // Hold the IBL well back: full-strength RoomEnvironment + the bright per-sky
     // lights blew every surface past the bloom threshold (everything glowed). This
@@ -132,6 +148,50 @@ export function createEngine(canvas) {
       quality = q;
       rebuildChain();
     },
+    /** Scene-matched image-based lighting: build the environment map FROM the
+     *  field's own backdrop art so the court and players are lit by the scene's
+     *  actual colors (warm dusk wall glow from the sides, sky tone from above)
+     *  instead of a neutral white room. Also nudges the grade tint toward the
+     *  scene palette. Fire-and-forget; any failure keeps the neutral IBL. */
+    setSceneEnvironment(url) {
+      if (!url || !pmrem) return;
+      new THREE.ImageLoader().load(url, (img) => {
+        try {
+          // Equirect approximation of standing inside the scene: the backdrop
+          // fills a horizon band, its top rows smear up to the zenith and its
+          // bottom rows smear down to the nadir. Coarse on purpose — PMREM
+          // blurs it into diffuse ambience; only the color distribution matters.
+          const W = 256, H = 128;
+          const c = document.createElement('canvas');
+          c.width = W; c.height = H;
+          const ctx = c.getContext('2d');
+          const bandTop = Math.round(H * 0.18), bandH = Math.round(H * 0.55);
+          ctx.drawImage(img, 0, 0, img.width, 1, 0, 0, W, bandTop);               // zenith = top row smear
+          ctx.drawImage(img, 0, 0, img.width, img.height, 0, bandTop, W, bandH);  // horizon band = the scene
+          ctx.drawImage(img, 0, img.height - 1, img.width, 1, 0, bandTop + bandH, W, H - bandTop - bandH); // nadir
+          const tex = new THREE.CanvasTexture(c);
+          tex.mapping = THREE.EquirectangularReflectionMapping;
+          tex.colorSpace = THREE.SRGBColorSpace;
+          const envRT = pmrem.fromEquirectangular(tex);
+          tex.dispose();
+          scene.environment = envRT.texture;
+          scene.environmentIntensity = 0.55; // scene maps are darker than the white room
+          // subtle grade pull toward the scene's average hue (never brightness)
+          const d = ctx.getImageData(0, bandTop, W, bandH).data;
+          let ar = 0, ag = 0, ab = 0;
+          for (let i = 0; i < d.length; i += 4) { ar += d[i]; ag += d[i + 1]; ab += d[i + 2]; }
+          const n = d.length / 4, luma = (0.2126 * ar + 0.7152 * ag + 0.0722 * ab) / n || 1;
+          const mixAmt = 0.10;
+          gradePass.uniforms.tint.value.set(
+            1 + mixAmt * (ar / n / luma - 1),
+            1 + mixAmt * (ag / n / luma - 1),
+            1 + mixAmt * (ab / n / luma - 1),
+          );
+        } catch (e) {
+          console.warn('[skk] scene environment failed, keeping neutral IBL:', e);
+        }
+      });
+    },
     shakeAmt: 0,
     shake(intensity = 0.4) {
       engine.shakeAmt = Math.max(engine.shakeAmt, intensity);
@@ -173,6 +233,7 @@ export function createEngine(canvas) {
     lastFrameAt = performance.now();
     const rawDt = Math.min(clock.getDelta(), 0.05);
     const dt = rawDt * engine.timeScale;
+    gradePass.uniforms.time.value = clock.elapsedTime; // animates the film grain
 
     // a throwing frame callback must NEVER freeze the whole game (skip render /
     // other callbacks). Isolate each one so the loop always survives + renders.

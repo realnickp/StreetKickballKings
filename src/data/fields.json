@@ -89,12 +89,12 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.3,
-        "ry": 0.68
+        "oy": 0.35,
+        "ry": 0.65
       },
       "backdropGeo": {
         "r": 43,
-        "h": 56.9,
+        "h": 39,
         "bottom": 0.3
       },
       "status": "ready",

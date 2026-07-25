@@ -82,6 +82,9 @@ export class MatchScene {
 
     this.match = new MatchEngine({ home: teams.home.id, away: teams.away.id }, tuning.match, { firstKick });
     this.field = buildField(fieldData, engine.scene);
+    // Light the live layer BY the scene: IBL + grade tint derived from this
+    // field's own backdrop art so court/players sit inside it, not on top.
+    engine.setSceneEnvironment?.(fieldData.textures?.backdrop);
     this.ball = new Ball(engine.scene);
     this.fenceM = fieldData.fenceM;
     this.fenceTopY = fieldData.fenceHeightM ?? 4.5;

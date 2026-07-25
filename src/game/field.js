@@ -55,6 +55,10 @@ export function buildField(fieldData, scene) {
     roughness: 0.92,
     normalMap: groundNormal,
     normalScale: new THREE.Vector2(0.3, 0.3),
+    // City grounds get relief from their own art: bump-from-luminance makes the
+    // baked cracks/chalk/snow actually catch the sun instead of reading as a
+    // printed poster. The procedural normal above stays for micro-grain.
+    ...(cityGround ? { bumpMap: groundTex, bumpScale: 0.35 } : {}),
   });
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), groundMat);
   ground.rotation.x = -Math.PI / 2;
