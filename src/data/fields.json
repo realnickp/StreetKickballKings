@@ -20,14 +20,14 @@
         "backdrop": "assets/textures/backdrop-blacktop-3d.jpg",
         "backdropVideo": "assets/video/backdrop-blacktop.mp4"
       },
-      "backdropRepeat": 6,
+      "backdropRepeat": 10,
       "backdropWindow": {
         "oy": 0.585,
         "ry": 0.415
       },
       "backdropGeo": {
         "r": 49,
-        "h": 28.4,
+        "h": 17,
         "bottom": 0.3
       },
       "status": "ready",
@@ -37,8 +37,8 @@
       "backdropBack": {
         "tex": "assets/textures/backdrop-blacktop-back.jpg",
         "video": "assets/video/backdrop-blacktop-back.mp4",
-        "oy": 0.42,
-        "ry": 0.55
+        "oy": 0.45,
+        "ry": 0.414
       }
     },
     {
@@ -54,14 +54,14 @@
         "backdrop": "assets/textures/backdrop-subway-yard-3d.jpg",
         "backdropVideo": "assets/video/backdrop-subway-yard.mp4"
       },
-      "backdropRepeat": 6,
+      "backdropRepeat": 10,
       "backdropWindow": {
         "oy": 0.4,
         "ry": 0.58
       },
       "backdropGeo": {
         "r": 47,
-        "h": 52.6,
+        "h": 31.6,
         "bottom": 0.3
       },
       "status": "ready",
@@ -87,14 +87,14 @@
         "backdrop": "assets/textures/backdrop-block-party-3d.jpg",
         "backdropVideo": "assets/video/backdrop-block-party.mp4"
       },
-      "backdropRepeat": 6,
+      "backdropRepeat": 10,
       "backdropWindow": {
         "oy": 0.35,
         "ry": 0.65
       },
       "backdropGeo": {
         "r": 43,
-        "h": 39,
+        "h": 23.4,
         "bottom": 0.3
       },
       "status": "ready",
@@ -120,14 +120,14 @@
         "backdrop": "assets/textures/backdrop-neon-night-court-3d.jpg",
         "backdropVideo": "assets/video/backdrop-neon-night-court.mp4"
       },
-      "backdropRepeat": 6,
+      "backdropRepeat": 10,
       "backdropWindow": {
         "oy": 0.415,
         "ry": 0.585
       },
       "backdropGeo": {
         "r": 45,
-        "h": 36.7,
+        "h": 22,
         "bottom": 0.3
       },
       "status": "ready",
@@ -136,8 +136,8 @@
       "backdropBack": {
         "tex": "assets/textures/backdrop-neon-night-court-back.jpg",
         "video": "assets/video/backdrop-neon-night-court-back.mp4",
-        "oy": 0.42,
-        "ry": 0.55
+        "oy": 0.39,
+        "ry": 0.583
       }
     },
     {
@@ -153,14 +153,14 @@
         "backdrop": "assets/textures/backdrop-boardwalk-kings-3d.jpg",
         "backdropVideo": "assets/video/backdrop-boardwalk-kings.mp4"
       },
-      "backdropRepeat": 6,
+      "backdropRepeat": 10,
       "backdropWindow": {
         "oy": 0.31,
         "ry": 0.69
       },
       "backdropGeo": {
         "r": 46,
-        "h": 44.3,
+        "h": 26.6,
         "bottom": 0.3
       },
       "status": "ready",
@@ -169,8 +169,8 @@
       "backdropBack": {
         "tex": "assets/textures/backdrop-boardwalk-kings-back.jpg",
         "video": "assets/video/backdrop-boardwalk-kings-back.mp4",
-        "oy": 0.3,
-        "ry": 0.68
+        "oy": 0.29,
+        "ry": 0.69
       }
     },
     {
@@ -186,14 +186,14 @@
         "backdrop": "assets/textures/backdrop-the-underpass-3d.jpg",
         "backdropVideo": "assets/video/backdrop-the-underpass.mp4"
       },
-      "backdropRepeat": 6,
+      "backdropRepeat": 10,
       "backdropWindow": {
         "oy": 0.29,
         "ry": 0.71
       },
       "backdropGeo": {
         "r": 44,
-        "h": 43.7,
+        "h": 26.2,
         "bottom": 0.3
       },
       "status": "ready",
@@ -202,8 +202,8 @@
       "backdropBack": {
         "tex": "assets/textures/backdrop-the-underpass-back.jpg",
         "video": "assets/video/backdrop-the-underpass-back.mp4",
-        "oy": 0.3,
-        "ry": 0.68
+        "oy": 0.125,
+        "ry": 0.712
       }
     },
     {
@@ -219,14 +219,14 @@
         "backdrop": "assets/textures/backdrop-rubber-yard-3d.jpg",
         "backdropVideo": "assets/video/backdrop-rubber-yard.mp4"
       },
-      "backdropRepeat": 6,
+      "backdropRepeat": 10,
       "backdropWindow": {
         "oy": 0.3,
         "ry": 0.68
       },
       "backdropGeo": {
         "r": 48,
-        "h": 56.3,
+        "h": 33.8,
         "bottom": 0.3
       },
       "status": "ready",
@@ -252,14 +252,14 @@
         "backdrop": "assets/textures/backdrop-winter-classic-3d.jpg",
         "backdropVideo": "assets/video/backdrop-winter-classic.mp4"
       },
-      "backdropRepeat": 6,
+      "backdropRepeat": 10,
       "backdropWindow": {
         "oy": 0.3,
         "ry": 0.68
       },
       "backdropGeo": {
         "r": 45,
-        "h": 47.3,
+        "h": 28.4,
         "bottom": 0.3
       },
       "status": "ready",
@@ -285,14 +285,14 @@
         "backdrop": "assets/textures/backdrop-scorchyard-3d.jpg",
         "backdropVideo": "assets/video/backdrop-scorchyard.mp4"
       },
-      "backdropRepeat": 6,
+      "backdropRepeat": 10,
       "backdropWindow": {
         "oy": 0.3,
         "ry": 0.68
       },
       "backdropGeo": {
         "r": 49,
-        "h": 52.5,
+        "h": 31.5,
         "bottom": 0.3
       },
       "status": "ready",
@@ -318,14 +318,14 @@
         "backdrop": "assets/textures/backdrop-the-crown-3d.jpg",
         "backdropVideo": "assets/video/backdrop-the-crown.mp4"
       },
-      "backdropRepeat": 6,
+      "backdropRepeat": 10,
       "backdropWindow": {
         "oy": 0.275,
         "ry": 0.725
       },
       "backdropGeo": {
         "r": 47,
-        "h": 47.6,
+        "h": 28.6,
         "bottom": 0.3
       },
       "status": "ready",
@@ -334,8 +334,8 @@
       "backdropBack": {
         "tex": "assets/textures/backdrop-the-crown-back.jpg",
         "video": "assets/video/backdrop-the-crown-back.mp4",
-        "oy": 0.4,
-        "ry": 0.58
+        "oy": 0.19,
+        "ry": 0.727
       }
     }
   ]

@@ -9,10 +9,12 @@ describe('3d world config', () => {
     // world3d stays off; the city lives in backdrop + backdropVideo
     expect(blacktop.world3d).toBe(false);
     expect(blacktop.sky).toBe('golden-hour');
-    // repeat 6 + half-tile offset + pushed-out ring (r = fenceM + 26) =
-    // true-to-life building scale AND correct aspect (tile arc / height
-    // matches the source image within ~10%)
-    expect(blacktop.backdropRepeat).toBe(6);
+    // repeat 10 (2026-07-25, dev: "all backgrounds seem huge compared to the
+    // players") — more tiles = each painted scene covers less arc = buildings
+    // read distant-city scale instead of looming. Height carries the aspect
+    // rule (h = tileArc x ry / 0.75); rx/2 = 5 stays ODD so the scene center
+    // faces home with no mirror seam behind the plate.
+    expect(blacktop.backdropRepeat).toBe(10);
     // THE ring recipe (PR #55): every wall hugs the fence so the court-wall
     // junction hides behind the chain-link from every camera — never visible,
     // never "elevated" again
