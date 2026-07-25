@@ -12,6 +12,7 @@ import { SpecialMeter } from './specialMoves.js';
 import { pickPitch, aiKickError, aiAim, aiWantsPeg, aiMashRate, aiJukes, aiThrowsFire } from './ai.js';
 import { PickleDuel, shuttleDir } from './pickleDuel.js';
 import { RunnerWatchdog } from './runnerWatchdog.js';
+import { TrainFlyby } from './trainFlyby.js';
 import { PITCH_PATTERNS, PITCH_FAMILIES, pickVariant, scoreTrace } from './pitchPattern.js';
 import { igniteBall, douseBall, makeGlowTexture } from '../cinematics/fx.js';
 import { ReplayRecorder } from '../cinematics/replay.js';
@@ -91,6 +92,11 @@ export class MatchScene {
     this.ball.setFence(this.fenceM, this.fenceTopY);
     // City element: this field's signature modifier (Street Rules pillar 1)
     this.elements = new CityElements({ elementId: fieldData.element ?? 'sea-breeze' });
+    // el-train fields get a VISIBLE train riding the painted track when the
+    // rumble procs (dev: "you should absolutely see the train")
+    if ((fieldData.element ?? '') === 'el-train') {
+      this.trainFly = new TrainFlyby(engine.scene, fieldData.backdropGeo);
+    }
     this.elementInning = 1;
     // Crew heat: per-team momentum (Street Rules pillar 2); rebuilt each startMatch
     this.heat = new CrewHeat();
@@ -1516,19 +1522,19 @@ export class MatchScene {
         }
       } else if (r.state === 'held' && r.heldAt < 3) {
         r.decideT -= dt;
-        // keep the send-window open while the ball is loose
-        if (this.kickingIsPlayer() && !this.ballControlled) r.decideT = 1.4;
+        // keep the send-window open while the ball is loose (both sides — the
+        // AI must ALSO be able to keep taking bases on a kicked-away ball)
+        if (!this.ballControlled) r.decideT = this.kickingIsPlayer() ? 1.4 : Math.max(r.decideT, 0.9);
         // a teammate running into my bag forces me off it — vacate or we stack
         const mustVacate = this.runners.some(o =>
           o !== r && o.state === 'running' && o.targetBase === r.heldAt);
         // HUMAN: a held runner ONLY takes the next bag through the GO FOR 2 button
         // (sendHeldRunner) or when forced off — no accidental mash-through into a tag.
-        // AI offense: a bold lead runner (1st/2nd) will gamble for the next bag right
-        // after the D secures it (until the ball is fully controlled) — that's what
-        // creates a pickle the human defender can throw on; otherwise the AI holds.
-        const aggressive = this.kickingIsPlayer()
-          ? false
-          : (!this.ballControlled && r.aiRate > 4.2 && this.landDist > 24 && r.heldAt <= 1);
+        // AI offense: risk-based — take the next bag whenever the defense clearly
+        // can't deliver the ball there in time (dev: "they have to be willing to
+        // take more bases" on deep/missed kicks). The old gate (aiRate > 4.2)
+        // could NEVER fire: aiMashRate tops out at 4.0 on King.
+        const aggressive = this.kickingIsPlayer() ? false : this.aiWantsExtraBase(r);
         const wantsGo = mustVacate || (r.decideT > 0 && aggressive);
         if (wantsGo) {
           // take the next base!
@@ -2808,11 +2814,44 @@ export class MatchScene {
     this.bus.emit('sfx', 'juke'); // switch blip
   }
 
+  /** AI offense: should this held runner gamble for the next bag?
+   *  Risk-based: compare how long the defense needs to DELIVER the ball to the
+   *  target bag (reach it + throw it) against the runner's time to get there.
+   *  Home needs a fatter safety margin than 2nd/3rd. */
+  aiWantsExtraBase(r) {
+    if (this.ballControlled || r.decideT <= 0) return false;
+    const target = r.heldAt + 1;
+    if (target > 3) return false;
+    // the old spirit: a hot lead runner gambles on any genuinely deep ball
+    if (r.aiRate > 2.6 && this.landDist > 20 && r.heldAt <= 1) return true;
+    const bp = this.ball.pos;
+    if (!bp) return false;
+    const bagP = target === 3 ? FIELD_LAYOUT.home : this.basePos(target);
+    const dx = bp.x - bagP.x, dz = bp.z - bagP.z;
+    let defT = Math.hypot(dx, dz) / 26 + 0.9; // throw flight + pickup/transfer
+    if (!this.defenseHasBall) {
+      const nf = this.nearestFielderTo(bp);
+      if (nf) defT += Math.hypot(nf.group.position.x - bp.x, nf.group.position.z - bp.z) / 6.5;
+    }
+    const runT = this.tuning.running.basePathM / (this.tuning.running.maxSpeedMs * 0.8);
+    return defT > runT + (target === 3 ? 0.9 : 0.35);
+  }
+
+  /** Out ritual: hit the deck, then GET UP — a held final stumble pose reads as
+   *  "buried in the floor" when its legs clip the pavement (dev, twice). */
+  outStumble(char) {
+    char.animator.play('stumble', {
+      onDone: () => this.after(0.6, () => {
+        if (char.animator.name === 'stumble' && char.group.visible) char.animator.play('idle');
+      }),
+    });
+  }
+
   // ---------- outs ----------
   runnerOut(runner, reason) {
     if (runner.state === 'out') return;
     runner.state = 'out';
-    runner.char.animator.play('stumble');
+    this.outStumble(runner.char);
     this.faceCam(runner.char);
     this.field.crowdEnergy = 1;
     this.playOuts = (this.playOuts ?? 0) + 1;
@@ -2828,6 +2867,18 @@ export class MatchScene {
     }
     // Do NOT finalize here — the kicker/other runners may still be live. The
     // natural play-end (ball controlled + nobody running) records the outs.
+    // But when this out ENDS the action (nobody left running), wind the play
+    // down NOW: settle every jogging defender and stop waiting on the player's
+    // 6s throw-pad grace (dev: "fielders just kinda running in place a while").
+    if (!this.runners.some((q) => q.state === 'running')) {
+      for (const c of this.fieldingChars()) {
+        const n = c.animator.name;
+        if (!c.hasBall && (n === 'run' || n === 'strafeL' || n === 'strafeR')) c.animator.play('idle');
+      }
+      this.after(1.0, () => {
+        if (!this.playFinalized && !this.throwing && this.defenseHasBall) this.ballControlled = true;
+      });
+    }
   }
 
   catchOut(fielder) {
@@ -2844,7 +2895,7 @@ export class MatchScene {
     const kr = this.runners.find((r) => r.char === this.kicker);
     if (kr && kr.state !== 'out') {
       kr.state = 'out';
-      kr.char.animator.play('stumble');
+      this.outStumble(kr.char);
     }
     this.playOuts = (this.playOuts ?? 0) + 1;
     this.lastOutReason = 'catch';
@@ -3191,8 +3242,10 @@ export class MatchScene {
     if (procEv) {
       this.bus.emit('element:proc', { id: this.elements.id, label: this.elements.def.label, active: procEv.proc === 'start' });
       if (procEv.proc === 'start') this.engine.shake(this.elements.id === 'el-train' ? 0.35 : 0.15);
+      if (procEv.proc === 'start') this.trainFly?.start(); // the rumble HAS a train now
     }
     if (this.elements.procActive && this.elements.id === 'el-train') this.engine.shake(0.12);
+    this.trainFly?.update(dt);
 
     this.heat.update(rawDt);
     this.refreshHeatHud();
