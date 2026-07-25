@@ -301,7 +301,11 @@ export class MatchScene {
     // every later inning roll gets a compact "what changed" callout
     if (!this._elementIntroShown) {
       this._elementIntroShown = true;
-      this.hud.elementIntro(roll);
+      // HOLD THE GAME while the card is up — the AI was pitching behind it
+      // and players ate strikes they never saw (dev report). Render keeps
+      // going; gameplay (and the pitch clock) freezes until tap/timeout.
+      this.engine.paused = true;
+      this.hud.elementIntro(roll, () => { this.engine.paused = false; });
     } else {
       const pips = '●'.repeat(Math.max(1, Math.round(roll.intensity * 3)));
       // y 150: below the pitch-grade slot so the two never stack (overlap fix)
