@@ -1,5 +1,5 @@
 import { it, expect } from 'vitest';
-import { judgeKick, launchParams } from '../src/game/kickTiming.js';
+import { judgeKick, launchParams, flickShape, FLICK } from '../src/game/kickTiming.js';
 import tuning from '../src/data/tuning.json';
 
 it('classifies timing error into quality bands', () => {
@@ -54,4 +54,40 @@ it('special move multiplies power', () => {
   const v = launchParams(judgeKick(0, tuning), { aim: 'center', powerMult: 1.35 }, tuning);
   const k = tuning.kick;
   expect(v.speed).toBeCloseTo((k.baseBallSpeedMs + k.power.PERFECT * (k.maxBallSpeedMs - k.baseBallSpeedMs)) * 1.35);
+});
+
+it('flickShape: short flick = low liner, long flick = sky ball', () => {
+  const short = flickShape({ risePx: FLICK.minRisePx, durMs: 80 });
+  const long = flickShape({ risePx: FLICK.maxRisePx, durMs: 200 });
+  expect(short.loftDeg).toBeCloseTo(FLICK.minLoftDeg);
+  expect(long.loftDeg).toBeCloseTo(FLICK.maxLoftDeg);
+  // liner intent stays below the HR loft gate; a full flick clears it
+  expect(short.loftDeg).toBeLessThan(FLICK.hrMinLoftDeg);
+  expect(long.loftDeg).toBeGreaterThan(FLICK.hrMinLoftDeg);
+});
+
+it('flickShape: snap speed scales distance inside the band, and clamps', () => {
+  const lazy = flickShape({ risePx: 100, durMs: 100 / FLICK.lazyPxMs });
+  const snap = flickShape({ risePx: 100, durMs: 100 / FLICK.snapPxMs });
+  expect(lazy.speedScale).toBeCloseTo(FLICK.speedScale[0]);
+  expect(snap.speedScale).toBeCloseTo(FLICK.speedScale[1]);
+  const beyond = flickShape({ risePx: 900, durMs: 1 });
+  expect(beyond.loftDeg).toBeCloseTo(FLICK.maxLoftDeg);
+  expect(beyond.speedScale).toBeCloseTo(FLICK.speedScale[1]);
+});
+
+it('flickShape: no metrics -> null (AI path keeps the quality loft table)', () => {
+  expect(flickShape(null)).toBeNull();
+  expect(flickShape({ risePx: 0, durMs: 100 })).toBeNull();
+  const ai = launchParams(judgeKick(0, tuning), { aim: 'center' }, tuning);
+  expect(ai.loftDeg).toBe(tuning.kick.loftDeg.PERFECT);
+});
+
+it('launchParams: flick shape overrides loft and scales speed for the player', () => {
+  const judged = judgeKick(0, tuning);
+  const shape = flickShape({ risePx: FLICK.maxRisePx, durMs: 120 });
+  const v = launchParams(judged, { aimDeg: 0, power01: 1, shape }, tuning);
+  const k = tuning.kick;
+  expect(v.loftDeg).toBeCloseTo(shape.loftDeg);
+  expect(v.speed).toBeCloseTo(k.maxBallSpeedMs * shape.speedScale);
 });
