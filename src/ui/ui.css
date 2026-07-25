@@ -681,9 +681,9 @@ body { display: flex; align-items: center; justify-content: center; }
 .m-cycle { align-items: center; }
 .m-cycle .kit-toggle {
   width: auto; height: 34px; border-radius: 11px;
-  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
   background: rgba(8, 9, 13, .82); border: 2px solid var(--c1, #2e3344);
-  padding: 0 10px; font-family: var(--marker); font-size: 11px; letter-spacing: .5px; color: #fff; white-space: nowrap;
+  padding: 0 8px; font-family: var(--marker); font-size: 10px; letter-spacing: .5px; color: #fff; white-space: nowrap;
 }
 .kit-swatch { width: 15px; height: 15px; border-radius: 4px; border: 1.5px solid rgba(255,255,255,.7); background: var(--c1, #888); flex: 0 0 auto; }
 
@@ -778,8 +778,13 @@ body { display: flex; align-items: center; justify-content: center; }
 }
 .m-player.woman { height: 88%; transform: translateX(-64%); z-index: 1; } /* back-left */
 .m-player.man   { height: 98%; transform: translateX(-36%); z-index: 2; } /* front-right, taller */
-.m-cycle { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); z-index: 5; display: flex; gap: 8px; }
-.m-cycle button { width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(8,9,13,.82); color: #fff; font-size: 20px; line-height: 1; }
+.m-cycle { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); z-index: 5; display: flex; gap: 6px; }
+/* AWAY's diagonal clip slices its panel to 88% width at the bottom and the HOME
+   panel overlaps the last 9% — on phone widths that swallowed the › arrow
+   (dev: "the right arrow on the away team is covered up"). Nudge the whole
+   row left of the cut. */
+.m-side.away .m-cycle { left: calc(50% - 10px); }
+.m-cycle button { width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(8,9,13,.82); color: #fff; font-size: 20px; line-height: 1; flex: 0 0 auto; }
 .m-tag { position: absolute; top: 8px; left: 8px; z-index: 4; background: #0b0d12; color: var(--c1); font-weight: 900; font-size: 10px; letter-spacing: 1.5px; padding: 3px 8px; border-radius: 6px; }
 .m-tag.rival { left: auto; right: 8px; }
 

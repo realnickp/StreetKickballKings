@@ -439,8 +439,11 @@ export class Hud {
     this._callouts.clear();
   }
 
-  /** Full-screen element teach card (Know It): LEARN it before first pitch. */
-  elementIntro({ id, label, blurb, tip }) {
+  /** Full-screen element teach card (Know It): LEARN it before first pitch.
+   *  onClose fires exactly once when the card leaves (tap or timeout) — the
+   *  scene uses it to UNPAUSE the game (dev: "ai doesn't pause to let you
+   *  read the pop up, starts pitching anyways and leads to an out"). */
+  elementIntro({ id, label, blurb, tip }, onClose = null) {
     const icon = ELEMENT_ICONS[id] ?? '⭐';
     const card = document.createElement('div');
     card.className = 'element-intro';
@@ -453,11 +456,12 @@ export class Hud {
       card._closed = true;
       card.classList.add('bye');
       setTimeout(() => card.remove(), 320);
+      onClose?.();
     };
     card.addEventListener('pointerdown', (e) => { e.stopPropagation(); close(); });
     this.el.appendChild(card);
     this._fitText(card.querySelector('h2'), { minPx: 22 });
-    setTimeout(close, 4500);
+    setTimeout(close, 6000);
   }
 
   /** Big juicy center pop for scoring a tutorial goal ("GOAL ✓ 1/2"). */
