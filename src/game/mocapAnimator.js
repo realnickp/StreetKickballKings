@@ -92,7 +92,14 @@ export class MocapAnimator {
       this._active.timeScale = this._speed * Math.max(0.35, this.ctx.speedFactor);
     }
     this.mixer.update(dt);
-    if (this._hips && this._hips.position.y < this._hipMinY) this._hips.position.y = this._hipMinY;
+    // Held FINAL stumble pose gets a HIGHER floor: at 0.15×rest the sprawled
+    // legs still clip under the court and the downed player reads as "buried
+    // in the floor, body cut off" (dev, twice). Half rest height keeps the
+    // whole body above the pavement while he waits to get up.
+    const minY = (this.name === 'stumble' && this._doneFired)
+      ? this._hipMinY * (0.5 / 0.15) // = |rest| × 0.5
+      : this._hipMinY;
+    if (this._hips && this._hips.position.y < minY) this._hips.position.y = minY;
     if (this._active && !this._contactFired && this._meta?.contactAt != null) {
       const clip = this._active.getClip();
       if (this._active.time / clip.duration >= this._meta.contactAt) {
