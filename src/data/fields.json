@@ -16,7 +16,7 @@
         "wall": "#7a4a32"
       },
       "textures": {
-        "ground": "assets/textures/asphalt.png",
+        "ground": "assets/textures/ground-blacktop.jpg",
         "backdrop": "assets/textures/backdrop-blacktop-3d.jpg",
         "backdropVideo": "assets/video/backdrop-blacktop.mp4"
       },
