@@ -376,12 +376,27 @@ const ARCHETYPES = [
   '/assets/models/archetypes/arch-bald.glb',
   '/assets/models/archetypes/arch-afro.glb',
   '/assets/models/archetypes/arch-twists.glb',
-  // batch-1 diversity roll-out (dev-approved designs, 2026-07-25) — first
-  // convert landed as the pilot; the rest join here as they're converted
-  '/assets/models/archetypes/arch-pilot.glb',
+  // batch-1 diversity roll-out (all 16 designs dev-approved 2026-07-25;
+  // 14 converted — 05/07 dropped at random to fit the credit balance).
+  // INTERLEAVED men/women so the roster cycle mixes builds, ages and
+  // skin tones instead of clustering.
+  '/assets/models/archetypes/arch-pilot.glb',    // 6  M locs athletic (01)
+  '/assets/models/archetypes/arch-sprint.glb',   // 7  F long braids, tall sprinter (02)
+  '/assets/models/archetypes/arch-stocky.glb',   // 8  M stocky Latino, beard (03)
+  '/assets/models/archetypes/arch-pony.glb',     // 9  F East Asian, high ponytail (04)
+  '/assets/models/archetypes/arch-waves.glb',    // 10 M South Asian, cropped waves (06)
+  '/assets/models/archetypes/arch-puff.glb',     // 11 F Latina, afro-puff (08)
+  '/assets/models/archetypes/arch-shaggy.glb',   // 12 M East Asian, shaggy (10)
+  '/assets/models/archetypes/arch-bun.glb',      // 13 F stocky blonde bun (09)
+  '/assets/models/archetypes/arch-curls.glb',    // 14 M Middle Eastern, curls (12)
+  '/assets/models/archetypes/arch-fro.glb',      // 15 F short afro, compact (11)
+  '/assets/models/archetypes/arch-vet.glb',      // 16 M 40s veteran, greying (13)
+  '/assets/models/archetypes/arch-band.glb',     // 17 F ponytail + headband (16)
+  '/assets/models/archetypes/arch-longhair.glb', // 18 M Native, long tied-back (14)
+  '/assets/models/archetypes/arch-stache.glb',   // 19 M heavyset, mustache (15)
 ];
 const FALLBACK_MODEL = '/assets/models/monarchs-23.glb';
-const FEMALE_ARCHETYPES = new Set([2, 5]); // arch-braids, arch-twists
+const FEMALE_ARCHETYPES = new Set([2, 5, 7, 9, 11, 13, 15, 17]);
 
 /** Build a full team of detailed GLB characters, recolored to a uniform colour
  *  (defaults to the team's primary; pass `uniformColor` for a light/dark kit so
@@ -401,9 +416,14 @@ export async function buildTeamCharsGlb(team, uniformColor) {
     catch (e) { console.warn(`[skk] mocap-${key}.glb unavailable, using code animator:`, e); return null; }
   };
   const out = [];
+  // Per-team offset into the archetype pool: rosters are ~8 deep and plain
+  // cycling would give every team the SAME first eight faces. Hashing the
+  // team id slides each crew to its own slice, so Philly's people aren't
+  // Brooklyn's people. Deterministic — a team always fields the same folks.
+  const teamOffset = [...(team.id ?? '')].reduce((a, c) => a + c.charCodeAt(0), 0) % ARCHETYPES.length;
   for (let i = 0; i < roster.length; i++) {
     const p = roster[i];
-    const archIdx = (p.archetype ?? i) % ARCHETYPES.length;
+    const archIdx = (p.archetype ?? (teamOffset + i)) % ARCHETYPES.length;
     const clips = await clipsFor(archIdx);
     let char;
     try {
