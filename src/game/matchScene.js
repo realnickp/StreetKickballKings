@@ -5,7 +5,7 @@
 // exact field outcome via applyOutcome().
 import * as THREE from 'three';
 import { MatchEngine } from './matchState.js';
-import { judgeKick, launchParams, powerFromError, isHrEligible } from './kickTiming.js';
+import { judgeKick, launchParams, powerFromError, isHrEligible, flickShape, FLICK } from './kickTiming.js';
 import { mashSpeed, humanRunSpeed, RunnerSim } from './baseRunning.js';
 import { resolveBaseThrow, resolvePeg } from './throwing.js';
 import { SpecialMeter } from './specialMoves.js';
@@ -526,6 +526,7 @@ export class MatchScene {
     this.throwing = false;
     this.ballControlled = false;
     this.playFinalized = false;
+    this.pendingFlick = null;
     this.activeFielder = null;
     this.marker.visible = false;
     this.fielderRing.visible = false;
@@ -635,8 +636,8 @@ export class MatchScene {
     this.hud.hidePattern();
     const hasRunners = this.match.state.bases.some((b) => b !== null);
     this.hud.hint(hasRunners
-      ? 'FLICK UP TO KICK!'
-      : 'SLIDE TO AIM • FLICK UP TO KICK');
+      ? 'SHORT FLICK = LINER • LONG FLICK = SKY BALL'
+      : 'SLIDE TO AIM • SHORT FLICK = LINER, LONG = SKY BALL');
     this.kicker.group.position.x = 0; // start centred; you slide left/right to line up
     this._kickerPrevX = 0; // reset stride tracker so the recenter isn't read as a slide
     this.pitch = pickPitch(this.tuning);
@@ -832,11 +833,16 @@ export class MatchScene {
     }
     // crew on fire: every kick is juiced while the bar burns
     powerMult *= this.heat.kickPowerMult(this.match.kickingSide());
+    // Flick shape: loft from the flick's length, distance band from its snap
+    // (dev: "more control of where the ball goes"). AI/no-metrics kicks keep
+    // the quality-table loft.
+    const shape = flickShape(aimSpec.flick);
     // HR gate: a player kick leaves the park on a sweet-zone meter lock AND a lined-up
-    // kicker — OR a consumed crown super-kick (kept as a bonus path).
+    // kicker — OR a consumed crown super-kick (kept as a bonus path). A deliberate
+    // LOW flick is a liner by intent — it can scream, not clear the fence.
     this.kickHrEligible = isPlayerKick && (
       isHrEligible({ power01, alignErrM }, this.tuning) || this.kickWasSpecial
-    );
+    ) && (!shape || shape.loftDeg >= FLICK.hrMinLoftDeg);
     // Not every perfect is a bomb (dev): ~45% become a SCREAMING gap shot —
     // aimed at the widest hole in the defense, dying at the track instead of
     // clearing it. Crown super-kicks always leave the yard (their identity).
@@ -867,7 +873,7 @@ export class MatchScene {
     }
     const launch = launchParams(
       judged,
-      { ...aimSpec, ...(aimDeg != null ? { aimDeg } : {}), powerMult, ...(power01 != null ? { power01 } : {}) },
+      { ...aimSpec, ...(aimDeg != null ? { aimDeg } : {}), powerMult, ...(power01 != null ? { power01 } : {}), ...(shape ? { shape } : {}) },
       this.tuning,
     );
     // city air: heat carries it, harbor humidity kills it (applies to flight AND
@@ -2648,16 +2654,28 @@ export class MatchScene {
 
   onDrag(e) {
     // KICK role: slide the kicker left/right to line up under the incoming ball;
-    // a sharp upward flick fires the kick (alignment = where you left the kicker).
+    // a sharp upward flick starts the kick. TIMING is judged the instant the
+    // flick trips (feel unchanged) but the launch waits for the FULL stroke —
+    // its length picks the loft, its snap picks the distance band (dev: "more
+    // control of where the ball goes").
     if (this.phase === 'PITCH' && this.kickingIsPlayer() && !this.kicked) {
+      const now = e.t ?? performance.now();
+      if (this.pendingFlick) {
+        // mid-flick: keep measuring, don't drift the kicker sideways
+        const f = this.pendingFlick;
+        if (e.y < f.yMin) { f.yMin = e.y; f.tLast = now; }
+        return;
+      }
       if (e.dy > -16) this.aimKicker(e.x); // horizontal-ish move repositions; a sharp up move doesn't drift it
       this.flickBuf = this.flickBuf ?? [];
-      const now = e.t ?? performance.now();
       this.flickBuf.push({ y: e.y, t: now });
       while (this.flickBuf.length && this.flickBuf[0].t < now - 160) this.flickBuf.shift();
-      let maxY = -Infinity;
-      for (const p of this.flickBuf) maxY = Math.max(maxY, p.y);
-      if (maxY - e.y > 48) { this.flickBuf = []; this.attemptKick({ align: true }, this.elapsed); }
+      let maxY = -Infinity, tStart = now;
+      for (const p of this.flickBuf) { if (p.y > maxY) { maxY = p.y; tStart = p.t; } }
+      if (maxY - e.y > 48) {
+        this.flickBuf = [];
+        this.pendingFlick = { tCross: this.elapsed, y0: maxY, yMin: e.y, t0: tStart, tLast: now };
+      }
       return;
     }
     // PITCH role: draw the live trace as the player follows the pattern
@@ -2694,9 +2712,14 @@ export class MatchScene {
   }
 
   onSwipe(e) {
-    // KICK role: an up-swipe also fires the kick (line-up = current kicker position)
+    // KICK role: an up-swipe also fires the kick (line-up = current kicker position).
+    // A buffered flick is already measured — onUp fires it with full metrics.
     if (this.phase === 'PITCH' && this.kickingIsPlayer() && !this.kicked && e.dir === 'up') {
-      this.attemptKick({ align: true }, this.elapsed);
+      if (this.pendingFlick) return;
+      this.attemptKick({
+        align: true,
+        flick: { risePx: Math.max(0, -e.dy), durMs: Math.max(1, e.t - e.downT) },
+      }, this.elapsed);
       return;
     }
     // DUEL, offense: swipe up = SPIN (i-frames — dodges the tag AND a peg)
@@ -2717,12 +2740,29 @@ export class MatchScene {
     }
   }
 
-  /** Pointer release — backup kick trigger: a release that flicked upward kicks
-   *  (a flat/horizontal release was just repositioning the kicker). */
+  /** Fire the buffered flick: timing = the moment the flick tripped, shape =
+   *  the whole stroke (rise + snap). */
+  fireFlick() {
+    const f = this.pendingFlick;
+    if (!f) return;
+    this.pendingFlick = null;
+    this.attemptKick({
+      align: true,
+      flick: { risePx: f.y0 - f.yMin, durMs: Math.max(1, f.tLast - f.t0) },
+    }, f.tCross);
+  }
+
+  /** Pointer release — completes a buffered flick, or acts as the backup kick
+   *  trigger: a release that flicked upward kicks (a flat/horizontal release
+   *  was just repositioning the kicker). */
   onUp(e) {
+    if (this.pendingFlick) { this.fireFlick(); return; }
     if (this.cinematicLock) return;
     if (this.phase === 'PITCH' && this.kickingIsPlayer() && !this.kicked && e.dy < -26 && e.travel > 22) {
-      this.attemptKick({ align: true }, this.elapsed);
+      this.attemptKick({
+        align: true,
+        flick: { risePx: Math.max(0, -e.dy), durMs: Math.max(1, e.dur) },
+      }, this.elapsed);
     }
   }
 
@@ -3241,6 +3281,8 @@ export class MatchScene {
       this.hud.goalPop('GO!');
       this.bus.emit('sfx', 'juke');
     }
+    // a flick the player never released still fires (finger held after the snap)
+    if (this.pendingFlick && this.elapsed > this.pendingFlick.tCross + 0.22) this.fireFlick();
     // city element procs (el-train pass / motorcade sweep): flash the HUD, rattle the camera
     const procEv = this.elements.update(dt);
     if (procEv) {

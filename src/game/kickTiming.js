@@ -32,6 +32,34 @@ const AIM_DIR = { left: -1, center: 0, right: 1 };
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
+// Flick control (dev: "we don't have the ability to control the height or
+// distance of the kick... I'd like more control of where the ball goes"):
+// the flick's LENGTH picks the loft — short flick = low line drive, long
+// flick = high sky ball — and its SNAP (rise speed) scales distance inside a
+// band the timing meter still owns. Timing stays the skill core; the flick
+// is intent.
+export const FLICK = {
+  minRisePx: 48, maxRisePx: 300,   // vertical rise from flick start to peak
+  minLoftDeg: 15, maxLoftDeg: 52,
+  lazyPxMs: 0.25, snapPxMs: 1.6,   // rise speed (px/ms) mapped to the scale band
+  speedScale: [0.85, 1.12],
+  hrMinLoftDeg: 28,                // a bomb needs air under it — liners can't clear
+};
+
+/** Map raw flick metrics {risePx, durMs} to {loftDeg, speedScale}. Returns
+ *  null when there are no usable metrics (AI kicks, buttons, degenerate input). */
+export function flickShape(flick) {
+  if (!flick || !(flick.risePx > 0)) return null;
+  const len01 = clamp((flick.risePx - FLICK.minRisePx) / (FLICK.maxRisePx - FLICK.minRisePx), 0, 1);
+  const spd = flick.risePx / Math.max(flick.durMs ?? 1, 1);
+  const spd01 = clamp((spd - FLICK.lazyPxMs) / (FLICK.snapPxMs - FLICK.lazyPxMs), 0, 1);
+  return {
+    loftDeg: FLICK.minLoftDeg + len01 * (FLICK.maxLoftDeg - FLICK.minLoftDeg),
+    speedScale: FLICK.speedScale[0] + spd01 * (FLICK.speedScale[1] - FLICK.speedScale[0]),
+    len01, spd01,
+  };
+}
+
 /**
  * @param {ReturnType<typeof judgeKick>} judged
  * @param {object} opts aim as a string (`'left'|'center'|'right'|'bunt'`, the AI
@@ -60,9 +88,11 @@ export function launchParams(judged, opts, tuning) {
   const timingBias = judged.quality === 'PERFECT' ? 0 : Math.sign(judged.errorMs) * 8;
   // Distance scales with the meter power (player) or the per-band power (AI fallback).
   const power01 = opts.power01 ?? k.power[judged.quality];
+  // Player flick shape: loft from flick length, distance band from flick snap.
+  const shape = opts.shape ?? null;
   return {
-    speed: (k.baseBallSpeedMs + power01 * (k.maxBallSpeedMs - k.baseBallSpeedMs)) * mult,
-    loftDeg: k.loftDeg[judged.quality],
+    speed: (k.baseBallSpeedMs + power01 * (k.maxBallSpeedMs - k.baseBallSpeedMs)) * mult * (shape?.speedScale ?? 1),
+    loftDeg: shape ? shape.loftDeg : k.loftDeg[judged.quality],
     // windBiasDeg: city-element wind awareness (CPU kicks downwind on windy fields)
     directionDeg: base + timingBias + (opts.windBiasDeg ?? 0),
   };
