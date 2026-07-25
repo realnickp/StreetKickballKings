@@ -22,12 +22,12 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.3,
-        "ry": 0.68
+        "oy": 0.585,
+        "ry": 0.415
       },
       "backdropGeo": {
         "r": 49,
-        "h": 55.6,
+        "h": 28.4,
         "bottom": 0.3
       },
       "status": "ready",
@@ -103,8 +103,8 @@
       "backdropBack": {
         "tex": "assets/textures/backdrop-block-party-back.jpg",
         "video": "assets/video/backdrop-block-party-back.mp4",
-        "oy": 0.42,
-        "ry": 0.55
+        "oy": 0.35,
+        "ry": 0.65
       }
     },
     {
@@ -122,12 +122,12 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.3,
-        "ry": 0.68
+        "oy": 0.415,
+        "ry": 0.585
       },
       "backdropGeo": {
         "r": 45,
-        "h": 53.2,
+        "h": 36.7,
         "bottom": 0.3
       },
       "status": "ready",
@@ -155,12 +155,12 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.3,
-        "ry": 0.68
+        "oy": 0.31,
+        "ry": 0.69
       },
       "backdropGeo": {
         "r": 46,
-        "h": 53.1,
+        "h": 44.3,
         "bottom": 0.3
       },
       "status": "ready",
@@ -188,12 +188,12 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.3,
-        "ry": 0.68
+        "oy": 0.29,
+        "ry": 0.71
       },
       "backdropGeo": {
         "r": 44,
-        "h": 59.3,
+        "h": 43.7,
         "bottom": 0.3
       },
       "status": "ready",
@@ -235,8 +235,8 @@
       "backdropBack": {
         "tex": "assets/textures/backdrop-rubber-yard-back.jpg",
         "video": "assets/video/backdrop-rubber-yard-back.mp4",
-        "oy": 0.3,
-        "ry": 0.68
+        "oy": 0.145,
+        "ry": 0.84
       }
     },
     {
@@ -320,12 +320,12 @@
       },
       "backdropRepeat": 6,
       "backdropWindow": {
-        "oy": 0.4,
-        "ry": 0.58
+        "oy": 0.275,
+        "ry": 0.725
       },
       "backdropGeo": {
         "r": 47,
-        "h": 50,
+        "h": 47.6,
         "bottom": 0.3
       },
       "status": "ready",
