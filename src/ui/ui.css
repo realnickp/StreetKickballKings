@@ -71,6 +71,8 @@ body { display: flex; align-items: center; justify-content: center; }
   pointer-events: none;
   z-index: 5;
 }
+/* letterboxed cinematics: hide gameplay chrome so cards own the screen */
+.hud.cine .special-btn, .hud.cine .heat-bar, .hud.cine .element-chip { display: none; }
 
 .hud .score-bug {
   position: absolute;
@@ -1322,6 +1324,7 @@ body { display: flex; align-items: center; justify-content: center; }
   background: linear-gradient(160deg, rgba(10,11,16,.92), rgba(10,11,16,.78));
   border: 2.5px solid var(--c1, #ff7a2d); border-radius: 14px;
   padding: 10px 14px 12px; text-align: center;
+  overflow: hidden; /* long nicks shrink via fitText; nothing spills onto other HUD text */
   box-shadow: 0 8px 30px rgba(0,0,0,.6), 0 0 22px color-mix(in srgb, var(--c1, #ff7a2d) 45%, transparent);
   animation: woSlam .32s cubic-bezier(.2, 1.6, .4, 1) both;
 }
@@ -1347,13 +1350,49 @@ body { display: flex; align-items: center; justify-content: center; }
 .walkout-card .stat-bar i { display: block; height: 100%; background: var(--c1, #ff7a2d); border-radius: 4px; }
 /* NOW KICKING lower-third: compact, tucked left, clear of the kicker + hint */
 .walkout-card.mini {
-  left: 10px; bottom: 21%; transform: none;
-  width: min(52%, 210px); padding: 7px 11px 9px; text-align: left;
+  left: 8px; top: calc(146px + env(safe-area-inset-top)); bottom: auto; transform: none;
+  width: min(44%, 178px); padding: 6px 10px 8px; text-align: left;
   animation: woSlideIn .28s cubic-bezier(.2, 1.4, .4, 1) both;
 }
 @keyframes woSlideIn {
   0% { transform: translateX(-110%); opacity: 0; }
   100% { transform: translateX(0); opacity: 1; }
+}
+/* team splash: full-screen crest slam between walkout sides */
+.team-splash {
+  position: absolute; inset: 0; z-index: 70; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background:
+    radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--c1, #ff7a2d) 42%, transparent), transparent 62%),
+    rgba(6, 8, 12, .82);
+  animation: tsFade .3s ease-out both;
+}
+@keyframes tsFade { from { opacity: 0; } to { opacity: 1; } }
+.team-splash .ts-logo {
+  width: min(52vw, 240px); height: auto; max-height: 38vh; object-fit: contain;
+  filter: drop-shadow(0 10px 30px rgba(0,0,0,.8));
+  animation: tsSlam .45s cubic-bezier(.2, 1.5, .4, 1) both;
+}
+@keyframes tsSlam {
+  0% { transform: scale(2.6) rotate(-7deg); opacity: 0; }
+  55% { opacity: 1; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+.team-splash .ts-name {
+  margin: 10px 0 0; font-family: var(--marker); font-size: clamp(26px, 8cqw, 44px);
+  color: #fff; -webkit-text-stroke: 2px #0b0d12;
+  text-shadow: 0 3px 0 rgba(0,0,0,.5), 0 0 26px color-mix(in srgb, var(--c1, #ff7a2d) 65%, transparent);
+  white-space: nowrap; max-width: 92vw;
+  animation: tsRise .4s .12s cubic-bezier(.2, 1.4, .4, 1) both;
+}
+.team-splash .ts-city {
+  margin-top: 4px; font-weight: 900; font-size: 12px; letter-spacing: 4px;
+  color: rgba(255,255,255,.85);
+  animation: tsRise .4s .2s cubic-bezier(.2, 1.4, .4, 1) both;
+}
+@keyframes tsRise {
+  0% { transform: translateY(26px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
 }
 .walkout-card.mini .wo-nick { font-size: 21px; }
 .walkout-card.mini .wo-tag { font-size: 9px; letter-spacing: 1.5px; }
