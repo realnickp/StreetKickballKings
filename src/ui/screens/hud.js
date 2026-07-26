@@ -464,6 +464,34 @@ export class Hud {
     setTimeout(close, 6000);
   }
 
+  /** Starting-lineup walkout card: street name BIG, number/position, and the
+   *  player's two best stats. One at a time — showing replaces the last. */
+  walkoutShow({ nick, number, pos, stats, color, label }) {
+    this.walkoutHide();
+    const card = document.createElement('div');
+    card.className = 'walkout-card';
+    if (color) card.style.setProperty('--c1', color);
+    const best = Object.entries(stats ?? {})
+      .sort((a, b) => b[1] - a[1]).slice(0, 2);
+    const STAT_LABEL = { power: 'PWR', speed: 'SPD', arm: 'ARM', glove: 'GLV' };
+    card.innerHTML =
+      `<span class="wo-tag">${label ?? ''}</span>` +
+      `<h2 class="wo-nick"></h2>` +
+      `<span class="wo-sub">${number != null ? `#${number} · ` : ''}${(pos ?? '').toUpperCase()}</span>` +
+      best.map(([k, v]) =>
+        `<div class="stat-row"><span>${STAT_LABEL[k] ?? k}</span>` +
+        `<div class="stat-bar"><i style="width:${v * 10}%"></i></div></div>`).join('');
+    card.querySelector('.wo-nick').textContent = nick ?? '';
+    this.el.appendChild(card);
+    this._walkoutCard = card;
+    this._fitText(card.querySelector('.wo-nick'), { minPx: 20 });
+  }
+
+  walkoutHide() {
+    this._walkoutCard?.remove();
+    this._walkoutCard = null;
+  }
+
   /** Big juicy center pop for scoring a tutorial goal ("GOAL ✓ 1/2"). */
   goalPop(text) {
     const g = document.createElement('div');

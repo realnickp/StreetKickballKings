@@ -84,7 +84,7 @@ const state = (page) => page.evaluate(() => {
 
 async function offenseScenario(page) {
   console.log('\n--- scenario 1: OFFENSE duel ---');
-  await bootMatch(page, 'match&nosplash');
+  await bootMatch(page, 'match&nosplash&nointro');
   ok(await stageRundown(page, { playerDefense: false }), 'duel created (offense)');
   let st = await state(page);
   ok(st.btnShown && st.btnLabel === 'GO!', `GO! button up (label "${st.btnLabel}")`);
@@ -117,7 +117,7 @@ async function offenseScenario(page) {
 
 async function defenseScenario(page) {
   console.log('\n--- scenario 2: DEFENSE duel ---');
-  await bootMatch(page, 'match=field&nosplash');
+  await bootMatch(page, 'match=field&nosplash&nointro');
   ok(await stageRundown(page, { playerDefense: true }), 'duel created (defense)');
   let st = await state(page);
   ok(st.btnShown && st.btnLabel === 'THROW!', `THROW! button up (label "${st.btnLabel}")`);
@@ -151,7 +151,7 @@ async function defenseScenario(page) {
 
 async function watchdogScenario(page) {
   console.log('\n--- scenario 3: WATCHDOG (P0) ---');
-  await bootMatch(page, 'match&nosplash');
+  await bootMatch(page, 'match&nosplash&nointro');
   await page.evaluate(() => {
     const s = window.__skk;
     s.clearTimers();

@@ -283,9 +283,97 @@ export class MatchScene {
     });
     this.special.value = 0;
     this.specialArmed = false;
-    this.bus.emit('vo', 'playball');
-    this.refreshHud();
-    this.nextAtBat();
+    const begin = () => {
+      this.bus.emit('vo', 'playball');
+      this.refreshHud();
+      this.nextAtBat();
+    };
+    this.lineupIntro(begin);
+  }
+
+  // ---------- STARTING LINEUPS: the walkout (dev: "give names to the players
+  // and have them walk out... announcer shit too, like a real game would be").
+  // Three stars per side swagger toward a low hero camera, street name + best
+  // stats slam in, the booth calls their game. Tap anywhere skips (the
+  // cinematicLock tap route emits cine:skip).
+  lineupIntro(done) {
+    const url = new URLSearchParams(location.search);
+    if (url.has('nointro') || url.has('drill')) return done();
+    const starsOf = (side) => {
+      const roster = this.teams[side].roster ?? [];
+      const chars = this.chars[side] ?? [];
+      const idx = (pred) => roster.findIndex(pred);
+      const picks = [];
+      const cap = idx((p) => /captain/i.test(p.pos ?? ''));
+      if (cap >= 0) picks.push({ i: cap, tag: 'walkout-captain', label: 'THE CAPTAIN' });
+      const top = (stat, tag, label) => {
+        let best = -1, bestV = -1;
+        roster.forEach((p, i) => {
+          if (picks.some((q) => q.i === i)) return;
+          if ((p.stats?.[stat] ?? 0) > bestV) { bestV = p.stats?.[stat] ?? 0; best = i; }
+        });
+        if (best >= 0) picks.push({ i: best, tag, label });
+      };
+      top('power', 'walkout-power', 'THE BIG BOOT');
+      top('speed', 'walkout-speed', 'THE WHEELS');
+      return picks
+        .filter((p) => chars[p.i])
+        .map((p) => ({ ...roster[p.i], char: chars[p.i], tag: p.tag, label: p.label }));
+    };
+    const away = starsOf('away');
+    const home = starsOf('home');
+    if (!away.length && !home.length) return done();
+
+    this.walkoutActive = true;
+    this.cinematicLock = true;
+    this.engine.cameraLock = true;
+    this.hud.setLetterbox(true);
+    this.hud.hint('');
+    // empty stage: everyone hides, stars appear one at a time
+    for (const c of [...this.chars.home, ...this.chars.away]) c.group.visible = false;
+
+    const cleanup = () => {
+      if (!this.walkoutActive) return;
+      this.walkoutActive = false;
+      this.walkout = null;
+      offSkip?.();
+      this.hud.walkoutHide();
+      this.hud.setLetterbox(false);
+      this.cinematicLock = false;
+      this.engine.cameraLock = false;
+      done();
+    };
+    const offSkip = this.bus.on('cine:skip', cleanup);
+
+    const BEAT = 2.3;
+    const beat = (star, color, t) => {
+      this.after(t, () => {
+        if (!this.walkoutActive) return;
+        // previous star freezes in the back — hide him, bring the next
+        if (this.walkout?.char) this.walkout.char.group.visible = false;
+        const c = star.char;
+        c.group.visible = true;
+        c.group.position.set(0, 0, -13);
+        this.faceTo(c, new THREE.Vector3(0, 0, 8), true);
+        c.animator.play('swagger');
+        this.walkout = { char: c, until: this.elapsed + BEAT };
+        this.hud.walkoutShow({
+          nick: star.nick, number: star.number, pos: star.pos,
+          stats: star.stats, color, label: star.label,
+        });
+        this.bus.emit('vo', star.tag);
+        this.bus.emit('sfx', 'crowd-cheer');
+      });
+    };
+
+    let t = 0.2;
+    this.after(t, () => { if (this.walkoutActive) { this.bus.emit('vo', 'lineups'); this.hud.stamp('STARTING LINEUPS', 'crowned'); } });
+    t += 1.6;
+    for (const s of away) { beat(s, this.teams.away.colors?.primary, t); t += BEAT; }
+    this.after(t, () => { if (this.walkoutActive) { this.bus.emit('vo', 'walkout-home'); this.hud.stamp(this.teams.home.name.toUpperCase(), 'crowned'); this.hud.walkoutHide(); if (this.walkout?.char) this.walkout.char.group.visible = false; this.walkout = null; } });
+    t += 1.5;
+    for (const s of home) { beat(s, this.teams.home.colors?.primary, t); t += BEAT; }
+    this.after(t + 0.4, cleanup);
   }
 
   // ---------- helpers ----------
@@ -3283,6 +3371,14 @@ export class MatchScene {
     }
     // a flick the player never released still fires (finger held after the snap)
     if (this.pendingFlick && this.elapsed > this.pendingFlick.tCross + 0.22) this.fireFlick();
+    // STARTING LINEUPS walkout: the star swaggers at a low trailing hero cam
+    if (this.walkout?.char) {
+      const wc = this.walkout.char;
+      wc.group.position.z += dt * 1.55;
+      wc.animator.ctx.speedFactor = 1;
+      this.engine.camera.position.set(0.9, 1.15, wc.group.position.z + 4.2);
+      this.engine.camera.lookAt(-0.2, 1.25, wc.group.position.z - 0.5);
+    }
     // city element procs (el-train pass / motorcade sweep): flash the HUD, rattle the camera
     const procEv = this.elements.update(dt);
     if (procEv) {
