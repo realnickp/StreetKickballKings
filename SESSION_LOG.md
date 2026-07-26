@@ -2,9 +2,10 @@
 
 > **Purpose:** Complete snapshot of this build so a fresh session gets up to speed instantly.
 > **To resume:** "Read SESSION_LOG.md to get up to speed."
-> Last updated: 2026-07-07 (session 12 — dev reported "stealing is glitchy" + "froze
-> at the side switch": THREE reproduced root causes fixed in PR #59, verified live on
-> prod by probe. Current state: §23.)
+> Last updated: 2026-07-26 (session 26 — the graphics marathon: grounds from
+> backdrops, scene-lit players, 9 frontal wall remakes, world scale, visible
+> el-train, kick flick control, 20-person diverse character pool. PRs #85-#92
+> all merged. Current state: §26.)
 
 This is the **browser/Three.js** rebuild of *Street Kickball Kings*. (There is an
 earlier **Unity** version at `C:\Unity Projects\KickballGame\` — its
@@ -1278,3 +1279,109 @@ No fire/bloom — perfectKick stays the big brother. noSkip so run-mash
 taps can't strike the beat. Verified by real-flow pump: GOOD kick →
 timeScale 0.3 + cameraLock mid-beat, kicker fills the frame at the
 plate; play flows to LIVE normally after.
+
+---
+
+## 25) Session 25 (2026-07-21 → 07-22) — THE FUN OVERHAUL (six pillars) + follow-ups (PRs ~#62-#84)
+
+Dev verdict on Street Rules pillars 1-3: "didn't impact the game in any real
+way… we really need to make this more fun." Full overhaul round, all shipped:
+
+- **A SEE IT**: brighter grade (ACES exposure 1.22), popup containment
+  (fitText via scrollWidth — rects lie about nowrap overflow), HUD detangle
+  (element badge top-left, heat meter+flame, ball-count pips).
+- **E PLAY FAIR**: pickle REVERSE button (v5 of the minigame UX bar — the ONE
+  exception to "never steer"), bad pitches = BALLS (4 = walk), meatball punish
+  (CPU crushes bad traces toward the widest gap), PERFECT ≠ auto-homer (45%
+  become gap screamers).
+- **F LEVEL THE BLOCK**: wave-1 eye-level backdrop regen, ALL 10 cities, tall
+  3:4 Seedance loops (sky outpaint pipeline), grid-measured windows.
+- **B KNOW IT**: teach card per element (first inning) + compact re-roll
+  callouts + 56 new announcer lines (element/fire/ball/walk).
+- **C PLAY IT**: element MOMENTS — el-train rumble kick bonus, dj-drop beat
+  flash, gust windows, steam-cloud blind fielders, motorcade weak throws,
+  night-hustle hot steal chips, heat-wave gassed fielders.
+- **D WIN IT**: Run the Map (9 rival crowns → KING OF THE STREETS) + trophies
+  + crew-colored ball.
+- Follow-ups: strike-screen cinematics (cut-crowned/cut-caught, bowling-alley
+  energy, NO people — dev corrected "generic" to mean spray-paint/text), kick
+  CONTACT sync (launch fires at the clip's contact frame; the swing finally
+  reads), boardwalk waves ping-pong bake, legacy cutscene prune, instant
+  next-play cuts, floor-sink hip guard, peg truth (lead throws, proximity
+  miss, hit-stop), backdrop pilot #83 court-matched deep street = KALEIDOSCOPE
+  DISASTER (reverted 757f76c; frontal-elevation rule now inviolable), #84
+  court-tint pilot (superseded next session).
+
+## 26) Session 26 (2026-07-25 → 07-26) — THE GRAPHICS MARATHON (PRs #85-#92, all merged)
+
+Dev bar: "this needs to look like ps4 level graphics." The answer wasn't one
+thing — it was seven, shipped in sequence, each phone-verified:
+
+- **#85 GROUNDS FROM BACKDROPS**: all 10 courts' ground textures generated
+  FROM each city's own backdrop still (top-down tileable, palette-matched by
+  construction). Anti-symmetry gate is mandatory — MirroredRepeatWrapping
+  kaleidoscopes symmetric art (block-party rolled twin hopscotch TWICE off the
+  scene reference; palette-only prompts fixed it) and bright glints become
+  rosettes (neon re-roll).
+- **#86 LIVE LAYER LIT BY THE SCENE**: engine.setSceneEnvironment(poster) —
+  equirect approx → PMREM → scene.environment (players bathed in sodium
+  orange / beach gold / dusk mauve); grade tint auto-derived from the poster
+  (10% hue pull) + animated film grain 0.028 marries the 3D layer to the AI
+  video; city grounds get bumpMap-from-luminance. Plus Block Party's wall
+  remade as the FIRST frontal-elevation scene (recipe below).
+- **#87 SEVEN WALLS REMADE FRONTAL** (dev: "dc, la, memphis, Ohio (fielding),
+  Philly (fielding), Brooklyn, and Maryland look terrible"): the proven
+  recipe = frontal still at eye level (people small/absent) → 3:4 sky
+  outpaint → Seedance 1080p locked-cam ambient loop (medias
+  start_image/end_image roles — start_image_id params are SILENTLY DROPPED)
+  → window grid-measured at the base line → h from tile aspect. Gates that
+  fired: Memphis v1 drew REAL Beale St venues (trademark gate now standing),
+  DC v1 baked a literal picture frame, Brooklyn's outpaint duplicated the
+  scene (window-cropped).
+- **#88 WORLD SCALE + MATCHED BACKS** (dev: "all backgrounds seem huge" +
+  "you see the split between front and back"): backdropRepeat 6→10 ALL
+  fields + geo.h ×0.6 (tile-aspect rule carries; rx/2 must stay ODD) —
+  buildings finally read distant-city scale. All 5 remade fronts got
+  same-family BACK walls (LA beach shacks, Brooklyn facing brownstones,
+  Memphis second neon row, DC gallery, Baltimore HARBOR KING CANNERY) so the
+  foul-pole corner reads as one place. LESSON: every front remake needs its
+  back in the SAME PR. Outpaint failure modes: full-image cartoon restyle
+  (identical retry fixed it) + scene duplication. Known artifact: big sign
+  text mirror-flips on alternating tiles.
+- **#89 GAMEPLAY FOUR-PACK**: visible el-train (TrainFlyby — 4 canvas-
+  textured cars ride the painted track through the 4.5s rumble proc), out
+  players GET UP (outStumble ritual + raised finished-pose hip floor 0.5×),
+  fielders settle when an out ends the action (was a 6s throw-pad grace),
+  and CPU runners take extra bases — the old gate (aiRate > 4.2) was
+  mathematically DEAD (aiMashRate caps at 4.0); replaced with defense-
+  delivery-time vs runner-time risk math incl. home with a fat margin.
+- **#90 UX THREE-PACK**: element teach card now PAUSES the engine (AI was
+  pitching behind it → free strikes), away-team cycle arrow escaped the
+  clip-path + panel-overlap trap, all 10 element blurbs/tips rewritten in
+  plain words (say what you SEE, say what to DO).
+- **#91 KICK FLICK CONTROL** (dev: "more control of where the ball goes"):
+  flick LENGTH = loft (15°-52° continuous), flick SNAP = distance band
+  (0.85-1.12× inside the timing meter's ceiling), deliberate liners can't
+  fluke homers (hrMinLoftDeg 28). Timing still judged the instant the 48px
+  rise trips; the launch reads the full stroke (release/reversal/220ms).
+  FLICK block in kickTiming.js is the tuning surface. 175 tests.
+- **#92 THE CAST**: 20-person archetype pool (6 original + 14 new from 16
+  dev-approved design sheets; 05/07 randomly dropped for budget). Pipeline
+  PROVEN: nano sheet (grey tintable kit, A-pose) → Meshy image_to_3d
+  (rig+texture, ~35cr) → EXACT 24-bone Meshy-standard rig every time →
+  gltf-transform webp/1024 (9MB→~1.7MB, NO meshopt — no decoder wired) →
+  retarget.html?archs=<keys> bakes 24 clips/rig → per-team hash offset
+  slices the pool so each crew fields its OWN deterministic eight. 8 women
+  wired to the announcer's she-calls.
+
+**Infrastructure notes**: C: drive hit 0 bytes free mid-session (npm cache
+held 9GB — `npm cache clean --force` recovered it); occluded-tab WebGL
+contexts exhaust after ~3-4 loads (Chrome blocklists the origin — pace
+loads ~40s or hop ports/tabs); OneDrive sync causes flaky vitest file
+collection under load (rerun when counts look short).
+
+**Current state**: all of the above LIVE on prod. Higgsfield balance ~32
+credits (needs refill before new generation work). Tests 175/175. Open
+threads: dev phone verdict on the new cast + flick feel (FLICK block is
+the tuning surface); two dropped character designs banked in the session
+ledger; mirror-flipped sign text on Baltimore's back wall if it bugs him.
