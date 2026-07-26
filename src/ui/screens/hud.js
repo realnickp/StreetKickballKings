@@ -638,8 +638,12 @@ export class Hud {
   stamp(text, kind) {
     const s = document.createElement('div');
     s.className = `stamp ${kind}`;
-    s.textContent = text;
+    const inner = document.createElement('span');
+    inner.textContent = text;
+    s.appendChild(inner);
     this.el.appendChild(s);
+    // fit the TEXT (inner span) to the screen — the band itself is full-bleed
+    this._fitText(inner, { minPx: 18, pad: 28 });
     requestAnimationFrame(() => s.classList.add('pop'));
     setTimeout(() => s.remove(), 1800);
   }
