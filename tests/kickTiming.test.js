@@ -1,5 +1,5 @@
 import { it, expect } from 'vitest';
-import { judgeKick, launchParams, flickShape, FLICK } from '../src/game/kickTiming.js';
+import { judgeKick, launchParams, flickShape, flickSteerDeg, FLICK } from '../src/game/kickTiming.js';
 import tuning from '../src/data/tuning.json';
 
 it('classifies timing error into quality bands', () => {
@@ -90,4 +90,17 @@ it('launchParams: flick shape overrides loft and scales speed for the player', (
   const k = tuning.kick;
   expect(v.loftDeg).toBeCloseTo(shape.loftDeg);
   expect(v.speed).toBeCloseTo(k.maxBallSpeedMs * shape.speedScale);
+});
+
+it('flickSteerDeg: sideways curl steers the kick, clamped to the aim spread', () => {
+  const spread = tuning.kick.aimSpreadDeg;
+  // no flick / no drift -> dead straight
+  expect(flickSteerDeg(null, tuning)).toBe(0);
+  expect(flickSteerDeg({ risePx: 100, durMs: 80 }, tuning)).toBe(0);
+  // half drift = half spread, sign follows the curl
+  expect(flickSteerDeg({ driftPx: FLICK.steerFullPx / 2 }, tuning)).toBeCloseTo(spread / 2);
+  expect(flickSteerDeg({ driftPx: -FLICK.steerFullPx / 2 }, tuning)).toBeCloseTo(-spread / 2);
+  // beyond a full-width drift clamps at the line, never past it
+  expect(flickSteerDeg({ driftPx: FLICK.steerFullPx * 4 }, tuning)).toBeCloseTo(spread);
+  expect(flickSteerDeg({ driftPx: -FLICK.steerFullPx * 4 }, tuning)).toBeCloseTo(-spread);
 });

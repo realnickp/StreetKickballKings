@@ -1378,17 +1378,35 @@ body { display: flex; align-items: center; justify-content: center; }
   55% { opacity: 1; }
   100% { transform: scale(1) rotate(0); opacity: 1; }
 }
-.team-splash .ts-name {
-  margin: 10px 0 0; font-family: var(--marker); font-size: clamp(26px, 8cqw, 44px);
-  color: #fff; -webkit-text-stroke: 2px #0b0d12;
-  text-shadow: 0 3px 0 rgba(0,0,0,.5), 0 0 26px color-mix(in srgb, var(--c1, #ff7a2d) 65%, transparent);
-  white-space: nowrap; max-width: 92vw;
-  animation: tsRise .4s .12s cubic-bezier(.2, 1.4, .4, 1) both;
+/* full-bleed angled color band — spans past both edges so the type can never
+   be cut off by the screen; broadcast-style Archivo 900 italic wordmark
+   (dev hated the marker-font treatment) */
+.team-splash .ts-band {
+  width: 120vw; margin-top: 14px; padding: 12px 10vw 16px;
+  text-align: center; transform: rotate(-2deg);
+  background: linear-gradient(90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--c1, #ff7a2d) 80%, #10131c) 16%,
+    color-mix(in srgb, var(--c1, #ff7a2d) 80%, #10131c) 84%,
+    transparent 100%);
+  box-shadow: 0 12px 36px rgba(0,0,0,.55);
+  animation: tsBand .38s cubic-bezier(.16, 1.1, .4, 1) both;
+}
+@keyframes tsBand {
+  0% { transform: translateX(-130vw) rotate(-2deg); opacity: .6; }
+  100% { transform: translateX(0) rotate(-2deg); opacity: 1; }
 }
 .team-splash .ts-city {
-  margin-top: 4px; font-weight: 900; font-size: 12px; letter-spacing: 4px;
-  color: rgba(255,255,255,.85);
-  animation: tsRise .4s .2s cubic-bezier(.2, 1.4, .4, 1) both;
+  display: block; font: 800 13px/1 var(--sans); letter-spacing: 6px;
+  color: rgba(255,255,255,.88); text-shadow: 0 2px 6px rgba(0,0,0,.6);
+  animation: tsRise .35s .18s both;
+}
+.team-splash .ts-crew {
+  margin: 3px 0 0; font-family: var(--sans); font-weight: 900; font-style: italic;
+  font-size: clamp(40px, 15cqw, 72px); line-height: .95; letter-spacing: .01em;
+  color: #fff; white-space: nowrap;
+  text-shadow: 0 4px 0 rgba(0,0,0,.35), 0 10px 28px rgba(0,0,0,.55);
+  animation: tsRise .4s .12s cubic-bezier(.2, 1.4, .4, 1) both;
 }
 @keyframes tsRise {
   0% { transform: translateY(26px); opacity: 0; }

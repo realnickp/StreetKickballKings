@@ -44,7 +44,17 @@ export const FLICK = {
   lazyPxMs: 0.25, snapPxMs: 1.6,   // rise speed (px/ms) mapped to the scale band
   speedScale: [0.85, 1.12],
   hrMinLoftDeg: 28,                // a bomb needs air under it — liners can't clear
+  steerFullPx: 110,                // sideways drift for a full pull to the line
 };
+
+/** Deliberate direction from the flick's sideways DRIFT (dev: "how can we
+ *  control the direction of the ball") — curl the stroke left/right and the
+ *  ball follows, up to the full aim spread at ±steerFullPx. Returns degrees;
+ *  0 when there's no usable drift (AI kicks, straight flicks). */
+export function flickSteerDeg(flick, tuning) {
+  if (!flick || !Number.isFinite(flick.driftPx)) return 0;
+  return clamp(flick.driftPx / FLICK.steerFullPx, -1, 1) * tuning.kick.aimSpreadDeg;
+}
 
 /** Map raw flick metrics {risePx, durMs} to {loftDeg, speedScale}. Returns
  *  null when there are no usable metrics (AI kicks, buttons, degenerate input). */

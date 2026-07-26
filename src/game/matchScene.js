@@ -5,7 +5,7 @@
 // exact field outcome via applyOutcome().
 import * as THREE from 'three';
 import { MatchEngine } from './matchState.js';
-import { judgeKick, launchParams, powerFromError, isHrEligible, flickShape, FLICK } from './kickTiming.js';
+import { judgeKick, launchParams, powerFromError, isHrEligible, flickShape, flickSteerDeg, FLICK } from './kickTiming.js';
 import { mashSpeed, humanRunSpeed, RunnerSim } from './baseRunning.js';
 import { resolveBaseThrow, resolvePeg } from './throwing.js';
 import { SpecialMeter } from './specialMoves.js';
@@ -754,8 +754,8 @@ export class MatchScene {
     this.hud.hidePattern();
     const hasRunners = this.match.state.bases.some((b) => b !== null);
     this.hud.hint(hasRunners
-      ? 'SHORT FLICK = LINER • LONG FLICK = SKY BALL'
-      : 'SLIDE TO AIM • SHORT FLICK = LINER, LONG = SKY BALL');
+      ? 'FLICK LONG = SKY BALL • CURL IT = PLACE IT'
+      : 'SHORT FLICK = LINER, LONG = SKY • CURL LEFT/RIGHT = AIM');
     this.kicker.group.position.x = 0; // start centred; you slide left/right to line up
     this._kickerPrevX = 0; // reset stride tracker so the recenter isn't read as a slide
     this.pitch = pickPitch(this.tuning);
@@ -925,7 +925,11 @@ export class MatchScene {
       const alignErr = this.kicker.group.position.x - this.ball.pos.x;
       alignErrM = Math.abs(alignErr);
       effErr = Math.abs(errMs) + alignErrM * 175;
-      aimDeg = Math.max(-this.tuning.kick.aimSpreadDeg, Math.min(this.tuning.kick.aimSpreadDeg, -alignErr * 22));
+      // aim = positioning bias + the flick's deliberate sideways CURL (dev:
+      // "how can we control the direction of the ball") — curl right, ball
+      // goes right, all the way to the line at a full-width drift
+      const spread = this.tuning.kick.aimSpreadDeg;
+      aimDeg = Math.max(-spread, Math.min(spread, -alignErr * 22 + flickSteerDeg(aimSpec.flick, this.tuning)));
     }
     this.hud.hideRing();
     this.hud.hidePowerMeter();
@@ -2781,20 +2785,21 @@ export class MatchScene {
     if (this.phase === 'PITCH' && this.kickingIsPlayer() && !this.kicked) {
       const now = e.t ?? performance.now();
       if (this.pendingFlick) {
-        // mid-flick: keep measuring, don't drift the kicker sideways
+        // mid-flick: keep measuring (incl. sideways CURL = steer), don't drift the kicker
         const f = this.pendingFlick;
         if (e.y < f.yMin) { f.yMin = e.y; f.tLast = now; }
+        f.xLast = e.x;
         return;
       }
       if (e.dy > -16) this.aimKicker(e.x); // horizontal-ish move repositions; a sharp up move doesn't drift it
       this.flickBuf = this.flickBuf ?? [];
-      this.flickBuf.push({ y: e.y, t: now });
+      this.flickBuf.push({ x: e.x, y: e.y, t: now });
       while (this.flickBuf.length && this.flickBuf[0].t < now - 160) this.flickBuf.shift();
-      let maxY = -Infinity, tStart = now;
-      for (const p of this.flickBuf) { if (p.y > maxY) { maxY = p.y; tStart = p.t; } }
+      let maxY = -Infinity, tStart = now, xStart = e.x;
+      for (const p of this.flickBuf) { if (p.y > maxY) { maxY = p.y; tStart = p.t; xStart = p.x; } }
       if (maxY - e.y > 48) {
         this.flickBuf = [];
-        this.pendingFlick = { tCross: this.elapsed, y0: maxY, yMin: e.y, t0: tStart, tLast: now };
+        this.pendingFlick = { tCross: this.elapsed, y0: maxY, yMin: e.y, t0: tStart, tLast: now, x0: xStart, xLast: e.x };
       }
       return;
     }
@@ -2838,7 +2843,7 @@ export class MatchScene {
       if (this.pendingFlick) return;
       this.attemptKick({
         align: true,
-        flick: { risePx: Math.max(0, -e.dy), durMs: Math.max(1, e.t - e.downT) },
+        flick: { risePx: Math.max(0, -e.dy), durMs: Math.max(1, e.t - e.downT), driftPx: e.dx ?? 0 },
       }, this.elapsed);
       return;
     }
@@ -2868,7 +2873,7 @@ export class MatchScene {
     this.pendingFlick = null;
     this.attemptKick({
       align: true,
-      flick: { risePx: f.y0 - f.yMin, durMs: Math.max(1, f.tLast - f.t0) },
+      flick: { risePx: f.y0 - f.yMin, durMs: Math.max(1, f.tLast - f.t0), driftPx: (f.xLast ?? f.x0 ?? 0) - (f.x0 ?? 0) },
     }, f.tCross);
   }
 
@@ -2881,7 +2886,7 @@ export class MatchScene {
     if (this.phase === 'PITCH' && this.kickingIsPlayer() && !this.kicked && e.dy < -26 && e.travel > 22) {
       this.attemptKick({
         align: true,
-        flick: { risePx: Math.max(0, -e.dy), durMs: Math.max(1, e.dur) },
+        flick: { risePx: Math.max(0, -e.dy), durMs: Math.max(1, e.dur), driftPx: e.dx ?? 0 },
       }, this.elapsed);
     }
   }

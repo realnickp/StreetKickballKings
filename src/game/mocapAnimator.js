@@ -92,11 +92,14 @@ export class MocapAnimator {
       this._active.timeScale = this._speed * Math.max(0.35, this.ctx.speedFactor);
     }
     this.mixer.update(dt);
-    // Held FINAL stumble pose gets a HIGHER floor: at 0.15×rest the sprawled
-    // legs still clip under the court and the downed player reads as "buried
-    // in the floor, body cut off" (dev, twice). Half rest height keeps the
-    // whole body above the pavement while he waits to get up.
-    const minY = (this.name === 'stumble' && this._doneFired)
+    // Stumble gets a HIGHER floor for the WHOLE clip: its baked hip track
+    // dives straight below grade (probe: hips pinned at the 0.15 floor within
+    // 0.2s), and at 0.15×rest the sprawled legs clip under the court — the
+    // downed player reads as "into the ground halfway" (dev, three times:
+    // outs, and both tag-up arrivals). Half rest height is a real fall that
+    // stays ON the pavement. dive/slide keep the low floor — their flat
+    // pavement poses are legitimate.
+    const minY = this.name === 'stumble'
       ? this._hipMinY * (0.5 / 0.15) // = |rest| × 0.5
       : this._hipMinY;
     if (this._hips && this._hips.position.y < minY) this._hips.position.y = minY;
