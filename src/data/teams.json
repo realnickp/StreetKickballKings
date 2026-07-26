@@ -44,7 +44,8 @@
             "build": "tank",
             "fit": "sleeveless",
             "accessory": "chain"
-          }
+          },
+          "archetype": 0
         },
         {
           "id": "m2",
@@ -62,7 +63,8 @@
             "build": "compact",
             "fit": "tied-up",
             "accessory": "headband"
-          }
+          },
+          "archetype": 6
         },
         {
           "id": "m3",
@@ -80,7 +82,8 @@
             "build": "lanky",
             "fit": "oversized",
             "accessory": "wristband"
-          }
+          },
+          "archetype": 7
         },
         {
           "id": "m4",
@@ -98,7 +101,8 @@
             "build": "stocky",
             "fit": "standard",
             "accessory": "chain"
-          }
+          },
+          "archetype": 1
         },
         {
           "id": "m5",
@@ -116,7 +120,8 @@
             "build": "lanky",
             "fit": "standard",
             "accessory": "none"
-          }
+          },
+          "archetype": 12
         },
         {
           "id": "m6",
@@ -134,7 +139,8 @@
             "build": "compact",
             "fit": "tied-up",
             "accessory": "glasses"
-          }
+          },
+          "archetype": 15
         },
         {
           "id": "m7",
@@ -152,7 +158,8 @@
             "build": "standard",
             "fit": "standard",
             "accessory": "none"
-          }
+          },
+          "archetype": 5
         },
         {
           "id": "m8",
@@ -170,7 +177,8 @@
             "build": "tank",
             "fit": "oversized",
             "accessory": "wristband"
-          }
+          },
+          "archetype": 19
         }
       ]
     },
@@ -218,7 +226,8 @@
             "build": "tank",
             "fit": "sleeveless",
             "accessory": "chain"
-          }
+          },
+          "archetype": 1
         },
         {
           "id": "s2",
@@ -236,7 +245,8 @@
             "build": "compact",
             "fit": "tied-up",
             "accessory": "headband"
-          }
+          },
+          "archetype": 6
         },
         {
           "id": "s3",
@@ -254,7 +264,8 @@
             "build": "stocky",
             "fit": "standard",
             "accessory": "glasses"
-          }
+          },
+          "archetype": 11
         },
         {
           "id": "s4",
@@ -272,7 +283,8 @@
             "build": "lanky",
             "fit": "standard",
             "accessory": "none"
-          }
+          },
+          "archetype": 12
         },
         {
           "id": "s5",
@@ -290,7 +302,8 @@
             "build": "standard",
             "fit": "oversized",
             "accessory": "wristband"
-          }
+          },
+          "archetype": 4
         },
         {
           "id": "s6",
@@ -308,7 +321,8 @@
             "build": "compact",
             "fit": "tied-up",
             "accessory": "headband"
-          }
+          },
+          "archetype": 14
         },
         {
           "id": "s7",
@@ -326,7 +340,8 @@
             "build": "tank",
             "fit": "standard",
             "accessory": "chain"
-          }
+          },
+          "archetype": 0
         },
         {
           "id": "s8",
@@ -344,7 +359,8 @@
             "build": "lanky",
             "fit": "tied-up",
             "accessory": "none"
-          }
+          },
+          "archetype": 5
         }
       ]
     },
@@ -385,7 +401,8 @@
             "build": "tank",
             "fit": "sleeveless",
             "accessory": "chain"
-          }
+          },
+          "archetype": 0
         },
         {
           "id": "b2",
@@ -404,7 +421,8 @@
             "build": "compact",
             "fit": "tied-up",
             "accessory": "headband"
-          }
+          },
+          "archetype": 6
         },
         {
           "id": "b3",
@@ -423,7 +441,8 @@
             "build": "lanky",
             "fit": "standard",
             "accessory": "wristband"
-          }
+          },
+          "archetype": 7
         },
         {
           "id": "b4",
@@ -442,7 +461,8 @@
             "build": "stocky",
             "fit": "oversized",
             "accessory": "chain"
-          }
+          },
+          "archetype": 8
         },
         {
           "id": "b5",
@@ -461,7 +481,8 @@
             "build": "standard",
             "fit": "tied-up",
             "accessory": "glasses"
-          }
+          },
+          "archetype": 15
         },
         {
           "id": "b6",
@@ -480,7 +501,8 @@
             "build": "stocky",
             "fit": "standard",
             "accessory": "wristband"
-          }
+          },
+          "archetype": 19
         },
         {
           "id": "b7",
@@ -499,7 +521,8 @@
             "build": "lanky",
             "fit": "sleeveless",
             "accessory": "none"
-          }
+          },
+          "archetype": 4
         },
         {
           "id": "b8",
@@ -518,7 +541,8 @@
             "build": "standard",
             "fit": "oversized",
             "accessory": "headband"
-          }
+          },
+          "archetype": 13
         }
       ]
     },
@@ -544,7 +568,7 @@
       "roster": [
         {
           "id": "f1",
-          "nick": "Soul Brother Slick",
+          "nick": "Maestro",
           "pos": "Captain",
           "number": 76,
           "stats": {
@@ -559,7 +583,8 @@
             "build": "tank",
             "fit": "sleeveless",
             "accessory": "chain"
-          }
+          },
+          "archetype": 4
         },
         {
           "id": "f2",
@@ -578,7 +603,8 @@
             "build": "lanky",
             "fit": "tied-up",
             "accessory": "headband"
-          }
+          },
+          "archetype": 7
         },
         {
           "id": "f3",
@@ -597,7 +623,8 @@
             "build": "standard",
             "fit": "standard",
             "accessory": "wristband"
-          }
+          },
+          "archetype": 12
         },
         {
           "id": "f4",
@@ -616,11 +643,12 @@
             "build": "stocky",
             "fit": "oversized",
             "accessory": "none"
-          }
+          },
+          "archetype": 0
         },
         {
           "id": "f5",
-          "nick": "Cheesesteak Chico",
+          "nick": "Whiz",
           "pos": "Catcher",
           "number": 33,
           "stats": {
@@ -635,11 +663,12 @@
             "build": "tank",
             "fit": "standard",
             "accessory": "glasses"
-          }
+          },
+          "archetype": 1
         },
         {
           "id": "f6",
-          "nick": "South Philly Smooth",
+          "nick": "South Street Static",
           "pos": "Shortstop",
           "number": 7,
           "stats": {
@@ -654,7 +683,8 @@
             "build": "compact",
             "fit": "tied-up",
             "accessory": "wristband"
-          }
+          },
+          "archetype": 17
         },
         {
           "id": "f7",
@@ -673,11 +703,12 @@
             "build": "lanky",
             "fit": "sleeveless",
             "accessory": "headband"
-          }
+          },
+          "archetype": 6
         },
         {
           "id": "f8",
-          "nick": "Fishtown Funkmaster",
+          "nick": "Fishtown Fader",
           "pos": "Utility",
           "number": 12,
           "stats": {
@@ -692,7 +723,8 @@
             "build": "standard",
             "fit": "oversized",
             "accessory": "glasses"
-          }
+          },
+          "archetype": 14
         }
       ]
     },
@@ -733,7 +765,8 @@
             "build": "tank",
             "fit": "sleeveless",
             "accessory": "chain"
-          }
+          },
+          "archetype": 0
         },
         {
           "id": "mr2",
@@ -752,11 +785,12 @@
             "build": "lanky",
             "fit": "tied-up",
             "accessory": "headband"
-          }
+          },
+          "archetype": 12
         },
         {
           "id": "mr3",
-          "nick": "Big Black River",
+          "nick": "Burning River",
           "pos": "Pitcher",
           "number": 41,
           "stats": {
@@ -771,7 +805,8 @@
             "build": "stocky",
             "fit": "standard",
             "accessory": "wristband"
-          }
+          },
+          "archetype": 1
         },
         {
           "id": "mr4",
@@ -790,7 +825,8 @@
             "build": "tank",
             "fit": "oversized",
             "accessory": "none"
-          }
+          },
+          "archetype": 19
         },
         {
           "id": "mr5",
@@ -809,7 +845,8 @@
             "build": "stocky",
             "fit": "standard",
             "accessory": "glasses"
-          }
+          },
+          "archetype": 13
         },
         {
           "id": "mr6",
@@ -828,7 +865,8 @@
             "build": "compact",
             "fit": "sleeveless",
             "accessory": "wristband"
-          }
+          },
+          "archetype": 17
         },
         {
           "id": "mr7",
@@ -847,7 +885,8 @@
             "build": "standard",
             "fit": "tied-up",
             "accessory": "none"
-          }
+          },
+          "archetype": 16
         },
         {
           "id": "mr8",
@@ -866,7 +905,8 @@
             "build": "standard",
             "fit": "oversized",
             "accessory": "headband"
-          }
+          },
+          "archetype": 7
         }
       ]
     },
@@ -907,11 +947,12 @@
             "build": "tank",
             "fit": "sleeveless",
             "accessory": "chain"
-          }
+          },
+          "archetype": 16
         },
         {
           "id": "mt2",
-          "nick": "Metro Smoove",
+          "nick": "Green Line",
           "pos": "Leadoff",
           "number": 7,
           "stats": {
@@ -926,7 +967,8 @@
             "build": "compact",
             "fit": "tied-up",
             "accessory": "headband"
-          }
+          },
+          "archetype": 6
         },
         {
           "id": "mt3",
@@ -945,7 +987,8 @@
             "build": "lanky",
             "fit": "standard",
             "accessory": "wristband"
-          }
+          },
+          "archetype": 8
         },
         {
           "id": "mt4",
@@ -964,11 +1007,12 @@
             "build": "stocky",
             "fit": "oversized",
             "accessory": "glasses"
-          }
+          },
+          "archetype": 19
         },
         {
           "id": "mt5",
-          "nick": "U Street Slick",
+          "nick": "Shaw",
           "pos": "Shortstop",
           "number": 14,
           "stats": {
@@ -983,7 +1027,8 @@
             "build": "standard",
             "fit": "tied-up",
             "accessory": "none"
-          }
+          },
+          "archetype": 7
         },
         {
           "id": "mt6",
@@ -1002,7 +1047,8 @@
             "build": "tank",
             "fit": "standard",
             "accessory": "headband"
-          }
+          },
+          "archetype": 1
         },
         {
           "id": "mt7",
@@ -1021,7 +1067,8 @@
             "build": "lanky",
             "fit": "sleeveless",
             "accessory": "wristband"
-          }
+          },
+          "archetype": 4
         },
         {
           "id": "mt8",
@@ -1040,7 +1087,8 @@
             "build": "standard",
             "fit": "oversized",
             "accessory": "glasses"
-          }
+          },
+          "archetype": 14
         }
       ]
     },
@@ -1081,7 +1129,8 @@
             "build": "tank",
             "fit": "sleeveless",
             "accessory": "chain"
-          }
+          },
+          "archetype": 0
         },
         {
           "id": "k2",
@@ -1100,7 +1149,8 @@
             "build": "compact",
             "fit": "tied-up",
             "accessory": "headband"
-          }
+          },
+          "archetype": 15
         },
         {
           "id": "k3",
@@ -1119,7 +1169,8 @@
             "build": "lanky",
             "fit": "standard",
             "accessory": "wristband"
-          }
+          },
+          "archetype": 12
         },
         {
           "id": "k4",
@@ -1138,7 +1189,8 @@
             "build": "stocky",
             "fit": "oversized",
             "accessory": "chain"
-          }
+          },
+          "archetype": 19
         },
         {
           "id": "k5",
@@ -1157,7 +1209,8 @@
             "build": "tank",
             "fit": "standard",
             "accessory": "none"
-          }
+          },
+          "archetype": 8
         },
         {
           "id": "k6",
@@ -1176,7 +1229,8 @@
             "build": "standard",
             "fit": "tied-up",
             "accessory": "glasses"
-          }
+          },
+          "archetype": 6
         },
         {
           "id": "k7",
@@ -1195,7 +1249,8 @@
             "build": "lanky",
             "fit": "sleeveless",
             "accessory": "wristband"
-          }
+          },
+          "archetype": 5
         },
         {
           "id": "k8",
@@ -1214,7 +1269,8 @@
             "build": "standard",
             "fit": "oversized",
             "accessory": "headband"
-          }
+          },
+          "archetype": 9
         }
       ]
     },
@@ -1255,11 +1311,12 @@
             "build": "tank",
             "fit": "sleeveless",
             "accessory": "chain"
-          }
+          },
+          "archetype": 8
         },
         {
           "id": "g2",
-          "nick": "Sonora Slick",
+          "nick": "Sidewinder",
           "pos": "Leadoff",
           "number": 2,
           "stats": {
@@ -1274,7 +1331,8 @@
             "build": "compact",
             "fit": "tied-up",
             "accessory": "headband"
-          }
+          },
+          "archetype": 17
         },
         {
           "id": "g3",
@@ -1293,11 +1351,12 @@
             "build": "lanky",
             "fit": "standard",
             "accessory": "wristband"
-          }
+          },
+          "archetype": 14
         },
         {
           "id": "g4",
-          "nick": "Lowride Loco",
+          "nick": "Saguaro Slam",
           "pos": "Slugger",
           "number": 55,
           "stats": {
@@ -1312,7 +1371,8 @@
             "build": "stocky",
             "fit": "oversized",
             "accessory": "glasses"
-          }
+          },
+          "archetype": 13
         },
         {
           "id": "g5",
@@ -1331,7 +1391,8 @@
             "build": "tank",
             "fit": "standard",
             "accessory": "none"
-          }
+          },
+          "archetype": 18
         },
         {
           "id": "g6",
@@ -1350,7 +1411,8 @@
             "build": "compact",
             "fit": "tied-up",
             "accessory": "wristband"
-          }
+          },
+          "archetype": 12
         },
         {
           "id": "g7",
@@ -1369,7 +1431,8 @@
             "build": "standard",
             "fit": "sleeveless",
             "accessory": "glasses"
-          }
+          },
+          "archetype": 11
         },
         {
           "id": "g8",
@@ -1388,7 +1451,8 @@
             "build": "standard",
             "fit": "oversized",
             "accessory": "headband"
-          }
+          },
+          "archetype": 10
         }
       ]
     },
@@ -1429,11 +1493,12 @@
             "build": "tank",
             "fit": "sleeveless",
             "accessory": "chain"
-          }
+          },
+          "archetype": 0
         },
         {
           "id": "h2",
-          "nick": "Gold Grill Greg",
+          "nick": "Delta Thunder",
           "pos": "Slugger",
           "number": 44,
           "stats": {
@@ -1448,7 +1513,8 @@
             "build": "stocky",
             "fit": "oversized",
             "accessory": "chain"
-          }
+          },
+          "archetype": 1
         },
         {
           "id": "h3",
@@ -1467,7 +1533,8 @@
             "build": "lanky",
             "fit": "tied-up",
             "accessory": "headband"
-          }
+          },
+          "archetype": 7
         },
         {
           "id": "h4",
@@ -1486,7 +1553,8 @@
             "build": "compact",
             "fit": "standard",
             "accessory": "wristband"
-          }
+          },
+          "archetype": 15
         },
         {
           "id": "h5",
@@ -1505,7 +1573,8 @@
             "build": "standard",
             "fit": "standard",
             "accessory": "glasses"
-          }
+          },
+          "archetype": 16
         },
         {
           "id": "h6",
@@ -1524,7 +1593,8 @@
             "build": "tank",
             "fit": "standard",
             "accessory": "none"
-          }
+          },
+          "archetype": 3
         },
         {
           "id": "h7",
@@ -1543,7 +1613,8 @@
             "build": "standard",
             "fit": "sleeveless",
             "accessory": "headband"
-          }
+          },
+          "archetype": 5
         },
         {
           "id": "h8",
@@ -1562,7 +1633,8 @@
             "build": "stocky",
             "fit": "oversized",
             "accessory": "wristband"
-          }
+          },
+          "archetype": 6
         }
       ]
     },
@@ -1603,11 +1675,12 @@
             "build": "tank",
             "fit": "sleeveless",
             "accessory": "chain"
-          }
+          },
+          "archetype": 16
         },
         {
           "id": "t2",
-          "nick": "Slick Vato",
+          "nick": "Coastline",
           "pos": "Leadoff",
           "number": 7,
           "stats": {
@@ -1622,7 +1695,8 @@
             "build": "compact",
             "fit": "tied-up",
             "accessory": "headband"
-          }
+          },
+          "archetype": 17
         },
         {
           "id": "t3",
@@ -1641,7 +1715,8 @@
             "build": "lanky",
             "fit": "standard",
             "accessory": "glasses"
-          }
+          },
+          "archetype": 10
         },
         {
           "id": "t4",
@@ -1660,7 +1735,8 @@
             "build": "stocky",
             "fit": "oversized",
             "accessory": "chain"
-          }
+          },
+          "archetype": 19
         },
         {
           "id": "t5",
@@ -1679,7 +1755,8 @@
             "build": "tank",
             "fit": "standard",
             "accessory": "wristband"
-          }
+          },
+          "archetype": 8
         },
         {
           "id": "t6",
@@ -1698,7 +1775,8 @@
             "build": "standard",
             "fit": "tied-up",
             "accessory": "none"
-          }
+          },
+          "archetype": 15
         },
         {
           "id": "t7",
@@ -1717,7 +1795,8 @@
             "build": "lanky",
             "fit": "sleeveless",
             "accessory": "glasses"
-          }
+          },
+          "archetype": 14
         },
         {
           "id": "t8",
@@ -1736,7 +1815,8 @@
             "build": "standard",
             "fit": "oversized",
             "accessory": "wristband"
-          }
+          },
+          "archetype": 18
         }
       ]
     }

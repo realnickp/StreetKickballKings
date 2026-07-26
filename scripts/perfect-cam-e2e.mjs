@@ -16,7 +16,7 @@ const browser = await webkit.launch();
 const page = await browser.newPage({ viewport: { width: 470, height: 880 } });
 page.on('console', (m) => { if (/\[skk\]/i.test(m.text())) console.log('CONSOLE', m.text()); });
 
-await page.goto(`${BASE}/?match&nosplash`, { waitUntil: 'domcontentloaded' });
+await page.goto(`${BASE}/?match&nosplash&nointro`, { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => !!(window.__skk && window.__skk.phase !== 'IDLE'), null, { timeout: 20000 });
 await page.waitForTimeout(800);
 

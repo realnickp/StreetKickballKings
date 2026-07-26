@@ -101,6 +101,30 @@
       "fire_0.mp3",
       "fire_1.mp3"
     ],
+    "lineups": [
+      "lineups_0.mp3",
+      "lineups_1.mp3"
+    ],
+    "walkout-captain": [
+      "walkout-captain_0.mp3",
+      "walkout-captain_1.mp3"
+    ],
+    "walkout-power": [
+      "walkout-power_0.mp3",
+      "walkout-power_1.mp3"
+    ],
+    "walkout-speed": [
+      "walkout-speed_0.mp3",
+      "walkout-speed_1.mp3"
+    ],
+    "walkout-glove": [
+      "walkout-glove_0.mp3",
+      "walkout-glove_1.mp3"
+    ],
+    "walkout-home": [
+      "walkout-home_0.mp3",
+      "walkout-home_1.mp3"
+    ],
     "ball": [
       "ball_0.mp3",
       "ball_1.mp3",

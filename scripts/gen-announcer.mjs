@@ -45,6 +45,14 @@ const EVENTS = {
   'element-heat-wave':    ['Heat wave, baby — the ball flies and the legs DIE!', 'It is a scorcher — deep balls carry and fielders fade LATE!'],
   'element-heavy-air':    ['Heavy air off the harbor — bombs come here to DIE!', 'Thick night at The Crown — small ball wins this one!'],
   fire: ['THEY ARE ON FIRE! Every kick is JUICED!', 'The bar is FULL, baby — this crew is BURNING!'],
+  // Starting-lineup walkouts (dev: "have them walk out... announcer shit too,
+  // like a real game would be")
+  lineups: ['STARTING LINEUPS, baby — let us meet the CREWS!', 'Lights UP! Bring em out, bring em OUT!'],
+  'walkout-captain': ['The CAPTAIN of the squad — show em how it is done!', 'Here comes the captain — this is THEIR block tonight!'],
+  'walkout-power':   ['That boot is a PROBLEM — big power walking out!', 'When this one connects, the ball LEAVES the neighborhood!'],
+  'walkout-speed':   ['Fastest feet on the block — no contest!', 'Blink and you missed em — pure WHEELS right here!'],
+  'walkout-glove':   ['Nothing drops in — them hands are MONEY!', 'Best glove on the block, walking out COOL as ever!'],
+  'walkout-home':    ['And NOW — your HOME crew, make some NOISE!', 'Your block, your squad — STAND UP!'],
   ball: ['That one got away from him — take your base vibes coming!', 'Ball! He did NOT want that pitch!', 'Way outside — the count is climbing!'],
   walk: ['Ball four — take a walk, big man!', 'Four bad ones and he STROLLS on down!', 'Free bag! The arm let him DOWN!'],
 };
