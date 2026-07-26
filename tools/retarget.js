@@ -9,7 +9,10 @@ import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import manifest from '../src/data/anims.manifest.json';
 
-const ARCHS = ['locs', 'durag', 'braids', 'bald', 'afro', 'twists'];
+// ?archs=pilot,newguy bakes ONLY those (new-archetype workflow — no code edit
+// per batch); default = the full shipped set.
+const ARCHS = new URLSearchParams(location.search).get('archs')?.split(',').filter(Boolean)
+  ?? ['locs', 'durag', 'braids', 'bald', 'afro', 'twists'];
 
 const logEl = document.getElementById('log');
 const log = (...a) => { logEl.textContent += a.join(' ') + '\n'; logEl.scrollTop = logEl.scrollHeight; console.log(...a); };
