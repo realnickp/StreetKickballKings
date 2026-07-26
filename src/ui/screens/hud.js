@@ -466,10 +466,10 @@ export class Hud {
 
   /** Starting-lineup walkout card: street name BIG, number/position, and the
    *  player's two best stats. One at a time — showing replaces the last. */
-  walkoutShow({ nick, number, pos, stats, color, label }) {
+  walkoutShow({ nick, number, pos, stats, color, label, mini = false }) {
     this.walkoutHide();
     const card = document.createElement('div');
-    card.className = 'walkout-card';
+    card.className = mini ? 'walkout-card mini' : 'walkout-card';
     if (color) card.style.setProperty('--c1', color);
     const best = Object.entries(stats ?? {})
       .sort((a, b) => b[1] - a[1]).slice(0, 2);

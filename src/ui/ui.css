@@ -1345,6 +1345,20 @@ body { display: flex; align-items: center; justify-content: center; }
 .walkout-card .stat-row span { color: rgba(255,255,255,.9); }
 .walkout-card .stat-bar { height: 8px; background: rgba(255,255,255,.14); }
 .walkout-card .stat-bar i { display: block; height: 100%; background: var(--c1, #ff7a2d); border-radius: 4px; }
+/* NOW KICKING lower-third: compact, tucked left, clear of the kicker + hint */
+.walkout-card.mini {
+  left: 10px; bottom: 21%; transform: none;
+  width: min(52%, 210px); padding: 7px 11px 9px; text-align: left;
+  animation: woSlideIn .28s cubic-bezier(.2, 1.4, .4, 1) both;
+}
+@keyframes woSlideIn {
+  0% { transform: translateX(-110%); opacity: 0; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+.walkout-card.mini .wo-nick { font-size: 21px; }
+.walkout-card.mini .wo-tag { font-size: 9px; letter-spacing: 1.5px; }
+.walkout-card.mini .wo-sub { font-size: 9.5px; margin: 2px 0 4px; }
+.walkout-card.mini .stat-bar { height: 6px; }
 
 .element-intro {
   position: absolute; inset: 0; z-index: 40;

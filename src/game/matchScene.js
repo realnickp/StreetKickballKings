@@ -647,6 +647,17 @@ export class MatchScene {
     this.kicker.group.position.set(-0.9, 0, 0.4);
     this.faceTo(this.kicker, FIELD_LAYOUT.pitcher, true); // square up to the mound
     this.kicker.animator.play('plate');
+    // broadcast lower-third: every new kicker gets the NOW KICKING card
+    // (name + best stats, ~2s, non-blocking — the full walkout is match-start only)
+    const kp = this.kicker.data;
+    if (kp?.nick && !this.walkoutActive) {
+      this.hud.walkoutShow({
+        nick: kp.nick, number: kp.number ?? this.kicker.number, pos: kp.pos,
+        stats: kp.stats, color: this.teams[this.match.kickingSide()].colors?.primary,
+        label: 'NOW KICKING', mini: true,
+      });
+      this.after(2.4, () => this.hud.walkoutHide());
+    }
 
     this.baseChars = [null, null, null];
     // fresh at-bat: "time-of-pitch" bases start as the live engine bases (also
