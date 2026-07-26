@@ -338,6 +338,7 @@ export class MatchScene {
       this.walkout = null;
       offSkip?.();
       this.hud.walkoutHide();
+      this.hud.teamSplashHide();
       this.hud.setLetterbox(false);
       this.cinematicLock = false;
       this.engine.cameraLock = false;
@@ -366,12 +367,30 @@ export class MatchScene {
       });
     };
 
+    // full-screen crest splash introducing a side (dev: "a cool splash
+    // animation in between... with the logos of the teams")
+    const splash = (team, t) => {
+      this.after(t, () => {
+        if (!this.walkoutActive) return;
+        this.hud.walkoutHide();
+        if (this.walkout?.char) this.walkout.char.group.visible = false;
+        this.walkout = null;
+        this.hud.teamSplash({
+          name: team.name, city: team.city, logo: team.logo,
+          color: team.colors?.primary,
+        }, 1.9);
+      });
+    };
+
     let t = 0.2;
     this.after(t, () => { if (this.walkoutActive) { this.bus.emit('vo', 'lineups'); this.hud.stamp('STARTING LINEUPS', 'crowned'); } });
-    t += 1.6;
+    t += 1.7;
+    splash(this.teams.away, t);
+    t += 2.0;
     for (const s of away) { beat(s, this.teams.away.colors?.primary, t); t += BEAT; }
-    this.after(t, () => { if (this.walkoutActive) { this.bus.emit('vo', 'walkout-home'); this.hud.stamp(this.teams.home.name.toUpperCase(), 'crowned'); this.hud.walkoutHide(); if (this.walkout?.char) this.walkout.char.group.visible = false; this.walkout = null; } });
-    t += 1.5;
+    this.after(t, () => { if (this.walkoutActive) this.bus.emit('vo', 'walkout-home'); });
+    splash(this.teams.home, t);
+    t += 2.0;
     for (const s of home) { beat(s, this.teams.home.colors?.primary, t); t += BEAT; }
     this.after(t + 0.4, cleanup);
   }
@@ -834,6 +853,8 @@ export class MatchScene {
     const launch = () => {
       if (launched) return;
       launched = true;
+      // the NOW KICKING card yields the screen the moment the ball is live
+      if (!this.walkoutActive) this.hud.walkoutHide();
       this.ball.startPitch(FIELD_LAYOUT.pitcher.clone().setY(0.35), plate, dur, {
         bounce: pitch.bounce ?? 0, curveM: pitch.curveM ?? 0, ease: pitch.ease ?? 1,
       });

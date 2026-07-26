@@ -205,6 +205,33 @@ CLIPS.pitch = CLIPS.throw;
 CLIPS.holdball = CLIPS.idle;
 CLIPS.strafeL = CLIPS.run;
 CLIPS.strafeR = CLIPS.run;
+// walkout strut: slow confident walk (the mocap set calls it swagger)
+CLIPS.walk = { loop: true, dur: 1.05, fn(A, t) {
+  const a = Math.sin(t * TAU), b = Math.sin(t * TAU + Math.PI);
+  A.r('Spine', 0.08, a * 0.08, a * 0.04);
+  A.r('LUpLeg', a * 0.45, 0, 0); A.r('RUpLeg', b * 0.45, 0, 0);
+  A.r('LLeg', Math.max(0, -a) * 0.6, 0, 0); A.r('RLeg', Math.max(0, -b) * 0.6, 0, 0);
+  A.r('LArm', b * 0.35, 0, 0.08); A.r('RArm', a * 0.35, 0, -0.08);
+  A.r('LForeArm', -0.25, 0, 0); A.r('RForeArm', -0.25, 0, 0);
+  A.r('Head', 0, a * 0.06, 0);
+  A.hipsY(Math.abs(Math.sin(t * TAU * 2)) * 0.45);
+} };
+CLIPS.swagger = CLIPS.walk;
+// celebration bounce so dances never statue on the fallback animator
+CLIPS.dance1 = { loop: true, dur: 0.95, fn(A, t) {
+  const s = Math.sin(t * TAU);
+  A.r('Spine', 0.06, s * 0.14, 0);
+  A.r('LArm', -2.5 + s * 0.35, 0, 0.5); A.r('RArm', -2.5 - s * 0.35, 0, -0.5);
+  A.r('LForeArm', -0.4, 0, 0); A.r('RForeArm', -0.4, 0, 0);
+  A.r('Head', s * 0.08, 0, 0);
+  A.hipsY(Math.abs(s) * 1.2);
+} };
+CLIPS.dance2 = CLIPS.dance1; CLIPS.dance3 = CLIPS.dance1; CLIPS.dance4 = CLIPS.dance1;
+CLIPS.juke = CLIPS.run;
+CLIPS.slide = CLIPS.stumble;
+CLIPS.dive = CLIPS.stumble;
+CLIPS.climb = CLIPS.idle;
+CLIPS.climbDown = CLIPS.idle;
 
 class GlbCodeAnimator {
   constructor(bones) {
@@ -391,7 +418,7 @@ const ARCHETYPES = [
   '/assets/models/archetypes/arch-curls.glb',    // 14 M Middle Eastern, curls (12)
   '/assets/models/archetypes/arch-fro.glb',      // 15 F short afro, compact (11)
   '/assets/models/archetypes/arch-vet.glb',      // 16 M 40s veteran, greying (13)
-  '/assets/models/archetypes/arch-band.glb',     // 17 F ponytail + headband (16)
+  '/assets/models/archetypes/arch-band.glb',     // 17 F ponytail + headband (16) — BENCHED: Higgsfield rigged the skeleton but never skinned the mesh (no JOINTS_0/WEIGHTS_0), renders as a statue; re-convert (~35cr) before un-benching
   '/assets/models/archetypes/arch-longhair.glb', // 18 M Native, long tied-back (14)
   '/assets/models/archetypes/arch-stache.glb',   // 19 M heavyset, mustache (15)
 ];
@@ -421,9 +448,13 @@ export async function buildTeamCharsGlb(team, uniformColor) {
   // team id slides each crew to its own slice, so Philly's people aren't
   // Brooklyn's people. Deterministic — a team always fields the same folks.
   const teamOffset = [...(team.id ?? '')].reduce((a, c) => a + c.charCodeAt(0), 0) % ARCHETYPES.length;
+  // archetypes whose GLB can't animate (see the BENCHED note above) — remap to
+  // a working body so no cast or hash-fallback pick ever fields a statue
+  const BENCHED = new Map([[17, 5]]);
   for (let i = 0; i < roster.length; i++) {
     const p = roster[i];
-    const archIdx = (p.archetype ?? (teamOffset + i)) % ARCHETYPES.length;
+    let archIdx = (p.archetype ?? (teamOffset + i)) % ARCHETYPES.length;
+    archIdx = BENCHED.get(archIdx) ?? archIdx;
     const clips = await clipsFor(archIdx);
     let char;
     try {

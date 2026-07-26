@@ -382,8 +382,16 @@ export class Hud {
    */
   /** Shrink a popup's font until its box fits on screen (phones: long banner
    *  strings overflowed both edges). Keeps the one-line slam look intact. */
-  _fitText(el, { minPx = 14, pad = 16 } = {}) {
-    const max = this.el.getBoundingClientRect().width - pad;
+  _fitText(el, { minPx = 14, pad = 16, container = null } = {}) {
+    // container: fit inside THAT box (e.g. the mini walkout card) instead of
+    // the whole HUD — a 178px card never trips a viewport-width check
+    let max;
+    if (container) {
+      const cs = getComputedStyle(container);
+      max = container.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    } else {
+      max = this.el.getBoundingClientRect().width - pad;
+    }
     if (max <= 0) return; // HUD not laid out yet — nothing sane to fit against
     // scrollWidth, not rect width: a max-width cap freezes the BOX at the limit
     // while the nowrap text keeps painting past it — the rect never reports the
@@ -484,12 +492,37 @@ export class Hud {
     card.querySelector('.wo-nick').textContent = nick ?? '';
     this.el.appendChild(card);
     this._walkoutCard = card;
-    this._fitText(card.querySelector('.wo-nick'), { minPx: 20 });
+    // floor low enough that even "South Street Static" fits the mini card
+    this._fitText(card.querySelector('.wo-nick'), { minPx: 12, container: card });
   }
 
   walkoutHide() {
     this._walkoutCard?.remove();
     this._walkoutCard = null;
+  }
+
+  /** Full-screen team splash between walkout sides: crest slams in over a
+   *  team-color wash, crew name + city rise under it. Auto-clears. */
+  teamSplash({ name, city, logo, color }, durS = 1.9) {
+    this.teamSplashHide();
+    const s = document.createElement('div');
+    s.className = 'team-splash';
+    if (color) s.style.setProperty('--c1', color);
+    s.innerHTML =
+      (logo ? `<img class="ts-logo" alt="" src="${logo}">` : '') +
+      '<h2 class="ts-name"></h2>' +
+      `<span class="ts-city">${(city ?? '').toUpperCase()}</span>`;
+    s.querySelector('.ts-name').textContent = name ?? '';
+    this.el.appendChild(s);
+    this._teamSplash = s;
+    this._fitText(s.querySelector('.ts-name'), { minPx: 18 });
+    this._teamSplashT = setTimeout(() => this.teamSplashHide(), durS * 1000);
+  }
+
+  teamSplashHide() {
+    clearTimeout(this._teamSplashT);
+    this._teamSplash?.remove();
+    this._teamSplash = null;
   }
 
   /** Big juicy center pop for scoring a tutorial goal ("GOAL ✓ 1/2"). */
@@ -660,6 +693,9 @@ export class Hud {
       this.el.appendChild(this.letterboxEl);
     }
     this.letterboxEl.classList.toggle('on', !!on);
+    // cinematic mode: gameplay chrome (crown button, heat bar, element chip)
+    // has no business under walkout cards / replays
+    this.el.classList.toggle('cine', !!on);
   }
 
   destroy() {
