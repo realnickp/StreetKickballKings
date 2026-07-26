@@ -508,14 +508,18 @@ export class Hud {
     const s = document.createElement('div');
     s.className = 'team-splash';
     if (color) s.style.setProperty('--c1', color);
+    // broadcast wordmark: city small over the CREW word huge — the last word
+    // is always short (Monarchs, Funk, Threshers), so it can go big without
+    // ever kissing the screen edges (dev: cut-off marker text looked bad)
+    const crew = (name ?? '').trim().split(' ').pop() ?? '';
     s.innerHTML =
       (logo ? `<img class="ts-logo" alt="" src="${logo}">` : '') +
-      '<h2 class="ts-name"></h2>' +
-      `<span class="ts-city">${(city ?? '').toUpperCase()}</span>`;
-    s.querySelector('.ts-name').textContent = name ?? '';
+      '<div class="ts-band"><span class="ts-city"></span><h2 class="ts-crew"></h2></div>';
+    s.querySelector('.ts-city').textContent = (city ?? '').toUpperCase();
+    s.querySelector('.ts-crew').textContent = crew.toUpperCase();
     this.el.appendChild(s);
     this._teamSplash = s;
-    this._fitText(s.querySelector('.ts-name'), { minPx: 18 });
+    this._fitText(s.querySelector('.ts-crew'), { minPx: 26, pad: 44 });
     this._teamSplashT = setTimeout(() => this.teamSplashHide(), durS * 1000);
   }
 
