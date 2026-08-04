@@ -867,6 +867,7 @@ export class MatchScene {
     // stale-timer guard: never re-serve over a live pitch/trace/kick — a
     // double serve kills the ball mid-flight and eats the play silently
     if (this.phase !== 'SETUP' && this.phase !== 'PITCH_SELECT') return;
+    this.lastStealCommit = null; // a fresh pitch — the previous steal is settled
     if (this.kickingIsPlayer()) this.startAutoPitch();
     else this.startPitchSelect();
   }
@@ -1329,8 +1330,41 @@ export class MatchScene {
       this.kicker.animator.play('plate');
       this.serve();
     };
-    if (this.stealing?.state === 'running') this.after(0.3, () => this.resolveStealThrowdown(resume));
-    else this.after(1.0, resume);
+    // FOUL KILLS THE STEAL (dev rule, 2026-08-03): a dead ball never gifts a
+    // bag. The runner reverses and must beat the throw BACK to his own base —
+    // retreatRunner flips him first, so resolveStealThrowdown's race (bag,
+    // timing, throw-pad highlight) targets the ORIGINAL bag automatically.
+    const scrambleBack = (r) => {
+      r.scramble = true;
+      r.sim.human = false; // he hustles back on his own; mashing still helps
+      this.hud.call('FOUL — GET BACK!', 'pegged');
+      this.hud.hint(this.kickingIsPlayer() ? 'MASH — GET BACK!' : '');
+      this.bus.emit('sfx', 'juke');
+      this.after(0.35, () => this.resolveStealThrowdown(resume));
+    };
+    if (this.stealing?.state === 'running') {
+      const r = this.stealing;
+      this.retreatRunner(r);
+      r.officialBase = r.targetBase; // still registered at his original bag
+      scrambleBack(r);
+    } else if (this.lastStealCommit) {
+      // he beat the foul to the bag — doesn't matter, the ball is dead: off
+      // the bag and back the way he came, taggable the whole way
+      const { idx, char, from, to } = this.lastStealCommit;
+      this.lastStealCommit = null;
+      const r = this.makeRunner(idx, char, to);
+      r.stealing = true;
+      r.forced = false;
+      r.targetBase = from;
+      r.officialBase = to; // the books moved him when the steal committed
+      r.sim.human = false;
+      r.sim.progressM = 0;
+      this.stealing = r;
+      this.runners.push(r);
+      scrambleBack(r);
+    } else {
+      this.after(1.0, resume);
+    }
   }
 
   // ---------- multi-runner base running ----------
@@ -1464,7 +1498,14 @@ export class MatchScene {
     } else {
       bases[to] = r.idx;
       this.match.applyBaseEvent({ bases });
-      this.hud.call('STOLE ' + ['2ND', '3RD'][to - 1] + '!', 'crowned');
+      if (r.scramble) {
+        this.hud.call('SAFE — BACK IN!', 'robbed');
+      } else {
+        this.hud.call('STOLE ' + ['2ND', '3RD'][to - 1] + '!', 'crowned');
+        // a foul during THIS pitch un-commits the steal (dead ball, street
+        // rules): remember it so foulBall can send him scrambling back
+        this.lastStealCommit = { idx: r.idx, char: r.char, from: r.fromBase, to };
+      }
       const bag = this.basePos(to);
       const dir = this.basePos(Math.min(to + 1, 3)).clone().sub(bag).normalize();
       r.char.group.position.copy(bag).addScaledVector(dir, LEAD_M); // settle into the next lead
@@ -1505,14 +1546,17 @@ export class MatchScene {
       this.stealDefense = null;
       this.watchdog.clear(r.idx);
       if (out) {
+        // clear the bag the BOOKS have him on — his origin bag normally, but a
+        // scramble-back can start from an already-committed steal (officialBase)
+        const bookBase = r.officialBase ?? r.fromBase;
         const bases = [...this.match.state.bases];
-        bases[r.fromBase] = null;
-        this.baseChars[r.fromBase] = null;
+        bases[bookBase] = null;
+        this.baseChars[bookBase] = null;
         r.state = 'done';
         this.runners = this.runners.filter((q) => q !== r);
         this.stealing = null;
         this.outStumble(r.char);
-        this.hud.call('CAUGHT STEALING!', 'pegged');
+        this.hud.call(r.scramble ? 'DEAD BALL — TAGGED OUT!' : 'CAUGHT STEALING!', 'pegged');
         this.bus.emit('sfx', 'catchpop');
         this.bus.emit('vo', 'forced');
         this.match.applyBaseEvent({ outsAdded: 1, bases });
