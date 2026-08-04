@@ -202,17 +202,9 @@ export class MatchScene {
     });
     // a cutscene's return throw: the scene flies it and the pitcher catches
     bus.on('cine:returnThrow', () => this.flyBallToPitcher(14));
-    // strike-screen set pieces CUT STRAIGHT to the next play when they end
-    // (dev: no banner, no trot, no lingering celebration after the card)
-    bus.on('cine:videoDone', ({ kind }) => {
-      if (kind !== 'crowned') return;
-      this.clearTimers(); // finalizePlayHR's delayed handoff is superseded
-      if (this.match.state.phase === 'GAME_END') {
-        this.bus.emit('matchOver', { winner: this.match.winner(), score: this.match.state.score });
-      } else {
-        this.nextAtBat();
-      }
-    });
+    // (the crowned/caught strike-screen VIDEOS are gone — 2026-08-03 rework:
+    // both moments play in-engine now and finalizePlay*'s cinematicLock polls
+    // hand off to the next play when the director finishes)
 
     this.offTap = input.on('tap', (e) => this.onTap(e));
     this.offSwipe = input.on('swipe', (e) => this.onSwipe(e));
@@ -1386,7 +1378,7 @@ export class MatchScene {
         r.state = 'done';
         this.runners = this.runners.filter((q) => q !== r);
         this.stealing = null;
-        r.char.animator.play('stumble');
+        this.outStumble(r.char);
         this.hud.call('CAUGHT STEALING!', 'pegged');
         this.bus.emit('sfx', 'catchpop');
         this.bus.emit('vo', 'forced');
@@ -1575,9 +1567,15 @@ export class MatchScene {
         if (duelHere) {
           if (duelHere.tagCd > 0) continue; // tagger is still stumbling
           if (duelHere.brain.tagAttempt() === 'dodged') {
-            // SPIN MOVE — the lunge whiffs, tagger stumbles, you get separation
+            // SPIN MOVE — the lunge whiffs, tagger stumbles, you get separation.
+            // Quick recovery ritual (NOT a bare play): a held Defeated pose on a
+            // chaser who keeps getting dragged across the court read as "half
+            // his body in the ground" (dev). He falls, he gets up, he resumes.
             duelHere.tagCd = 0.9;
-            holder.animator.play('stumble');
+            holder.animator.play('stumble', {
+              speed: 1.5,
+              onDone: () => { if (holder.animator.name === 'stumble') holder.animator.play('run'); },
+            });
             this.bus.emit('sfx', 'dodge');
             this.hud.call('SPIN MOVE!', 'crowned');
             continue;
@@ -1593,7 +1591,8 @@ export class MatchScene {
         // THE DUEL owns its runner's speed (auto-shuttle / committed burst) —
         // taps neither steer nor pump in a pickle, on either side.
         const inDuel = this.duel?.r === r;
-        if (inDuel && this.duel.brain.spinT > 0) r.char.group.rotation.y += dt * 16; // the whirl
+        // the whirl — only when the real soccerSpin clip isn't carrying the move
+        if (inDuel && this.duel.brain.spinT > 0 && !this.duel.spinAnim) r.char.group.rotation.y += dt * 16;
         const useRate = inDuel ? this.duel.brain.runRate() : (isPlayerOffense ? rate : r.aiRate);
         // A human who stops tapping can hover between bags while the ball is loose
         // (that's strategic). But once the defense SECURES the ball, a stalled
@@ -1919,6 +1918,7 @@ export class MatchScene {
     for (const f of this.fielders) {
       const c = f.char;
       if (c.hasBall) continue;
+      if (c.animator.name === 'stumble') continue; // downed — let the get-up ritual finish
       let target = f.target;
 
       if (f.role === 'chase') {
@@ -2267,6 +2267,8 @@ export class MatchScene {
     }
     brain.tick(dt);
     duel.tagCd = Math.max(0, duel.tagCd - dt);
+    duel.chaserSlowT = Math.max(0, (duel.chaserSlowT ?? 0) - dt);
+    if (duel.spinAnim && brain.spinT <= 0) duel.spinAnim = false;
 
     // --- lane geometry (0 = back/safety bag, 1 = forward bag) ---
     const backPt = this.bagPos(duel.backBase);
@@ -2322,7 +2324,7 @@ export class MatchScene {
       if (act?.type === 'go') {
         brain.go({ flightFrac: act.flightFrac, throwToEnd: act.throwToEnd });
       } else if (act?.type === 'spin') {
-        if (brain.spin()) this.bus.emit('sfx', 'juke');
+        if (brain.spin()) this.duelSpinFx(duel);
       } else if (act?.type === 'reverse') {
         if (brain.reverse(dirNow)) this.bus.emit('sfx', 'juke');
       }
@@ -2333,13 +2335,18 @@ export class MatchScene {
   duelChase(holder, r, duel, dt) {
     const rp = this.runnerWorldPos(r).p;
     const hp = holder.group.position;
+    hp.y = 0; // re-ground every frame (runners get this; chasers were drifting)
     const d = hp.distanceTo(rp);
+    // a downed chaser stays DOWN until his recovery ritual finishes — dragging
+    // him across the pavement in the fallen pose was the half-buried glide
+    if (holder.animator.name === 'stumble') return;
     if (d > 1.05) {
-      const spd = this.tuning.running.maxSpeedMs * (duel.tagCd > 0 ? 0.35 : 0.74); // stumbled = slowed
+      const slow = duel.tagCd > 0 ? 0.35 : duel.chaserSlowT > 0 ? 0.42 : 0.74; // stumbled/juked = slowed
+      const spd = this.tuning.running.maxSpeedMs * slow;
       const dir = rp.clone().sub(hp).setY(0).normalize();
       hp.addScaledVector(dir, spd * dt);
       holder.faceYaw = Math.atan2(dir.x, dir.z);
-      if (holder.animator.name !== 'run' && holder.animator.name !== 'stumble') holder.animator.play('run');
+      if (holder.animator.name !== 'run') holder.animator.play('run');
     } else if (holder.animator.name === 'run') {
       holder.animator.play('holdball');
     }
@@ -2372,6 +2379,7 @@ export class MatchScene {
     this.bus.emit('sfx', 'throw'); // the audible windup IS the tell
     this.after(duel.brain.D.pegWindupS, () => {
       if (!this.duel || this.playFinalized || !holder.hasBall || this.throwing) return;
+      if (this.duel.pegBroken) { this.duel.pegBroken = false; return; } // spin broke his timing — no throw
       this.duel.throwInfo = { toEnd: -1, t0: this.elapsed, totalS: 0.4 }; // a peg is NOT a GO window
       this.throwBall(holder, { peg: true });
     });
@@ -2404,11 +2412,34 @@ export class MatchScene {
     this.duelPegAt(holder, duel.r);
   }
 
+  /** Shared spin presentation + defense cost (player swipe AND the AI runner):
+   *  the real Soccer Spin clip when the extras pack has landed (whirl-rotation
+   *  fallback otherwise), the chaser loses a step, and a mid-windup peg is
+   *  broken — the spin makes the thrower miss his timing. */
+  duelSpinFx(duel) {
+    this.bus.emit('sfx', 'juke');
+    const r = duel.r;
+    if (r.char.animator.hasClip?.('soccerSpin')) {
+      duel.spinAnim = true;
+      r.char.animator.play('soccerSpin', {
+        onDone: () => {
+          duel.spinAnim = false;
+          if (r.state === 'running' && r.char.animator.name === 'soccerSpin') r.char.animator.play('run');
+        },
+      });
+    }
+    duel.chaserSlowT = 0.9; // the chaser falls behind
+    if (duel.brain.pegWindupT > 0) {
+      duel.pegBroken = true; // the wound-up throw dies on the spin
+      this.hud.call('SHOOK THE THROW!', 'crowned');
+    }
+  }
+
   /** Swipe up on the offense duel: SPIN (i-frames — dodges tags AND pegs). */
   duelSpin() {
     const duel = this.duel;
     if (!duel || !this.kickingIsPlayer()) return;
-    if (duel.brain.spin()) this.bus.emit('sfx', 'juke');
+    if (duel.brain.spin()) this.duelSpinFx(duel);
   }
 
   /** v5 REVERSE button: flip YOUR trapped runner's direction on demand. */
@@ -3304,8 +3335,9 @@ export class MatchScene {
         });
       }
     } else {
-      // whiffed: he's on the pavement while the ball rolls away
-      f.animator.play('stumble');
+      // whiffed: he's on the pavement while the ball rolls away — with the
+      // get-up ritual, never a held face-down pose dragged around the court
+      this.outStumble(f);
       this.chaseDelay = this.elapsed - this.liveStart + 0.9;
       this.hud.call('MISSED IT!', 'pegged');
     }
