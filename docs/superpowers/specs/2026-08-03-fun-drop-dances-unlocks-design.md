@@ -169,3 +169,62 @@ CPU-side both.
 - New VO lines for these moments (existing crowned/robbed VO reused).
 - Any currency/shop — unlocks are milestone-earned, winning stays the economy.
 - Backdrop work (Pillar F owns it).
+
+## Addendum — verification round + fix log (2026-08-03, post-build)
+
+Full-branch double-check (four parallel verification agents, line-by-line spec
+diff, every finding re-confirmed by direct read) before the real-play pass.
+Everything below is either FIXED in code or recorded as the deliberate
+as-shipped tuning where the code, not the tables above, is truth.
+
+### Fixed this round
+- **Foul-steal holes**: a stolen HOME now un-commits on a foul — the run comes
+  off the board and the runner scrambles for 3rd, taggable (it used to stand on
+  a dead ball). The 4th-foul dead ball reverts a committed steal before the
+  books close (`revertStealBooks`, pure + tested). One steal per pitch, both
+  sides — a second launch after a commit is blocked. Scramble arrivals can no
+  longer write a 4th base slot into the 3-bag books.
+- **Throwdown verdict is an ARRIVAL check** at ball-landing, tie to the runner —
+  a man standing on his bag can never be "tagged out" by the old timing formula.
+- **Scramble telegraph**: the runner alert now fires during the scramble
+  ('SCRAMBLING BACK!', phase FOUL), and the foul count survives on the banner
+  ('FOUL n/4 — GET BACK!' instead of two banners overwriting each other).
+- **MocapAnimator**: a one-shot finishing mid-crossfade no longer fires the NEW
+  clip's onDone (slide finishing was stomping soccerSpin a beat in); auto-slide
+  now waits out the spin clip.
+- **Chaser down-gate** keys on recovery state (self-healing if the ritual is
+  superseded), not the clip name.
+- **Spin penalty lives in PickleDuel** (headless): chaserSlowT 0.9 s + pegBroken,
+  unit-tested — the spec's promised spin-penalty test now exists, as does the
+  foul-steal state test (stealBooks) and a negative-runs engine test.
+- **Locker**: stealing HOME counts toward Leg Sweep; Ice Kicks → 2 wins and
+  Meia Lua → 3 wins (playerSide is hardcoded 'away', so "road wins" ≡ wins —
+  the old conditions were redundant with Fire Reds/plain wins); Leg Sweep
+  powerMult 1.3 → 1.35 (a special must never hit SOFTER than the stock crown
+  kick — payoff must be felt).
+- **Show**: the caught-out stamp is the teal ROBBED style (was red PEGGED,
+  visually identical to a peg call); the HR dance happens AT THE PLATE (the
+  camera cut hides the teleport); a skipped victory lap stops its camera
+  callback (it fought CameraDirector for up to 2.8 s); every winner gets a
+  DISTINCT dance (`pickDances` — repeats only start once the pool is on the
+  floor); a skipped moment clears its stamp off live play.
+
+### As-shipped tuning (deliberate deviations from the tables above)
+- Special-kick mods REPLACE the stock 1.35 powerMult (no multiply-stack):
+  flair 1.45, hurricane 1.38 + loft +10° (no separate carry mod), spinflip
+  1.42 + curl ×1.2, blast speed ×1.12, sweep speed ×1.2 + loft −12°. The
+  locker hints match the code.
+- `defOuts` counts every out made while the player fields (tags and force outs
+  too), not just pegs+catches — the hint says "10 outs in the field".
+- Crowned beats run 0.7 s at 0.4× then a 3.4 s orbit (spec said 0.8/0.5/3.2).
+- The walkout wedge is point + 2-3-2 (captain alone on point), not 3-3-2.
+- `cine:videoDone` died with the videos; completion rides `cine:done` +
+  finalizePlayHR's cinematicLock poll. Walk-off HRs now get the victory lap.
+- The §5 belt-and-braces items (dance inPlace Y-zeroing in the baker, runtime
+  dance-family floor) were superseded: the p90 hip re-anchor + full re-bake
+  fixed the root cause and `scripts/verify-anims.mjs` guards every bake.
+
+### Still open (needs the phone)
+- Real-play pass per the house rule: walkout, HR dance, caught-out banner,
+  pickle spin + penalty, foul-steal scramble (incl. a stolen-home foul), locker
+  equip. Then PR to main; deploy only on the dev's explicit "push".
