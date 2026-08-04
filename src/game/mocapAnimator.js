@@ -41,7 +41,11 @@ export class MocapAnimator {
     this._speed = 1;
     this.onContact = null; this.onDone = null;
     this._contactFired = false; this._doneFired = false;
-    this._mixerFinished = () => {
+    this._mixerFinished = (e) => {
+      // one-shots keep playing while they crossfade OUT — their finish must
+      // not count as the CURRENT clip completing (slide finishing mid-fade
+      // was firing soccerSpin's onDone a few frames in)
+      if (e.action !== this._active) return;
       if (!this._doneFired) {
         this._doneFired = true;
         const d = this.onDone; this.onDone = null; d?.();

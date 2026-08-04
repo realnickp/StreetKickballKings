@@ -79,6 +79,20 @@ describe('MocapAnimator', () => {
     expect(a.name).toBe('thriller1');
   });
 
+  it("a stale one-shot finishing mid-fade doesn't fire the new clip's onDone", () => {
+    const a = new MocapAnimator(makeRig(), clips);
+    a.play('stumble');                            // one-shot A, still fading later
+    const onDone = vi.fn();
+    a.play('throw', { onDone });                  // one-shot B is now the active clip
+    // A (no longer active, mid-fade) reaches its end → the mixer fires
+    // 'finished' for A's action. That must NOT count as B completing.
+    const staleAction = a.mixer.clipAction(a.clips.get('stumble'));
+    a.mixer.dispatchEvent({ type: 'finished', action: staleAction });
+    expect(onDone).not.toHaveBeenCalled();
+    for (let i = 0; i < 60; i++) a.update(0.05);  // B finishes for real
+    expect(onDone).toHaveBeenCalledTimes(1);
+  });
+
   // Regression coverage for the ground-sink family: a realistic rig whose
   // rest hips sit at Y=1 (the old test rig rested at 0, so the floor guard
   // had zero coverage — any clamp regression passed silently).

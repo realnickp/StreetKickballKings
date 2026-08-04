@@ -37,3 +37,18 @@ export function pickDance(char) {
   const pool = [...X_DANCES.filter((n) => hasClip(char, n)), ...BASE_DANCES];
   return pool[Math.floor(Math.random() * pool.length)];
 }
+
+/** One dance per squad member, as DISTINCT as the loaded pools allow — eight
+ *  winners doing eight different moves reads like a block party; eight clones
+ *  don't. Repeats only start once every playable dance is already on the floor. */
+export function pickDances(chars) {
+  const useCount = new Map();
+  return (chars ?? []).map((c) => {
+    const pool = [...X_DANCES.filter((n) => hasClip(c, n)), ...BASE_DANCES];
+    const low = Math.min(...pool.map((n) => useCount.get(n) ?? 0));
+    const fresh = pool.filter((n) => (useCount.get(n) ?? 0) === low);
+    const pick = fresh[Math.floor(Math.random() * fresh.length)];
+    useCount.set(pick, (useCount.get(pick) ?? 0) + 1);
+    return pick;
+  });
+}

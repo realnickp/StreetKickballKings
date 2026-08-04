@@ -21,7 +21,8 @@ import { CityElements } from './cityElements.js';
 import { CrewHeat } from './crewHeat.js';
 import { CameraDirector } from './cameraDirector.js';
 import { buildField, FIELD_LAYOUT } from './field.js';
-import { allHaveClip, pickDance } from './animExtras.js';
+import { allHaveClip, pickDance, pickDances } from './animExtras.js';
+import { revertStealBooks } from './stealBooks.js';
 import { Hud } from '../ui/screens/hud.js';
 
 const DEFENSE_SPOTS = [
@@ -494,9 +495,11 @@ export class MatchScene {
     const squad = this.chars[winner] ?? [];
     if (!squad.length) return done();
     let fired = false;
+    let offFrame = null;
     const finish = () => {
       if (fired) return;
       fired = true;
+      offFrame?.(); // a skipped lap must stop steering the camera (it fights CameraDirector)
       offSkip?.();
       this.cinematicLock = false;
       this.engine.cameraLock = false;
@@ -508,19 +511,20 @@ export class MatchScene {
     this.hud.setLetterbox(true);
     const offSkip = this.bus.on('cine:skip', finish);
     const SLOTS = [[0, -3.2], [-1.5, -3.8], [1.5, -3.8], [-2.8, -4.6], [2.8, -4.6], [-0.8, -5.4], [0.8, -5.4], [0, -6.2]];
+    const dances = pickDances(squad); // 8 winners, 8 DIFFERENT moves — a block party
     squad.forEach((c, i) => {
       const [x, z] = SLOTS[i % SLOTS.length];
       c.group.visible = true;
       c.group.position.set(x, 0, z);
       this.faceTo(c, new THREE.Vector3(x, 0, 8), true);
-      c.animator.play(pickDance(c));
+      c.animator.play(dances[i]);
     });
     this.hud.stamp(`${(this.teams[winner]?.name ?? 'WINNERS').toUpperCase()} TAKE THE BLOCK!`, 'crowned');
     this.bus.emit('sfx', 'crowd-cheer');
     this.bus.emit('sfx', 'bassdrop');
     this.field.crowdEnergy = 1;
     let lapT = 0;
-    const offFrame = this.engine.onFrame((dt) => {
+    offFrame = this.engine.onFrame((dt) => {
       lapT += dt;
       const k = Math.min(1, lapT / 2.8);
       this.engine.camera.position.set(0, 1.5 + k * 0.8, -0.5 + k * 6.5);
@@ -1347,11 +1351,26 @@ export class MatchScene {
     this.bus.emit('vo', 'foul');
     if (this.fouls >= 4) {
       this.cancelSteal();
+      if (this.lastStealCommit) {
+        // the 4th foul is still a DEAD ball — a committed bag (or a stolen-home
+        // run) comes back before the books close the at-bat
+        const { idx, char, from, to } = this.lastStealCommit;
+        this.lastStealCommit = null;
+        const { bases, runsDelta } = revertStealBooks(this.match.state.bases, { idx, from, to });
+        this.match.applyBaseEvent({ bases, runs: runsDelta }); // 'play' event re-snapshots originalBases
+        char.group.visible = true;
+        if (to >= 0 && to <= 2) this.baseChars[to] = null;
+        this.baseChars[from] = char;
+        char.group.position.copy(this.basePos(from));
+        char.animator.play('idle');
+        this.refreshHud();
+      }
       this.hud.call('4 FOULS — OUT!', 'pegged');
       this.after(0.8, () => this.finalizePlay(1, 'foulout', { restoreRunners: true }));
       return;
     }
-    this.hud.call(`${label}  ${this.fouls}/4`, 'pegged');
+    const willScramble = this.stealing?.state === 'running' || !!this.lastStealCommit;
+    if (!willScramble) this.hud.call(`${label}  ${this.fouls}/4`, 'pegged');
     const resume = () => {
       this.phase = 'SETUP';
       this.kicker.animator.play('plate');
@@ -1364,7 +1383,7 @@ export class MatchScene {
     const scrambleBack = (r) => {
       r.scramble = true;
       r.sim.human = false; // he hustles back on his own; mashing still helps
-      this.hud.call('FOUL — GET BACK!', 'pegged');
+      this.hud.call(`FOUL ${this.fouls}/4 — GET BACK!`, 'pegged');
       this.hud.hint(this.kickingIsPlayer() ? 'MASH — GET BACK!' : '');
       this.bus.emit('sfx', 'juke');
       this.after(0.35, () => this.resolveStealThrowdown(resume));
@@ -1379,11 +1398,20 @@ export class MatchScene {
       // the bag and back the way he came, taggable the whole way
       const { idx, char, from, to } = this.lastStealCommit;
       this.lastStealCommit = null;
+      char.group.visible = true; // a stolen-home dance may have hidden him
+      if (to >= 3) {
+        // he stole HOME on a dead ball — the run comes off the board NOW,
+        // and he has to win the scramble back to 3rd to stay in the game
+        this.match.applyBaseEvent({ runs: -1 });
+        this.refreshHud();
+      }
       const r = this.makeRunner(idx, char, to);
       r.stealing = true;
       r.forced = false;
       r.targetBase = from;
-      r.officialBase = to; // the books moved him when the steal committed
+      // the books moved him when the steal committed; a scored run is already
+      // reverted, so there's no bag to clear on a tag (-1 = off the books)
+      r.officialBase = to <= 2 ? to : -1;
       r.sim.human = false;
       r.sim.progressM = 0;
       this.stealing = r;
@@ -1469,7 +1497,9 @@ export class MatchScene {
   // ---------- lead & steal ----------
   /** Send the runner on `baseIdx` stealing the next bag (pre-kick). */
   startSteal(baseIdx) {
-    if (this.stealing || this.phase === 'LIVE' || this.playFinalized) return;
+    // one steal per pitch: a second launch after a commit would leave the foul
+    // rule with two runners to un-wind and only one race to run it with
+    if (this.stealing || this.lastStealCommit || this.phase === 'LIVE' || this.playFinalized) return;
     const occ = this.match.state.bases[baseIdx];
     const char = this.baseChars?.[baseIdx];
     if (occ === null || !char) return;
@@ -1513,15 +1543,23 @@ export class MatchScene {
   commitStealArrival(r) {
     const to = r.targetBase;
     const bases = [...this.match.state.bases];
-    bases[r.fromBase] = null;
-    this.baseChars[r.fromBase] = null;
+    // a scramble back from a HOME steal has fromBase = 3 — never index past
+    // the 3 bags (a bases[3] write corrupts the engine's base contract)
+    if (r.fromBase >= 0 && r.fromBase <= 2) {
+      bases[r.fromBase] = null;
+      this.baseChars[r.fromBase] = null;
+    }
     if (to >= 3) {
       this.match.applyBaseEvent({ bases, runs: 1 });
+      if (this.kickingIsPlayer()) this.matchStats.steals += 1; // stealing HOME counts too
       this.hud.call('STOLE HOME!', 'crowned');
       this.bus.emit('sfx', 'crowd-cheer');
       this.faceCam(r.char);
       r.char.animator.play(pickDance(r.char));
       this.after(1.4, () => { r.char.group.visible = false; });
+      // a foul during THIS pitch un-commits even a stolen home (dead ball, street
+      // rules): the run comes back and he scrambles for 3rd like any other bag
+      this.lastStealCommit = { idx: r.idx, char: r.char, from: r.fromBase, to };
     } else {
       bases[to] = r.idx;
       this.match.applyBaseEvent({ bases });
@@ -1566,8 +1604,6 @@ export class MatchScene {
     this.stealResolving = true;
     const bag = this.basePos(r.targetBase);
     const catcher = this.fieldingChars().find((c) => c.spot?.id === 'C') ?? this.fieldingChars()[0];
-    const runnerT = () =>
-      Math.max(0, this.tuning.running.basePathM - r.sim.progressM) / (this.tuning.running.maxSpeedMs * 0.85);
     const finish = (out) => {
       this.stealResolving = false;
       this.hud.showThrowPad(false);
@@ -1575,11 +1611,14 @@ export class MatchScene {
       this.watchdog.clear(r.idx);
       if (out) {
         // clear the bag the BOOKS have him on — his origin bag normally, but a
-        // scramble-back can start from an already-committed steal (officialBase)
+        // scramble-back can start from an already-committed steal (officialBase;
+        // -1 = a reverted stolen-home run, no bag on the books to clear)
         const bookBase = r.officialBase ?? r.fromBase;
         const bases = [...this.match.state.bases];
-        bases[bookBase] = null;
-        this.baseChars[bookBase] = null;
+        if (bookBase >= 0 && bookBase <= 2) {
+          bases[bookBase] = null;
+          this.baseChars[bookBase] = null;
+        }
         r.state = 'done';
         this.runners = this.runners.filter((q) => q !== r);
         this.stealing = null;
@@ -1609,7 +1648,6 @@ export class MatchScene {
     };
     const throwDown = (reactionS) => {
       const flightT = catcher.group.position.distanceTo(bag) / 24; // catchers GUN it
-      const out = reactionS + flightT < runnerT() - 0.02;
       this.after(Math.max(0.05, reactionS), () => {
         this.faceTo(catcher, bag);
         catcher.animator.play('throw', {
@@ -1617,7 +1655,13 @@ export class MatchScene {
           onDone: () => catcher.animator.play('idle'),
         });
       });
-      this.after(reactionS + flightT + 0.15, () => finish(out));
+      // verdict at BALL ARRIVAL from where the runner ACTUALLY is — a man
+      // standing on his bag can never be "tagged out" by a timing formula
+      // (tie goes to the runner: on the bag when the throw lands = safe)
+      this.after(reactionS + flightT, () => {
+        const out = !r.sim.arrived;
+        this.after(0.15, () => finish(out));
+      });
     };
     if (!this.kickingIsPlayer()) {
       // YOU'RE the defense: quick draw — tap the bag on the throw pad
@@ -1637,8 +1681,15 @@ export class MatchScene {
 
   /** On-screen banners of what each base-runner is doing (so you know where to throw). */
   updateRunnerAlerts() {
-    // only during the live play — and never on the duel stage (one button, no noise)
-    if (this.phase !== 'LIVE' || this.duel) { this.hud.setRunnerAlerts([]); return; }
+    // never on the duel stage (one button, no noise)
+    if (this.duel) { this.hud.setRunnerAlerts([]); return; }
+    // dead-ball scramble happens in phase FOUL — it's the one alert that matters
+    if (this.stealing?.scramble && this.stealing.state === 'running') {
+      this.hud.setRunnerAlerts([{ text: 'SCRAMBLING BACK!', urgent: true }]);
+      return;
+    }
+    // otherwise only during the live play
+    if (this.phase !== 'LIVE') { this.hud.setRunnerAlerts([]); return; }
     const running = this.runners.filter((r) => r.state === 'running' && r.targetBase >= 0 && r.targetBase <= 3);
     if (!running.length) { this.hud.setRunnerAlerts([]); return; }
     running.sort((a, b) => (b.targetBase - a.targetBase) || (b.sim.progressM - a.sim.progressM));
@@ -1783,9 +1834,13 @@ export class MatchScene {
             // chaser who keeps getting dragged across the court read as "half
             // his body in the ground" (dev). He falls, he gets up, he resumes.
             duelHere.tagCd = 0.9;
+            holder.recovering = true;
             holder.animator.play('stumble', {
               speed: 1.5,
-              onDone: () => { if (holder.animator.name === 'stumble') holder.animator.play('run'); },
+              onDone: () => {
+                holder.recovering = false;
+                if (holder.animator.name === 'stumble') holder.animator.play('run');
+              },
             });
             this.bus.emit('sfx', 'dodge');
             this.hud.call('SPIN MOVE!', 'crowned');
@@ -2472,9 +2527,8 @@ export class MatchScene {
     if (r.state !== 'running' || this.playFinalized) {
       return this.endDuel();
     }
-    brain.tick(dt);
+    brain.tick(dt); // also runs down brain.chaserSlowT (spin penalty)
     duel.tagCd = Math.max(0, duel.tagCd - dt);
-    duel.chaserSlowT = Math.max(0, (duel.chaserSlowT ?? 0) - dt);
     if (duel.spinAnim && brain.spinT <= 0) duel.spinAnim = false;
 
     // --- lane geometry (0 = back/safety bag, 1 = forward bag) ---
@@ -2494,8 +2548,9 @@ export class MatchScene {
       r.sim.human = false;
     }
     // auto-slide: committed and closing on a bag — low under the tag, no input
+    // (never mid-spin: the slide was stomping the soccerSpin clip a beat in)
     const remaining = this.tuning.running.basePathM - r.sim.progressM;
-    if (brain.committed && remaining < 5.2 && r.char.animator.name !== 'slide') {
+    if (brain.committed && remaining < 5.2 && !duel.spinAnim && r.char.animator.name !== 'slide') {
       r.char.animator.play('slide');
     }
 
@@ -2545,10 +2600,14 @@ export class MatchScene {
     hp.y = 0; // re-ground every frame (runners get this; chasers were drifting)
     const d = hp.distanceTo(rp);
     // a downed chaser stays DOWN until his recovery ritual finishes — dragging
-    // him across the pavement in the fallen pose was the half-buried glide
-    if (holder.animator.name === 'stumble') return;
+    // him across the pavement in the fallen pose was the half-buried glide.
+    // Gate on the recovery STATE, self-healing if the ritual gets superseded.
+    if (holder.recovering) {
+      if (holder.animator.name === 'stumble') return; // still down
+      holder.recovering = false; // ritual finished or replaced — chase on
+    }
     if (d > 1.05) {
-      const slow = duel.tagCd > 0 ? 0.35 : duel.chaserSlowT > 0 ? 0.42 : 0.74; // stumbled/juked = slowed
+      const slow = duel.tagCd > 0 ? 0.35 : duel.brain.chaserSlowT > 0 ? 0.42 : 0.74; // stumbled/juked = slowed
       const spd = this.tuning.running.maxSpeedMs * slow;
       const dir = rp.clone().sub(hp).setY(0).normalize();
       hp.addScaledVector(dir, spd * dt);
@@ -2586,7 +2645,7 @@ export class MatchScene {
     this.bus.emit('sfx', 'throw'); // the audible windup IS the tell
     this.after(duel.brain.D.pegWindupS, () => {
       if (!this.duel || this.playFinalized || !holder.hasBall || this.throwing) return;
-      if (this.duel.pegBroken) { this.duel.pegBroken = false; return; } // spin broke his timing — no throw
+      if (this.duel.brain.pegBroken) { this.duel.brain.pegBroken = false; return; } // spin broke his timing — no throw
       this.duel.throwInfo = { toEnd: -1, t0: this.elapsed, totalS: 0.4 }; // a peg is NOT a GO window
       this.throwBall(holder, { peg: true });
     });
@@ -2635,9 +2694,7 @@ export class MatchScene {
         },
       });
     }
-    duel.chaserSlowT = 0.9; // the chaser falls behind
-    if (duel.brain.pegWindupT > 0) {
-      duel.pegBroken = true; // the wound-up throw dies on the spin
+    if (duel.brain.spinPenalty()) { // chaser falls behind; a live windup dies
       this.hud.call('SHOOK THE THROW!', 'crowned');
     }
   }
@@ -3167,7 +3224,7 @@ export class MatchScene {
 
   /** AI offense sometimes sends a runner on the pitch (difficulty-scaled). */
   maybeAiSteal() {
-    if (this.kickingIsPlayer() || this.stealing || this.playFinalized) return;
+    if (this.kickingIsPlayer() || this.stealing || this.lastStealCommit || this.playFinalized) return;
     if (this.tutorialQuiet) return; // no surprise AI steals mid-lesson
     const prob = { Rookie: 0.05, Street: 0.1, King: 0.16 }[this.difficulty] ?? 0.1;
     if (Math.random() > prob) return;
@@ -3248,8 +3305,10 @@ export class MatchScene {
   /** Out ritual: hit the deck, then GET UP — a held final stumble pose reads as
    *  "buried in the floor" when its legs clip the pavement (dev, twice). */
   outStumble(char) {
+    char.recovering = true;
     char.animator.play('stumble', {
       onDone: () => this.after(0.6, () => {
+        char.recovering = false;
         if (char.animator.name === 'stumble' && char.group.visible) char.animator.play('idle');
       }),
     });

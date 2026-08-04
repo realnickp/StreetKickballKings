@@ -53,6 +53,16 @@ it('equip requires ownership + matching category; null resets the slot', () => {
   expect(equippedGear(s).kick).toBe(null);
 });
 
+it('no gear rides the road-win counter (every game is played away — roadWins ≡ wins)', () => {
+  expect(GEAR.some((g) => g.unlock.stat === 'roadWins')).toBe(false);
+});
+
+it('special kicks never hit softer than the stock crown kick (powerMult ≥ 1.35)', () => {
+  for (const g of GEAR) {
+    if (g.cat === 'kick') expect(g.mods.powerMult).toBeGreaterThanOrEqual(1.35);
+  }
+});
+
 it('catalog integrity: unique ids, valid categories, kicks carry clips+mods', () => {
   const ids = new Set(GEAR.map((g) => g.id));
   expect(ids.size).toBe(GEAR.length);

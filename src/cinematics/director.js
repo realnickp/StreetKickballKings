@@ -10,6 +10,7 @@
 import * as THREE from 'three';
 import { BallFx } from './fx.js';
 import { pickDance } from '../game/animExtras.js';
+import { FIELD_LAYOUT } from '../game/field.js';
 
 // caught-out one-liners — the whole "robbed screen" is now this one sweep
 const CAUGHT_LINES = [
@@ -52,12 +53,13 @@ export class CinematicDirector {
     steps[0].onStart?.();
   }
 
-  /** `force` = internal teardown; a user tap can't skip noSkip moments
-   *  (catches / home runs play out in full — dev call). */
+  /** `force` = internal teardown; a user tap can't skip noSkip moments.
+   *  (Since the fun drop, HR and caught-out are both skippable — fast play wins.) */
   skip(force = false) {
     if (!this.script) return;
     if (this.script.noSkip && !force) return;
     for (const step of this.script.steps) step.onEnd?.();
+    this.hud.clearStamps?.(); // a skipped moment must not leave its stamp over live play
     this.finish();
   }
 
@@ -237,7 +239,8 @@ export class CinematicDirector {
    *  wasn't) — finalizePlayHR's cinematicLock poll advances play either way. */
   crowned({ kicker }) {
     this.bus.emit('vo', { event: 'crowned', gender: kicker.gender });
-    const p = kicker.group.position.clone();
+    const p = kicker.group.position.clone(); // beat 1: wherever he froze mid-trot
+    const plate = FIELD_LAYOUT.home.clone(); // beat 2: the show is AT THE PLATE
     const dance = pickDance(kicker);
     this.engine.shake(0.5);
     this.run([
@@ -253,10 +256,12 @@ export class CinematicDirector {
           new THREE.Vector3(p.x, 3.4, p.z - 30),
         ),
       },
-      { // THE DANCE — every homer, no exceptions
+      { // THE DANCE — every homer, no exceptions. The camera CUT hides the
+        // teleport: he dances at home plate, because the dance IS the trot.
         dur: 3.4,
         onStart: () => {
           this.engine.timeScale = 1;
+          kicker.group.position.set(plate.x, 0, plate.z);
           kicker.faceYaw = 0; // square up to the arcing camera side (+z)
           kicker.animator.play(dance);
           this.bus.emit('sfx', 'bassdrop');
@@ -264,8 +269,8 @@ export class CinematicDirector {
         onUpdate: (k) => {
           const a = (-0.55 + k * 1.1) + Math.PI; // slow arc across the camera side
           this.cam(
-            new THREE.Vector3(p.x + Math.sin(a) * 3.1, 1.35 - k * 0.2, p.z - Math.cos(a) * 3.1),
-            new THREE.Vector3(p.x, 1.1, p.z),
+            new THREE.Vector3(plate.x + Math.sin(a) * 3.1, 1.35 - k * 0.2, plate.z - Math.cos(a) * 3.1),
+            new THREE.Vector3(plate.x, 1.1, plate.z),
           );
         },
         onEnd: () => {
@@ -294,7 +299,7 @@ export class CinematicDirector {
         dur: 0.8,
         onStart: () => {
           this.engine.timeScale = 1;
-          this.hud.stamp(CAUGHT_LINES[Math.floor(Math.random() * CAUGHT_LINES.length)], 'pegged');
+          this.hud.stamp(CAUGHT_LINES[Math.floor(Math.random() * CAUGHT_LINES.length)], 'robbed');
           this.bus.emit('vo', 'robbed');
           fielder.hasBall = false; // ball heads straight back to the mound
           fielder.animator.play('idle');
