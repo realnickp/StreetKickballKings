@@ -729,12 +729,8 @@ export class MatchScene {
     this.hud.showSpecial(this.kickingIsPlayer()); // crown super-kick is ONLY for when you're kicking
     this.hud.setSpecial(this.special.value, this.special.ready, this.specialArmed, this.teams[this.playerSide].special.label);
   }
-  worldToScreen(v) {
-    // coords are relative to the canvas/phone-frame (the HUD lives inside it)
-    const r = this.engine.renderer.domElement.getBoundingClientRect();
-    const p = v.clone().project(this.engine.camera);
-    return { x: (p.x * 0.5 + 0.5) * r.width, y: (-p.y * 0.5 + 0.5) * r.height };
-  }
+  // (worldToScreen lives near the tap-picking helpers below — this class used
+  // to define it TWICE; the later, null-returning version always won)
   screenToGround(x, y) {
     // pointer x/y are window-relative — map into the canvas rect (offset on desktop)
     const r = this.engine.renderer.domElement.getBoundingClientRect();
@@ -3812,8 +3808,13 @@ export class MatchScene {
       const remain = this.pitchArrival - this.elapsed;
       const total = this.tuning.pitch.plateDistanceM / (this.pitch.speedMph * 0.12);
       const progress = Math.max(0, remain / total);
-      const anchor = this.worldToScreen(this.ball.pos); // ring rides the incoming ball — line up + time it
-      this.hud.ringAt(anchor.x, anchor.y, progress);
+      // ring rides the incoming ball — line up + time it. worldToScreen is null
+      // once the pitch slips BEHIND the camera; an unguarded read here threw
+      // before the TOO LATE branch below could fire, freezing the scene update
+      // in a permanent per-frame throw (real phone freeze, found 2026-08-04)
+      const anchor = this.worldToScreen(this.ball.pos);
+      if (anchor) this.hud.ringAt(anchor.x, anchor.y, progress);
+      else this.hud.hideRing();
       if (remain < (-this.tuning.kick.okWindowMs / 1000) * 1.6 && !this.kicked) {
         this.kicked = true;
         this.strike('TOO LATE!');

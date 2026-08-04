@@ -228,3 +228,39 @@ as-shipped tuning where the code, not the tables above, is truth.
 - Real-play pass per the house rule: walkout, HR dance, caught-out banner,
   pickle spin + penalty, foul-steal scramble (incl. a stolen-home foul), locker
   equip. Then PR to main; deploy only on the dev's explicit "push".
+
+## Real-play pass results (2026-08-04, local dev via claude-in-chrome)
+
+Driven frame-by-frame in real Chrome (hidden-tab rAF stall worked around with a
+virtual clock stepping the REAL engine loop). Verified on screen:
+
+- **Walkout**: splash → away wedge, all 8 frame-locked on thriller1 (one clip
+  name across the squad), part switch to thriller2, Snappers splash, home
+  thriller3→4, star cards + ticker cycling, clean handoff to first pitch.
+- **HR**: organic fence-clear (sky flick, runner on 1st) → CROWNED! → dance at
+  the plate (danceChicken/dance4 observed across runs, camera orbit) → both
+  runs posted → instant next play.
+- **Caught out**: real caught fly → 0.6 s slow-mo on the fielder → teal ROBBED
+  banner "OUTTA THE SKY — YOU'RE OUT!" (`--burst #3ec6b5`) → quick resume.
+- **Foul kills the steal**: live steal + foul → 'FOUL n/4 — GET BACK!' +
+  MASH prompt → throwdown race → 'SAFE — BACK IN!', runner back on his bag.
+- **Stolen HOME + foul**: STOLE HOME! posted (run +1, steal counted) → foul →
+  run came OFF the board instantly, scramble raced, no gifted bag, 3-slot
+  bases stayed legal, next at-bat clean.
+- **Victory lap**: fireMatchOver → 8 winners, 8 DISTINCT dances (thriller +
+  extras + base mix), 'MARYLAND MONARCHS TAKE THE BLOCK!', wide pull-back.
+- **The Locker** (real flow `?nosplash&go=locker`): all 3 categories, 17
+  locked chips with the FIXED hints (Ice Kicks = 2 wins, Meia Lua = 3 wins),
+  career strip. Equip-tap untested (would write the dev's local save).
+- **soccerSpin/extras clips** render standing (hips grounded — re-bake holds).
+
+**New P0-class bug found AND fixed during the pass**: `MatchScene.update`
+dereferenced `worldToScreen(ball.pos)` unguarded while the kick ring rode the
+incoming pitch (`ringAt`); the class defined `worldToScreen` twice and the
+winning version returns null once the ball slips behind the camera. The throw
+landed ABOVE the TOO LATE branch, so the state machine could never leave the
+pitch — a permanent per-frame throw = frozen game on a taken pitch (timing
+race, explains intermittent phone freezes). Fixed: null-guard + hideRing, dead
+duplicate method removed, regression-verified live (taken pitch now resolves).
+Not verified live: pickle-duel spin penalty in an organic rundown (unit-tested
+headlessly), walkout tap-to-skip, locker equip application in-match.

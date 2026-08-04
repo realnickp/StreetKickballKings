@@ -60,3 +60,13 @@ describe('ball element physics', () => {
     expect(Math.hypot(b.pos.x, b.pos.z)).toBeLessThan(30);
   });
 });
+
+it('throwTo a target directly overhead never NaNs the velocity (white-screen guard)', () => {
+  const b = new Ball(scene);
+  b.pos.set(5, 0.3, 5);
+  b.throwTo(new THREE.Vector3(5, 0.4, 5), 24); // zero flat distance
+  expect(Number.isNaN(b.vel.x)).toBe(false);
+  expect(Number.isNaN(b.vel.z)).toBe(false);
+  b.update(0.05);
+  expect(Number.isNaN(b.pos.x)).toBe(false);
+});
