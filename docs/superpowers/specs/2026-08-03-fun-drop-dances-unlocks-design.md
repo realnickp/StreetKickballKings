@@ -1,0 +1,171 @@
+# Fun Drop — Dances, Special Kicks, Unlockables, HR/Out Rework (2026-08-03)
+
+Dev request via remote control 2026-08-03. Nine features, one round. Design law
+from [fun-overhaul]: every feature must pass the phone-player test —
+learn it / see it / feel it. Arcade-loud.
+
+New source clips (19, copied to `tools/anims-src/`): Thriller Parts 1–4,
+Locking/Tut/Wave/Step Hip Hop, Chicken Dance, Silly Dancing, Hip Hop Dancing,
+Soccer Spin, and 8 kick moves (Flair, Hurricane Kick, Spin Flip Kick, Inside
+Crescent Kick, Kicking, Meia Lua De Compasso, Meia Lua De Compasso Back, Leg
+Sweep). Strike Foward Jog is already the shipped default `kick` clip.
+
+## 0. Foundation — extras animation pack (everything depends on this)
+
+- New manifest field `pack: 'x'` on the 19 new entries; `tools/retarget.js`
+  bakes pack-x entries into a **separate** `public/assets/anims/mocap-x-<arch>.glb`
+  per archetype. Base GLBs (1.35 MB each, eager-loaded) stay unchanged in size.
+- New manifest field `bakeHz` (default 30): dances bake at 15 fps — half the
+  size, imperceptible for dance moves. Kicks + soccerSpin stay 30 fps
+  (contact timing).
+- **Bake sanity fix in `tools/retarget.js`**: a retargeted `Hips.position`
+  track that resolves to ~0 for the whole clip (the dance1/dance4/dejected/
+  stumble defect — pelvis 1 m under the court) is floored to rest-pose Y.
+  `inPlace` also gains Y-drift zeroing for dance clips. **Re-bake the base
+  pack too** so dance1/dance4/dejected stop dancing waist-deep.
+- `?auto=1` mode in retarget.js: bakes all requested archs sequentially and
+  POSTs to the :5199 sink with no clicks (driven by Playwright/chrome).
+- Runtime: `src/game/animExtras.js` — after teams are picked, background-fetch
+  `mocap-x-<arch>.glb` for the archetypes actually in the match and merge into
+  each character's `MocapAnimator` (`addClips()`, new method). Never blocks
+  play. Every consumer has a fallback when extras aren't loaded yet:
+  HR dance → dance1–4, walkout → legacy swagger intro, special kick → `kick`,
+  soccerSpin → existing whirl rotation.
+- Code-animator fallback aliases for all 19 names in `glbCharacters.js` CLIPS.
+
+New clip names: `thriller1..4`, `danceLock`, `danceTut`, `danceWave`,
+`danceChicken`, `danceStep`, `danceSilly`, `soccerSpin`, `kickFlair`,
+`kickHurricane`, `kickSpinFlip`, `kickCrescent`, `kickBlast` (Kicking.fbx),
+`kickMeia`, `kickMeiaBack`, `kickSweep`.
+
+## 1. Home run — full rework, mandatory random dance (NO exceptions)
+
+Kill `cut-crowned.mp4` (delete the video + its playback path). New all-in-engine
+sequence in `director.crowned()`:
+
+1. ~0.8 s: timeScale 0.5, crane hold as the ball sails; `hud.stamp('CROWNED!')`,
+   vo `crowned`, crowd to 1.
+2. Cut to home plate: kicker at the plate, `faceCam`, plays a **random dance
+   from the full dance pool** — thriller1–4 + the 6 new dances + fixed
+   dance1–4. Slow orbital cam ~3.2 s, crowd loop, shake beat. This dance is
+   unconditional on every home run.
+3. Cut straight to next play (same `cine:videoDone {kind:'crowned'}` path).
+   Tap-to-skip enabled (the old video wasn't skippable; fast play wins).
+
+Runners still resolve instantly (hidden); the kicker's dance IS the trot.
+
+## 2. Caught out — robbed screen deleted, quick banner instead
+
+- Delete the `cut-caught.mp4` branch from `director.robbed()`. Keep the 0.6 s
+  slow-mo hold on the catch (shows WHO robbed you), then a single
+  `hud.stamp(<line>, 'robbed')` sweeps across and play cuts on as today
+  (finalize at +1.1 s). Net blocking time drops from ~video-length+0.8 s to
+  ~1.4 s.
+- Rotating creative lines, e.g.: `SNATCHED! SIT DOWN!`, `THE GLOVE SAID NO!`,
+  `OUTTA THE SKY — YOU'RE OUT!`, `ROBBED BLIND!`, `CAUGHT IT. WALK IT OFF.`,
+  `THAT BALL GOT MUGGED!`
+- Tag-up race branch is untouched (already cutscene-free by design).
+- Both MP4s (`cut-crowned`, `cut-caught`, 8.6 MB combined) removed from the
+  payload.
+
+## 3. Unlockables — THE LOCKER (earn as you play)
+
+Persistence mirrors `trophies.js`: new headless `src/meta/unlocks.js` + tests.
+Save keys: `career` (lifetime counters: wins, roadWins, hr, catches, pegs,
+pickleEscapes, steals, crews), `gear.unlocked` (string ids), `gear.equip`
+`{kick, cleats, uniform}`.
+
+**Special kicks** (8) — used when the crown/special meter is armed (existing
+`SpecialMeter` consume path). Equipped kick swaps the kick clip at the single
+`play('kick')` call site and its modifier multiplies into the existing
+`powerMult`:
+
+| id | clip | flavor | unlock |
+|---|---|---|---|
+| flair | kickFlair | power ×1.45 | first home run |
+| hurricane | kickHurricane | loft +10°, carry ×1.1 | 3 career HR |
+| spinflip | kickSpinFlip | power ×1.4, aim spread +8° | 10 career HR |
+| crescent | kickCrescent | curl range ×1.5 | 5 wins |
+| blast | kickBlast | speed ×1.15 low liner (loft −8°) | 10 pegs/catches |
+| meia | kickMeia | big curl + power ×1.35 | 3 road wins |
+| meiaback | kickMeiaBack | reverse curl + ×1.35 | 5 pickle escapes |
+| sweep | kickSweep | grounder speed ×1.25 | 15 career steals |
+
+**Cleats** (6) — foot-region UV tint in `recolorKitTexture` (UV bbox of
+verts weighted to Foot/ToeBase joints, cached per archetype): Fire Reds
+(first win), Ice Kicks (first road win), Neon Volts (3 crews beaten), Royals
+(5 crews), Blackouts (25 career runs), Gold Crowns (King of the Streets).
+
+**Uniforms** (3 alternates) — kit recolor modes for the player's team:
+Blackout kit (3 wins), Whiteout kit (win by 5+), Gold Rush kit (King).
+
+UI: **LOCKER** screen from the menu (pattern of MapScreen trophy case):
+category rows, locked items show silhouette + unlock hint, tap to equip.
+Post-game: `UNLOCKED:` toasts on PostGameScreen. Career counters increment
+from a per-match stats object matchScene already accumulates → passed on
+`matchOver`.
+
+## 4. Walkout — whole team, synced Thriller
+
+Replace the 3-stars-one-at-a-time parade in `lineupIntro()` (extras-loaded
+path; legacy flow is the fallback):
+
+- All 8 away players visible at once in a staggered Thriller wedge
+  (rows 3-3-2, captain on point), facing camera, **all playing thriller1 in
+  frame-sync** (same `play()` frame, same rate, speedFactor pinned to 1 →
+  choreographed). Formation drifts toward camera slowly; low wide dolly cam.
+- Part switches on the beat: away side dances Parts 1→2, then team splash,
+  then home side dances Parts 3→4. Walkout star cards keep cycling on top
+  (the info layer stays). Thriller bakes are `inPlace` so the wedge holds.
+- Total ≈ current ~20 s budget, tap-to-skip preserved.
+
+## 5. Pickle — Soccer Spin + chaser un-burying
+
+- Spin now plays the real `soccerSpin` clip on the runner (whirl-rotation
+  fallback), and **it costs the defense**: chaser speed ×0.45 for 0.9 s
+  ("falls behind"); if the holder is mid peg-windup, the windup restarts
+  ("misses his timing"). Scene-side state; brain tuning untouched.
+- Ground-sink fixes (root causes from the 2026-08-03 investigation):
+  - Every bare `play('stumble')` on fielders routes through the existing
+    `outStumble()` recovery ritual (tag-dodge at ~1580, dive whiff at ~3308,
+    steal throwdown at ~1389).
+  - `duelChase` guard gated on recovery state instead of clip name, so the
+    chaser returns to `run`; `holder.group.position.y = 0` re-grounded every
+    frame (parity with runners).
+  - `MocapAnimator` hip floor: keep the higher floor during the 0.15 s
+    crossfade out of `stumble`; dance-family clips get the 0.5×rest floor
+    until the re-bake lands (belt and braces after it).
+  - New `mocapAnimator` test with a realistic rest-Y rig asserting per-clip
+    floors (current test rig has rest Y = 0 — zero coverage).
+
+## 6. Foul ball kills the steal — scramble back, taggable
+
+Today a stealing runner keeps the base on a foul. New rule: on FOUL with a
+steal live, the steal dies — the runner reverses to his original base
+(reusing the tag-up reversal mechanics: legs flipped, auto-run, taggable) and
+the defense gets a quick tag window; safe the moment he's back on the bag.
+Telegraph: `hud.call('FOUL! GET BACK!')` + runner alert. Player-side and
+CPU-side both.
+
+## 7. Dances across celebrations
+
+- Scoring-at-home + steal-home celebrations draw from the full dance pool.
+- Game end: before `matchOver` routes to postGame, ~2.8 s on-field party —
+  every visible winner plays a different random dance, camera pulls wide,
+  `hud.stamp('<WINNER> TAKE THE BLOCK!')`, then the box score. Skippable.
+
+## Testing & verification
+
+- vitest: `unlocks.test.js`, mocapAnimator floor test, spin-penalty duel test,
+  foul-steal state test, manifest test extended for pack-x names.
+- `scripts/verify-anims.mjs`: decodes every baked GLB, asserts clip presence,
+  hips-floor sanity (no whole-clip ~0 tracks), and size budgets.
+- Real-play pass via claude-in-chrome per [verify-gameplay-by-real-play]:
+  walkout, HR dance, caught-out banner, pickle spin, foul-steal scramble.
+- Merge to main by PR; deploy only on the dev's explicit "push".
+
+## Out of scope
+
+- New VO lines for these moments (existing crowned/robbed VO reused).
+- Any currency/shop — unlocks are milestone-earned, winning stays the economy.
+- Backdrop work (Pillar F owns it).
