@@ -21,6 +21,7 @@ import { CityElements } from './cityElements.js';
 import { CrewHeat } from './crewHeat.js';
 import { CameraDirector } from './cameraDirector.js';
 import { buildField, FIELD_LAYOUT } from './field.js';
+import { allHaveClip, pickDance } from './animExtras.js';
 import { Hud } from '../ui/screens/hud.js';
 
 const DEFENSE_SPOTS = [
@@ -328,6 +329,9 @@ export class MatchScene {
       if (!this.walkoutActive) return;
       this.walkoutActive = false;
       this.walkout = null;
+      this.walkoutSquad = null;
+      // back to the empty-stage invariant — nextAtBat unhides who it needs
+      for (const c of [...this.chars.home, ...this.chars.away]) c.group.visible = false;
       offSkip?.();
       this.hud.walkoutHide();
       this.hud.teamSplashHide();
@@ -374,6 +378,82 @@ export class MatchScene {
       });
     };
 
+    // ===== THRILLER WALKOUT (dev, 2026-08-03): the WHOLE team at once, one
+    // choreographed dance — all eight per side frame-synced through the
+    // Thriller parts (away: 1→2, home: 3→4) in a wedge that creeps toward the
+    // low dolly cam. Star cards keep cycling on top so the info layer stays.
+    // Falls back to the one-at-a-time swagger parade until the extras pack
+    // (mocap-x-*) has landed for every fielded body.
+    const canThriller = allHaveClip(this.chars.away, 'thriller1') && allHaveClip(this.chars.away, 'thriller2')
+      && allHaveClip(this.chars.home, 'thriller3') && allHaveClip(this.chars.home, 'thriller4');
+
+    if (canThriller) {
+      const SLOTS = [ // captain on point, rows 2-3-2 behind
+        [0, -10.2], [-1.7, -11.4], [1.7, -11.4],
+        [-3.1, -12.6], [0, -12.6], [3.1, -12.6],
+        [-2.2, -13.8], [2.2, -13.8],
+      ];
+      const squadOn = (side, part, t) => {
+        this.after(t, () => {
+          if (!this.walkoutActive) return;
+          const chars = this.chars[side] ?? [];
+          chars.forEach((c, i) => {
+            const [x, z] = SLOTS[i % SLOTS.length];
+            c.group.visible = true;
+            c.group.position.set(x, 0, z);
+            this.faceTo(c, new THREE.Vector3(x, 0, 8), true);
+          });
+          // one play() burst in the same frame = the choreography stays locked
+          for (const c of chars) c.animator.play(part);
+          this.walkoutSquad = { chars };
+          this.bus.emit('sfx', 'crowd-cheer');
+        });
+      };
+      const squadPart = (side, part, t) => {
+        this.after(t, () => {
+          if (!this.walkoutActive) return;
+          for (const c of this.chars[side] ?? []) c.animator.play(part);
+        });
+      };
+      const squadOff = (side, t) => {
+        this.after(t, () => {
+          if (!this.walkoutActive) return;
+          this.walkoutSquad = null;
+          for (const c of this.chars[side] ?? []) c.group.visible = false;
+        });
+      };
+      const card = (star, color, t) => {
+        this.after(t, () => {
+          if (!this.walkoutActive || !star) return;
+          this.hud.walkoutShow({
+            nick: star.nick, number: star.number, pos: star.pos,
+            stats: star.stats, color, label: star.label,
+          });
+          this.bus.emit('vo', star.tag);
+        });
+      };
+
+      let t = 0.2;
+      this.after(t, () => { if (this.walkoutActive) { this.bus.emit('vo', 'lineups'); this.hud.stamp('STARTING LINEUPS', 'crowned'); } });
+      t += 1.7;
+      splash(this.teams.away, t);
+      t += 2.0;
+      squadOn('away', 'thriller1', t);
+      away.forEach((s, i) => card(s, this.teams.away.colors?.primary, t + i * BEAT));
+      squadPart('away', 'thriller2', t + 4.6);
+      t += 6.9;
+      this.after(t, () => { if (this.walkoutActive) this.bus.emit('vo', 'walkout-home'); });
+      squadOff('away', t);
+      splash(this.teams.home, t);
+      t += 2.0;
+      squadOn('home', 'thriller3', t);
+      home.forEach((s, i) => card(s, this.teams.home.colors?.primary, t + i * BEAT));
+      squadPart('home', 'thriller4', t + 4.6);
+      t += 6.9;
+      this.after(t + 0.4, cleanup);
+      return;
+    }
+
     let t = 0.2;
     this.after(t, () => { if (this.walkoutActive) { this.bus.emit('vo', 'lineups'); this.hud.stamp('STARTING LINEUPS', 'crowned'); } });
     t += 1.7;
@@ -385,6 +465,59 @@ export class MatchScene {
     t += 2.0;
     for (const s of home) { beat(s, this.teams.home.colors?.primary, t); t += BEAT; }
     this.after(t + 0.4, cleanup);
+  }
+
+  /** GAME OVER hand-off, shared by every GAME_END site: wait out any running
+   *  cinematic, throw the winners a ~2.8s on-field dance party (dev, 2026-08-03:
+   *  dances in celebrations), then emit matchOver for the box score. */
+  fireMatchOver() {
+    const fire = () => {
+      if (this.cinematicLock) return this.after(0.3, fire);
+      this.victoryLap(() => this.bus.emit('matchOver', { winner: this.match.winner(), score: this.match.state.score }));
+    };
+    this.after(0.6, fire);
+  }
+
+  /** The winning squad clusters at the plate, every body hitting a different
+   *  dance, camera pulling wide — tap skips straight to the box score. */
+  victoryLap(done) {
+    const winner = this.match.winner();
+    const squad = this.chars[winner] ?? [];
+    if (!squad.length) return done();
+    let fired = false;
+    const finish = () => {
+      if (fired) return;
+      fired = true;
+      offSkip?.();
+      this.cinematicLock = false;
+      this.engine.cameraLock = false;
+      this.hud.setLetterbox(false);
+      done();
+    };
+    this.cinematicLock = true;
+    this.engine.cameraLock = true;
+    this.hud.setLetterbox(true);
+    const offSkip = this.bus.on('cine:skip', finish);
+    const SLOTS = [[0, -3.2], [-1.5, -3.8], [1.5, -3.8], [-2.8, -4.6], [2.8, -4.6], [-0.8, -5.4], [0.8, -5.4], [0, -6.2]];
+    squad.forEach((c, i) => {
+      const [x, z] = SLOTS[i % SLOTS.length];
+      c.group.visible = true;
+      c.group.position.set(x, 0, z);
+      this.faceTo(c, new THREE.Vector3(x, 0, 8), true);
+      c.animator.play(pickDance(c));
+    });
+    this.hud.stamp(`${(this.teams[winner]?.name ?? 'WINNERS').toUpperCase()} TAKE THE BLOCK!`, 'crowned');
+    this.bus.emit('sfx', 'crowd-cheer');
+    this.bus.emit('sfx', 'bassdrop');
+    this.field.crowdEnergy = 1;
+    let lapT = 0;
+    const offFrame = this.engine.onFrame((dt) => {
+      lapT += dt;
+      const k = Math.min(1, lapT / 2.8);
+      this.engine.camera.position.set(0, 1.5 + k * 0.8, -0.5 + k * 6.5);
+      this.engine.camera.lookAt(0, 1.05, -4.2);
+      if (k >= 1) { offFrame?.(); finish(); }
+    });
   }
 
   // ---------- helpers ----------
@@ -1326,7 +1459,7 @@ export class MatchScene {
       this.hud.call('STOLE HOME!', 'crowned');
       this.bus.emit('sfx', 'crowd-cheer');
       this.faceCam(r.char);
-      r.char.animator.play('dance' + (1 + Math.floor(Math.random() * 4)));
+      r.char.animator.play(pickDance(r.char));
       this.after(1.4, () => { r.char.group.visible = false; });
     } else {
       bases[to] = r.idx;
@@ -1386,7 +1519,13 @@ export class MatchScene {
         this.refreshHud();
         this.after(1.0, () => { r.char.group.visible = false; });
         // that out may have ended the half (engine resets outs/bases on endHalf)
-        if (this.match.state.phase === 'GAME_END' || (this.match.state.outs === 0 && this.match.state.bases.every((b) => b === null))) {
+        // — or the GAME: nextAtBat early-returns on GAME_END, so routing it
+        // there stalled the match with no box score (latent P0, fixed 2026-08-03)
+        if (this.match.state.phase === 'GAME_END') {
+          this.fireMatchOver();
+          return;
+        }
+        if (this.match.state.outs === 0 && this.match.state.bases.every((b) => b === null)) {
           this.halfJustEnded = true;
           this.after(1.4, () => this.nextAtBat());
           return;
@@ -1631,7 +1770,7 @@ export class MatchScene {
             this.bus.emit('sfx', 'crowd-cheer');
             this.hud.call('SAFE AT HOME!', 'crowned');
             this.faceCam(r.char);
-            r.char.animator.play('dance' + (1 + Math.floor(Math.random() * 4)));
+            r.char.animator.play(pickDance(r.char));
             this.after(1.4, () => { if (r.state === 'scored') r.char.group.visible = false; });
           } else {
             r.state = 'held';
@@ -1767,11 +1906,7 @@ export class MatchScene {
     this.refreshHud();
 
     if (this.match.state.phase === 'GAME_END') {
-      const fireOver = () => {
-        if (this.cinematicLock) return this.after(0.3, fireOver);
-        this.bus.emit('matchOver', { winner: this.match.winner(), score: this.match.state.score });
-      };
-      this.after(0.6, fireOver);
+      this.fireMatchOver();
       return;
     }
     this.returnBallToPitcher(); // every play closes with the ball back on the mound
@@ -3222,11 +3357,7 @@ export class MatchScene {
     this.match.applyOutcome({ outsAdded: 0, runs, finalBases: [null, null, null], label: 'homerun' });
     this.refreshHud();
     if (this.match.state.phase === 'GAME_END') {
-      const fireOver = () => {
-        if (this.cinematicLock) return this.after(0.3, fireOver);
-        this.bus.emit('matchOver', { winner: this.match.winner(), score: this.match.state.score });
-      };
-      this.after(0.6, fireOver);
+      this.fireMatchOver();
       return;
     }
     const tryNext = () => {
@@ -3415,11 +3546,7 @@ export class MatchScene {
     this.match.applyPlay({ type: 'double' });
     this.refreshHud();
     if (this.match.state.phase === 'GAME_END') {
-      const fireOver = () => {
-        if (this.cinematicLock) return this.after(0.3, fireOver);
-        this.bus.emit('matchOver', { winner: this.match.winner(), score: this.match.state.score });
-      };
-      this.after(0.6, fireOver);
+      this.fireMatchOver();
       return;
     }
     const tryNext = () => {
@@ -3440,8 +3567,14 @@ export class MatchScene {
     }
     // a flick the player never released still fires (finger held after the snap)
     if (this.pendingFlick && this.elapsed > this.pendingFlick.tCross + 0.22) this.fireFlick();
-    // STARTING LINEUPS walkout: the star swaggers at a low trailing hero cam
-    if (this.walkout?.char) {
+    // STARTING LINEUPS walkout: the whole squad dances up the block behind a
+    // wide low dolly (Thriller mode) — or the legacy star at a trailing hero cam
+    if (this.walkoutSquad) {
+      for (const c of this.walkoutSquad.chars) c.group.position.z += dt * 0.5;
+      const frontZ = this.walkoutSquad.chars[0]?.group.position.z ?? -10;
+      this.engine.camera.position.set(0, 1.4, frontZ + 6.0);
+      this.engine.camera.lookAt(0, 1.05, frontZ - 2.6);
+    } else if (this.walkout?.char) {
       const wc = this.walkout.char;
       wc.group.position.z += dt * 1.55;
       wc.animator.ctx.speedFactor = 1;

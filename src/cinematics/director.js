@@ -9,17 +9,7 @@
 // Every cinematic is tap-skippable ('cine:skip' on the bus).
 import * as THREE from 'three';
 import { BallFx } from './fx.js';
-
-const DANCES = ['dance1', 'dance2', 'dance3', 'dance4'];
-// extras-pack dances (lazy mocap-x load) — filtered by hasClip at pick time
-const XDANCES = ['thriller1', 'thriller2', 'thriller3', 'thriller4', 'danceLock',
-  'danceTut', 'danceWave', 'danceChicken', 'danceStep', 'danceSilly'];
-/** Random dance this character can play RIGHT NOW: the full new-dance pool
- *  once the extras pack lands, always at least the base four. */
-export function pickDance(char) {
-  const pool = [...XDANCES.filter((n) => char?.animator?.hasClip?.(n)), ...DANCES];
-  return pool[Math.floor(Math.random() * pool.length)];
-}
+import { pickDance } from '../game/animExtras.js';
 
 // caught-out one-liners — the whole "robbed screen" is now this one sweep
 const CAUGHT_LINES = [
@@ -40,7 +30,6 @@ export class CinematicDirector {
     this.getReplay = getReplay; // () => {recorder, chars, ball, player} for instant replays
     this.fx = new BallFx(engine.scene);
     this.script = null;
-    this.danceIdx = Math.floor(Math.random() * 4);
 
     bus.on('cine:perfect', (p) => this.perfectKick(p));
     bus.on('cine:contact', (p) => this.contactKick(p));
@@ -378,7 +367,7 @@ export class CinematicDirector {
           onStart: () => {
             this.bus.emit('sfx', 'crowd-cheer');
             const winner = win === 'home' ? homeCaptain : awayCaptain;
-            winner.animator.play(DANCES[Math.floor(Math.random() * 4)]);
+            winner.animator.play(pickDance(winner));
             this.hud.stamp(win === call ? 'YOU KICK FIRST!' : 'THEY KICK FIRST!', win === call ? 'crowned' : 'pegged');
           },
           onUpdate: (k) => {
