@@ -5,7 +5,8 @@
 // exact field outcome via applyOutcome().
 import * as THREE from 'three';
 import { MatchEngine } from './matchState.js';
-import { judgeKick, launchParams, powerFromError, isHrEligible, flickShape, flickSteerDeg, FLICK } from './kickTiming.js';
+import { judgeKick, launchParams, powerFromError, isHrEligible, flickShape, flickSteerDeg, FLICK, aiSwingStartS } from './kickTiming.js';
+import { routineFor } from './walkoutRoutines.js';
 import { mashSpeed, humanRunSpeed, RunnerSim } from './baseRunning.js';
 import { resolveBaseThrow, resolvePeg } from './throwing.js';
 import { SpecialMeter } from './specialMoves.js';
@@ -74,7 +75,7 @@ export function chooseLiveShot({ phase, kickingIsPlayer, trailBall, deepBall, ru
 }
 
 export class MatchScene {
-  constructor({ engine, input, bus, teams, chars, fieldData, tuning, difficulty = 'Street', playerSide = 'away', firstKick = 'away', hudRoot, autoStart = true, gear = null }) {
+  constructor({ engine, input, bus, teams, chars, fieldData, tuning, difficulty = 'Street', playerSide = 'away', firstKick = 'away', hudRoot, autoStart = true, gear = null, extrasReady = null }) {
     this.engine = engine;
     this.input = input;
     this.bus = bus;
@@ -86,6 +87,9 @@ export class MatchScene {
     // entries or nulls). Only the kick slot matters in-scene — cleats/uniform
     // are applied at character build time.
     this.playerGear = gear;
+    // walkout gate: resolves when the extras dance pack has settled for this
+    // match's squads (null = already loaded, e.g. the dev harness)
+    this.extrasReady = extrasReady;
     // lifetime-career feed: per-match counters, shipped out on matchOver
     this.matchStats = { hr: 0, defOuts: 0, steals: 0, pickleEscapes: 0 };
 
@@ -330,6 +334,9 @@ export class MatchScene {
     this.engine.cameraLock = true;
     this.hud.setLetterbox(true);
     this.hud.hint('');
+    // skipping the lineup is a DELIBERATE act — the chip, not any stray tap
+    // coming off the coin toss (dev: "I don't always see the starting lineup")
+    this.hud.showSkipChip(() => this.bus.emit('cine:skip'));
     // empty stage: everyone hides, stars appear one at a time
     for (const c of [...this.chars.home, ...this.chars.away]) c.group.visible = false;
 
@@ -343,6 +350,7 @@ export class MatchScene {
       offSkip?.();
       this.hud.walkoutHide();
       this.hud.teamSplashHide();
+      this.hud.hideSkipChip();
       this.hud.setLetterbox(false);
       this.cinematicLock = false;
       this.engine.cameraLock = false;
@@ -386,93 +394,103 @@ export class MatchScene {
       });
     };
 
-    // ===== THRILLER WALKOUT (dev, 2026-08-03): the WHOLE team at once, one
-    // choreographed dance — all eight per side frame-synced through the
-    // Thriller parts (away: 1→2, home: 3→4) in a wedge that creeps toward the
-    // low dolly cam. Star cards keep cycling on top so the info layer stays.
-    // Falls back to the one-at-a-time swagger parade until the extras pack
-    // (mocap-x-*) has landed for every fielded body.
-    const canThriller = allHaveClip(this.chars.away, 'thriller1') && allHaveClip(this.chars.away, 'thriller2')
-      && allHaveClip(this.chars.home, 'thriller3') && allHaveClip(this.chars.home, 'thriller4');
+    // ===== CREW WALKOUT (dev, 2026-08-04): the WHOLE team at once, each crew
+    // dancing its OWN two-part signature routine (walkoutRoutines.js), all
+    // eight per side frame-synced in a wedge behind a five-shot broadcast
+    // camera package. Star cards keep cycling on top so the info layer stays.
+    // The show GATE below holds for the extras pack (cap 5 s) — the lineup
+    // must ALWAYS show; the swagger parade is only a slow-network fallback.
+    const SLOTS = [ // captain on point, rows 2-3-2 behind
+      [0, -10.2], [-1.7, -11.4], [1.7, -11.4],
+      [-3.1, -12.6], [0, -12.6], [3.1, -12.6],
+      [-2.2, -13.8], [2.2, -13.8],
+    ];
+    const squadOn = (side, part, t) => {
+      this.after(t, () => {
+        if (!this.walkoutActive) return;
+        const chars = this.chars[side] ?? [];
+        chars.forEach((c, i) => {
+          const [x, z] = SLOTS[i % SLOTS.length];
+          c.group.visible = true;
+          c.group.position.set(x, 0, z);
+          this.faceTo(c, new THREE.Vector3(x, 0, 8), true);
+        });
+        // one play() burst in the same frame = the choreography stays locked
+        for (const c of chars) c.animator.play(part);
+        this.walkoutSquad = { chars, t0: this.elapsed }; // t0 drives the shot clock
+        this.bus.emit('sfx', 'crowd-cheer');
+      });
+    };
+    const squadPart = (side, part, t) => {
+      this.after(t, () => {
+        if (!this.walkoutActive) return;
+        for (const c of this.chars[side] ?? []) c.animator.play(part);
+      });
+    };
+    const squadOff = (side, t) => {
+      this.after(t, () => {
+        if (!this.walkoutActive) return;
+        this.walkoutSquad = null;
+        for (const c of this.chars[side] ?? []) c.group.visible = false;
+      });
+    };
+    const card = (star, color, t) => {
+      this.after(t, () => {
+        if (!this.walkoutActive || !star) return;
+        this.hud.walkoutShow({
+          nick: star.nick, number: star.number, pos: star.pos,
+          stats: star.stats, color, label: star.label,
+        });
+        this.bus.emit('vo', star.tag);
+      });
+    };
 
-    if (canThriller) {
-      const SLOTS = [ // captain on point, rows 2-3-2 behind
-        [0, -10.2], [-1.7, -11.4], [1.7, -11.4],
-        [-3.1, -12.6], [0, -12.6], [3.1, -12.6],
-        [-2.2, -13.8], [2.2, -13.8],
-      ];
-      const squadOn = (side, part, t) => {
-        this.after(t, () => {
-          if (!this.walkoutActive) return;
-          const chars = this.chars[side] ?? [];
-          chars.forEach((c, i) => {
-            const [x, z] = SLOTS[i % SLOTS.length];
-            c.group.visible = true;
-            c.group.position.set(x, 0, z);
-            this.faceTo(c, new THREE.Vector3(x, 0, 8), true);
-          });
-          // one play() burst in the same frame = the choreography stays locked
-          for (const c of chars) c.animator.play(part);
-          this.walkoutSquad = { chars };
-          this.bus.emit('sfx', 'crowd-cheer');
-        });
-      };
-      const squadPart = (side, part, t) => {
-        this.after(t, () => {
-          if (!this.walkoutActive) return;
-          for (const c of this.chars[side] ?? []) c.animator.play(part);
-        });
-      };
-      const squadOff = (side, t) => {
-        this.after(t, () => {
-          if (!this.walkoutActive) return;
-          this.walkoutSquad = null;
-          for (const c of this.chars[side] ?? []) c.group.visible = false;
-        });
-      };
-      const card = (star, color, t) => {
-        this.after(t, () => {
-          if (!this.walkoutActive || !star) return;
-          this.hud.walkoutShow({
-            nick: star.nick, number: star.number, pos: star.pos,
-            stats: star.stats, color, label: star.label,
-          });
-          this.bus.emit('vo', star.tag);
-        });
-      };
+    // Common open plays immediately — the gate only holds the SHOW choice
+    this.after(0.2, () => { if (this.walkoutActive) { this.bus.emit('vo', 'lineups'); this.hud.stamp('STARTING LINEUPS', 'crowned'); } });
+    splash(this.teams.away, 1.9);
+    const entryT = this.elapsed;
 
-      let t = 0.2;
-      this.after(t, () => { if (this.walkoutActive) { this.bus.emit('vo', 'lineups'); this.hud.stamp('STARTING LINEUPS', 'crowned'); } });
-      t += 1.7;
-      splash(this.teams.away, t);
-      t += 2.0;
-      squadOn('away', 'thriller1', t);
-      away.forEach((s, i) => card(s, this.teams.away.colors?.primary, t + i * BEAT));
-      squadPart('away', 'thriller2', t + 4.6);
-      t += 6.9;
+    const scheduleShow = () => {
+      if (!this.walkoutActive) return;
+      const sinceStart = this.elapsed - entryT;
+      const sideOk = (side, r) => !!r && allHaveClip(this.chars[side], r[0]) && allHaveClip(this.chars[side], r[1]);
+      const pick = (side, own, fb) => (sideOk(side, own) ? own : sideOk(side, fb) ? fb : null);
+      const awayR = pick('away', routineFor(this.teams.away.id, 'away'), ['thriller1', 'thriller2']);
+      const homeR = pick('home', routineFor(this.teams.home.id, 'home'), ['thriller3', 'thriller4']);
+
+      if (awayR && homeR) {
+        // pick the timeline up where the open leaves off; if the gate held past
+        // the splash, re-crest so the stage never sits quiet
+        let t = Math.max(0.3, 3.9 - sinceStart);
+        if (sinceStart > 3.6) { splash(this.teams.away, 0.05); t = 2.1; }
+        squadOn('away', awayR[0], t);
+        away.forEach((s, i) => card(s, this.teams.away.colors?.primary, t + i * BEAT));
+        squadPart('away', awayR[1], t + 4.6);
+        t += 6.9;
+        this.after(t, () => { if (this.walkoutActive) this.bus.emit('vo', 'walkout-home'); });
+        squadOff('away', t);
+        splash(this.teams.home, t);
+        t += 2.0;
+        squadOn('home', homeR[0], t);
+        home.forEach((s, i) => card(s, this.teams.home.colors?.primary, t + i * BEAT));
+        squadPart('home', homeR[1], t + 4.6);
+        t += 6.9;
+        this.after(t + 0.4, cleanup);
+        return;
+      }
+      // legacy swagger parade — extras never landed for these squads
+      let t = Math.max(0.3, 3.9 - sinceStart);
+      for (const s of away) { beat(s, this.teams.away.colors?.primary, t); t += BEAT; }
       this.after(t, () => { if (this.walkoutActive) this.bus.emit('vo', 'walkout-home'); });
-      squadOff('away', t);
       splash(this.teams.home, t);
       t += 2.0;
-      squadOn('home', 'thriller3', t);
-      home.forEach((s, i) => card(s, this.teams.home.colors?.primary, t + i * BEAT));
-      squadPart('home', 'thriller4', t + 4.6);
-      t += 6.9;
+      for (const s of home) { beat(s, this.teams.home.colors?.primary, t); t += BEAT; }
       this.after(t + 0.4, cleanup);
-      return;
-    }
-
-    let t = 0.2;
-    this.after(t, () => { if (this.walkoutActive) { this.bus.emit('vo', 'lineups'); this.hud.stamp('STARTING LINEUPS', 'crowned'); } });
-    t += 1.7;
-    splash(this.teams.away, t);
-    t += 2.0;
-    for (const s of away) { beat(s, this.teams.away.colors?.primary, t); t += BEAT; }
-    this.after(t, () => { if (this.walkoutActive) this.bus.emit('vo', 'walkout-home'); });
-    splash(this.teams.home, t);
-    t += 2.0;
-    for (const s of home) { beat(s, this.teams.home.colors?.primary, t); t += BEAT; }
-    this.after(t + 0.4, cleanup);
+    };
+    // LINEUP GUARANTEE: hold the choreographed show for the extras pack —
+    // losing the download race must never cost the player his walkout
+    const cap = new Promise((resolve) => this.after(5.0, resolve));
+    Promise.race([this.extrasReady ?? Promise.resolve(), cap]).then(scheduleShow);
   }
 
   /** GAME OVER hand-off, shared by every GAME_END site: wait out any running
@@ -1002,11 +1020,13 @@ export class MatchScene {
         if (pitch.bad && Math.random() < layChance) {
           this.after(dur + 0.5, () => this.resolveBallTaken()); // he watches it roll by
         } else {
-          // The full error drives the JUDGE (whiff/foul/contact). But cap WHEN the
-          // AI actually swings to ±0.45s of arrival so a big miss never leaves the
-          // ball just sitting there ("frozen"). NaN-guarded so it can't hang.
+          // The full error drives the JUDGE (whiff/foul/contact). The clip is
+          // BACK-TIMED by its windup so the contact frame lands on the judged
+          // moment (±0.45s of arrival, clamped) — the foot meets a LIVE ball
+          // instead of the ball dying at the plate mid-wind-up.
           const errMs = aiKickError(this.difficulty, this.tuning, pitch);
-          const swing = dur + Math.max(-0.25, Math.min(0.45, (Number.isFinite(errMs) ? errMs : 0) / 1000));
+          const windupS = this.kicker.animator.contactDelayS?.('kick') || 0.2;
+          const swing = aiSwingStartS({ pitchFlightS: dur, errMs, windupS });
           this.after(swing, () => this.attemptKick({ aim: aiAim(this.difficulty), errMs }, this.elapsed));
         }
       }
@@ -1166,7 +1186,10 @@ export class MatchScene {
     // extras pack has it; contactDelayS re-syncs the launch to ITS contact frame
     const kickClip = (this.specialKickGear && this.kicker.animator.hasClip?.(this.specialKickGear.clip))
       ? this.specialKickGear.clip : 'kick';
-    const holdS = this.kicker.animator.contactDelayS?.(kickClip) || 0.2;
+    // the human taps AT the ball, so his clip runs hot to tighten tap→contact;
+    // the AI's clip is already back-timed to arrival and plays at full weight
+    const kickSpeed = isPlayerKick ? 1.3 : 1;
+    const holdS = (this.kicker.animator.contactDelayS?.(kickClip) || 0.2) / kickSpeed;
     this._kickApproach = {
       t: 0,
       dur: holdS,
@@ -1185,7 +1208,7 @@ export class MatchScene {
       this._kickApproach = null;
       this.onKickContact(judged, launch);
     };
-    this.kicker.animator.play(kickClip, { onContact: launchNow });
+    this.kicker.animator.play(kickClip, { onContact: launchNow, speed: kickSpeed });
     // safety: a clip without a contact mark must never stall the play
     this.after(holdS + 0.35, launchNow);
   }
@@ -3184,7 +3207,12 @@ export class MatchScene {
   }
 
   onTap(e) {
-    if (this.cinematicLock) { this.bus.emit('cine:skip'); return; }
+    if (this.cinematicLock) {
+      // the walkout only skips via its chip; every other moment stays
+      // tap-anywhere (HR / caught-out / victory lap — fast play wins)
+      if (!this.walkoutActive) this.bus.emit('cine:skip');
+      return;
+    }
     // DUEL: taps are inert — mash instinct must never fire GO by accident
     if (this.duel && this.kickingIsPlayer()) return;
     // OFFENSE, pre-kick: tap one of YOUR base runners to send him stealing
@@ -3701,10 +3729,33 @@ export class MatchScene {
     // STARTING LINEUPS walkout: the whole squad dances up the block behind a
     // wide low dolly (Thriller mode) — or the legacy star at a trailing hero cam
     if (this.walkoutSquad) {
-      for (const c of this.walkoutSquad.chars) c.group.position.z += dt * 0.5;
-      const frontZ = this.walkoutSquad.chars[0]?.group.position.z ?? -10;
-      this.engine.camera.position.set(0, 1.4, frontZ + 6.0);
-      this.engine.camera.lookAt(0, 1.05, frontZ - 2.6);
+      // five-shot broadcast package, hard cuts on the card beat (2.3 s):
+      // front dolly → side rail → captain push-in → crane settle → wide 3/4
+      const sq = this.walkoutSquad;
+      for (const c of sq.chars) c.group.position.z += dt * 0.5;
+      const frontZ = sq.chars[0]?.group.position.z ?? -10;
+      const cap = sq.chars[0]?.group.position ?? { x: 0, z: frontZ };
+      const tS = this.elapsed - (sq.t0 ?? this.elapsed);
+      const beatN = Math.min(4, Math.floor(tS / 2.3));
+      const k = Math.min(1, (tS - beatN * 2.3) / 2.3);
+      const cam = this.engine.camera;
+      switch (beatN) {
+        case 0: // low front dolly, slow push
+          cam.position.set(0, 1.4, frontZ + 6.0 - k * 0.8);
+          cam.lookAt(0, 1.05, frontZ - 2.6); break;
+        case 1: // side rail, tracking across the wedge
+          cam.position.set(-4 + k * 8, 1.3, frontZ + 3.6);
+          cam.lookAt(0, 1.1, frontZ - 1.2); break;
+        case 2: // captain close-up, push-in at chest height
+          cam.position.set(cap.x + 0.4, 1.35, cap.z + 2.6 - k * 0.9);
+          cam.lookAt(cap.x, 1.25, cap.z); break;
+        case 3: // high crane settling toward the formation
+          cam.position.set(0, 6.2 - k * 3.4, frontZ + 7.2);
+          cam.lookAt(0, 1.0, frontZ - 1.5); break;
+        default: // wide 3/4 drift until the segment ends
+          cam.position.set(3.4 - k * 1.2, 2.0, frontZ + 6.4);
+          cam.lookAt(0, 1.1, frontZ - 1.2); break;
+      }
     } else if (this.walkout?.char) {
       const wc = this.walkout.char;
       wc.group.position.z += dt * 1.55;

@@ -104,3 +104,16 @@ it('flickSteerDeg: sideways curl steers the kick, clamped to the aim spread', ()
   expect(flickSteerDeg({ driftPx: FLICK.steerFullPx * 4 }, tuning)).toBeCloseTo(spread);
   expect(flickSteerDeg({ driftPx: -FLICK.steerFullPx * 4 }, tuning)).toBeCloseTo(-spread);
 });
+
+import { aiSwingStartS } from '../src/game/kickTiming.js';
+
+it('aiSwingStartS back-times the swing by the windup so contact meets arrival', () => {
+  expect(aiSwingStartS({ pitchFlightS: 1.0, errMs: 0, windupS: 0.3 })).toBeCloseTo(0.7);
+});
+
+it('aiSwingStartS clamps timing error and never fires before the serve settles', () => {
+  expect(aiSwingStartS({ pitchFlightS: 1.0, errMs: 900, windupS: 0.2 })).toBeCloseTo(1.25);  // +0.45 cap
+  expect(aiSwingStartS({ pitchFlightS: 1.0, errMs: -900, windupS: 0.2 })).toBeCloseTo(0.55); // -0.25 cap
+  expect(aiSwingStartS({ pitchFlightS: 0.2, errMs: 0, windupS: 0.6 })).toBe(0.05);           // floor
+  expect(aiSwingStartS({ pitchFlightS: 1.0, errMs: NaN, windupS: 0.2 })).toBeCloseTo(0.8);   // NaN-guarded
+});
