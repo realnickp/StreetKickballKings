@@ -118,3 +118,17 @@ export function isHrEligible({ power01, alignErrM }, tuning) {
   const c = tuning.kick;
   return power01 >= c.hrPower && alignErrM <= c.hrAlignM;
 }
+
+/**
+ * When the AI kicker's swing CLIP must start so its contact frame lands on the
+ * judged moment (arrival + clamped timing error). Back-timing the windup keeps
+ * the foot meeting a LIVE ball — the ball no longer dies at the plate while
+ * the kicker starts his wind-up (dev, 2026-08-04).
+ * @param {{pitchFlightS:number, errMs:number, windupS:number}} s
+ * @returns {number} seconds after the serve to play the kick clip
+ */
+export function aiSwingStartS({ pitchFlightS, errMs, windupS }) {
+  const err = Number.isFinite(errMs) ? errMs : 0;
+  const contactAt = pitchFlightS + Math.max(-0.25, Math.min(0.45, err / 1000));
+  return Math.max(0.05, contactAt - (windupS || 0));
+}

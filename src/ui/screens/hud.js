@@ -234,6 +234,22 @@ export class Hud {
     this.hintEl.classList.add('show');
   }
 
+  /** Deliberate-skip chip for the walkout — stray taps must not eat the show. */
+  showSkipChip(onTap) {
+    this.hideSkipChip();
+    const b = document.createElement('button');
+    b.className = 'skip-chip';
+    b.textContent = 'SKIP ⏭';
+    b.addEventListener('pointerdown', (e) => { e.stopPropagation(); onTap?.(); });
+    this.el.appendChild(b);
+    this._skipChip = b;
+  }
+
+  hideSkipChip() {
+    this._skipChip?.remove();
+    this._skipChip = null;
+  }
+
   /** "GO FOR 2!" send prompt for a held runner. risky = amber (a live pickle bet). */
   showGo(label, risky = false) {
     this.goBtn.querySelector('span').textContent = label;

@@ -1,10 +1,13 @@
 // AudioBus: WebAudio with music/sfx/vo channels, VO ducking, and tiny
 // synthesized blips for utility sounds. Subscribes to 'sfx'/'vo' bus events.
 // Array values = pools; one is picked at random per play so lines/beats vary.
+import { CITY_TRACKS } from './audioTracks.js';
+
 const FILES = {
   music: {
     theme: 'assets/audio/theme-red-rubber-felony.mp3',
     beat: ['assets/audio/music/in-match-beat-1.m4a', 'assets/audio/music/in-match-beat-2.m4a'],
+    ...CITY_TRACKS, // one hip hop dialect per crew city (audioTracks.js)
   },
   sfx: {
     bassdrop: 'assets/audio/sfx/bassdrop.mp3',
@@ -158,6 +161,7 @@ export class AudioBus {
   }
 
   async music(name) {
+    if (!FILES.music[name]) name = 'beat'; // unknown city / missing track → generic pool
     if (this.currentMusic === name && this.musicSrc) return; // already spinning
     this.ensureCtx();
     this.musicSrc?.src.stop();

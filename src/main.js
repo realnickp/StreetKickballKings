@@ -21,6 +21,7 @@ import * as trophies from './meta/trophies.js';
 import * as unlocks from './meta/unlocks.js';
 import { TutorialScreen } from './ui/screens/tutorial.js';
 import { TutorialDirector } from './game/tutorialDirector.js';
+import { cityTrackId } from './engine/audioTracks.js';
 import fieldsData from './data/fields.json';
 import teamsData from './data/teams.json';
 import tuning from './data/tuning.json';
@@ -275,14 +276,16 @@ async function bootFlow() {
     // the two teams never clash (player keeps their colour, opponent gets a variant).
     const awayColor = gear.uniform?.hex ?? kits?.away ?? playerTeam.colors.primary;
     const homeColor = kits?.home ?? contrastUniform(opponentTeam.colors.primary, awayColor);
+    let extrasReady = Promise.resolve();
     const charsPromise = (async () => {
       const c = {
         home: await buildTeamCharsGlb(opponentTeam, homeColor),
         away: await buildTeamCharsGlb(playerTeam, awayColor, gear),
       };
-      // dances/special-kicks extras pack rides the intro-video dead time;
-      // never awaited — every consumer has a base-pack fallback
-      loadExtrasFor([...c.home, ...c.away]);
+      // dances/special-kicks extras pack rides the intro-video dead time; the
+      // walkout GATES on this promise (capped) so the lineup always shows —
+      // every other consumer still has its base-pack fallback
+      extrasReady = loadExtrasFor([...c.home, ...c.away]);
       return c;
     })();
 
@@ -310,6 +313,7 @@ async function bootFlow() {
       hudRoot,
       autoStart: false,
       gear,
+      extrasReady,
     });
     window.__skk = ctx.scene; // dev/debug handle
     ctx.mapTarget = null; // challenge consumed — future selects cycle freely
@@ -333,7 +337,9 @@ async function bootFlow() {
 
   function beginMatch(firstKick) {
     uiRoot.querySelectorAll('.screen').forEach(s => s.remove());
-    audio.music('beat'); // game music starts AFTER the coin toss — no clash with its video audio
+    // the field scores its own city (hip hop dialect per crew town) — starts
+    // AFTER the coin toss so it never clashes with the intro videos' audio
+    audio.music(cityTrackId(ctx.opponentTeam?.city));
     ctx.setMatchActive?.(true);
     ctx.scene.startMatch(firstKick);
   }
