@@ -16,8 +16,9 @@ import { ReplayPlayer } from './cinematics/replay.js';
 import { playVideo } from './cinematics/videoPlayer.js';
 import { showLogoClash } from './cinematics/introSequence.js';
 import { ScreenRouter } from './ui/router.js';
-import { TitleScreen, MenuScreen, TeamSelectScreen, CoinTossScreen, PostGameScreen, MapScreen } from './ui/screens/screens.js';
+import { TitleScreen, MenuScreen, TeamSelectScreen, CoinTossScreen, PostGameScreen, MapScreen, LockerScreen } from './ui/screens/screens.js';
 import * as trophies from './meta/trophies.js';
+import * as unlocks from './meta/unlocks.js';
 import { TutorialScreen } from './ui/screens/tutorial.js';
 import { TutorialDirector } from './game/tutorialDirector.js';
 import fieldsData from './data/fields.json';
@@ -155,7 +156,7 @@ if (params.has('match')) {
 // ---------- the real flow ----------
 async function bootFlow() {
   const ctx = {
-    engine, input, bus, audio, save, trophies,
+    engine, input, bus, audio, save, trophies, unlocks,
     data: { teams: teamsData.teams, fields: fieldsData.fields, tuning },
     mapTarget: null, // Run the Map: crew called out (locks TeamSelect's HOME side)
     router: null,
@@ -178,6 +179,7 @@ async function bootFlow() {
   router.register('coinToss', CoinTossScreen);
   router.register('postGame', PostGameScreen);
   router.register('map', MapScreen);
+  router.register('locker', LockerScreen);
   router.register('tutorial', TutorialScreen);
 
   // ---------- pause button + pause/sound overlay ----------
@@ -262,14 +264,18 @@ async function bootFlow() {
 
     // Build the world in parallel with the intro so there's no dead wait at the end.
     if (ctx.scene) ctx.scene.destroy();
+    // THE LOCKER: the player's equipped gear. An equipped uniform overrides the
+    // kit colour picked in team select; cleats tint the shoe texels; the kick
+    // rides into MatchScene for the crown-meter swing.
+    const gear = unlocks.equippedGear(save);
     // Use the kits chosen in team select; otherwise default to contrasting kits so
     // the two teams never clash (player keeps their colour, opponent gets a variant).
-    const awayColor = kits?.away ?? playerTeam.colors.primary;
+    const awayColor = gear.uniform?.hex ?? kits?.away ?? playerTeam.colors.primary;
     const homeColor = kits?.home ?? contrastUniform(opponentTeam.colors.primary, awayColor);
     const charsPromise = (async () => {
       const c = {
         home: await buildTeamCharsGlb(opponentTeam, homeColor),
-        away: await buildTeamCharsGlb(playerTeam, awayColor),
+        away: await buildTeamCharsGlb(playerTeam, awayColor, gear),
       };
       // dances/special-kicks extras pack rides the intro-video dead time;
       // never awaited — every consumer has a base-pack fallback
@@ -300,6 +306,7 @@ async function bootFlow() {
       playerSide: 'away',
       hudRoot,
       autoStart: false,
+      gear,
     });
     window.__skk = ctx.scene; // dev/debug handle
     ctx.mapTarget = null; // challenge consumed — future selects cycle freely
@@ -393,11 +400,11 @@ async function bootFlow() {
     });
   }
 
-  bus.on('matchOver', ({ winner, score }) => {
+  bus.on('matchOver', ({ winner, score, stats }) => {
     if (ctx.tutorialActive) return; // drills never end in a box score
     ctx.setMatchActive?.(false);
     router.go('postGame', {
-      winner, score,
+      winner, score, stats,
       playerSide: 'away',
       teams: { home: ctx.opponentTeam, away: ctx.playerTeam },
     });

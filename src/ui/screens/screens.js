@@ -83,6 +83,7 @@ export function MenuScreen(ctx) {
           <button class="big-play bounce-beat">PLAY 1v1<small>VS AI · THE BLACKTOP</small></button>
           <div class="mode-cards">
             <div class="mode-card map-card">RUN THE MAP<small>${save.get('kingOfStreets', false) ? '👑 KING OF THE STREETS' : `${save.get('unlocks.crews', []).length}/9 CROWNS CLAIMED`}</small></div>
+            <div class="mode-card locker-card">THE LOCKER<small>${save.get('gear.unlocked', []).length}/17 EARNED</small></div>
             <div class="mode-card locked">DERBY<small>COMING SOON</small></div>
           </div>
           <div class="daily-card">DAILY CHALLENGE<small>Hit 3 home runs — 0/3</small><b>+500 XP</b></div>
@@ -102,6 +103,10 @@ export function MenuScreen(ctx) {
         ctx.bus.emit('sfx', 'scratch');
         if (!save.get('tutorialPlayed', false)) return ctx.startTutorial?.();
         ctx.router.go('map');
+      });
+      s.querySelector('.locker-card').addEventListener('pointerdown', () => {
+        ctx.bus.emit('sfx', 'scratch');
+        ctx.router.go('locker');
       });
       s.querySelector('.menu-tutorial').addEventListener('pointerdown', () => {
         ctx.bus.emit('sfx', 'scratch');
@@ -171,6 +176,55 @@ export function MapScreen(ctx) {
         equipRow.appendChild(chip);
       }
       if (!beaten.length) equipRow.appendChild(el('<small class="map-none">No trophies yet — go take one.</small>'));
+      s.querySelector('[data-act="menu"]').addEventListener('pointerdown', () => ctx.router.go('menu'));
+      root.appendChild(s);
+    },
+  };
+}
+
+// ---------- THE LOCKER: earnable gear (special kicks, cleats, uniforms).
+//            Milestones are the price tag — no currency. Silhouetted until
+//            earned, tap an owned piece to rock it. ----------
+export function LockerScreen(ctx) {
+  return {
+    mount(root) {
+      const save = ctx.save;
+      const { GEAR, isUnlocked, equipGear, equippedGear, careerGet } = ctx.unlocks;
+      const eq = equippedGear(save);
+      const career = careerGet(save);
+      const CATS = [
+        ['kick', 'SPECIAL KICKS — FILL THE CROWN METER, THEN LET IT RIP'],
+        ['cleats', 'CLEATS'],
+        ['uniform', 'UNIFORMS'],
+      ];
+      const s = el(`
+        <div class="screen locker-screen">
+          <h1 class="screen-title gold">THE LOCKER</h1>
+          <p class="map-sub">Earn it on the block. Tap it to rock it.</p>
+          <div class="locker-rows"></div>
+          <p class="locker-career">W ${career.wins} · HR ${career.hr} · STEALS ${career.steals} · GLOVE ${career.defOuts} · ESCAPES ${career.pickleEscapes} · CREWS ${career.crews}/9</p>
+          <div class="coin-buttons"><button data-act="menu">MAIN MENU</button></div>
+        </div>`);
+      const rows = s.querySelector('.locker-rows');
+      for (const [cat, label] of CATS) {
+        rows.appendChild(el(`<p class="map-equip-label">${label}</p>`));
+        const row = el('<div class="map-equip locker-row"></div>');
+        const bare = el(`<div class="equip-chip ${eq[cat] ? '' : 'on'}" style="--c:#7a7a85">${cat === 'kick' ? 'STOCK KICK' : 'CLASSIC'}</div>`);
+        bare.addEventListener('pointerdown', () => { ctx.bus.emit('sfx', 'juke'); equipGear(save, cat, null); ctx.router.go('locker'); });
+        row.appendChild(bare);
+        for (const g of GEAR.filter((x) => x.cat === cat)) {
+          const own = isUnlocked(save, g.id);
+          const chip = el(`
+            <div class="equip-chip locker-chip ${own ? '' : 'locked'} ${eq[cat]?.id === g.id ? 'on' : ''}" style="--c:${g.hex ?? '#e8792e'}">
+              ${own ? g.name : '🔒 ' + g.name}<small>${own ? '' : g.hint.toUpperCase()}</small>
+            </div>`);
+          if (own) {
+            chip.addEventListener('pointerdown', () => { ctx.bus.emit('sfx', 'scratch'); equipGear(save, cat, g.id); ctx.router.go('locker'); });
+          }
+          row.appendChild(chip);
+        }
+        rows.appendChild(row);
+      }
       s.querySelector('[data-act="menu"]').addEventListener('pointerdown', () => ctx.router.go('menu'));
       root.appendChild(s);
     },
@@ -372,7 +426,7 @@ export function CoinTossScreen(ctx) {
 // ---------- POST-GAME ----------
 export function PostGameScreen(ctx) {
   return {
-    mount(root, { winner, score, playerSide, teams }) {
+    mount(root, { winner, score, playerSide, teams, stats }) {
       const won = winner === playerSide;
       const save = ctx.save;
       const xpGain = won ? 250 : 90;
@@ -389,6 +443,24 @@ export function PostGameScreen(ctx) {
         if (res.claimed) trophy = res;
       }
 
+      // THE LOCKER: feed the career, roll the catalog, toast what's new
+      let fresh = [];
+      if (ctx.unlocks) {
+        const myRuns = Number(score?.[playerSide]) || 0;
+        const theirRuns = Number(score?.[playerSide === 'away' ? 'home' : 'away']) || 0;
+        ctx.unlocks.careerAdd(save, {
+          wins: won ? 1 : 0,
+          roadWins: won && playerSide === 'away' ? 1 : 0,
+          blowouts: won && myRuns - theirRuns >= 5 ? 1 : 0,
+          runs: myRuns,
+          hr: stats?.hr ?? 0,
+          defOuts: stats?.defOuts ?? 0,
+          steals: stats?.steals ?? 0,
+          pickleEscapes: stats?.pickleEscapes ?? 0,
+        });
+        fresh = ctx.unlocks.checkUnlocks(save);
+      }
+
       const s = el(`
         <div class="screen postgame-screen">
           <h1 class="screen-title ${won ? 'gold' : ''}">${trophy?.king ? '👑 KING OF THE STREETS!' : won ? '👑 CROWNED!' : 'TOOK THE L'}</h1>
@@ -397,6 +469,7 @@ export function PostGameScreen(ctx) {
             <div class="tape-row"><span data-side-b></span><b>${Number(score.home)}</b></div>
             ${trophy ? `<div class="tape-row gold-row"><span>🏆 TROPHY CLAIMED</span><b>${teams.home.name.split(' ').pop().toUpperCase()}'S BALL</b></div>` : ''}
             ${trophy ? `<div class="tape-row dim"><span>CROWNS CLAIMED</span><b>${trophy.count}/9</b></div>` : ''}
+            ${fresh.map((g) => `<div class="tape-row gold-row"><span>🔓 UNLOCKED — CHECK THE LOCKER</span><b>${g.name}</b></div>`).join('')}
             <div class="tape-row dim"><span>RESPECT EARNED</span><b>+${xpGain} XP</b></div>
             <div class="tape-row dim"><span>CROWNS</span><b>+${crownGain} 🪙</b></div>
             <div class="tape-row dim"><span>WIN STREAK</span><b>${save.get('streak', 0)} 🔥</b></div>

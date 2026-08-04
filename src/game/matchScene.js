@@ -73,7 +73,7 @@ export function chooseLiveShot({ phase, kickingIsPlayer, trailBall, deepBall, ru
 }
 
 export class MatchScene {
-  constructor({ engine, input, bus, teams, chars, fieldData, tuning, difficulty = 'Street', playerSide = 'away', firstKick = 'away', hudRoot, autoStart = true }) {
+  constructor({ engine, input, bus, teams, chars, fieldData, tuning, difficulty = 'Street', playerSide = 'away', firstKick = 'away', hudRoot, autoStart = true, gear = null }) {
     this.engine = engine;
     this.input = input;
     this.bus = bus;
@@ -81,6 +81,12 @@ export class MatchScene {
     this.tuning = tuning;
     this.difficulty = difficulty;
     this.playerSide = playerSide;
+    // THE LOCKER: the player's equipped gear ({kick, cleats, uniform} catalog
+    // entries or nulls). Only the kick slot matters in-scene — cleats/uniform
+    // are applied at character build time.
+    this.playerGear = gear;
+    // lifetime-career feed: per-match counters, shipped out on matchOver
+    this.matchStats = { hr: 0, defOuts: 0, steals: 0, pickleEscapes: 0 };
 
     this.match = new MatchEngine({ home: teams.home.id, away: teams.away.id }, tuning.match, { firstKick });
     this.field = buildField(fieldData, engine.scene);
@@ -242,6 +248,7 @@ export class MatchScene {
 
   /** (Re)start a full match. Safe to call again for a rematch. */
   startMatch(firstKick) {
+    this.matchStats = { hr: 0, defOuts: 0, steals: 0, pickleEscapes: 0 }; // rematch reuses the scene
     this.match = new MatchEngine(
       { home: this.teams.home.id, away: this.teams.away.id },
       this.tuning.match,
@@ -473,7 +480,9 @@ export class MatchScene {
   fireMatchOver() {
     const fire = () => {
       if (this.cinematicLock) return this.after(0.3, fire);
-      this.victoryLap(() => this.bus.emit('matchOver', { winner: this.match.winner(), score: this.match.state.score }));
+      this.victoryLap(() => this.bus.emit('matchOver', {
+        winner: this.match.winner(), score: this.match.state.score, stats: this.matchStats,
+      }));
     };
     this.after(0.6, fire);
   }
@@ -1072,11 +1081,21 @@ export class MatchScene {
     const judged = judgeKick(Math.sign(errMs || 1) * effErr, this.tuning);
 
     let powerMult = 1;
+    this.specialKickGear = null;
     if (this.kickingIsPlayer() && this.specialArmed) {
       const sp = this.special.consume();
       if (sp) {
         powerMult = sp.powerMult;
         this.kickWasSpecial = true; // armed full meter consumed → this kick can be a homer
+        // equipped LOCKER kick: its clip replaces the swing (played at the
+        // kick site) and its mods flavor the launch
+        const g = this.playerGear?.kick;
+        if (g) {
+          this.specialKickGear = g;
+          powerMult = g.mods?.powerMult ?? powerMult;
+          if (g.mods?.curl) aimDeg = Math.max(-60, Math.min(60, aimDeg * g.mods.curl));
+          this.hud.call(`${g.name}!`, 'crowned');
+        }
         this.bus.emit('cine:special', { label: sp.label, kicker: this.kicker });
       }
       this.specialArmed = false;
@@ -1129,6 +1148,10 @@ export class MatchScene {
     // city air: heat carries it, harbor humidity kills it (applies to flight AND
     // the landing prediction below, so fielders and foul calls stay consistent)
     launch.speed *= this.elements.carryScale();
+    // LOCKER kick flavor: liners fly flatter/faster, moonshots ride higher
+    const gm = this.specialKickGear?.mods;
+    if (gm?.speed) launch.speed *= gm.speed;
+    if (gm?.loftDeg) launch.loftDeg = Math.max(10, Math.min(60, launch.loftDeg + gm.loftDeg));
     this.judged = judged;
     this.launchSpec = launch;
 
@@ -1139,7 +1162,11 @@ export class MatchScene {
     // the launch fires at the clip's CONTACT FRAME (the pitcher's release-
     // frame trick, applied to the boot). The judge already ran at tap time —
     // gameplay timing is untouched, only the presentation is re-synced.
-    const holdS = this.kicker.animator.contactDelayS?.('kick') || 0.2;
+    // LOCKER special kick: the equipped move's clip carries the swing when the
+    // extras pack has it; contactDelayS re-syncs the launch to ITS contact frame
+    const kickClip = (this.specialKickGear && this.kicker.animator.hasClip?.(this.specialKickGear.clip))
+      ? this.specialKickGear.clip : 'kick';
+    const holdS = this.kicker.animator.contactDelayS?.(kickClip) || 0.2;
     this._kickApproach = {
       t: 0,
       dur: holdS,
@@ -1158,7 +1185,7 @@ export class MatchScene {
       this._kickApproach = null;
       this.onKickContact(judged, launch);
     };
-    this.kicker.animator.play('kick', { onContact: launchNow });
+    this.kicker.animator.play(kickClip, { onContact: launchNow });
     // safety: a clip without a contact mark must never stall the play
     this.after(holdS + 0.35, launchNow);
   }
@@ -1501,6 +1528,7 @@ export class MatchScene {
       if (r.scramble) {
         this.hud.call('SAFE — BACK IN!', 'robbed');
       } else {
+        if (this.kickingIsPlayer()) this.matchStats.steals += 1;
         this.hud.call('STOLE ' + ['2ND', '3RD'][to - 1] + '!', 'crowned');
         // a foul during THIS pitch un-commits the steal (dead ball, street
         // rules): remember it so foulBall can send him scrambling back
@@ -2667,6 +2695,7 @@ export class MatchScene {
       if (r.state === 'scored' || (r.state === 'held' && r.heldAt === duel.forwardBase)) {
         // THE JACKPOT: stole the forward bag out of a rundown
         this.special.add('pickleEscape');
+        this.matchStats.pickleEscapes += 1;
         this.refreshHud();
         this.field.crowdEnergy = 1;
         this.bus.emit('sfx', 'crowd-cheer');
@@ -3234,6 +3263,7 @@ export class MatchScene {
     this.faceCam(runner.char);
     this.field.crowdEnergy = 1;
     this.playOuts = (this.playOuts ?? 0) + 1;
+    if (!this.kickingIsPlayer()) this.matchStats.defOuts += 1; // your glove, your credit
     this.lastOutReason = reason;
     if (reason === 'pegged') {
       this.bus.emit('cine:pegged', { runner: runner.char }); // director fires the 'pegged' call
@@ -3266,6 +3296,7 @@ export class MatchScene {
     this.ball.place(fielder.group.position.clone().setY(1.3));
     fielder.animator.play('catch');
     fielder.hasBall = true;
+    if (!this.kickingIsPlayer()) this.matchStats.defOuts += 1;
     this.field.crowdEnergy = 1;
 
     // the kicker is OUT on the catch — settle his clip too, or he keeps
@@ -3369,6 +3400,7 @@ export class MatchScene {
     if (this.hrFired) return;
     if (this.tutorialNoHomer) return; // drill mode: keep it in the park
     this.hrFired = true;
+    if (this.kickingIsPlayer()) this.matchStats.hr += 1;
     this.field.crowdEnergy = 1;
     // everyone on the basepaths trots home and scores
     let runs = 0;
