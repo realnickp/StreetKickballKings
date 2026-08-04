@@ -156,5 +156,219 @@
   "name": "climbDown",
   "loop": false,
   "inPlace": true
+ },
+ {
+  "file": "Thriller Part 1.fbx",
+  "name": "thriller1",
+  "loop": true,
+  "inPlace": true,
+  "pack": "x",
+  "bakeHz": 15,
+  "trim": [
+   1,
+   9
+  ]
+ },
+ {
+  "file": "Thriller Part 2.fbx",
+  "name": "thriller2",
+  "loop": true,
+  "inPlace": true,
+  "pack": "x",
+  "bakeHz": 15,
+  "trim": [
+   1,
+   9
+  ]
+ },
+ {
+  "file": "Thriller Part 3.fbx",
+  "name": "thriller3",
+  "loop": true,
+  "inPlace": true,
+  "pack": "x",
+  "bakeHz": 15,
+  "trim": [
+   1,
+   9
+  ]
+ },
+ {
+  "file": "Thriller Part 4.fbx",
+  "name": "thriller4",
+  "loop": true,
+  "inPlace": true,
+  "pack": "x",
+  "bakeHz": 15,
+  "trim": [
+   1,
+   9
+  ]
+ },
+ {
+  "file": "Locking Hip Hop Dance.fbx",
+  "name": "danceLock",
+  "loop": true,
+  "inPlace": true,
+  "pack": "x",
+  "bakeHz": 15,
+  "trim": [
+   0.5,
+   8.5
+  ]
+ },
+ {
+  "file": "Tut Hip Hop Dance.fbx",
+  "name": "danceTut",
+  "loop": true,
+  "inPlace": true,
+  "pack": "x",
+  "bakeHz": 15,
+  "trim": [
+   0.5,
+   8.5
+  ]
+ },
+ {
+  "file": "Wave Hip Hop Dance.fbx",
+  "name": "danceWave",
+  "loop": true,
+  "inPlace": true,
+  "pack": "x",
+  "bakeHz": 15,
+  "trim": [
+   0.5,
+   8.5
+  ]
+ },
+ {
+  "file": "Chicken Dance.fbx",
+  "name": "danceChicken",
+  "loop": true,
+  "inPlace": true,
+  "pack": "x",
+  "bakeHz": 15
+ },
+ {
+  "file": "Step Hip Hop Dance.fbx",
+  "name": "danceStep",
+  "loop": true,
+  "inPlace": true,
+  "pack": "x",
+  "bakeHz": 15
+ },
+ {
+  "file": "Silly Dancing.fbx",
+  "name": "danceSilly",
+  "loop": true,
+  "inPlace": true,
+  "pack": "x",
+  "bakeHz": 15
+ },
+ {
+  "file": "Soccer Spin.fbx",
+  "name": "soccerSpin",
+  "loop": false,
+  "inPlace": true,
+  "pack": "x"
+ },
+ {
+  "file": "Flair.fbx",
+  "name": "kickFlair",
+  "loop": false,
+  "contactAt": 0.43,
+  "inPlace": true,
+  "pack": "x"
+ },
+ {
+  "file": "Hurricane Kick.fbx",
+  "name": "kickHurricane",
+  "loop": false,
+  "contactAt": 0.527,
+  "inPlace": true,
+  "pack": "x",
+  "trim": [
+   0.35,
+   1.83
+  ],
+  "rate": 1.1
+ },
+ {
+  "file": "Spin Flip Kick.fbx",
+  "name": "kickSpinFlip",
+  "loop": false,
+  "contactAt": 0.458,
+  "inPlace": true,
+  "pack": "x",
+  "trim": [
+   1,
+   2.9
+  ],
+  "rate": 1.15
+ },
+ {
+  "file": "Inside Crescent Kick.fbx",
+  "name": "kickCrescent",
+  "loop": false,
+  "contactAt": 0.465,
+  "inPlace": true,
+  "pack": "x",
+  "trim": [
+   0.55,
+   2.1
+  ],
+  "rate": 1.1
+ },
+ {
+  "file": "Kicking.fbx",
+  "name": "kickBlast",
+  "loop": false,
+  "contactAt": 0.5,
+  "inPlace": true,
+  "pack": "x",
+  "trim": [
+   0.9,
+   2.5
+  ],
+  "rate": 1.15
+ },
+ {
+  "file": "Meia Lua De Compasso.fbx",
+  "name": "kickMeia",
+  "loop": false,
+  "contactAt": 0.699,
+  "inPlace": true,
+  "pack": "x",
+  "trim": [
+   0.3,
+   1.73
+  ],
+  "rate": 1.1
+ },
+ {
+  "file": "Meia Lua De Compasso Back.fbx",
+  "name": "kickMeiaBack",
+  "loop": false,
+  "contactAt": 0.55,
+  "inPlace": true,
+  "pack": "x",
+  "trim": [
+   0.4,
+   2
+  ],
+  "rate": 1.1
+ },
+ {
+  "file": "Leg Sweep.fbx",
+  "name": "kickSweep",
+  "loop": false,
+  "contactAt": 0.45,
+  "inPlace": true,
+  "pack": "x",
+  "trim": [
+   0.6,
+   2.2
+  ],
+  "rate": 1.1
  }
 ]

@@ -96,8 +96,8 @@ export class MatchEngine {
     const side = this.kickingSide();
     this.state.outs += outsAdded;
     if (bases) this.state.bases = [...bases];
-    if (runs > 0) {
-      this.state.score[side] += runs;
+    if (runs) { // negative = a dead ball reverting a run (foul kills the steal)
+      this.state.score[side] = Math.max(0, this.state.score[side] + runs);
       this.bus.emit('score', { side, runs, score: { ...this.state.score } });
     }
     this.bus.emit('play', { type: outsAdded ? 'caught-stealing' : 'steal', side });

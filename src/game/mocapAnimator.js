@@ -22,6 +22,12 @@ export function loadMocapClips(url = '/assets/anims/mocap-locs.glb') {
   return clipsPromises.get(url);
 }
 
+// per-clip hip floor (fraction of rest hip height). stumble is a real fall
+// that must stay ON the pavement; everything else keeps the low guard so
+// legitimate low poses (dive/slide) survive.
+const FLOOR_FRAC = { stumble: 0.5 };
+const floorFrac = (name) => FLOOR_FRAC[name] ?? 0.15;
+
 export class MocapAnimator {
   /** @param {THREE.Object3D} root character root containing the bone hierarchy
    *  @param {THREE.AnimationClip[]} clips retargeted clips named per the manifest */
@@ -35,7 +41,11 @@ export class MocapAnimator {
     this._speed = 1;
     this.onContact = null; this.onDone = null;
     this._contactFired = false; this._doneFired = false;
-    this._mixerFinished = () => {
+    this._mixerFinished = (e) => {
+      // one-shots keep playing while they crossfade OUT — their finish must
+      // not count as the CURRENT clip completing (slide finishing mid-fade
+      // was firing soccerSpin's onDone a few frames in)
+      if (e.action !== this._active) return;
       if (!this._doneFired) {
         this._doneFired = true;
         const d = this.onDone; this.onDone = null; d?.();
@@ -48,9 +58,18 @@ export class MocapAnimator {
     // ground height; dive's pavement pose (~0.17 of rest) stays untouched.
     this._hips = null;
     root.traverse((o) => { if (!this._hips && o.isBone && /hips/i.test(o.name)) this._hips = o; });
-    this._hipMinY = this._hips ? Math.abs(this._hips.position.y) * 0.15 : 0;
+    this._hipRestY = this._hips ? Math.abs(this._hips.position.y) : 0;
+    this._prevFloorName = null; this._prevFloorS = 0;
     if (this.clips.has('idle')) this.play('idle');
   }
+
+  /** Merge lazily-loaded extras clips (mocap-x-<arch>.glb) into this animator.
+   *  Existing names win — extras never shadow the shipped base set. */
+  addClips(clips) {
+    for (const c of clips) if (!this.clips.has(c.name)) this.clips.set(c.name, c);
+  }
+
+  hasClip(name) { return this.clips.has(name); }
 
   play(name, { onContact = null, onDone = null, speedFactor = 1, speed = 1 } = {}) {
     if (!this.clips.has(name)) name = 'idle';
@@ -66,6 +85,9 @@ export class MocapAnimator {
     action.timeScale = meta.loop ? base * Math.max(0.35, speedFactor) : base;
     if (this._active && this._active !== action) {
       this._active.crossFadeTo(action, FADE_S, false);
+      // the outgoing clip still has weight during the fade — keep its (possibly
+      // higher) hip floor active so a stumble recovery doesn't re-sink briefly
+      this._prevFloorName = this.name; this._prevFloorS = FADE_S;
     }
     action.play();
     this._active = action;
@@ -92,16 +114,18 @@ export class MocapAnimator {
       this._active.timeScale = this._speed * Math.max(0.35, this.ctx.speedFactor);
     }
     this.mixer.update(dt);
-    // Stumble gets a HIGHER floor for the WHOLE clip: its baked hip track
-    // dives straight below grade (probe: hips pinned at the 0.15 floor within
-    // 0.2s), and at 0.15×rest the sprawled legs clip under the court — the
-    // downed player reads as "into the ground halfway" (dev, three times:
-    // outs, and both tag-up arrivals). Half rest height is a real fall that
-    // stays ON the pavement. dive/slide keep the low floor — their flat
-    // pavement poses are legitimate.
-    const minY = this.name === 'stumble'
-      ? this._hipMinY * (0.5 / 0.15) // = |rest| × 0.5
-      : this._hipMinY;
+    // Hip floor: stumble gets a HIGHER floor for the WHOLE clip — at 0.15×rest
+    // the sprawled legs clip under the court and the downed player reads as
+    // "into the ground halfway" (dev, repeatedly). Half rest height is a real
+    // fall that stays ON the pavement; dive/slide keep the low floor — their
+    // flat pavement poses are legitimate. While a higher-floored clip is still
+    // fading out, its floor stays in force (no dip mid-crossfade).
+    let frac = floorFrac(this.name);
+    if (this._prevFloorS > 0) {
+      this._prevFloorS -= dt;
+      frac = Math.max(frac, floorFrac(this._prevFloorName));
+    }
+    const minY = this._hipRestY * frac;
     if (this._hips && this._hips.position.y < minY) this._hips.position.y = minY;
     if (this._active && !this._contactFired && this._meta?.contactAt != null) {
       const clip = this._active.getClip();

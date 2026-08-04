@@ -23,9 +23,12 @@ function hexToRgb(h) { const n = parseInt(h.replace('#', ''), 16); return { r: (
  * low-saturation, mid/high-brightness pixels (the grey tank + light sneaker
  * accents) and tints them by the team primary, preserving the baked shading.
  * Skin (saturated), shorts (dark), and hair (dark) are left untouched.
+ * `footMask`+`cleatHex` (THE LOCKER cleats) paint the foot-region texels a
+ * second colour on top — every brightness there, so whole shoes turn, not
+ * just the grey trim.
  * @returns {THREE.CanvasTexture} a NEW texture (caller owns it)
  */
-function recolorKitTexture(srcTex, primaryHex) {
+function recolorKitTexture(srcTex, primaryHex, { footMask = null, cleatHex = null } = {}) {
   const img = srcTex.image;
   if (!img || !img.width) return srcTex;
   const c = document.createElement('canvas');
@@ -35,11 +38,23 @@ function recolorKitTexture(srcTex, primaryHex) {
   const data = ctx.getImageData(0, 0, c.width, c.height);
   const px = data.data;
   const prim = hexToRgb(primaryHex);
+  const cleat = cleatHex ? hexToRgb(cleatHex) : null;
+  const useMask = cleat && footMask;
   for (let i = 0; i < px.length; i += 4) {
     const r = px[i], g = px[i + 1], b = px[i + 2];
     const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
     const v = mx / 255;
     const s = mx === 0 ? 0 : (mx - mn) / mx;
+    if (useMask) {
+      const p = (i / 4) | 0;
+      const x = p % c.width, y = (p / c.width) | 0;
+      const cell = ((y * FOOT_MASK_N / c.height) | 0) * FOOT_MASK_N + ((x * FOOT_MASK_N / c.width) | 0);
+      if (footMask[cell]) { // shoe texel → cleat colour, baked shading kept
+        const k = 0.35 + Math.min(1, v * 1.1) * 0.65;
+        px[i] = cleat.r * k; px[i + 1] = cleat.g * k; px[i + 2] = cleat.b * k;
+        continue;
+      }
+    }
     if (s < 0.17 && v > 0.52) { // grey/white kit pixel → team-coloured, shaded
       const k = Math.min(1.0, v * 1.12);
       px[i] = prim.r * k; px[i + 1] = prim.g * k; px[i + 2] = prim.b * k;
@@ -52,6 +67,45 @@ function recolorKitTexture(srcTex, primaryHex) {
   tex.wrapS = srcTex.wrapS; tex.wrapT = srcTex.wrapT;
   tex.needsUpdate = true;
   return tex;
+}
+
+// ---- LOCKER cleats: which UV texels belong to the FEET ----------------------
+// The archetypes are one skinned mesh + one atlas — there is no shoe material.
+// Build a coarse UV occupancy mask (N×N cells) of every vertex weighted mostly
+// to the Foot/ToeBase joints, dilated one cell; recolorKitTexture tints those
+// texels the cleat colour. Cached per model URL — the atlas never changes.
+const FOOT_MASK_N = 96;
+const footMaskCache = new Map();
+function footUvMask(modelUrl, mesh) {
+  if (footMaskCache.has(modelUrl)) return footMaskCache.get(modelUrl);
+  let mask = null;
+  try {
+    const geo = mesh.geometry;
+    const uv = geo.getAttribute('uv');
+    const ji = geo.getAttribute('skinIndex');
+    const w = geo.getAttribute('skinWeight');
+    const bones = mesh.skeleton.bones;
+    const footIdx = new Set(bones.map((b, i) => (/Foot|ToeBase/i.test(b.name) ? i : -1)).filter((i) => i >= 0));
+    if (uv && ji && w && footIdx.size) {
+      mask = new Uint8Array(FOOT_MASK_N * FOOT_MASK_N);
+      for (let vi = 0; vi < uv.count; vi++) {
+        let fw = 0;
+        for (let k = 0; k < 4; k++) if (footIdx.has(ji.getComponent(vi, k))) fw += w.getComponent(vi, k);
+        if (fw < 0.55) continue;
+        const cx = Math.min(FOOT_MASK_N - 1, Math.max(0, (uv.getX(vi) % 1 + 1) % 1 * FOOT_MASK_N | 0));
+        const cy = Math.min(FOOT_MASK_N - 1, Math.max(0, (uv.getY(vi) % 1 + 1) % 1 * FOOT_MASK_N | 0));
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const x = cx + dx, y = cy + dy;
+            if (x >= 0 && y >= 0 && x < FOOT_MASK_N && y < FOOT_MASK_N) mask[y * FOOT_MASK_N + x] = 1;
+          }
+        }
+      }
+      if (!mask.some((v) => v)) mask = null; // nothing weighted to feet — bail
+    }
+  } catch { mask = null; }
+  footMaskCache.set(modelUrl, mask);
+  return mask;
 }
 
 export function loadGltf(url) {
@@ -232,6 +286,18 @@ CLIPS.slide = CLIPS.stumble;
 CLIPS.dive = CLIPS.stumble;
 CLIPS.climb = CLIPS.idle;
 CLIPS.climbDown = CLIPS.idle;
+// extras pack (mocap-x-*, lazy) -> nearest legacy clips so the ?codeanim
+// fallback never statues on the new names
+CLIPS.thriller1 = CLIPS.dance1; CLIPS.thriller2 = CLIPS.dance1;
+CLIPS.thriller3 = CLIPS.dance1; CLIPS.thriller4 = CLIPS.dance1;
+CLIPS.danceLock = CLIPS.dance1; CLIPS.danceTut = CLIPS.dance1;
+CLIPS.danceWave = CLIPS.dance1; CLIPS.danceChicken = CLIPS.dance1;
+CLIPS.danceStep = CLIPS.dance1; CLIPS.danceSilly = CLIPS.dance1;
+CLIPS.soccerSpin = CLIPS.juke;
+CLIPS.kickFlair = CLIPS.kick; CLIPS.kickHurricane = CLIPS.kick;
+CLIPS.kickSpinFlip = CLIPS.kick; CLIPS.kickCrescent = CLIPS.kick;
+CLIPS.kickBlast = CLIPS.kick; CLIPS.kickMeia = CLIPS.kick;
+CLIPS.kickMeiaBack = CLIPS.kick; CLIPS.kickSweep = CLIPS.kick;
 
 class GlbCodeAnimator {
   constructor(bones) {
@@ -336,7 +402,10 @@ export async function buildGlbCharacter(def, { heightM = 2.05, clips = null } = 
         o.material.metalness = 0.0;
         o.material.roughness = 0.85;
         if (def.teamColor && o.material.map) {
-          const recol = recolorKitTexture(o.material.map, def.teamColor);
+          const cleatOpts = (def.cleatHex && o.isSkinnedMesh)
+            ? { footMask: footUvMask(def.model, o), cleatHex: def.cleatHex }
+            : {};
+          const recol = recolorKitTexture(o.material.map, def.teamColor, cleatOpts);
           o.material.map = recol;
           if (o.material.emissiveMap) o.material.emissiveMap = recol;
           o.material.emissiveIntensity = 0.55;
@@ -427,18 +496,22 @@ const FEMALE_ARCHETYPES = new Set([2, 5, 7, 9, 11, 13, 15, 17]);
 
 /** Build a full team of detailed GLB characters, recolored to a uniform colour
  *  (defaults to the team's primary; pass `uniformColor` for a light/dark kit so
- *  two teams don't clash). */
-export async function buildTeamCharsGlb(team, uniformColor) {
+ *  two teams don't clash). `gear` (THE LOCKER, player team only) applies the
+ *  equipped cleats' foot tint — the uniform override happens at the call site
+ *  by passing its hex as `uniformColor`. */
+export async function buildTeamCharsGlb(team, uniformColor, gear = null) {
   const roster = team.roster ?? [];
   const primary = uniformColor ?? team.colors?.primary;
+  const cleatHex = gear?.cleats?.hex ?? null;
   // Per-archetype mocap clips (each Meshy rig has its own rest pose, so each
   // gets its own bake); loadMocapClips caches per URL — 6 fetches total across
   // ALL teams. Missing bakes (or ?codeanim=1) fall back to the legacy code
   // animator — never a blank screen.
   const forceCode = new URLSearchParams(location.search).has('codeanim');
+  const archKeyOf = (archIdx) => ARCHETYPES[archIdx].match(/arch-(\w+)\.glb/)?.[1];
   const clipsFor = async (archIdx) => {
     if (forceCode) return null;
-    const key = ARCHETYPES[archIdx].match(/arch-(\w+)\.glb/)?.[1];
+    const key = archKeyOf(archIdx);
     try { return await loadMocapClips(`/assets/anims/mocap-${key}.glb`); }
     catch (e) { console.warn(`[skk] mocap-${key}.glb unavailable, using code animator:`, e); return null; }
   };
@@ -458,7 +531,7 @@ export async function buildTeamCharsGlb(team, uniformColor) {
     const clips = await clipsFor(archIdx);
     let char;
     try {
-      char = await buildGlbCharacter({ model: ARCHETYPES[archIdx], teamColor: primary }, { heightM: 2.05, clips });
+      char = await buildGlbCharacter({ model: ARCHETYPES[archIdx], teamColor: primary, cleatHex }, { heightM: 2.05, clips });
     } catch {
       // fallback model has a DIFFERENT rig — no baked set; use the code animator
       char = await buildGlbCharacter({ model: FALLBACK_MODEL }, { heightM: 2.05, clips: null });
@@ -467,6 +540,7 @@ export async function buildTeamCharsGlb(team, uniformColor) {
     char.number = p.number ?? JERSEY_NUMBERS[i % JERSEY_NUMBERS.length];
     char.gender = FEMALE_ARCHETYPES.has(archIdx) ? 'she' : 'he'; // for the announcer's he/she calls
     char.hasBall = false;
+    char.archKey = clips ? archKeyOf(archIdx) : null; // which extras pack (mocap-x-*) fits this rig
     out.push(char);
   }
   return out;

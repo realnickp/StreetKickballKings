@@ -24,6 +24,8 @@ export class PickleDuel {
     this.spinCd = 0;
     this.recoverT = 0;
     this.pegWindupT = 0;
+    this.chaserSlowT = 0;  // spin cost: the chaser falls behind (fun drop §5)
+    this.pegBroken = false;
     this.relays = 0;
     this.outcome = null;
     this._spinDodged = false;
@@ -38,6 +40,7 @@ export class PickleDuel {
     this.spinCd = Math.max(0, this.spinCd - dt);
     this.recoverT = Math.max(0, this.recoverT - dt);
     this.pegWindupT = Math.max(0, this.pegWindupT - dt);
+    this.chaserSlowT = Math.max(0, this.chaserSlowT - dt);
     if (wasSpinning && this.spinT === 0 && !this._spinDodged) {
       this.recoverT = this.D.spinRecoverS; // whiffed spin = vulnerable
     }
@@ -89,6 +92,18 @@ export class PickleDuel {
     return 'tagged';
   }
 
+  /** The spin costs the DEFENSE (fun drop §5): the chaser loses a step, and a
+   *  mid-windup peg dies — the thrower misses his timing and must wait out the
+   *  dead windup before rearming. Returns true when a live windup broke. */
+  spinPenalty() {
+    this.chaserSlowT = this.D.chaserSlowS ?? 0.9;
+    if (this.pegWindupT > 0) {
+      this.pegBroken = true;
+      return true;
+    }
+    return false;
+  }
+
   /** spins OR a live juke offset dodge a peg (dev requirement) */
   pegImpact({ lateralM = 0 } = {}) {
     if (this.spinT > 0) {
@@ -106,6 +121,7 @@ export class PickleDuel {
   startPeg() {
     if (this.pegWindupT > 0) return false;
     this.pegWindupT = this.D.pegWindupS;
+    this.pegBroken = false; // fresh windup, clean slate
     return true;
   }
 

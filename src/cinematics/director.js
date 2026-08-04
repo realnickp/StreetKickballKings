@@ -9,9 +9,18 @@
 // Every cinematic is tap-skippable ('cine:skip' on the bus).
 import * as THREE from 'three';
 import { BallFx } from './fx.js';
-import { playVideo } from './videoPlayer.js';
+import { pickDance } from '../game/animExtras.js';
+import { FIELD_LAYOUT } from '../game/field.js';
 
-const DANCES = ['dance1', 'dance2', 'dance3', 'dance4'];
+// caught-out one-liners — the whole "robbed screen" is now this one sweep
+const CAUGHT_LINES = [
+  'SNATCHED! SIT DOWN!',
+  'THE GLOVE SAID NO!',
+  "OUTTA THE SKY — YOU'RE OUT!",
+  'ROBBED BLIND!',
+  'CAUGHT IT. WALK IT OFF.',
+  'THAT BALL GOT MUGGED!',
+];
 
 export class CinematicDirector {
   constructor({ engine, bus, hud, getBall, getReplay = null }) {
@@ -22,7 +31,6 @@ export class CinematicDirector {
     this.getReplay = getReplay; // () => {recorder, chars, ball, player} for instant replays
     this.fx = new BallFx(engine.scene);
     this.script = null;
-    this.danceIdx = Math.floor(Math.random() * 4);
 
     bus.on('cine:perfect', (p) => this.perfectKick(p));
     bus.on('cine:contact', (p) => this.contactKick(p));
@@ -45,12 +53,13 @@ export class CinematicDirector {
     steps[0].onStart?.();
   }
 
-  /** `force` = internal teardown; a user tap can't skip noSkip moments
-   *  (catches / home runs play out in full — dev call). */
+  /** `force` = internal teardown; a user tap can't skip noSkip moments.
+   *  (Since the fun drop, HR and caught-out are both skippable — fast play wins.) */
   skip(force = false) {
     if (!this.script) return;
     if (this.script.noSkip && !force) return;
     for (const step of this.script.steps) step.onEnd?.();
+    this.hud.clearStamps?.(); // a skipped moment must not leave its stamp over live play
     this.finish();
   }
 
@@ -223,19 +232,58 @@ export class CinematicDirector {
     });
   }
 
+  /** HOME RUN, reworked (dev, 2026-08-03): no video card — the kicker DANCES
+   *  at the plate, a different dance every time, on every single homer, no
+   *  exceptions. Beat 1 watches the ball sail; beat 2 is the show: camera arcs
+   *  around the dance while the crowd loses it. Tap-skippable (the old video
+   *  wasn't) — finalizePlayHR's cinematicLock poll advances play either way. */
   crowned({ kicker }) {
-    // Strike-screen set piece. The video says HOME RUN! itself — when it ends
-    // we CUT STRAIGHT to the next play (dev: no banner, no trot, no wait).
     this.bus.emit('vo', { event: 'crowned', gender: kicker.gender });
-    this.engine.paused = true; // freeze play under the set piece; render continues
-    playVideo('assets/video/cut-crowned.mp4', { skippable: false }).then(() => {
-      this.engine.paused = false;
-      this.bus.emit('cine:videoDone', { kind: 'crowned' });
-    });
+    const p = kicker.group.position.clone(); // beat 1: wherever he froze mid-trot
+    const plate = FIELD_LAYOUT.home.clone(); // beat 2: the show is AT THE PLATE
+    const dance = pickDance(kicker);
+    this.engine.shake(0.5);
+    this.run([
+      { // the ball sails — low behind the kicker, everything slows to savor it
+        dur: 0.7,
+        onStart: () => {
+          this.engine.timeScale = 0.4;
+          this.hud.stamp('CROWNED!', 'crowned');
+          this.bus.emit('sfx', 'crowd-cheer');
+        },
+        onUpdate: (k) => this.cam(
+          new THREE.Vector3(p.x - 1.4, 1.0 + k * 0.35, p.z + 2.6),
+          new THREE.Vector3(p.x, 3.4, p.z - 30),
+        ),
+      },
+      { // THE DANCE — every homer, no exceptions. The camera CUT hides the
+        // teleport: he dances at home plate, because the dance IS the trot.
+        dur: 3.4,
+        onStart: () => {
+          this.engine.timeScale = 1;
+          kicker.group.position.set(plate.x, 0, plate.z);
+          kicker.faceYaw = 0; // square up to the arcing camera side (+z)
+          kicker.animator.play(dance);
+          this.bus.emit('sfx', 'bassdrop');
+        },
+        onUpdate: (k) => {
+          const a = (-0.55 + k * 1.1) + Math.PI; // slow arc across the camera side
+          this.cam(
+            new THREE.Vector3(plate.x + Math.sin(a) * 3.1, 1.35 - k * 0.2, plate.z - Math.cos(a) * 3.1),
+            new THREE.Vector3(plate.x, 1.1, plate.z),
+          );
+        },
+        onEnd: () => {
+          if (kicker.animator.name === dance) kicker.animator.play('idle');
+        },
+      },
+    ], { lockCamera: true, noSkip: false });
   }
 
-  /** THE SNAG reads first (dev: "show the player catch the ball"), THEN the
-   *  strike-screen card, then straight back: ball to the mound, next play. */
+  /** Caught out, reworked (dev, 2026-08-03): the robbed video card is GONE.
+   *  THE SNAG still reads first (dev: "show the player catch the ball"), then
+   *  one creative line sweeps across the screen and play cuts straight on —
+   *  total blocking time ~1.4s instead of a full video. */
   robbed({ fielder }) {
     const p = fielder.group.position.clone();
     this.run([
@@ -247,18 +295,15 @@ export class CinematicDirector {
           new THREE.Vector3(p.x, 1.05, p.z),
         ),
       },
-      { // then the card takes over; gameplay freezes under it
-        dur: 0.2,
+      { // the line sweeps through; the ball is already heading back
+        dur: 0.8,
         onStart: () => {
           this.engine.timeScale = 1;
-          this.engine.paused = true;
-          playVideo('assets/video/cut-caught.mp4', { skippable: true }).then(() => {
-            this.engine.paused = false;
-            fielder.hasBall = false; // ball heads straight back to the mound
-            fielder.animator.play('idle');
-            this.bus.emit('cine:returnThrow');
-            this.bus.emit('cine:videoDone', { kind: 'robbed' });
-          });
+          this.hud.stamp(CAUGHT_LINES[Math.floor(Math.random() * CAUGHT_LINES.length)], 'robbed');
+          this.bus.emit('vo', 'robbed');
+          fielder.hasBall = false; // ball heads straight back to the mound
+          fielder.animator.play('idle');
+          this.bus.emit('cine:returnThrow');
         },
         onUpdate: () => {},
       },
@@ -327,7 +372,7 @@ export class CinematicDirector {
           onStart: () => {
             this.bus.emit('sfx', 'crowd-cheer');
             const winner = win === 'home' ? homeCaptain : awayCaptain;
-            winner.animator.play(DANCES[Math.floor(Math.random() * 4)]);
+            winner.animator.play(pickDance(winner));
             this.hud.stamp(win === call ? 'YOU KICK FIRST!' : 'THEY KICK FIRST!', win === call ? 'crowned' : 'pegged');
           },
           onUpdate: (k) => {

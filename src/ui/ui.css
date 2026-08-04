@@ -1305,6 +1305,17 @@ body { display: flex; align-items: center; justify-content: center; }
 .map-none { color: var(--muted); }
 .tape-row.gold-row { color: var(--gold); }
 .mode-card.map-card { border-color: rgba(245,179,18,.5); color: var(--gold); cursor: pointer; }
+.mode-card.locker-card { border-color: rgba(232,121,46,.55); color: var(--ink); cursor: pointer; }
+
+/* THE LOCKER — earnable gear grid (reuses the equip-chip look) */
+.locker-screen { overflow-y: auto; }
+.locker-rows { display: flex; flex-direction: column; gap: 4px; width: 100%; }
+.locker-row { flex-wrap: wrap; row-gap: 8px; }
+.locker-chip { flex-direction: column; align-items: flex-start; gap: 2px; border-radius: 12px; }
+.locker-chip small { font-size: 9px; letter-spacing: .4px; color: var(--muted); font-family: var(--body, sans-serif); }
+.locker-chip.locked { opacity: .55; filter: saturate(.35); cursor: default; }
+.locker-chip.on small { color: #0b0d12; }
+.locker-career { color: var(--muted); font-size: 11px; letter-spacing: .6px; margin: 10px 0 4px; text-align: center; }
 
 /* element teach card: full-screen "know your block" intro (Know It pillar) */
 /* starting-lineup walkout card — bottom third, slams in per player */

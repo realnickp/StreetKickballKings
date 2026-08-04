@@ -144,3 +144,11 @@ it('count resets when the at-bat ends any other way', () => {
   m.applyPlay({ type: 'single' });
   expect(m.state.balls).toBe(0);
 });
+
+it('applyBaseEvent can revert a run on a dead ball (negative runs)', () => {
+  const m = newGame();
+  m.applyBaseEvent({ runs: 1 });
+  expect(m.state.score.away).toBe(1);
+  m.applyBaseEvent({ runs: -1 });
+  expect(m.state.score.away).toBe(0);
+});

@@ -11,16 +11,28 @@ import manifest from '../src/data/anims.manifest.json';
 
 // ?archs=pilot,newguy bakes ONLY those (new-archetype workflow — no code edit
 // per batch); default = the full shipped set.
-const ARCHS = new URLSearchParams(location.search).get('archs')?.split(',').filter(Boolean)
-  ?? ['locs', 'durag', 'braids', 'bald', 'afro', 'twists'];
+// ?auto=1 exports every baked archetype (both packs) to the :5199 sink with no
+// clicks — uploads are fetch POSTs, so no user gesture is needed.
+const PARAMS = new URLSearchParams(location.search);
+const ARCHS = PARAMS.get('archs')?.split(',').filter(Boolean)
+  ?? ['afro', 'bald', 'braids', 'bun', 'curls', 'durag', 'fro', 'locs', 'longhair',
+    'pilot', 'pony', 'puff', 'shaggy', 'sprint', 'stache', 'stocky', 'twists', 'vet', 'waves'];
+const AUTO = PARAMS.get('auto') === '1';
 
 const logEl = document.getElementById('log');
 const log = (...a) => { logEl.textContent += a.join(' ') + '\n'; logEl.scrollTop = logEl.scrollHeight; console.log(...a); };
 
-// ---------- scene ----------
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(innerWidth, innerHeight);
-document.body.appendChild(renderer.domElement);
+// ---------- scene (optional — auto mode must survive headless/no-GL runners) ----------
+let renderer = null;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+} catch (e) {
+  log('no WebGL — preview disabled, bake/export still run:', e.message ?? e);
+}
+if (renderer) {
+  renderer.setSize(innerWidth, innerHeight);
+  document.body.appendChild(renderer.domElement);
+}
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#223');
 scene.add(new THREE.HemisphereLight(0xffffff, 0x334455, 1.2));
@@ -29,6 +41,7 @@ scene.add(new THREE.GridHelper(10, 20, 0x445566, 0x334455));
 const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.01, 100);
 camera.position.set(0, 1.6, 3.2); camera.lookAt(0, 1.0, 0);
 addEventListener('resize', () => {
+  if (!renderer) return;
   renderer.setSize(innerWidth, innerHeight);
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
 });
@@ -149,7 +162,7 @@ async function loadSource(file) {
  * for inPlace clips (the GAME moves characters).
  */
 function retargetWorld(entry, src, rig) {
-  const fps = 30;
+  const fps = entry.bakeHz ?? 30; // dances bake at 15 — half the bytes, no visible loss
   let start = 0;
   let dur = src.clip.duration;
   if (entry.trim) { start = entry.trim[0]; dur = Math.min(dur, entry.trim[1]) - start; }
@@ -196,6 +209,7 @@ function retargetWorld(entry, src, rig) {
   const trackIdx = new Map([...conv.keys()].map((n, i) => [n, i]));
   const quatData = [...conv.keys()].map(() => new Float32Array(frames * 4));
   const posData = new Float32Array(frames * 3);
+  const srcHipYs = new Float32Array(frames);
   const dt = dur / (frames - 1);
   const sW = new THREE.Quaternion(), tW = new THREE.Quaternion(),
     local = new THREE.Quaternion(), parentInv = new THREE.Quaternion();
@@ -231,10 +245,31 @@ function retargetWorld(entry, src, rig) {
       posData[f * 3 + 0] = rig.hipRestPos.x + (inPlace ? 0 : dx);
       posData[f * 3 + 1] = rig.hipRestPos.y + dy;
       posData[f * 3 + 2] = rig.hipRestPos.z + (inPlace ? 0 : dz);
+      srcHipYs[f] = sHips.position.y;
     }
     if (f < frames - 1) mixer.update(dt);
   }
   mixer.uncacheClip(src.clip);
+
+  // Some Mixamo exports (Defeated, the dance pack) author the hips POSITION
+  // track around the armature origin while the rest pose sits at ~hip height —
+  // baked verbatim that plants the pelvis a metre underground for the whole
+  // clip (the "half the body under the court" defect). Detect the mis-anchor
+  // (the clip's upper-range hip Y nowhere near rest) and re-anchor so the
+  // clip's p90 hip height lands on the rig's rest hip height. Relative bounce
+  // (crouches, jumps, footwork) is preserved exactly. LOW anchors only:
+  // clips that legitimately live above rest (climbDown starts atop the fence,
+  // and its rob sequence is tuned against the shipped bake) are left alone.
+  if (sHips) {
+    const sorted = [...srcHipYs].sort((a, b) => a - b);
+    const p90 = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.9))];
+    if (src.hipRestPos.y - p90 > 0.35 * Math.abs(src.hipY || 100)) {
+      for (let f = 0; f < frames; f++) {
+        posData[f * 3 + 1] = rig.hipRestPos.y + (srcHipYs[f] - p90) * scale;
+      }
+      log(`  re-anchored hips for ${entry.name} (track p90 ${p90.toFixed(1)} vs rest ${src.hipRestPos.y.toFixed(1)})`);
+    }
+  }
 
   const tracks = [...conv.keys()].map((n) => new THREE.QuaternionKeyframeTrack(`${n}.quaternion`, times, quatData[trackIdx.get(n)]));
   if (sHips) tracks.push(new THREE.VectorKeyframeTrack('Hips.position', times, posData));
@@ -270,14 +305,56 @@ for (const arch of ARCHS) {
   const hips = gltf.scene.getObjectByName('Hips');
   rig.hipRestPos.copy(hips.position);
   rig.hipY = hips.getWorldPosition(new THREE.Vector3()).y;
+  rig.packs = { base: [], x: [] };
   for (const entry of manifest) {
     const src = await loadSource(entry.file);
-    rig.clips.push(retargetWorld(entry, src, rig));
+    const clip = retargetWorld(entry, src, rig);
+    rig.clips.push(clip);
+    rig.packs[entry.pack === 'x' ? 'x' : 'base'].push(clip);
   }
   rigs.set(arch, rig);
-  log(`baked ${rig.clips.length} clips for arch-${arch} (hip restY ${rig.hipY.toExponential(2)})`);
+  log(`baked ${rig.clips.length} clips for arch-${arch} (base ${rig.packs.base.length} + x ${rig.packs.x.length}, hip restY ${rig.hipY.toExponential(2)})`);
 }
 log(`DONE: ${rigs.size} archetypes baked`);
+
+// ---------- kick-contact analysis (log only, first archetype) ----------
+// For the new kick clips the manifest contactAt values need real data: find
+// when each foot's world speed peaks — ball contact is at/just before the
+// fastest toe. Sampled on the first rig's actual skeleton.
+function analyzeContact(rig, clip) {
+  const target = rig.gltf.scene;
+  const mixer = new THREE.AnimationMixer(target);
+  const action = mixer.clipAction(clip);
+  action.play();
+  const toes = ['RightToeBase', 'LeftToeBase'].map((n) => target.getObjectByName(n)).filter(Boolean);
+  const step = 1 / 60;
+  let prev = null;
+  const peaks = toes.map(() => ({ t: 0, v: 0 }));
+  for (let t = 0; t <= clip.duration + 1e-6; t += step) {
+    mixer.setTime(t);
+    target.updateMatrixWorld(true);
+    const cur = toes.map((o) => o.getWorldPosition(new THREE.Vector3()));
+    if (prev) {
+      cur.forEach((p, i) => {
+        const v = p.distanceTo(prev[i]) / step;
+        if (v > peaks[i].v) { peaks[i] = { t, v }; }
+      });
+    }
+    prev = cur;
+  }
+  mixer.uncacheClip(clip);
+  return peaks.map((p, i) => `${toes[i].name} peak ${p.v.toFixed(1)}u/s @ ${p.t.toFixed(2)}s (${(p.t / clip.duration).toFixed(3)} frac)`).join('  ');
+}
+{
+  const first = rigs.values().next().value;
+  if (first) {
+    for (const m of manifest) {
+      if (!m.contactAt || m.pack !== 'x') continue;
+      const clip = first.clips.find((c) => c.name === m.name);
+      if (clip) log(`CONTACT ${m.name} (${clip.duration.toFixed(2)}s): ${analyzeContact(first, clip)}`);
+    }
+  }
+}
 
 // ---------- preview (one archetype at a time; ARCH buttons swap the model) ----------
 let previewArch = null, target = null, wrapper = null, mixer = null, active = null;
@@ -333,10 +410,15 @@ slow.textContent = 'SLOW x0.25'; let slowOn = false;
 slow.onclick = () => { slowOn = !slowOn; slow.textContent = slowOn ? 'SPEED x1' : 'SLOW x0.25'; };
 ui.appendChild(slow);
 
-// ---------- export: one animation-only GLB per archetype ----------
-function exportArch(arch) {
+// ---------- export: animation-only GLBs per archetype, one per pack ----------
+// base pack -> mocap-<arch>.glb (eager-loaded), x pack -> mocap-x-<arch>.glb
+// (dances/kicks extras, lazy-loaded by src/game/animExtras.js)
+function exportArch(arch, pack = 'base') {
   return new Promise((resolve) => {
     const rig = rigs.get(arch);
+    const clips = rig.packs[pack];
+    if (!clips?.length) { resolve(); return; }
+    const outName = pack === 'x' ? `mocap-x-${arch}.glb` : `mocap-${arch}.glb`;
     let skin = null;
     rig.gltf.scene.traverse((o) => { if (o.isSkinnedMesh && !skin) skin = o; });
     let rootBone = skin.skeleton.bones[0];
@@ -353,33 +435,51 @@ function exportArch(arch) {
       async (buf) => {
         // POST to the dev sink (node scripts/anim-upload-server.mjs) — Chrome
         // silently blocks repeated automatic downloads, uploads are reliable.
+        // Timeout guard: a fetch stuck on a dying socket must never wedge the
+        // auto-export chain (it has no default timeout).
         try {
-          const r = await fetch(`http://localhost:5199/save?name=mocap-${arch}.glb`, { method: 'POST', body: buf });
-          log(`saved mocap-${arch}.glb (${(buf.byteLength / 1024).toFixed(0)} KB) -> ${await r.text()}`);
+          const r = await fetch(`http://localhost:5199/save?name=${outName}`,
+            { method: 'POST', body: buf, signal: AbortSignal.timeout(20000) });
+          log(`saved ${outName} (${(buf.byteLength / 1024).toFixed(0)} KB) -> ${await r.text()}`);
         } catch (e) {
-          log(`UPLOAD FAILED ${arch} (is the sink running?):`, e.message ?? e);
+          log(`UPLOAD FAILED ${outName} (is the sink running?):`, e.message ?? e);
         }
         resolve();
       },
-      (e) => { log('EXPORT ERROR', arch, e); resolve(); },
-      { binary: true, animations: rig.clips },
+      (e) => { log('EXPORT ERROR', outName, e); resolve(); },
+      { binary: true, animations: clips },
     );
   });
 }
-// one export button per archetype — Chrome blocks automatic multi-downloads,
-// so each needs its own user gesture
+// manual buttons per archetype × pack (uploads don't need a gesture, but the
+// buttons stay for one-off rebakes)
 for (const arch of rigs.keys()) {
-  const b = document.createElement('button');
-  b.textContent = `EXPORT ${arch}`; b.style.background = '#e63';
-  b.onclick = () => exportArch(arch);
-  ui.appendChild(b);
+  for (const pack of ['base', 'x']) {
+    const b = document.createElement('button');
+    b.textContent = `EXPORT${pack === 'x' ? '-X' : ''} ${arch}`; b.style.background = pack === 'x' ? '#a4e' : '#e63';
+    b.onclick = () => exportArch(arch, pack);
+    ui.appendChild(b);
+  }
 }
 
+// ---------- auto mode: bake + export everything, no clicks ----------
+async function autoExport() {
+  for (const arch of rigs.keys()) {
+    await exportArch(arch, 'base');
+    await exportArch(arch, 'x');
+  }
+  log('AUTO EXPORT DONE');
+  document.title = 'retarget: AUTO DONE';
+}
+if (AUTO) autoExport();
+
 // ---------- loop ----------
-const clock = new THREE.Clock();
-renderer.setAnimationLoop(() => {
-  if (mixer) mixer.update(clock.getDelta() * (slowOn ? 0.25 : 1));
-  renderer.render(scene, camera);
-});
+if (renderer) {
+  const clock = new THREE.Clock();
+  renderer.setAnimationLoop(() => {
+    if (mixer) mixer.update(clock.getDelta() * (slowOn ? 0.25 : 1));
+    renderer.render(scene, camera);
+  });
+}
 showArch(rigs.keys().next().value);
-play('idle');
+if (renderer) play('idle');

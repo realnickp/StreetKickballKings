@@ -164,3 +164,33 @@ describe('REVERSE (v5 dev override: your runner, your juke)', () => {
     expect(again).toBeNull();
   });
 });
+
+describe('SPIN PENALTY (the spin costs the defense — fun drop §5)', () => {
+  it('slows the chaser for 0.9s, ticking down', () => {
+    const d = mk();
+    d.spinPenalty();
+    expect(d.chaserSlowT).toBeCloseTo(0.9);
+    d.tick(0.5);
+    expect(d.chaserSlowT).toBeCloseTo(0.4);
+    d.tick(0.5);
+    expect(d.chaserSlowT).toBe(0);
+  });
+
+  it('breaks a live windup; the dead windup must run out before re-pegging', () => {
+    const d = mk({ mine: false });
+    d.startPeg();
+    expect(d.spinPenalty()).toBe(true);
+    expect(d.pegBroken).toBe(true);
+    expect(d.canThrow()).toBe(false);          // timing lost — wait out the dead windup
+    d.tick(tuning.duel.pegWindupS + 0.01);
+    expect(d.canThrow()).toBe(true);
+    d.startPeg();
+    expect(d.pegBroken).toBe(false);           // fresh windup, clean slate
+  });
+
+  it('breaks nothing when no windup is live', () => {
+    const d = mk();
+    expect(d.spinPenalty()).toBe(false);
+    expect(d.pegBroken).toBe(false);
+  });
+});

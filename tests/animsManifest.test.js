@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import manifest from '../src/data/anims.manifest.json';
+import { GEAR } from '../src/meta/unlocks.js';
 
 // Every animation name the game asks for must exist in the manifest.
 const REQUIRED = [
@@ -7,6 +8,10 @@ const REQUIRED = [
   'kick', 'throw', 'pitch', 'catch', 'slide', 'juke', 'stumble',
   'walk', 'swagger', 'dance1', 'dance2', 'dance3', 'dance4', 'dejected',
   'dive', 'climb', 'climbDown', // Street Calls: dive call + fence rob
+  // extras pack (mocap-x-*): walkout choreography, celebration pool, pickle spin
+  'thriller1', 'thriller2', 'thriller3', 'thriller4',
+  'danceLock', 'danceTut', 'danceWave', 'danceChicken', 'danceStep', 'danceSilly',
+  'soccerSpin',
 ];
 
 describe('anims manifest', () => {
@@ -30,6 +35,15 @@ describe('anims manifest', () => {
       const m = manifest.find((x) => x.name === n);
       expect(m.loop).toBe(false);
       expect(m.contactAt, `${n} needs contactAt`).toBeGreaterThan(0);
+    }
+  });
+  it('every LOCKER special kick maps to a baked one-shot with a contact mark', () => {
+    for (const g of GEAR.filter((x) => x.cat === 'kick')) {
+      const m = manifest.find((x) => x.name === g.clip);
+      expect(m, `${g.id} clip ${g.clip} missing from manifest`).toBeTruthy();
+      expect(m.loop).toBe(false);
+      expect(m.contactAt, `${g.clip} needs contactAt`).toBeGreaterThan(0);
+      expect(m.pack).toBe('x');
     }
   });
 });
