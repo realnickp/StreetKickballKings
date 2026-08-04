@@ -128,7 +128,10 @@ if (params.has('match')) {
       home: await buildTeamCharsGlb(snappers),
       away: await buildTeamCharsGlb(monarchs),
     };
-    loadExtrasFor([...chars.home, ...chars.away]); // dances/kicks pack, background
+    // harness: AWAIT the extras pack (local dev = instant) so the Thriller
+    // walkout / special kicks are testable immediately; the real flow loads
+    // them in the background behind the intro videos
+    await loadExtrasFor([...chars.home, ...chars.away]);
     // ?field=<id> previews any city field in the harness (defaults to blacktop)
     const harnessField = fieldsData.fields.find(f => f.id === params.get('field')) ?? blacktop;
     const scene = new MatchScene({
