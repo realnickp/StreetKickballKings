@@ -127,7 +127,9 @@ if (params.has('match')) {
     const snappers = teamsData.teams.find(t => t.id === 'snappers');
     const chars = {
       home: await buildTeamCharsGlb(snappers),
-      away: await buildTeamCharsGlb(monarchs),
+      // ?cleats=ff3b1f previews LOCKER cleats on the away squad in the harness
+      away: await buildTeamCharsGlb(monarchs, undefined,
+        params.has('cleats') ? { cleats: { hex: '#' + params.get('cleats') } } : null),
     };
     // harness: AWAIT the extras pack (local dev = instant) so the Thriller
     // walkout / special kicks are testable immediately; the real flow loads

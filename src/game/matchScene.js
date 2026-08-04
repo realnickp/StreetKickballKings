@@ -194,7 +194,13 @@ export class MatchScene {
     }
 
     bus.on('cine:start', () => { this.cinematicLock = true; this.hud.hint(''); });
-    bus.on('cine:done', () => { this.cinematicLock = false; });
+    bus.on('cine:done', () => { this.cinematicLock = false; this.chipSkip = false; this.hud.hideSkipChip?.(); });
+    // the OFFENSE builds the crown: every run the player's side scores feeds
+    // the meter (dev, 2026-08-04: "a meter... based on base hits, runs etc")
+    this.match.bus.on('score', ({ side, runs }) => {
+      if (side !== this.playerSide || runs <= 0) return;
+      for (let i = 0; i < runs; i++) this.crownFeed('run');
+    });
     // city element chip: inning rolls set it, procs pulse it
     bus.on('element:roll', (r) => this.hud.setElement(r));
     // Play It: a proc is a telegraphed WINDOW with a decision — tell the player
@@ -416,7 +422,7 @@ export class MatchScene {
           this.faceTo(c, new THREE.Vector3(x, 0, 8), true);
         });
         // one play() burst in the same frame = the choreography stays locked
-        for (const c of chars) c.animator.play(part);
+        for (const c of chars) { c.animator.play(part); c.animator.update(0.0001); }
         this.walkoutSquad = { chars, t0: this.elapsed }; // t0 drives the shot clock
         this.bus.emit('sfx', 'crowd-cheer');
       });
@@ -1226,6 +1232,7 @@ export class MatchScene {
     this.bus.emit('vo', 'ball');
     const resume = () => {
       this.phase = 'SETUP';
+      this.hud.clearStamps(); // the foul call must not hang over the fresh pitch
       this.kicker.animator.play('plate');
       this.serve();
     };
@@ -1324,7 +1331,7 @@ export class MatchScene {
     // The special-meter PERFECT reward stays PERFECT-only (meter economy).
     // (the impact/contact beat began at tap so the full swing reads in slow-mo)
     if (judged.quality === 'PERFECT') {
-      if (this.kickingIsPlayer()) this.special.add('PERFECT');
+      if (this.kickingIsPlayer()) this.crownFeed('PERFECT');
       this.noteHeat(this.match.kickingSide(), 'PERFECT');
     }
 
@@ -1392,6 +1399,7 @@ export class MatchScene {
     if (!willScramble) this.hud.call(`${label}  ${this.fouls}/4`, 'pegged');
     const resume = () => {
       this.phase = 'SETUP';
+      this.hud.clearStamps(); // the foul call must not hang over the fresh pitch
       this.kicker.animator.play('plate');
       this.serve();
     };
@@ -1437,7 +1445,9 @@ export class MatchScene {
       this.runners.push(r);
       scrambleBack(r);
     } else {
-      this.after(1.0, resume);
+      // dead-ball breath (dev: "the pitch has already been released and you
+      // have no time") — the next wind-up waits until the player can re-grip
+      this.after(2.0, resume);
     }
   }
 
@@ -1570,7 +1580,7 @@ export class MatchScene {
     }
     if (to >= 3) {
       this.match.applyBaseEvent({ bases, runs: 1 });
-      if (this.kickingIsPlayer()) this.matchStats.steals += 1; // stealing HOME counts too
+      if (this.kickingIsPlayer()) { this.matchStats.steals += 1; this.crownFeed('steal'); } // stealing HOME counts too
       this.hud.call('STOLE HOME!', 'crowned');
       this.bus.emit('sfx', 'crowd-cheer');
       this.faceCam(r.char);
@@ -1585,7 +1595,7 @@ export class MatchScene {
       if (r.scramble) {
         this.hud.call('SAFE — BACK IN!', 'robbed');
       } else {
-        if (this.kickingIsPlayer()) this.matchStats.steals += 1;
+        if (this.kickingIsPlayer()) { this.matchStats.steals += 1; this.crownFeed('steal'); }
         this.hud.call('STOLE ' + ['2ND', '3RD'][to - 1] + '!', 'crowned');
         // a foul during THIS pitch un-commits the steal (dead ball, street
         // rules): remember it so foulBall can send him scrambling back
@@ -2047,7 +2057,10 @@ export class MatchScene {
     }
 
     this.match.applyOutcome({ outsAdded, runs, finalBases, label });
-    if (['single', 'double', 'triple'].includes(label)) this.bus.emit('vo', 'safe');
+    if (['single', 'double', 'triple'].includes(label)) {
+      this.bus.emit('vo', 'safe');
+      if (this.kickingIsPlayer()) this.crownFeed('hit'); // base hits build the crown
+    }
     this.pendingRuns = 0;
     this.refreshHud();
 
@@ -2770,7 +2783,7 @@ export class MatchScene {
     if (this.kickingIsPlayer()) {
       if (r.state === 'scored' || (r.state === 'held' && r.heldAt === duel.forwardBase)) {
         // THE JACKPOT: stole the forward bag out of a rundown
-        this.special.add('pickleEscape');
+        this.crownFeed('pickleEscape');
         this.matchStats.pickleEscapes += 1;
         this.refreshHud();
         this.field.crowdEnergy = 1;
@@ -3208,9 +3221,9 @@ export class MatchScene {
 
   onTap(e) {
     if (this.cinematicLock) {
-      // the walkout only skips via its chip; every other moment stays
-      // tap-anywhere (HR / caught-out / victory lap — fast play wins)
-      if (!this.walkoutActive) this.bus.emit('cine:skip');
+      // walkout AND the crowned dance skip via their chip only; caught-out
+      // and the victory lap stay tap-anywhere (they barely block)
+      if (!this.walkoutActive && !this.chipSkip) this.bus.emit('cine:skip');
       return;
     }
     // DUEL: taps are inert — mash instinct must never fire GO by accident
@@ -3326,6 +3339,14 @@ export class MatchScene {
     return defT > runT + (target === 3 ? 0.9 : 0.35);
   }
 
+  /** Crown feed: every meter gain pulses the crown button so the buildup is
+   *  SEEN (dev: the meter must engage the player). */
+  crownFeed(event) {
+    this.special.add(event);
+    this.hud.crownPulse?.();
+    this.refreshHud();
+  }
+
   /** Out ritual: hit the deck, then GET UP — a held final stumble pose reads as
    *  "buried in the floor" when its legs clip the pavement (dev, twice). */
   outStumble(char) {
@@ -3350,7 +3371,7 @@ export class MatchScene {
     this.lastOutReason = reason;
     if (reason === 'pegged') {
       this.bus.emit('cine:pegged', { runner: runner.char }); // director fires the 'pegged' call
-      if (!this.kickingIsPlayer()) this.special.add('peg');
+      if (!this.kickingIsPlayer()) this.crownFeed('peg');
       this.noteHeat(this.match.fieldingSide(), 'peg');
     } else {
       this.bus.emit('sfx', 'catchpop');
@@ -3392,7 +3413,7 @@ export class MatchScene {
     }
     this.playOuts = (this.playOuts ?? 0) + 1;
     this.lastOutReason = 'catch';
-    if (!this.kickingIsPlayer()) this.special.add('catch');
+    if (!this.kickingIsPlayer()) this.crownFeed('catch');
     // heat: a deep or homer-eligible ball snagged = a ROBBERY, else a plain catch
     // (live catches count HERE, once — the finalizePlay 'catch' label is skipped)
     const heatRobbed = this.kickHrEligible || this.landDist > this.fenceM * 0.7;
@@ -3483,6 +3504,7 @@ export class MatchScene {
     if (this.hrFired) return;
     if (this.tutorialNoHomer) return; // drill mode: keep it in the park
     this.hrFired = true;
+    this.chipSkip = true; // the crowned dance skips via the CHIP, not any stray tap
     if (this.kickingIsPlayer()) this.matchStats.hr += 1;
     this.field.crowdEnergy = 1;
     // everyone on the basepaths trots home and scores
@@ -3497,7 +3519,7 @@ export class MatchScene {
     runs += this.pendingRuns ?? 0;
     this.pendingRuns = 0;
     this.bus.emit('cine:crowned', { kicker: this.kicker, team: this.teams[this.match.kickingSide()].id });
-    if (this.kickingIsPlayer()) this.special.add('homerun');
+    if (this.kickingIsPlayer()) this.crownFeed('homerun');
     // payoff readout: the element carried it out (heat carry OR an outward wind)
     const hrWind = this.elements.windAccel();
     if (this.elements.carryScale() > 1.05) {
