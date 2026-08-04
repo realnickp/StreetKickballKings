@@ -232,6 +232,18 @@ CLIPS.slide = CLIPS.stumble;
 CLIPS.dive = CLIPS.stumble;
 CLIPS.climb = CLIPS.idle;
 CLIPS.climbDown = CLIPS.idle;
+// extras pack (mocap-x-*, lazy) -> nearest legacy clips so the ?codeanim
+// fallback never statues on the new names
+CLIPS.thriller1 = CLIPS.dance1; CLIPS.thriller2 = CLIPS.dance1;
+CLIPS.thriller3 = CLIPS.dance1; CLIPS.thriller4 = CLIPS.dance1;
+CLIPS.danceLock = CLIPS.dance1; CLIPS.danceTut = CLIPS.dance1;
+CLIPS.danceWave = CLIPS.dance1; CLIPS.danceChicken = CLIPS.dance1;
+CLIPS.danceStep = CLIPS.dance1; CLIPS.danceSilly = CLIPS.dance1;
+CLIPS.soccerSpin = CLIPS.juke;
+CLIPS.kickFlair = CLIPS.kick; CLIPS.kickHurricane = CLIPS.kick;
+CLIPS.kickSpinFlip = CLIPS.kick; CLIPS.kickCrescent = CLIPS.kick;
+CLIPS.kickBlast = CLIPS.kick; CLIPS.kickMeia = CLIPS.kick;
+CLIPS.kickMeiaBack = CLIPS.kick; CLIPS.kickSweep = CLIPS.kick;
 
 class GlbCodeAnimator {
   constructor(bones) {
@@ -436,9 +448,10 @@ export async function buildTeamCharsGlb(team, uniformColor) {
   // ALL teams. Missing bakes (or ?codeanim=1) fall back to the legacy code
   // animator — never a blank screen.
   const forceCode = new URLSearchParams(location.search).has('codeanim');
+  const archKeyOf = (archIdx) => ARCHETYPES[archIdx].match(/arch-(\w+)\.glb/)?.[1];
   const clipsFor = async (archIdx) => {
     if (forceCode) return null;
-    const key = ARCHETYPES[archIdx].match(/arch-(\w+)\.glb/)?.[1];
+    const key = archKeyOf(archIdx);
     try { return await loadMocapClips(`/assets/anims/mocap-${key}.glb`); }
     catch (e) { console.warn(`[skk] mocap-${key}.glb unavailable, using code animator:`, e); return null; }
   };
@@ -467,6 +480,7 @@ export async function buildTeamCharsGlb(team, uniformColor) {
     char.number = p.number ?? JERSEY_NUMBERS[i % JERSEY_NUMBERS.length];
     char.gender = FEMALE_ARCHETYPES.has(archIdx) ? 'she' : 'he'; // for the announcer's he/she calls
     char.hasBall = false;
+    char.archKey = clips ? archKeyOf(archIdx) : null; // which extras pack (mocap-x-*) fits this rig
     out.push(char);
   }
   return out;

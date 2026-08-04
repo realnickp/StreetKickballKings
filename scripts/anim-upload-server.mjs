@@ -9,7 +9,7 @@ http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   if (req.method === 'OPTIONS') { res.end(); return; }
   const name = new URL(req.url, 'http://x').searchParams.get('name') ?? '';
-  if (req.method !== 'POST' || !/^(mocap|world)-[a-z]+\.glb$/.test(name)) {
+  if (req.method !== 'POST' || !/^(mocap(-x)?|world)-[a-z]+\.glb$/.test(name)) {
     res.statusCode = 400; res.end('bad request'); return;
   }
   const chunks = [];

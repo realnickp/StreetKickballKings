@@ -9,6 +9,7 @@ import { SaveManager } from './meta/save.js';
 import { buildField } from './game/field.js';
 import { buildPlayer, CLIP_NAMES } from './game/characters.js';
 import { buildTeamCharsGlb } from './game/glbCharacters.js';
+import { loadExtrasFor } from './game/animExtras.js';
 import { MatchScene } from './game/matchScene.js';
 import { CinematicDirector } from './cinematics/director.js';
 import { ReplayPlayer } from './cinematics/replay.js';
@@ -126,6 +127,7 @@ if (params.has('match')) {
       home: await buildTeamCharsGlb(snappers),
       away: await buildTeamCharsGlb(monarchs),
     };
+    loadExtrasFor([...chars.home, ...chars.away]); // dances/kicks pack, background
     // ?field=<id> previews any city field in the harness (defaults to blacktop)
     const harnessField = fieldsData.fields.find(f => f.id === params.get('field')) ?? blacktop;
     const scene = new MatchScene({
@@ -264,10 +266,16 @@ async function bootFlow() {
     // the two teams never clash (player keeps their colour, opponent gets a variant).
     const awayColor = kits?.away ?? playerTeam.colors.primary;
     const homeColor = kits?.home ?? contrastUniform(opponentTeam.colors.primary, awayColor);
-    const charsPromise = (async () => ({
-      home: await buildTeamCharsGlb(opponentTeam, homeColor),
-      away: await buildTeamCharsGlb(playerTeam, awayColor),
-    }))();
+    const charsPromise = (async () => {
+      const c = {
+        home: await buildTeamCharsGlb(opponentTeam, homeColor),
+        away: await buildTeamCharsGlb(playerTeam, awayColor),
+      };
+      // dances/special-kicks extras pack rides the intro-video dead time;
+      // never awaited — every consumer has a base-pack fallback
+      loadExtrasFor([...c.home, ...c.away]);
+      return c;
+    })();
 
     // INTRO SEQUENCE: kill the theme (so it doesn't fight each video's own music).
     // YOUR squad's video first, then the opponent's — the VS slam only AFTER both
@@ -351,6 +359,7 @@ async function bootFlow() {
       home: await buildTeamCharsGlb(opp, contrastUniform(opp.colors.primary, player.colors.primary)),
       away: await buildTeamCharsGlb(player, player.colors.primary),
     };
+    loadExtrasFor([...chars.home, ...chars.away]);
     // endless half: outs never roll the inning, drills own the flow
     const tutTuning = structuredClone(tuning);
     tutTuning.match = { ...tutTuning.match, innings: 1, outsPerHalf: 99 };
