@@ -234,6 +234,13 @@ export class Hud {
     this.hintEl.classList.add('show');
   }
 
+  /** Crown-meter gain pop: re-trigger the pulse animation on the 👑 button. */
+  crownPulse() {
+    this.specialBtn.classList.remove('pulse');
+    void this.specialBtn.offsetWidth; // restart the CSS animation
+    this.specialBtn.classList.add('pulse');
+  }
+
   /** Deliberate-skip chip for the walkout — stray taps must not eat the show. */
   showSkipChip(onTap) {
     this.hideSkipChip();

@@ -34,3 +34,19 @@ it('consume returns null when not ready', () => {
   const m = new SpecialMeter(monarchs, tuning);
   expect(m.consume()).toBe(null);
 });
+
+it('the offense builds the crown: hits, runs, steals all feed the meter', () => {
+  const m = new SpecialMeter(monarchs, tuning);
+  m.add('hit'); m.add('run'); m.add('steal');
+  const g = tuning.special.gain;
+  expect(m.value).toBe(g.hit + g.run + g.steal);
+  expect(g.hit).toBeGreaterThanOrEqual(15);
+  expect(g.run).toBeGreaterThanOrEqual(20);
+  expect(g.steal).toBeGreaterThanOrEqual(12);
+});
+
+it('a decent inning arms the crown (two hits + a run + a PERFECT)', () => {
+  const m = new SpecialMeter(monarchs, tuning);
+  m.add('hit'); m.add('hit'); m.add('run'); m.add('PERFECT');
+  expect(m.ready).toBe(true);
+});

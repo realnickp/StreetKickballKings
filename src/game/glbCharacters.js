@@ -23,12 +23,11 @@ function hexToRgb(h) { const n = parseInt(h.replace('#', ''), 16); return { r: (
  * low-saturation, mid/high-brightness pixels (the grey tank + light sneaker
  * accents) and tints them by the team primary, preserving the baked shading.
  * Skin (saturated), shorts (dark), and hair (dark) are left untouched.
- * `footMask`+`cleatHex` (THE LOCKER cleats) paint the foot-region texels a
- * second colour on top — every brightness there, so whole shoes turn, not
- * just the grey trim.
+ * LOCKER cleats are tinted separately by GEOMETRY (applyCleatVertexTint) —
+ * texel-space painting bled across shared UV islands.
  * @returns {THREE.CanvasTexture} a NEW texture (caller owns it)
  */
-function recolorKitTexture(srcTex, primaryHex, { footMask = null, cleatHex = null } = {}) {
+function recolorKitTexture(srcTex, primaryHex) {
   const img = srcTex.image;
   if (!img || !img.width) return srcTex;
   const c = document.createElement('canvas');
@@ -38,23 +37,11 @@ function recolorKitTexture(srcTex, primaryHex, { footMask = null, cleatHex = nul
   const data = ctx.getImageData(0, 0, c.width, c.height);
   const px = data.data;
   const prim = hexToRgb(primaryHex);
-  const cleat = cleatHex ? hexToRgb(cleatHex) : null;
-  const useMask = cleat && footMask;
   for (let i = 0; i < px.length; i += 4) {
     const r = px[i], g = px[i + 1], b = px[i + 2];
     const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
     const v = mx / 255;
     const s = mx === 0 ? 0 : (mx - mn) / mx;
-    if (useMask) {
-      const p = (i / 4) | 0;
-      const x = p % c.width, y = (p / c.width) | 0;
-      const cell = ((y * FOOT_MASK_N / c.height) | 0) * FOOT_MASK_N + ((x * FOOT_MASK_N / c.width) | 0);
-      if (footMask[cell]) { // shoe texel → cleat colour, baked shading kept
-        const k = 0.35 + Math.min(1, v * 1.1) * 0.65;
-        px[i] = cleat.r * k; px[i + 1] = cleat.g * k; px[i + 2] = cleat.b * k;
-        continue;
-      }
-    }
     if (s < 0.17 && v > 0.52) { // grey/white kit pixel → team-coloured, shaded
       const k = Math.min(1.0, v * 1.12);
       px[i] = prim.r * k; px[i + 1] = prim.g * k; px[i + 2] = prim.b * k;
@@ -69,43 +56,45 @@ function recolorKitTexture(srcTex, primaryHex, { footMask = null, cleatHex = nul
   return tex;
 }
 
-// ---- LOCKER cleats: which UV texels belong to the FEET ----------------------
-// The archetypes are one skinned mesh + one atlas — there is no shoe material.
-// Build a coarse UV occupancy mask (N×N cells) of every vertex weighted mostly
-// to the Foot/ToeBase joints, dilated one cell; recolorKitTexture tints those
-// texels the cleat colour. Cached per model URL — the atlas never changes.
-const FOOT_MASK_N = 96;
-const footMaskCache = new Map();
-function footUvMask(modelUrl, mesh) {
-  if (footMaskCache.has(modelUrl)) return footMaskCache.get(modelUrl);
-  let mask = null;
+// ---- LOCKER cleats: tint the FOOT GEOMETRY --------------------------------
+// The archetypes are one skinned mesh + one atlas with texels RE-USED across
+// UV islands — a texel-space mask splatters the cleat colour onto every part
+// sampling those texels. Vertex colours select the exact foot-weighted
+// vertices instead (≥0.55 to Foot/ToeBase), multiplied over the baked map so
+// shading survives; a tiny shader patch tints the emissive channel to match.
+function applyCleatVertexTint(mesh, cleatHex) {
   try {
-    const geo = mesh.geometry;
-    const uv = geo.getAttribute('uv');
-    const ji = geo.getAttribute('skinIndex');
-    const w = geo.getAttribute('skinWeight');
+    const src = mesh.geometry;
+    const ji = src.getAttribute('skinIndex');
+    const w = src.getAttribute('skinWeight');
     const bones = mesh.skeleton.bones;
     const footIdx = new Set(bones.map((b, i) => (/Foot|ToeBase/i.test(b.name) ? i : -1)).filter((i) => i >= 0));
-    if (uv && ji && w && footIdx.size) {
-      mask = new Uint8Array(FOOT_MASK_N * FOOT_MASK_N);
-      for (let vi = 0; vi < uv.count; vi++) {
-        let fw = 0;
-        for (let k = 0; k < 4; k++) if (footIdx.has(ji.getComponent(vi, k))) fw += w.getComponent(vi, k);
-        if (fw < 0.55) continue;
-        const cx = Math.min(FOOT_MASK_N - 1, Math.max(0, (uv.getX(vi) % 1 + 1) % 1 * FOOT_MASK_N | 0));
-        const cy = Math.min(FOOT_MASK_N - 1, Math.max(0, (uv.getY(vi) % 1 + 1) % 1 * FOOT_MASK_N | 0));
-        for (let dy = -1; dy <= 1; dy++) {
-          for (let dx = -1; dx <= 1; dx++) {
-            const x = cx + dx, y = cy + dy;
-            if (x >= 0 && y >= 0 && x < FOOT_MASK_N && y < FOOT_MASK_N) mask[y * FOOT_MASK_N + x] = 1;
-          }
-        }
-      }
-      if (!mask.some((v) => v)) mask = null; // nothing weighted to feet — bail
+    if (!ji || !w || !footIdx.size) return;
+    const n = src.getAttribute('position').count;
+    const col = new Float32Array(n * 3).fill(1);
+    const c = hexToRgb(cleatHex);
+    let hits = 0;
+    for (let vi = 0; vi < n; vi++) {
+      let fw = 0;
+      for (let k = 0; k < 4; k++) if (footIdx.has(ji.getComponent(vi, k))) fw += w.getComponent(vi, k);
+      if (fw < 0.55) continue;
+      col[vi * 3] = c.r / 255; col[vi * 3 + 1] = c.g / 255; col[vi * 3 + 2] = c.b / 255;
+      hits += 1;
     }
-  } catch { mask = null; }
-  footMaskCache.set(modelUrl, mask);
-  return mask;
+    if (!hits) return;
+    const geo = src.clone(); // instances share geometry — never tint the shared copy
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    mesh.geometry = geo;
+    mesh.material.vertexColors = true;
+    // vertex colours only feed the diffuse path — patch the emissive term too,
+    // or the self-illuminated original shoe washes the tint back out
+    mesh.material.onBeforeCompile = (shader) => {
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <emissivemap_fragment>',
+        '#include <emissivemap_fragment>\n#ifdef USE_COLOR\n\ttotalEmissiveRadiance *= vColor.rgb;\n#endif',
+      );
+    };
+  } catch { /* cosmetic only — never block a character build */ }
 }
 
 export function loadGltf(url) {
@@ -402,16 +391,18 @@ export async function buildGlbCharacter(def, { heightM = 2.05, clips = null } = 
         o.material.metalness = 0.0;
         o.material.roughness = 0.85;
         if (def.teamColor && o.material.map) {
-          const cleatOpts = (def.cleatHex && o.isSkinnedMesh)
-            ? { footMask: footUvMask(def.model, o), cleatHex: def.cleatHex }
-            : {};
-          const recol = recolorKitTexture(o.material.map, def.teamColor, cleatOpts);
+          const recol = recolorKitTexture(o.material.map, def.teamColor);
           o.material.map = recol;
           if (o.material.emissiveMap) o.material.emissiveMap = recol;
           o.material.emissiveIntensity = 0.55;
         } else {
           o.material.emissiveIntensity = 0.6;
         }
+        // LOCKER cleats tint by GEOMETRY, not texels: the atlases re-use
+        // texels across UV islands, so painting "shoe texels" splattered the
+        // cleat colour over jerseys and skin (the orange-specks bug,
+        // 2026-08-04). Vertex colours hit the exact foot-weighted vertices.
+        if (def.cleatHex && o.isSkinnedMesh) applyCleatVertexTint(o, def.cleatHex);
         o.material.needsUpdate = true;
       }
     }

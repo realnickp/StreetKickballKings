@@ -73,6 +73,7 @@ export class CinematicDirector {
     const ball = this.getBall?.();
     if (ball?.mesh) ball.mesh.visible = true; // restore after any panel that hid it
     this.hud.hideBanner();
+    this.hud.hideSkipChip?.();
     this.hud.setLetterbox?.(false);
     this.bus.emit('cine:done');
   }
@@ -238,6 +239,8 @@ export class CinematicDirector {
    *  around the dance while the crowd loses it. Tap-skippable (the old video
    *  wasn't) — finalizePlayHR's cinematicLock poll advances play either way. */
   crowned({ kicker }) {
+    // the dance skips via the CHIP only — a stray tap must not eat the payoff
+    this.hud.showSkipChip?.(() => this.bus.emit('cine:skip'));
     this.bus.emit('vo', { event: 'crowned', gender: kicker.gender });
     const p = kicker.group.position.clone(); // beat 1: wherever he froze mid-trot
     const plate = FIELD_LAYOUT.home.clone(); // beat 2: the show is AT THE PLATE

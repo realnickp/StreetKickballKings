@@ -365,59 +365,62 @@ export function TeamSelectScreen(ctx) {
 export function CoinTossScreen(ctx) {
   return {
     async mount(root, { scene, playerSide }) {
+      // ONE quick opaque card (dev, 2026-08-04: "more basic and quick") —
+      // no flip video, no 3D field peeking through, three taps max
       const s = el(`
-        <div class="screen coin-screen transparent">
-          <h1 class="screen-title outline">COIN TOSS — CALL IT!</h1>
-          <div class="coin-buttons">
-            <button data-call="heads">HEADS</button>
-            <button data-call="tails">TAILS</button>
+        <div class="screen coin-screen">
+          <div class="coin-card">
+            <h2 class="coin-title">COIN TOSS</h2>
+            <img class="coin-coin" src="assets/branding/coin-heads.png" alt="coin" />
+            <div class="coin-flip-line">CALL IT IN THE AIR</div>
+            <div class="coin-choose">
+              <div class="coin-buttons">
+                <button data-call="heads">HEADS</button>
+                <button data-call="tails">TAILS</button>
+              </div>
+            </div>
           </div>
         </div>`);
       root.appendChild(s);
+      const coinImg = s.querySelector('.coin-coin');
+      const line = s.querySelector('.coin-flip-line');
+      const choose = s.querySelector('.coin-choose');
 
-      s.querySelector('.coin-buttons').addEventListener('pointerdown', async (e) => {
+      s.querySelector('.coin-buttons').addEventListener('pointerdown', (e) => {
         const btn = e.target.closest('button');
         if (!btn) return;
         const call = btn.dataset.call;
-        s.querySelector('.coin-buttons').remove();
-        s.querySelector('.screen-title').remove();
-
-        // coin-only flip video (never reveals the result) → the reveal is the still below
-        await playVideo('assets/video/coin-flip.mp4');
-
+        choose.textContent = '';
         const result = Math.random() < 0.5 ? 'heads' : 'tails';
         const playerWon = result === call;
-        ctx.bus.emit('sfx', 'crowd-cheer');
-
-        // the real coin lands as a still — clean, no-wrap result card
-        const card = el(`
-          <div class="coin-result">
-            <img class="coin-coin ${result}" src="assets/branding/coin-${result}.png" alt="${result}" />
-            <div class="coin-flip-line">YOU CALLED ${call.toUpperCase()} · IT'S <b>${result.toUpperCase()}</b></div>
-            <div class="coin-verdict ${playerWon ? 'win' : 'lose'}">${playerWon ? 'YOU WIN THE TOSS' : 'OPPONENT WINS THE TOSS'}</div>
-            <div class="coin-choose"></div>
-          </div>`);
-        s.append(card);
-        const choose = card.querySelector('.coin-choose');
-
-        if (playerWon) {
-          const pick = el(`
-            <div class="coin-buttons">
-              <button data-first="${playerSide}">KICK FIRST</button>
-              <button data-first="${playerSide === 'home' ? 'away' : 'home'}">FIELD FIRST</button>
-            </div>`);
-          choose.append(pick);
-          pick.addEventListener('pointerdown', (e2) => {
-            const b = e2.target.closest('button');
-            if (!b) return;
-            ctx.beginMatch(b.dataset.first);
-          });
-        } else {
-          const aiSide = playerSide === 'home' ? 'away' : 'home';
-          const first = Math.random() < 0.85 ? aiSide : playerSide;
-          choose.append(el(`<div class="coin-note">${first !== playerSide ? 'THEY ELECT TO KICK FIRST' : 'THEY PUT YOU UP FIRST'}</div>`));
-          setTimeout(() => ctx.beginMatch(first), 1900);
-        }
+        coinImg.classList.add('spin'); // ~0.8s CSS flip
+        line.textContent = `YOU CALLED ${call.toUpperCase()}…`;
+        setTimeout(() => {
+          coinImg.src = `assets/branding/coin-${result}.png`;
+          coinImg.classList.remove('spin');
+          ctx.bus.emit('sfx', playerWon ? 'crowd-cheer' : 'scratch');
+          line.textContent = "IT'S ";
+          const bold = document.createElement('b');
+          bold.textContent = result.toUpperCase();
+          line.append(bold, ` — ${playerWon ? 'YOU WIN THE TOSS' : 'THEY WIN THE TOSS'}`);
+          if (playerWon) {
+            const pick = el(`
+              <div class="coin-buttons">
+                <button data-first="${playerSide}">KICK FIRST</button>
+                <button data-first="${playerSide === 'home' ? 'away' : 'home'}">FIELD FIRST</button>
+              </div>`);
+            choose.append(pick);
+            pick.addEventListener('pointerdown', (e2) => {
+              const b = e2.target.closest('button');
+              if (b) ctx.beginMatch(b.dataset.first);
+            });
+          } else {
+            const aiSide = playerSide === 'home' ? 'away' : 'home';
+            const first = Math.random() < 0.85 ? aiSide : playerSide;
+            choose.append(el(`<div class="coin-note">${first !== playerSide ? 'THEY ELECT TO KICK FIRST' : 'THEY PUT YOU UP FIRST'}</div>`));
+            setTimeout(() => ctx.beginMatch(first), 1200);
+          }
+        }, 800);
       });
     },
   };
