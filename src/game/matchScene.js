@@ -3534,6 +3534,12 @@ export class MatchScene {
     }
     runs += this.pendingRuns ?? 0;
     this.pendingRuns = 0;
+    // clear the plate stage for the dance — the kicker teleports HOME for the
+    // show and was dancing THROUGH the catcher (dev screenshots, 2026-08-04);
+    // nextAtBat re-places and unhides everyone for the next play
+    for (const c of this.fieldingChars?.() ?? []) {
+      if (c !== this.kicker && c.group.position.distanceTo(FIELD_LAYOUT.home) < 3.2) c.group.visible = false;
+    }
     this.bus.emit('cine:crowned', { kicker: this.kicker, team: this.teams[this.match.kickingSide()].id });
     if (this.kickingIsPlayer()) this.crownFeed('homerun');
     // payoff readout: the element carried it out (heat carry OR an outward wind)
