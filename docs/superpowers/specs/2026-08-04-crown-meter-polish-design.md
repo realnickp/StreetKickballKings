@@ -101,3 +101,19 @@ same card. No video, no scene dependency, three taps max, skippable-fast.
   only in the real flow).
 - New harness param: `?cleats=<hex>` previews any cleat colour on the away
   squad.
+
+## Post-deploy bug round (2026-08-04 night, dev screenshots)
+
+- **HR gate vetoing real bombs**: a ball clearing the wall ON THE FLY is now a
+  homer for ANYONE (`exitedOverFence && bounces === 0` → `homer()`); the
+  eligibility roll shapes the launch but never vetoes flown-out physics. CPU
+  bombs were being stamped "ground rule double". Verified live (ineligible
+  bomb → HOMER, run posted).
+- **Thrower jogging in place at 1st**: after a relay lands, a chase-role
+  fielder who is no longer `this.chaser` stands down to his spot, and the
+  arrival-settle no longer excludes him. Verified live (no stuck 'run' clips
+  post-play).
+- **Pickled while ON the bag**: a throw at a runner whose progress is at the
+  bag (send-decision window keeps him 'running') now settles him HELD with
+  'HOLDS THE BAG!' instead of `startRundown` — a man who never left the base
+  can never be trapped. Code-verified; dev screenshot was the repro.
