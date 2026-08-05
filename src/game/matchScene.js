@@ -2217,7 +2217,12 @@ export class MatchScene {
 
       if (f.role === 'chase') {
         if (!reacted) continue;
-        if (this.playerControlled) {
+        if (c !== this.chaser && c !== this.activeFielder) {
+          // stood down: his relay landed in a teammate's glove — jog back to
+          // his spot instead of chasing the ball to the bag and jogging in
+          // place next to the bag man (dev, 2026-08-04)
+          target = f.target;
+        } else if (this.playerControlled) {
           // AUTO-CHASE like the AI does — your defense should never stand and
           // watch (dev callout). A tap/drag OVERRIDES the auto pursuit, so you
           // keep control without babysitting every chase.
@@ -2249,7 +2254,8 @@ export class MatchScene {
         if (c.animator.name !== 'run') c.animator.play('run');
         // stride reads at actual chase speed — fast chases visibly sprint
         c.animator.ctx.speedFactor = 0.7 + Math.min(1.3, (step / dt) / this.tuning.running.maxSpeedMs);
-      } else if (c.animator.name === 'run' && f.role !== 'chase') {
+      } else if (c.animator.name === 'run' && c !== this.chaser) {
+        // arrived — settle (includes a stood-down thrower back at his spot)
         c.animator.play(c.hasBall ? 'holdball' : 'crouch');
         this.faceTo(c, this.ball.pos);
       }
@@ -3074,6 +3080,16 @@ export class MatchScene {
           // just closed (updateDuel clears throwInfo when a holder appears)
           this.chaser = receiver;
           this.defenseHasBall = true;
+        } else if (victim.sim.progressM >= this.tuning.running.basePathM - 0.1) {
+          // he's STANDING ON the bag (send-decision window keeps him 'running')
+          // — that's a HOLD, not a pickle; a throw must never trap a man who
+          // never left the base (dev screenshot, 2026-08-04)
+          victim.state = 'held';
+          victim.heldAt = victim.targetBase;
+          victim.char.group.position.copy(this.basePos(victim.targetBase)).add(new THREE.Vector3(0.4, 0, 0.4));
+          victim.char.animator.play('idle');
+          this.hud.call('HOLDS THE BAG!', 'robbed');
+          this.afterThrow();
         } else {
           this.startRundown(victim, base); // can't force him — trap him in a pickle
         }
@@ -3986,6 +4002,13 @@ export class MatchScene {
           && this.ball.bounces > 0 && this.elements.bounceScale() > 1.35) {
         this._hopCalled = true;
         this.hud.callout('BIG HOP!', { x: window.innerWidth / 2, y: window.innerHeight * 0.35, ttl: 900, key: 'hop' });
+      }
+      // PHYSICS IS TRUTH (dev, 2026-08-04): a ball that clears the wall ON THE
+      // FLY is a home run for ANYONE — the HR-eligibility roll shapes the
+      // launch, it must never veto a flown-out ball (CPU bombs were getting
+      // stamped "ground rule double" by the gate).
+      if (!this.hrFired && !this.robbing && this.ball.exitedOverFence && this.ball.bounces === 0) {
+        this.homer();
       }
       // extra-bounce payoff: a BOUNCED ball that hops the wall = ground rule double
       if (!this.grdFired && !this.hrFired && this.ball.exitedOverFence && this.ball.bounces > 0) {
