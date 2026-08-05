@@ -117,3 +117,11 @@ it('aiSwingStartS clamps timing error and never fires before the serve settles',
   expect(aiSwingStartS({ pitchFlightS: 0.2, errMs: 0, windupS: 0.6 })).toBe(0.05);           // floor
   expect(aiSwingStartS({ pitchFlightS: 1.0, errMs: NaN, windupS: 0.2 })).toBeCloseTo(0.8);   // NaN-guarded
 });
+
+it('launchParams never emits a NaN heading, even with a bare aimSpec', () => {
+  const judged = judgeKick(0, tuning);
+  const launch = launchParams(judged, { powerMult: 1.35 }, tuning);
+  expect(Number.isFinite(launch.directionDeg)).toBe(true);
+  expect(Number.isFinite(launch.speed)).toBe(true);
+  expect(Number.isFinite(launch.loftDeg)).toBe(true);
+});

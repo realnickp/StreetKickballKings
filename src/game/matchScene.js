@@ -1111,6 +1111,7 @@ export class MatchScene {
     if (this.kickingIsPlayer() && this.specialArmed) {
       const sp = this.special.consume();
       if (sp) {
+        this._crownReadyCalled = false; // meter spent — the next fill announces again
         powerMult = sp.powerMult;
         this.kickWasSpecial = true; // armed full meter consumed → this kick can be a homer
         // equipped LOCKER kick: its clip replaces the swing (played at the
@@ -1178,6 +1179,15 @@ export class MatchScene {
     const gm = this.specialKickGear?.mods;
     if (gm?.speed) launch.speed *= gm.speed;
     if (gm?.loftDeg) launch.loftDeg = Math.max(10, Math.min(60, launch.loftDeg + gm.loftDeg));
+    // CROWN GUARANTEE (dev, 2026-08-05): an armed super-kick timed inside the
+    // OK window ALWAYS leaves the yard — floor the arc at a fence-clearing
+    // trajectory AFTER every other modifier (humidity included) has spoken.
+    if (this.kickWasSpecial && Math.abs(errMs) <= this.tuning.kick.okWindowMs) {
+      this.kickHrEligible = true;
+      launch.loftDeg = Math.max(launch.loftDeg, 34);
+      const clearSpeed = Math.sqrt(((this.fenceM + 10) * 9.8) / Math.sin((2 * launch.loftDeg * Math.PI) / 180));
+      launch.speed = Math.max(launch.speed, clearSpeed);
+    }
     this.judged = judged;
     this.launchSpec = launch;
 
@@ -3355,11 +3365,28 @@ export class MatchScene {
     return defT > runT + (target === 3 ? 0.9 : 0.35);
   }
 
+  /** World position of the kicker's striking foot — the ball rides into THIS
+   *  so contact reads true on every clip, flips and spins included. */
+  kickFootPos() {
+    if (!this.kicker) return null;
+    let foot = null;
+    this.kicker.group.traverse((o) => { if (!foot && o.isBone && /RightFoot|RightToe/i.test(o.name)) foot = o; });
+    if (!foot) this.kicker.group.traverse((o) => { if (!foot && o.isBone && /Foot/i.test(o.name)) foot = o; });
+    return foot ? foot.getWorldPosition(new THREE.Vector3()) : null;
+  }
+
   /** Crown feed: every meter gain pulses the crown button so the buildup is
    *  SEEN (dev: the meter must engage the player). */
   crownFeed(event) {
     this.special.add(event);
     this.hud.crownPulse?.();
+    // the ARMING moment must slap (dev): one loud call the second it fills
+    if (this.special.ready && !this._crownReadyCalled) {
+      this._crownReadyCalled = true;
+      this.hud.stamp('CROWN READY!', 'crowned');
+      this.hud.hint('TAP THE 👑 — SUPER KICK, GUARANTEED CROWN');
+      this.bus.emit('sfx', 'bassdrop');
+    }
     this.refreshHud();
   }
 
@@ -3967,11 +3994,15 @@ export class MatchScene {
     }
 
     // kick approach: the pitched ball glides its last stretch INTO the foot so
-    // the clip's contact frame meets it exactly (attemptKick owns the launch)
+    // the clip's contact frame meets it exactly (attemptKick owns the launch).
+    // The target tracks the LIVE kicking-foot bone — spin/flip special clips
+    // put the striking foot nowhere near the plate spot (dev, 2026-08-05)
     if (this._kickApproach) {
       const a = this._kickApproach;
       a.t = Math.min(a.dur, a.t + dt);
       const k = a.dur > 0 ? a.t / a.dur : 1;
+      const foot = this.kickFootPos();
+      if (foot) a.to.set(foot.x, Math.max(0.2, foot.y), foot.z);
       this.ball.place(new THREE.Vector3().lerpVectors(a.from, a.to, k));
     }
 

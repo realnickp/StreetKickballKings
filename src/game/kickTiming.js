@@ -93,7 +93,9 @@ export function launchParams(judged, opts, tuning) {
   const rng = opts.rng ?? Math.random;
   const base = opts.aimDeg != null
     ? clamp(opts.aimDeg, -k.aimSpreadDeg, k.aimSpreadDeg)
-    : AIM_DIR[opts.aim] * (k.aiAimDeg ?? 30) * (0.3 + rng() * 0.7);
+    // ?? 0: an aimless spec kicks dead-centre — a NaN heading sends the ball
+    // (and everything reading its position) into the void
+    : (AIM_DIR[opts.aim] ?? 0) * (k.aiAimDeg ?? 30) * (0.3 + rng() * 0.7);
   // mistimed contact pushes the ball off the aim line: late opens right, early pulls left
   const timingBias = judged.quality === 'PERFECT' ? 0 : Math.sign(judged.errorMs) * 8;
   // Distance scales with the meter power (player) or the per-band power (AI fallback).
