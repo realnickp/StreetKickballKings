@@ -901,6 +901,7 @@ export class MatchScene {
     // double serve kills the ball mid-flight and eats the play silently
     if (this.phase !== 'SETUP' && this.phase !== 'PITCH_SELECT') return;
     this.lastStealCommit = null; // a fresh pitch — the previous steal is settled
+    this._gearSwing = null; // any unfinished crown swing is history now
     if (this.kickingIsPlayer()) this.startAutoPitch();
     else this.startPitchSelect();
   }
@@ -1224,7 +1225,21 @@ export class MatchScene {
       this._kickApproach = null;
       this.onKickContact(judged, launch);
     };
-    this.kicker.animator.play(kickClip, { onContact: launchNow, speed: kickSpeed });
+    // a crown special swing plays THROUGH its landing (the flip's second half
+    // was getting stomped by 'run' at the contact frame — dev, 2026-08-05);
+    // the clip's own onDone hands off to the run cycle
+    this._gearSwing = this.specialKickGear ? kickClip : null;
+    this.kicker.animator.play(kickClip, {
+      onContact: launchNow,
+      speed: kickSpeed,
+      onDone: () => {
+        this._gearSwing = null;
+        if (this.kicker?.animator?.name === kickClip && this.kicker.group.visible
+          && (this.phase === 'LIVE' || this.phase === 'KICK_ANIM')) {
+          this.kicker.animator.play('run');
+        }
+      },
+    });
     // safety: a clip without a contact mark must never stall the play
     this.after(holdS + 0.35, launchNow);
   }
@@ -1509,7 +1524,8 @@ export class MatchScene {
   }
 
   makeRunner(idx, char, fromBase) {
-    char.animator.play('run', { speedFactor: 1 });
+    // don't stomp a mid-flight crown swing — its onDone starts the run itself
+    if (char.animator.name !== this._gearSwing || !this._gearSwing) char.animator.play('run', { speedFactor: 1 });
     return {
       idx,
       char,
