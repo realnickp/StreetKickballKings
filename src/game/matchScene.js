@@ -2023,6 +2023,23 @@ export class MatchScene {
     if (!this.playFinalized && this.ballControlled && !someoneAdvancing) {
       this.finalizePlay(this.playOuts ?? 0, this.lastOutReason);
     }
+
+    // LAST-RESORT play watchdog: whatever state-hole we haven't met yet, a
+    // settled field must ALWAYS close the play (dev froze mid-play with two
+    // runners parked on a bag, 2026-08-05). Runners settled + defense owns the
+    // ball (or it's dead on the turf) + no cinematic = the play ends, period.
+    const everyoneSettled = !this.runners.some((r) => r.state === 'running');
+    if (!this.playFinalized && !this.cinematicLock && everyoneSettled
+      && (this.defenseHasBall || this.ball.mode === 'idle')) {
+      this._settledT = (this._settledT ?? 0) + dt;
+      if (this._settledT > 8) this.ballControlled = true;
+      if (this._settledT > 12) {
+        console.warn('[skk] play watchdog: force-finalizing a stuck play');
+        this.finalizePlay(this.playOuts ?? 0, this.lastOutReason);
+      }
+    } else {
+      this._settledT = 0;
+    }
   }
 
   /** Resolve the play into exact outcome for the engine. */
@@ -2062,7 +2079,7 @@ export class MatchScene {
     } else {
       for (const r of this.runners) {
         if (r.state === 'scored') runs += 1;
-        else if (r.state === 'held') finalBases[r.heldAt] = r.idx;
+        else if (r.state === 'held' && r.heldAt >= 0 && r.heldAt <= 2) finalBases[r.heldAt] = r.idx; // 3-bag books only
         else if (r.state === 'running') {
           // settled mid-leg: a runner past halfway is credited the base they're
           // headed to (the kicker beats it out to first); otherwise hold the last bag
@@ -3110,11 +3127,21 @@ export class MatchScene {
           // he's STANDING ON the bag (send-decision window keeps him 'running')
           // — that's a HOLD, not a pickle; a throw must never trap a man who
           // never left the base (dev screenshot, 2026-08-04)
-          victim.state = 'held';
-          victim.heldAt = victim.targetBase;
-          victim.char.group.position.copy(this.basePos(victim.targetBase)).add(new THREE.Vector3(0.4, 0, 0.4));
-          victim.char.animator.play('idle');
-          this.hud.call('HOLDS THE BAG!', 'robbed');
+          if (victim.targetBase >= 3) {
+            // standing ON HOME is a RUN, not a hold — a heldAt=3 runner poisoned
+            // the books AND parked himself in the next kicker's face while the
+            // GO-offer gate froze the play (dev freeze screenshot, 2026-08-05)
+            victim.state = 'scored';
+            this.pendingRuns = (this.pendingRuns ?? 0) + 1;
+            victim.char.group.visible = false;
+            this.hud.call('SAFE AT HOME!', 'crowned');
+          } else {
+            victim.state = 'held';
+            victim.heldAt = victim.targetBase;
+            victim.char.group.position.copy(this.basePos(victim.targetBase)).add(new THREE.Vector3(0.4, 0, 0.4));
+            victim.char.animator.play('idle');
+            this.hud.call('HOLDS THE BAG!', 'robbed');
+          }
           this.afterThrow();
         } else {
           this.startRundown(victim, base); // can't force him — trap him in a pickle
