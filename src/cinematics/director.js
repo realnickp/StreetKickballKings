@@ -271,9 +271,11 @@ export class CinematicDirector {
         },
         onUpdate: (k) => {
           const a = (-0.55 + k * 1.1) + Math.PI; // slow arc across the camera side
+          // 4.4 m orbit: phone screens are TALL — the 3.1 m arc cropped heads
+          // and filled the frame with torso (dev screenshots, 2026-08-04)
           this.cam(
-            new THREE.Vector3(plate.x + Math.sin(a) * 3.1, 1.35 - k * 0.2, plate.z - Math.cos(a) * 3.1),
-            new THREE.Vector3(plate.x, 1.1, plate.z),
+            new THREE.Vector3(plate.x + Math.sin(a) * 4.4, 1.6 - k * 0.25, plate.z - Math.cos(a) * 4.4),
+            new THREE.Vector3(plate.x, 1.15, plate.z),
           );
         },
         onEnd: () => {
