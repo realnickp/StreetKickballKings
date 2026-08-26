@@ -3387,8 +3387,15 @@ export class MatchScene {
     return { x: r.left + (p.x * 0.5 + 0.5) * r.width, y: r.top + (-p.y * 0.5 + 0.5) * r.height };
   }
 
-  projectPoint(v) {
-    const r = this.engine.renderer.domElement.getBoundingClientRect();
+  // Frame callbacks (matchScene.update() → camDir.update() → this) run BEFORE
+  // composer.render() each frame (src/engine/renderer.js), and three.js only
+  // recomputes camera.matrixWorldInverse during render — so a hard camera cut
+  // earlier in the same update() would otherwise get projected through last
+  // frame's stale pose. Force a fresh matrixWorld/matrixWorldInverse here;
+  // worldToScreen() is left alone (pre-existing, not on this cut's hot path).
+  projectPoint(v, rect) {
+    this.engine.camera.updateMatrixWorld();
+    const r = rect || this.engine.renderer.domElement.getBoundingClientRect();
     const p = v.clone(); p.y += 1.0; p.project(this.engine.camera);
     return { x: (p.x * 0.5 + 0.5) * r.width, y: (-p.y * 0.5 + 0.5) * r.height, w: r.width, h: r.height, behind: p.z > 1 };
   }
@@ -3401,10 +3408,11 @@ export class MatchScene {
     const color = this.teams[this.match.kickingSide()].colors?.primary ?? '#3ec6b5';
     const BASE = ['1ST', '2ND', '3RD', 'HOME'];
     const out = [];
+    const rect = this.engine.renderer.domElement.getBoundingClientRect();
     live.sort((a, b) => b.targetBase - a.targetBase);
     for (const r of live.slice(0, 3)) {
       const pos = r.state === 'held' ? this.basePos(r.heldAt ?? r.fromBase) : this.runnerWorldPos(r).p;
-      const pr = this.projectPoint(pos);
+      const pr = this.projectPoint(pos, rect);
       const c = edgeClamp({ x: pr.x, y: pr.y, w: pr.w, h: pr.h, behind: pr.behind });
       if (c.visible) continue;
       out.push({ id: r.idx, x: c.x, y: c.y, angle: c.angle, number: r.char.number, color,
