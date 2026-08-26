@@ -62,6 +62,7 @@ function recolorKitTexture(srcTex, primaryHex) {
 // sampling those texels. Vertex colours select the exact foot-weighted
 // vertices instead (≥0.55 to Foot/ToeBase), multiplied over the baked map so
 // shading survives; a tiny shader patch tints the emissive channel to match.
+export const CLEAT_BOOST = 1.6;
 function applyCleatVertexTint(mesh, cleatHex) {
   try {
     const src = mesh.geometry;
@@ -78,7 +79,7 @@ function applyCleatVertexTint(mesh, cleatHex) {
       let fw = 0;
       for (let k = 0; k < 4; k++) if (footIdx.has(ji.getComponent(vi, k))) fw += w.getComponent(vi, k);
       if (fw < 0.55) continue;
-      col[vi * 3] = c.r / 255; col[vi * 3 + 1] = c.g / 255; col[vi * 3 + 2] = c.b / 255;
+      col[vi * 3] = (c.r / 255) * CLEAT_BOOST; col[vi * 3 + 1] = (c.g / 255) * CLEAT_BOOST; col[vi * 3 + 2] = (c.b / 255) * CLEAT_BOOST;
       hits += 1;
     }
     if (!hits) return;
@@ -389,14 +390,14 @@ export async function buildGlbCharacter(def, { heightM = 2.05, clips = null } = 
         // overriding any recolour). Make it cloth/skin-like so the base colour shows,
         // and aim the self-illumination at the same (recoloured) texture.
         o.material.metalness = 0.0;
-        o.material.roughness = 0.85;
+        o.material.roughness = 0.7;
         if (def.teamColor && o.material.map) {
           const recol = recolorKitTexture(o.material.map, def.teamColor);
           o.material.map = recol;
           if (o.material.emissiveMap) o.material.emissiveMap = recol;
-          o.material.emissiveIntensity = 0.55;
+          o.material.emissiveIntensity = 0.4;
         } else {
-          o.material.emissiveIntensity = 0.6;
+          o.material.emissiveIntensity = 0.4;
         }
         // LOCKER cleats tint by GEOMETRY, not texels: the atlases re-use
         // texels across UV islands, so painting "shoe texels" splattered the

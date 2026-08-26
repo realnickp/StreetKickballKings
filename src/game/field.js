@@ -12,11 +12,15 @@ export const FIELD_LAYOUT = {
   pitcher: new THREE.Vector3(0, 0, -12),
 };
 
+// Global light lift (dev, 2026-08-25: "characters and surfaces brighter"):
+// ONE table so all ten skies move together.
+export const LIGHT_LIFT = { amb: 1.65, hemi: 1.4, rim: 0.5 };
+
 // Per-sky lighting. Every field is FLOODLIT bright enough to clearly read the
 // players and court (night stadiums use lights, they aren't dim) — mood comes
 // from light COLOUR, not darkness. ACES tone-mapping + the vignette eat a lot of
 // low light, so intensities stay high across the board. Keyed by fields.json `sky`.
-const SKY_PRESETS = {
+export const SKY_PRESETS = {
   'day':           { hemiSky: '#cfe0ff', hemiGround: '#7a756a', sun: '#fff4e0', sunI: 2.1, hemiI: 1.35, amb: '#5b6172', ambI: 0.25 },
   'sodium-night':  { hemiSky: '#6a6486', hemiGround: '#4a4030', sun: '#ffd6a0', sunI: 2.3, hemiI: 1.5,  amb: '#5a4f46', ambI: 0.46 },
   'dusk':          { hemiSky: '#b3a3c6', hemiGround: '#5a4f55', sun: '#ffcaa0', sunI: 2.1, hemiI: 1.45, amb: '#5a5260', ambI: 0.35 },
@@ -89,7 +93,7 @@ export function buildField(fieldData, scene) {
     root.add(base);
   }
   const plate = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.55, 0.55, 0.06, 5),
+    new THREE.CylinderGeometry(0.55, 0.55, 0.06, 24),
     new THREE.MeshStandardMaterial({ color: '#f5f2e8', roughness: 0.6 }),
   );
   plate.position.set(0, 0.03, 0);
@@ -480,10 +484,10 @@ export function buildField(fieldData, scene) {
   const fogColor = (SKY_DOME[fieldData.sky] ?? SKY_DOME.day)[3];
   scene.fog = new THREE.FogExp2(new THREE.Color(fogColor), 0.004);
 
-  const hemi = new THREE.HemisphereLight(lp.hemiSky, lp.hemiGround, lp.hemiI);
+  const hemi = new THREE.HemisphereLight(lp.hemiSky, lp.hemiGround, lp.hemiI * LIGHT_LIFT.hemi);
   root.add(hemi);
   // a small ambient floor so ACES tone-mapping never crushes the court to black
-  root.add(new THREE.AmbientLight(lp.amb ?? '#55585f', lp.ambI ?? 0.3));
+  root.add(new THREE.AmbientLight(lp.amb ?? '#55585f', (lp.ambI ?? 0.3) * LIGHT_LIFT.amb));
   const sun = new THREE.DirectionalLight(lp.sun, lp.sunI);
   // golden-hour 3D world: LOW warm sun from the third-base side -> long dusk
   // shadows across the asphalt (the mood the whole world bake is lit for)
@@ -508,7 +512,7 @@ export function buildField(fieldData, scene) {
   // players and ball so they pop off the crowd ring (a broadcast separation cue).
   // Accent only — casts no shadow, modest intensity — tinted with the preset's sky
   // hue so it reads cool or warm to match the field's mood. Aims at home (origin).
-  const rim = new THREE.DirectionalLight(lp.hemiSky, 0.28);
+  const rim = new THREE.DirectionalLight(lp.hemiSky, LIGHT_LIFT.rim);
   rim.position.set(-20, 30, -40);
   rim.castShadow = false;
   root.add(rim);
