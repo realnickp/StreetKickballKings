@@ -1371,6 +1371,7 @@ body { display: flex; align-items: center; justify-content: center; }
   font-family: var(--sans); font-weight: 900; font-size: 12px; letter-spacing: .6px; color: var(--gold);
   background: rgba(8,9,13,.85); border: 2px solid var(--gold); border-radius: 999px; padding: 6px 14px;
   opacity: 0; transition: opacity .25s, transform .25s; pointer-events: none; white-space: nowrap; z-index: 8;
+  max-width: calc(100% - 24px); overflow: hidden;
 }
 .gear-toast.show { opacity: 1; transform: translate(-50%, 0); }
 /* NOW KICKING lower-third: compact, tucked left, clear of the kicker + hint */

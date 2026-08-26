@@ -309,6 +309,7 @@ export class MatchScene {
     });
     this.special.value = 0;
     this.power = new PowerKicks({ meter: this.special, gear: this.playerGear?.kick ?? null }); // fresh charges every match (rematch reuses the scene)
+    this._gearToasted = false; // the YOUR GEAR strip shows again at the first at-bat of a rematch
     const begin = () => {
       this.bus.emit('vo', 'playball');
       this.refreshHud();

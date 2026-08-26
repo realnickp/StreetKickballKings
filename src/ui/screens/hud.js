@@ -544,7 +544,10 @@ export class Hud {
     t.className = 'gear-toast';
     t.textContent = `YOUR GEAR — ${line}`;
     this.el.appendChild(t);
-    requestAnimationFrame(() => t.classList.add('show'));
+    requestAnimationFrame(() => {
+      t.classList.add('show');
+      this._fitText(t, { minPx: 9, pad: 24 }); // long gear names must still fit a phone width
+    });
     setTimeout(() => t.remove(), 2800);
   }
 
