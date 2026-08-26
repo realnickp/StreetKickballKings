@@ -10,6 +10,7 @@ import { routineFor } from './walkoutRoutines.js';
 import { mashSpeed, humanRunSpeed, RunnerSim } from './baseRunning.js';
 import { resolveBaseThrow, resolvePeg } from './throwing.js';
 import { SpecialMeter } from './specialMoves.js';
+import { PowerKicks } from './powerKicks.js';
 import { pickPitch, aiKickError, aiAim, aiWantsPeg, aiMashRate, aiJukes, aiThrowsFire } from './ai.js';
 import { PickleDuel, shuttleDir } from './pickleDuel.js';
 import { RunnerWatchdog } from './runnerWatchdog.js';
@@ -132,7 +133,7 @@ export class MatchScene {
     this.replayRecorder.track(this.replayChars, this.ball);
 
     this.special = new SpecialMeter(teams[playerSide], tuning);
-    this.specialArmed = false;
+    this.power = new PowerKicks({ meter: this.special, gear: gear?.kick ?? null });
 
     this.aim = 'center';
     this.phase = 'IDLE';
@@ -246,10 +247,10 @@ export class MatchScene {
     this.robbing = null;  // fence-rob climb state: {fielder, phase, t, topY}
     this.stealHot = false;
     this.hud.onSpecial = () => {
-      if (this.special.ready && this.kickingIsPlayer()) {
-        this.specialArmed = true;
-        this.hud.setSpecial(this.special.value, true, true, this.teams[this.playerSide].special.label);
-      }
+      if (!this.kickingIsPlayer() || !this.power.arm()) return;
+      this.bus.emit('sfx', 'crown-arm');
+      this.hud.hint(`${this.power.name} ARMED — LET IT RIP`);
+      this.refreshHud();
     };
 
     this.offFrame = engine.onFrame((dt, rawDt) => this.update(dt, rawDt));
@@ -295,7 +296,7 @@ export class MatchScene {
       }
     });
     this.special.value = 0;
-    this.specialArmed = false;
+    this.power.disarm();
     const begin = () => {
       this.bus.emit('vo', 'playball');
       this.refreshHud();
@@ -767,7 +768,7 @@ export class MatchScene {
     this.hud.setBases(s.bases);
     this.hud.setCount(s.balls);
     this.hud.showSpecial(this.kickingIsPlayer()); // crown super-kick is ONLY for when you're kicking
-    this.hud.setSpecial(this.special.value, this.special.ready, this.specialArmed, this.teams[this.playerSide].special.label);
+    this.hud.setPowerKick(this.power.hudState());
   }
   // (worldToScreen lives near the tap-picking helpers below — this class used
   // to define it TWICE; the later, null-returning version always won)
@@ -794,6 +795,7 @@ export class MatchScene {
     this.strikes = 0;
     this.fouls = 0;
     this.runners = [];
+    this.power.disarm(); // an armed-but-unkicked charge is refunded
     this._hopCalled = false;
     this._kickApproach = null;
     // heat-wave moment (Play It): tell the offense ONCE per half that the
@@ -1133,24 +1135,18 @@ export class MatchScene {
 
     let powerMult = 1;
     this.specialKickGear = null;
-    if (this.kickingIsPlayer() && this.specialArmed) {
-      const sp = this.special.consume();
+    if (this.kickingIsPlayer() && this.power.armed) {
+      const sp = this.power.consume();
       if (sp) {
-        this._crownReadyCalled = false; // meter spent — the next fill announces again
         powerMult = sp.powerMult;
-        this.kickWasSpecial = true; // armed full meter consumed → this kick can be a homer
-        // equipped LOCKER kick: its clip replaces the swing (played at the
-        // kick site) and its mods flavor the launch
-        const g = this.playerGear?.kick;
-        if (g) {
-          this.specialKickGear = g;
-          powerMult = g.mods?.powerMult ?? powerMult;
-          if (g.mods?.curl) aimDeg = Math.max(-60, Math.min(60, aimDeg * g.mods.curl));
-          this.hud.call(`${g.name}!`, 'crowned');
+        this.kickWasSpecial = true;
+        if (sp.gear) {
+          this.specialKickGear = sp.gear;
+          if (sp.gear.mods?.curl) aimDeg = Math.max(-60, Math.min(60, aimDeg * sp.gear.mods.curl));
+          this.hud.call(`${sp.gear.name}!`, 'crowned');
         }
         this.bus.emit('cine:special', { label: sp.label, kicker: this.kicker });
       }
-      this.specialArmed = false;
     }
     // crew on fire: every kick is juiced while the bar burns
     powerMult *= this.heat.kickPowerMult(this.match.kickingSide());
@@ -3472,14 +3468,14 @@ export class MatchScene {
   /** Crown feed: every meter gain pulses the crown button so the buildup is
    *  SEEN (dev: the meter must engage the player). */
   crownFeed(event) {
-    this.special.add(event);
+    const minted = this.power.feed(event);
     this.hud.crownPulse?.();
-    // the ARMING moment must slap (dev): one loud call the second it fills
-    if (this.special.ready && !this._crownReadyCalled) {
-      this._crownReadyCalled = true;
-      this.hud.stamp('CROWN READY!', 'crowned');
-      this.hud.hint('TAP THE 👑 — SUPER KICK, GUARANTEED CROWN');
+    if (minted) {
+      this.hud.stamp('CROWN CHARGED! +1', 'crowned');
+      this.hud.hint(`TAP THE 👑 — ${this.power.name} READY`);
       this.bus.emit('sfx', 'bassdrop');
+    } else {
+      this.bus.emit('sfx', 'crown-tick');
     }
     this.refreshHud();
   }

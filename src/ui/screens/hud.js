@@ -49,7 +49,7 @@ export class Hud {
         <button class="t-h" data-base="3"><span>HOME</span></button>
         <button class="t-peg" data-peg><span>PEG</span></button>
       </div>
-      <div class="special-btn"><div class="core">👑</div></div>
+      <div class="special-btn"><div class="core">👑</div><span class="pk-label"></span></div>
       <button class="go-btn"><span></span></button>
       <div class="steal-chips"></div>
       <button class="duel-btn"><span>GO!</span></button>
@@ -610,11 +610,12 @@ export class Hud {
     }));
   }
 
-  setSpecial(fill, ready, armed, label) {
-    this.specialBtn.style.setProperty('--fill', Math.round(fill));
-    this.specialBtn.classList.toggle('ready', ready);
+  setPowerKick({ name, charges, armed, meterFill }) {
+    this.specialBtn.style.setProperty('--fill', Math.round(meterFill));
+    this.specialBtn.classList.toggle('ready', charges > 0);
     this.specialBtn.classList.toggle('armed', armed);
-    if (label) this.specialBtn.title = label;
+    this.specialBtn.querySelector('.pk-label').textContent = charges > 0 ? `${name} ×${charges}` : name;
+    this.specialBtn.title = name;
   }
 
   /** The crown super-kick button only belongs in the KICK role — hide it on defense. */

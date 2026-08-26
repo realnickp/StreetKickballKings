@@ -508,6 +508,13 @@ body { display: flex; align-items: center; justify-content: center; }
 }
 .special-btn.ready { border-color: var(--gold); box-shadow: 0 0 22px rgba(245,179,18,.8); animation: hintPulse .7s infinite; }
 .special-btn.armed .core { background: var(--gold); }
+.special-btn .pk-label {
+  position: absolute; top: calc(100% + 4px); left: 50%; transform: translateX(-50%);
+  font-family: var(--sans); font-weight: 900; font-size: 10px; letter-spacing: .6px; white-space: nowrap;
+  color: #8b90a3; text-shadow: 0 1px 0 #000;
+}
+.special-btn.ready .pk-label { color: var(--gold); }
+.special-btn.armed { border-color: #fff; box-shadow: 0 0 28px rgba(245,179,18,1); }
 
 /* big-moment stamp (side switch, PICKLE!, STARTING LINEUPS): a full-bleed
    angled color band sweeping through mid-screen — same broadcast language as
