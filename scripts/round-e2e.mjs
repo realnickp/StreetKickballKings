@@ -412,7 +412,8 @@ async function msaaScenario(page) {
 // ------------------------------------------------------------------ 10. LOCKER
 async function lockerScenario(page) {
   console.log('\n--- 10: LOCKER ---');
-  await page.goto(`${BASE}/?nosplash&go=locker`, { waitUntil: 'domcontentloaded' });
+  // ?e2e turns on preserveDrawingBuffer for the pixel read-back below
+  await page.goto(`${BASE}/?nosplash&go=locker&e2e`, { waitUntil: 'domcontentloaded' });
   const cap = await poll(page, () => document.querySelector('.locker-stage-cap')?.textContent || null, 20000, 'locker caption');
   ok(!!cap && cap.includes('—'), `the stage caption names the captain and his kit (${cap})`);
   ok(await page.evaluate(() => !!document.querySelector('canvas.locker-preview')), 'the preview canvas is mounted');

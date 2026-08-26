@@ -216,7 +216,9 @@ export class Hud {
     for (const d of dots) {
       keep.add(d.id);
       let c = this._dotEls.get(d.id);
-      if (!c) { c = document.createElementNS('http://www.w3.org/2000/svg', 'circle'); c.classList.add('dm-dot'); g.appendChild(c); this._dotEls.set(d.id, c); }
+      // r as an ATTRIBUTE too: the CSS `r` property needs Safari 16.4+, and an
+      // r-less circle draws nothing at all on anything older
+      if (!c) { c = document.createElementNS('http://www.w3.org/2000/svg', 'circle'); c.classList.add('dm-dot'); c.setAttribute('r', '3.2'); g.appendChild(c); this._dotEls.set(d.id, c); }
       const [ax, ay] = XY[d.from] ?? XY[-1], [bx, by] = XY[d.to] ?? XY[3];
       const t = Math.max(0, Math.min(1, d.t));
       c.setAttribute('cx', (ax + (bx - ax) * t).toFixed(1)); c.setAttribute('cy', (ay + (by - ay) * t).toFixed(1));

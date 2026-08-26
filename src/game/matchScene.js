@@ -85,7 +85,7 @@ export function chooseLiveShot({ phase, kickingIsPlayer, trailBall, deepBall, ru
 }
 
 export class MatchScene {
-  constructor({ engine, input, bus, teams, chars, fieldData, tuning, difficulty = 'Street', playerSide = 'away', firstKick = 'away', hudRoot, autoStart = true, gear = null, extrasReady = null, danceBag = null }) {
+  constructor({ engine, input, bus, teams, chars, fieldData, tuning, difficulty = 'Street', playerSide = 'away', firstKick = 'away', hudRoot, autoStart = true, gear = null, danceBag = null }) {
     this.engine = engine;
     this.input = input;
     this.bus = bus;
@@ -110,9 +110,6 @@ export class MatchScene {
       engine.scene.add(this.cleatRing);
     }
     this.walkup = null;
-    // walkout gate: resolves when the extras dance pack has settled for this
-    // match's squads (null = already loaded, e.g. the dev harness)
-    this.extrasReady = extrasReady;
     this.danceBag = danceBag;
     // lifetime-career feed: per-match counters, shipped out on matchOver
     this.matchStats = { hr: 0, defOuts: 0, steals: 0, pickleEscapes: 0, perfects: 0 };
@@ -3545,8 +3542,10 @@ export class MatchScene {
     this.playOuts = (this.playOuts ?? 0) + 1;
     if (!this.kickingIsPlayer()) this.matchStats.defOuts += 1; // your glove, your credit
     else {
-      this.bus.emit('sfx', 'crowd-ooh'); // YOUR runner went down — the block groans
-      if (this.runners.some((o) => o !== runner && (o.state === 'running' || o.state === 'held'))) this.bus.emit('sfx', 'boo');
+      // YOUR runner went down — the block reacts ONCE: a boo when the rally is
+      // still alive behind him, a groan when he was the last man moving.
+      const rallyLive = this.runners.some((o) => o !== runner && (o.state === 'running' || o.state === 'held'));
+      this.bus.emit('sfx', rallyLive ? 'boo' : 'crowd-ooh');
     }
     this.lastOutReason = reason;
     if (reason === 'pegged') {
@@ -4278,9 +4277,21 @@ export class MatchScene {
     this.offFrame?.();
     this.clearTimers();
     this.hud.destroy();
-    this.engine.scene.remove(this.field.root, this.ball.mesh, this.marker, this.fielderRing);
+    this.engine.scene.remove(this.field.root, this.ball.mesh);
     for (const c of [...this.chars.home, ...this.chars.away]) this.engine.scene.remove(c.group);
-    for (const t of this.trailPool) this.engine.scene.remove(t.mesh);
-    if (this.cleatRing) this.engine.scene.remove(this.cleatRing);
+    // every mesh this scene OWNS: off the graph and its GPU buffers freed —
+    // a rematch builds a fresh scene, so leaked geo/materials just pile up
+    const drop = (m) => {
+      if (!m) return;
+      this.engine.scene.remove(m);
+      m.geometry?.dispose?.();
+      m.material?.dispose?.();
+    };
+    for (const t of this.trailPool) drop(t.mesh);
+    drop(this.cleatRing);
+    drop(this.marker);
+    drop(this.fielderRing);
+    for (const r of this.baseRings ?? []) drop(r);
+    drop(this.youRing);
   }
 }

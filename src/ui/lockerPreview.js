@@ -8,8 +8,11 @@ import { buildCaptainPreview } from '../game/glbCharacters.js';
 export class LockerPreview {
   constructor(canvas) {
     this.canvas = canvas;
-    // preserveDrawingBuffer: the e2e pass reads pixels back off this canvas
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+    // preserveDrawingBuffer: the e2e pass reads pixels back off this canvas.
+    // It costs a full-canvas copy every frame, so it's ON ONLY under ?e2e —
+    // real phones get the cheap path.
+    const e2e = new URLSearchParams(location.search).has('e2e');
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: e2e });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(canvas.clientWidth || 220, canvas.clientHeight || 260, false);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping; this.renderer.toneMappingExposure = 1.35;

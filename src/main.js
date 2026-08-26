@@ -279,7 +279,6 @@ async function bootFlow() {
     // the two teams never clash (player keeps their colour, opponent gets a variant).
     const awayColor = gear.uniform?.hex ?? kits?.away ?? playerTeam.colors.primary;
     const homeColor = kits?.home ?? contrastUniform(opponentTeam.colors.primary, awayColor);
-    let extrasReady = Promise.resolve();
     const charsPromise = (async () => {
       const c = {
         home: await buildTeamCharsGlb(opponentTeam, homeColor),
@@ -288,7 +287,7 @@ async function bootFlow() {
       // dances/special-kicks extras pack rides the intro-video dead time;
       // nothing gates on it — the HR dance bag and the walk-up taunts use
       // clips as they land, and every other consumer has its base-pack fallback
-      extrasReady = loadExtrasFor([...c.home, ...c.away]);
+      void loadExtrasFor([...c.home, ...c.away]);
       return c;
     })();
 
@@ -316,7 +315,6 @@ async function bootFlow() {
       hudRoot,
       autoStart: false,
       gear,
-      extrasReady,
       danceBag: new DanceBag({ recent: save.get('dance.recent', []), onDraw: (r) => save.set('dance.recent', r) }),
     });
     window.__skk = ctx.scene; // dev/debug handle

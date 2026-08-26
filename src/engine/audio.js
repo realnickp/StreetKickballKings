@@ -89,10 +89,9 @@ const VO_CALLS = new Set([
 ]);
 const VO_QUEUE_FRESH_MS = 4000; // a held call older than this is stale news
 
-export const WARM_LIST = ['kick', 'peg', 'fireball', 'catch', 'bounce', 'fence', 'slide',
-  'homer', 'crowd-ooh', 'whoosh', 'swish', 'squeak', 'roll', 'crowd-cheer', 'bassdrop', 'scratch',
-  'ui-tap', 'ui-confirm', 'score', 'safe', 'out', 'tag', 'foul', 'inning', 'crown-tick', 'crown-arm',
-  'countdown', 'unlock', 'stomp', 'cheer-big', 'boo'];
+// DERIVED, never hand-kept: every file an alias can reach warms up front. A
+// hand-written list silently forgot new sounds and they landed late, or never.
+export const WARM_LIST = [...new Set(Object.values(SFX_ALIAS).filter((a) => a.file).map((a) => a.file))];
 export const SFX_FILES = FILES.sfx;
 export { SFX_ALIAS };
 
@@ -165,19 +164,26 @@ export class AudioBus {
     if (!ctx) return;
     this._voLive = true; // claim the mic BEFORE the async decode — racers must queue
     const token = ++this._voToken;
-    this.gains.music.gain.cancelScheduledValues(ctx.currentTime);
-    this.gains.music.gain.linearRampToValueAtTime(0.16, ctx.currentTime + 0.12);
-    const played = await this.playBuffer(url, 'vo');
     const finish = () => {
       if (token !== this._voToken) return; // a later line owns the mic now
       if (this.ctx) this.gains.music.gain.linearRampToValueAtTime(0.62, this.ctx.currentTime + 0.4);
       this._voEnded();
     };
-    if (played) {
-      played.src.onended = finish;
-      // iOS belt-and-braces: a swallowed onended must never wedge the booth shut
-      setTimeout(finish, (played.src.buffer?.duration ?? 4) * 1000 + 500);
-    } else finish();
+    // the mic is CLAIMED above — a fetch/decode/gain throw past this point would
+    // otherwise leave _voLive true forever and wedge the booth shut for the match
+    try {
+      this.gains.music.gain.cancelScheduledValues(ctx.currentTime);
+      this.gains.music.gain.linearRampToValueAtTime(0.16, ctx.currentTime + 0.12);
+      const played = await this.playBuffer(url, 'vo');
+      if (played) {
+        played.src.onended = finish;
+        // iOS belt-and-braces: a swallowed onended must never wedge the booth shut
+        setTimeout(finish, (played.src.buffer?.duration ?? 4) * 1000 + 500);
+      } else finish();
+    } catch (e) {
+      console.warn('[skk] vo failed:', e?.message ?? e);
+      finish();
+    }
   }
 
   ensureCtx() {

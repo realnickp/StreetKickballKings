@@ -63,7 +63,8 @@ export class MocapAnimator {
     if (this.clips.has('idle')) this.play('idle');
   }
 
-  /** Merge lazily-loaded extras clips (mocap-x-<arch>.glb) into this animator.
+  /** Merge lazily-loaded extras clips (mocap-<pack>-<arch>.glb — x = dances /
+   *  special kicks, k = kicks / taunts) into this animator.
    *  Existing names win — extras never shadow the shipped base set. */
   addClips(clips) {
     for (const c of clips) if (!this.clips.has(c.name)) this.clips.set(c.name, c);

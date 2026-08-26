@@ -1380,7 +1380,8 @@ body { display: flex; align-items: center; justify-content: center; }
 .walkout-card .stat-bar i { display: block; height: 100%; background: var(--c1, #ff7a2d); border-radius: 4px; }
 .wo-gear { margin-top: 6px; font-family: var(--sans); font-weight: 900; font-size: 10px; letter-spacing: .6px; color: var(--gold); }
 .gear-toast {
-  position: absolute; left: 50%; top: calc(150px + env(safe-area-inset-top)); transform: translate(-50%, -8px);
+  /* 272px: clear of the NOW KICKING mini card (top 146px, z 60) which sat on top of it */
+  position: absolute; left: 50%; top: calc(272px + env(safe-area-inset-top)); transform: translate(-50%, -8px);
   font-family: var(--sans); font-weight: 900; font-size: 12px; letter-spacing: .6px; color: var(--gold);
   background: rgba(8,9,13,.85); border: 2px solid var(--gold); border-radius: 999px; padding: 6px 14px;
   opacity: 0; transition: opacity .25s, transform .25s; pointer-events: none; white-space: nowrap; z-index: 8;

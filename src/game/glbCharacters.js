@@ -276,7 +276,8 @@ CLIPS.slide = CLIPS.stumble;
 CLIPS.dive = CLIPS.stumble;
 CLIPS.climb = CLIPS.idle;
 CLIPS.climbDown = CLIPS.idle;
-// extras pack (mocap-x-*, lazy) -> nearest legacy clips so the ?codeanim
+// extras packs (mocap-<pack>-*, lazy: x = dances/special kicks, k = kicks/taunts)
+// -> nearest legacy clips so the ?codeanim
 // fallback never statues on the new names
 CLIPS.thriller1 = CLIPS.dance1; CLIPS.thriller2 = CLIPS.dance1;
 CLIPS.thriller3 = CLIPS.dance1; CLIPS.thriller4 = CLIPS.dance1;
@@ -542,7 +543,7 @@ export async function buildTeamCharsGlb(team, uniformColor, gear = null) {
     char.number = p.number ?? JERSEY_NUMBERS[i % JERSEY_NUMBERS.length];
     char.gender = FEMALE_ARCHETYPES.has(archIdx) ? 'she' : 'he'; // for the announcer's he/she calls
     char.hasBall = false;
-    char.archKey = clips ? archKeyOf(archIdx) : null; // which extras pack (mocap-x-*) fits this rig
+    char.archKey = clips ? archKeyOf(archIdx) : null; // which extras packs (mocap-<pack>-*) fit this rig
     out.push(char);
   }
   return out;
