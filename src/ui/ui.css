@@ -881,18 +881,13 @@ body { display: flex; align-items: center; justify-content: center; }
 .tape-row.dim span { color: var(--muted); font-weight: 600; }
 
 /* base diamond indicator in the score bug */
-.score-bug .diamond { position: relative; width: 30px; height: 18px; margin-top: 5px; display: block; }
-.score-bug .diamond b {
-  position: absolute;
-  width: 9px; height: 9px;
-  background: #323848;
-  transform: rotate(45deg);
-  border-radius: 2px;
-}
-.score-bug .diamond b[data-b="1"] { right: 0; bottom: 0; }
-.score-bug .diamond b[data-b="2"] { left: 50%; top: 0; margin-left: -4.5px; }
-.score-bug .diamond b[data-b="3"] { left: 0; bottom: 0; }
-.score-bug .diamond b.on { background: var(--teal); box-shadow: 0 0 7px var(--teal); }
+.score-bug .diamond { width: 44px; height: 30px; margin-top: 4px; display: block; overflow: visible; }
+.score-bug .dm-path { fill: none; stroke: #323848; stroke-width: 1.5; }
+.score-bug .dm-b { fill: #323848; transform-box: fill-box; transform-origin: center; transform: rotate(45deg); rx: 1.5; }
+.score-bug .dm-b.on { fill: var(--teal); filter: drop-shadow(0 0 3px var(--teal)); }
+.score-bug .dm-dot { r: 3.2px; stroke: #000; stroke-width: 1; }
+.score-bug .dm-dot.scored { animation: dotScore .8s ease-out forwards; }
+@keyframes dotScore { 0% { r: 3.2px; opacity: 1; } 100% { r: 7px; opacity: 0; } }
 
 /* ---------- pause button + pause/sound overlay + menu settings ---------- */
 .pause-btn {

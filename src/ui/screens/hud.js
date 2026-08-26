@@ -21,7 +21,13 @@ export class Hud {
           <span class="inning" data-inning>▲ 1</span>
           <span class="outs"><i></i><i></i><i></i></span>
           <span class="ballct" data-ballct><em>B</em><i></i><i></i><i></i></span>
-          <span class="diamond"><b data-b="1"></b><b data-b="2"></b><b data-b="3"></b></span>
+          <svg class="diamond" viewBox="0 0 44 30" aria-hidden="true">
+            <path class="dm-path" d="M22 3 L41 15 L22 27 L3 15 Z"/>
+            <rect class="dm-b" data-b="1" x="37" y="11" width="8" height="8"/>
+            <rect class="dm-b" data-b="2" x="18" y="-1" width="8" height="8"/>
+            <rect class="dm-b" data-b="3" x="-1" y="11" width="8" height="8"/>
+            <g class="dm-dots"></g>
+          </svg>
         </div>
         <div class="team"><span class="abbr" data-abbr-home></span><span class="runs" data-home>0</span><div class="heat-bar"><div class="heat-fill" data-heat-home></div></div></div>
       </div>
@@ -195,10 +201,28 @@ export class Hud {
 
   /** bases: [first, second, third] — truthy = runner standing on it */
   setBases(bases) {
-    for (const b of this.el.querySelectorAll('.diamond b')) {
+    for (const b of this.el.querySelectorAll('.diamond .dm-b')) {
       const i = Number(b.dataset.b) - 1;
       b.classList.toggle('on', bases[i] !== null && bases[i] !== undefined && bases[i] !== false);
     }
+  }
+
+  /** dots: [{ id, from, to, t, color, scored }] — from/to are -1|0|1|2|3 (-1/3 = home). */
+  setRunnerDots(dots) {
+    const XY = { [-1]: [22, 27], 0: [41, 15], 1: [22, 3], 2: [3, 15], 3: [22, 27] };
+    const g = this.el.querySelector('.dm-dots'); if (!g) return;
+    this._dotEls ??= new Map();
+    const keep = new Set();
+    for (const d of dots) {
+      keep.add(d.id);
+      let c = this._dotEls.get(d.id);
+      if (!c) { c = document.createElementNS('http://www.w3.org/2000/svg', 'circle'); c.classList.add('dm-dot'); g.appendChild(c); this._dotEls.set(d.id, c); }
+      const [ax, ay] = XY[d.from] ?? XY[-1], [bx, by] = XY[d.to] ?? XY[3];
+      const t = Math.max(0, Math.min(1, d.t));
+      c.setAttribute('cx', (ax + (bx - ax) * t).toFixed(1)); c.setAttribute('cy', (ay + (by - ay) * t).toFixed(1));
+      c.setAttribute('fill', d.color); c.classList.toggle('scored', !!d.scored);
+    }
+    for (const [id, c] of this._dotEls) if (!keep.has(id)) { c.remove(); this._dotEls.delete(id); }
   }
 
   showPitch(pitch) {

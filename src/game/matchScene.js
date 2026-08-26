@@ -3414,6 +3414,21 @@ export class MatchScene {
     this.hud.setRunnerArrows(out);
   }
 
+  updateRunnerDots() {
+    const color = this.teams[this.match.kickingSide()].colors?.primary ?? '#3ec6b5';
+    const dots = [];
+    for (const r of this.runners) {
+      if (r.state === 'running') dots.push({ id: r.idx, from: r.fromBase, to: r.targetBase, t: r.sim.progressM / this.tuning.running.basePathM, color });
+      else if (r.state === 'held') dots.push({ id: r.idx, from: r.heldAt ?? r.fromBase, to: r.heldAt ?? r.fromBase, t: 0, color });
+      else if (r.state === 'scored' && r.scoredAt != null && this.elapsed - r.scoredAt < 0.8) dots.push({ id: r.idx, from: 3, to: 3, t: 1, color, scored: true });
+    }
+    if (this.stealing?.state === 'running' && !this.runners.includes(this.stealing)) {
+      const s = this.stealing;
+      dots.push({ id: s.idx, from: s.fromBase, to: s.targetBase, t: s.sim.progressM / this.tuning.running.basePathM, color });
+    }
+    this.hud.setRunnerDots(dots);
+  }
+
   /** The non-active fielder nearest the tap, if the tap actually lands on one. */
   pickFielderAt(x, y) {
     let best = null;
@@ -4238,6 +4253,7 @@ export class MatchScene {
     }
 
     this.updateRunnerArrows();
+    this.updateRunnerDots();
   }
 
   destroy() {
