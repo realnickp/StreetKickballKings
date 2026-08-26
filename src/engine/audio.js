@@ -18,6 +18,16 @@ const FILES = {
     peg: 'assets/audio/sfx/peg.mp3',           // ball smacks a runner
     fireball: 'assets/audio/sfx/fireball.mp3', // prominent perfect-kick whoosh+boom
     catch: 'assets/audio/sfx/catch.mp3',       // glove catch pop
+    // SFX expansion (dev, 2026-08-05: "way more sound effects")
+    bounce: 'assets/audio/sfx/bounce.mp3',     // rubber ball off asphalt
+    fence: 'assets/audio/sfx/fence.mp3',       // chain-link rattle
+    slide: 'assets/audio/sfx/slide.mp3',       // pavement scrape
+    homer: 'assets/audio/sfx/homer.mp3',       // air horn + fireworks
+    'crowd-ooh': 'assets/audio/sfx/crowd-ooh.mp3', // collective disappointment
+    whoosh: 'assets/audio/sfx/whoosh.mp3',     // hard throw air whip
+    swish: 'assets/audio/sfx/swish.mp3',       // leg swinging through air
+    squeak: 'assets/audio/sfx/squeak.mp3',     // sneaker cut on pavement
+    roll: 'assets/audio/sfx/roll.mp3',         // kickball rolling in on the pitch
   },
 };
 
@@ -25,21 +35,36 @@ const pick = (v) => (Array.isArray(v) ? v[Math.floor(Math.random() * v.length)] 
 
 // gameplay sfx → file or synth recipe
 const SFX_ALIAS = {
-  crush: { file: 'kick', gain: 1.1 },
-  kick: { file: 'kick', gain: 1.0 },          // real ball-off-the-foot thump
+  crush: { file: 'kick', gain: 1.35 },
+  kick: { file: 'kick', gain: 1.25 },         // real ball-off-the-foot thump (kicks must be HEARD)
+  swing: { file: 'swish', gain: 0.85 },       // the leg cutting air as the kick clip starts
   peg: { file: 'peg', gain: 1.1 },            // real body impact
   fireball: { file: 'fireball', gain: 1.2 },  // PROMINENT perfect-kick whoosh+boom
   bassdrop: { file: 'bassdrop', gain: 1 },
   'crowd-cheer': { file: 'crowd-cheer', gain: 0.9 },
+  'crowd-ooh': { file: 'crowd-ooh', gain: 0.9 }, // the block feels YOUR outs
   dodge: { file: 'scratch', gain: 0.7 },
   scratch: { file: 'scratch', gain: 0.9 },
   catchpop: { file: 'catch', gain: 1.0 },     // real glove pop
-  pitch: { synth: { type: 'sine', from: 220, to: 160, dur: 0.12, gain: 0.25 } },
-  whiff: { synth: { type: 'sawtooth', from: 200, to: 60, dur: 0.25, gain: 0.3 } },
-  throw: { synth: { type: 'sine', from: 500, to: 700, dur: 0.1, gain: 0.2 } },
-  juke: { synth: { type: 'square', from: 700, to: 900, dur: 0.07, gain: 0.15 } },
+  catch: { file: 'catch', gain: 1.0 },        // bag-man pop (emitted as 'catch' — was silently unmapped)
+  bounce: { file: 'bounce', gain: 0.75 },     // rubber hop off the blacktop
+  fence: { file: 'fence', gain: 0.95 },       // ball into the chain-link
+  slide: { file: 'slide', gain: 0.9 },        // pavement scrape on slides/tumbles
+  homer: { file: 'homer', gain: 1.15 },       // air horn + fireworks on the crown
+  pitch: { file: 'roll', gain: 0.85 },        // the rock rolling in (was a synth blip)
+  whiff: { file: 'swish', gain: 1.0 },        // real air-cut (was a synth blip)
+  throw: { file: 'whoosh', gain: 0.9 },       // real throw whip (was a synth blip)
+  juke: { file: 'squeak', gain: 0.8 },        // real sneaker squeak (was a synth blip)
   'cointoss-flick': { synth: { type: 'triangle', from: 900, to: 1400, dur: 0.18, gain: 0.3 } },
 };
+
+// Booth discipline: play CALLS may hold the mic for one beat; flavor lines are
+// dropped while a line is live (the announcers must never talk over each other).
+const VO_CALLS = new Set([
+  'playball', 'crowned', 'robbed', 'pegged', 'safe', 'forced', 'strike',
+  'doubleplay', 'tripleplay', 'pickle', 'walk', 'gameover', 'gametime',
+]);
+const VO_QUEUE_FRESH_MS = 4000; // a held call older than this is stale news
 
 export class AudioBus {
   constructor(bus) {
@@ -51,9 +76,23 @@ export class AudioBus {
     this.announcer = null;   // pre-rendered ElevenLabs pack manifest
     this.annVoice = null;    // the booth voice chosen for the current match
     this._lastVo = {};       // per-pool memory for non-repeating lines
+    this._voLive = false;    // a line is on the mic RIGHT NOW
+    this._voHeld = null;     // the one queued play call: { url, at }
+    this._voToken = 0;       // guards the end/timeout race per line
     bus.on('sfx', (name) => this.sfx(name));
     bus.on('vo', (e) => this.vo(e));
+    // scenes drive the soundtrack through the bus ({ name } to spin, { stop } to kill)
+    bus.on('music', (m) => { if (m?.stop) this.stopMusic(); else if (m?.name) this.music(m.name); });
     this._loadAnnouncer();
+  }
+
+  /** Decode the common gameplay SFX up front. The first kick/catch of a match
+   *  was SILENT on-device: lazy fetch+decode loses the moment it belongs to. */
+  warm() {
+    for (const name of ['kick', 'peg', 'fireball', 'catch', 'bounce', 'fence', 'slide',
+      'homer', 'crowd-ooh', 'whoosh', 'swish', 'squeak', 'roll', 'crowd-cheer', 'bassdrop', 'scratch']) {
+      if (FILES.sfx[name]) this.buffer(FILES.sfx[name]);
+    }
   }
 
   async _loadAnnouncer() {
@@ -77,14 +116,41 @@ export class AudioBus {
     return file;
   }
 
+  /** ONE line on the mic at a time. A play CALL arriving mid-line waits in the
+   *  single held slot (newest wins); flavor arriving mid-line is dropped. The
+   *  held call plays only while it's still fresh — nobody announces a 10-second-
+   *  old strikeout. (dev, 2026-08-05: "the announcers must never talk over each
+   *  other") */
+  _voEnqueue(url, isCall) {
+    if (!this._voLive) return this._playAnnouncer(url);
+    if (isCall) this._voHeld = { url, at: performance.now() };
+  }
+
+  _voEnded() {
+    this._voLive = false;
+    const held = this._voHeld;
+    this._voHeld = null;
+    if (held && performance.now() - held.at <= VO_QUEUE_FRESH_MS) this._playAnnouncer(held.url);
+  }
+
   async _playAnnouncer(url) {
     const ctx = this.ensureCtx();
     if (!ctx) return;
+    this._voLive = true; // claim the mic BEFORE the async decode — racers must queue
+    const token = ++this._voToken;
     this.gains.music.gain.cancelScheduledValues(ctx.currentTime);
     this.gains.music.gain.linearRampToValueAtTime(0.16, ctx.currentTime + 0.12);
     const played = await this.playBuffer(url, 'vo');
-    const restore = () => { if (this.ctx) this.gains.music.gain.linearRampToValueAtTime(0.62, this.ctx.currentTime + 0.4); };
-    if (played) played.src.onended = restore; else restore();
+    const finish = () => {
+      if (token !== this._voToken) return; // a later line owns the mic now
+      if (this.ctx) this.gains.music.gain.linearRampToValueAtTime(0.62, this.ctx.currentTime + 0.4);
+      this._voEnded();
+    };
+    if (played) {
+      played.src.onended = finish;
+      // iOS belt-and-braces: a swallowed onended must never wedge the booth shut
+      setTimeout(finish, (played.src.buffer?.duration ?? 4) * 1000 + 500);
+    } else finish();
   }
 
   ensureCtx() {
@@ -208,19 +274,28 @@ export class AudioBus {
 
   /**
    * Play an announcer line. @param e a string event name ('playball','robbed',
-   * 'pegged','forced','safe','strike','foul','pickle','gameover') OR an object
-   * { event:'crowned', gender:'he'|'she' } / { event:'nowkicking', team:'<id>' }.
+   * 'foul','gameover',...) OR an object { event, gender:'he'|'she' } for any
+   * gendered event (crowned/pegged/safe/strike/forced/pickle/walk — the booth
+   * uses the SUBJECT'S pronouns) / { event:'nowkicking', team:'<id>' }.
    */
   vo(e) {
     const a = this.announcer;
     if (!a || !this.annVoice) return;
-    if (e === 'playball') this.pickAnnouncerVoice(); // new booth voice each match
-    let pool = null, key = '';
-    if (typeof e === 'string') { pool = a.events[e]; key = e; }
-    else if (e?.event === 'crowned') { pool = a.crowned[e.gender === 'she' ? 'she' : 'he']; key = 'crowned'; }
-    else if (e?.event === 'nowkicking') { pool = a.teams[e.team]; key = 'team_' + e.team; }
-    else if (e?.event) { pool = a.events[e.event]; key = e.event; }
+    const ev = typeof e === 'string' ? e : e?.event;
+    if (!ev) return;
+    if (ev === 'playball') this.pickAnnouncerVoice(); // new booth voice each match
+    let pool = null, key = ev;
+    if (ev === 'nowkicking') { pool = a.teams[e.team]; key = 'team_' + e.team; }
+    else {
+      const g = a.gendered?.[ev];
+      const gender = typeof e === 'object' && (e.gender === 'she' || e.gender === 'he') ? e.gender : null;
+      const neutral = a.events?.[ev] ?? [];
+      if (g && gender) { pool = [...g[gender], ...neutral]; key = `${ev}_${gender}`; }
+      // ungendered call on a gendered event: neutral lines only; if none exist,
+      // legacy 'he' keeps the event audible (matches the old default)
+      else pool = neutral.length ? neutral : g?.he;
+    }
     if (!pool?.length) return;
-    this._playAnnouncer(`assets/audio/announcer/${this.annVoice}/${this._pickNonRepeat(key, pool)}`);
+    this._voEnqueue(`assets/audio/announcer/${this.annVoice}/${this._pickNonRepeat(key, pool)}`, VO_CALLS.has(ev));
   }
 }

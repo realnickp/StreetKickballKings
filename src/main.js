@@ -339,8 +339,10 @@ async function bootFlow() {
 
   function beginMatch(firstKick) {
     uiRoot.querySelectorAll('.screen').forEach(s => s.remove());
+    audio.warm(); // decode gameplay SFX NOW — the first kick must be heard
     // the field scores its own city (hip hop dialect per crew town) — starts
-    // AFTER the coin toss so it never clashes with the intro videos' audio
+    // AFTER the coin toss, rides the walkout show, and hands off to the
+    // in-match beat at the GAME TIME break (walkout cleanup owns the switch)
     audio.music(cityTrackId(ctx.opponentTeam?.city));
     ctx.setMatchActive?.(true);
     ctx.scene.startMatch(firstKick);
@@ -401,6 +403,7 @@ async function bootFlow() {
     ctx.director.hud = ctx.scene.hud;
 
     black.remove();
+    audio.warm(); // drills hit the same SFX — decode them up front
     audio.music('beat');
     audio.ambience(true);
     ctx.setMatchActive?.(true);

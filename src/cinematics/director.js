@@ -316,7 +316,8 @@ export class CinematicDirector {
   }
 
   pegged({ runner }) {
-    this.replayMoment({ focusChar: runner, seconds: 2.2, banner: 'PEGGED!', bannerKind: 'pegged', vo: 'pegged', sound: 'peg' });
+    // the booth uses the pegged RUNNER'S pronouns (dev: "they say he made it to a girl")
+    this.replayMoment({ focusChar: runner, seconds: 2.2, banner: 'PEGGED!', bannerKind: 'pegged', vo: { event: 'pegged', gender: runner?.gender }, sound: 'peg' });
   }
 
   special() {

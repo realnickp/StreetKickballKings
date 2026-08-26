@@ -357,10 +357,23 @@ export class MatchScene {
       this.hud.walkoutHide();
       this.hud.teamSplashHide();
       this.hud.hideSkipChip();
-      this.hud.setLetterbox(false);
-      this.cinematicLock = false;
-      this.engine.cameraLock = false;
-      done();
+      // ===== THE BREAK (dev, 2026-08-05: "we need some sort of break between
+      // the opening dance number and the game... the music needs to change").
+      // The dance ends WITH its music — scratch, one breath of crowd, GAME
+      // TIME — then the game starts on its own groove (the in-match beat; the
+      // city track stays the walkout's showcase).
+      this.bus.emit('sfx', 'scratch');
+      this.bus.emit('music', { stop: true });
+      this.bus.emit('sfx', 'crowd-cheer');
+      this.hud.stamp('GAME TIME!', 'crowned');
+      this.bus.emit('vo', 'gametime');
+      this.after(1.6, () => {
+        this.hud.setLetterbox(false);
+        this.cinematicLock = false;
+        this.engine.cameraLock = false;
+        this.bus.emit('music', { name: 'beat' });
+        done();
+      });
     };
     const offSkip = this.bus.on('cine:skip', cleanup);
 
@@ -1102,6 +1115,14 @@ export class MatchScene {
       : null;
 
     if (effErr > this.tuning.kick.okWindowMs * 1.6) {
+      // the miss must READ as a miss: the leg swings through empty air
+      // (a frozen kicker was the worst "kick didn't line up" tell)
+      this.kicker.animator.play('kick', {
+        speed: isPlayerKick ? 1.3 : 1,
+        onDone: () => {
+          if (this.kicker?.animator?.name === 'kick' && this.kicker.group.visible) this.kicker.animator.play('plate');
+        },
+      });
       this.strike('WHIFF!');
       return;
     }
@@ -1212,7 +1233,11 @@ export class MatchScene {
       dur: holdS,
       from: this.ball.pos.clone(),
       to: new THREE.Vector3(this.ball.pos.x, 0.22, this.kicker.group.position.z - 0.5),
+      // capped side-step INTO the ball (visual only — the judge already ran):
+      // the body and the ball close the gap together instead of a magnet ball
+      stepX: Math.max(-0.45, Math.min(0.45, this.ball.pos.x - this.kicker.group.position.x)),
     };
+    this.bus.emit('sfx', 'swing'); // the leg cutting air, before the thump lands
     if (judged.quality === 'PERFECT' || this.kickHrEligible) {
       this.bus.emit('cine:perfect', { kicker: this.kicker, ball: this.ball, holdS });
     } else {
@@ -1268,9 +1293,9 @@ export class MatchScene {
 
   /** Ball four: free pass. The ENGINE already moved everyone (applyWalk). */
   playWalk() {
-    this.hud.call('WALKED HIM!', 'robbed');
+    this.hud.call(this.kicker?.gender === 'she' ? 'WALKED HER!' : 'WALKED HIM!', 'robbed');
     this.hud.setCount(0);
-    this.bus.emit('vo', 'walk');
+    this.bus.emit('vo', { event: 'walk', gender: this.kicker?.gender });
     this.bus.emit('sfx', 'crowd-cheer');
     const k = this.kicker;
     if (k) {
@@ -1308,7 +1333,8 @@ export class MatchScene {
     this.hud.call(this.strikes >= 3 ? 'STRUCK OUT!' : label, 'pegged');
     if (this.strikes >= 3) {
       this.cancelSteal(); // at-bat's over anyway; restoreRunners puts him back
-      this.bus.emit('vo', 'strike');
+      this.bus.emit('vo', { event: 'strike', gender: this.kicker?.gender });
+      if (this.kickingIsPlayer()) this.bus.emit('sfx', 'crowd-ooh'); // struck out — groan
       this.after(0.8, () => this.finalizePlay(1, 'strikeout', { restoreRunners: true }));
     } else {
       const resume = () => {
@@ -1680,7 +1706,7 @@ export class MatchScene {
         this.outStumble(r.char);
         this.hud.call(r.scramble ? 'DEAD BALL — TAGGED OUT!' : 'CAUGHT STEALING!', 'pegged');
         this.bus.emit('sfx', 'catchpop');
-        this.bus.emit('vo', 'forced');
+        this.bus.emit('vo', { event: 'forced', gender: r.char?.gender });
         this.match.applyBaseEvent({ outsAdded: 1, bases });
         this.refreshHud();
         this.after(1.0, () => { r.char.group.visible = false; });
@@ -1720,7 +1746,7 @@ export class MatchScene {
     };
     if (!this.kickingIsPlayer()) {
       // YOU'RE the defense: quick draw — tap the bag on the throw pad
-      this.hud.hint('RUNNER GOING! OUT-DRAW HIM!');
+      this.hud.hint(r.char?.gender === 'she' ? 'RUNNER GOING! OUT-DRAW HER!' : 'RUNNER GOING! OUT-DRAW HIM!');
       this.hud.showThrowPad(true);
       this.hud.highlightBestBase(r.targetBase);
       this.stealDefense = { t0: this.elapsed, throwDown };
@@ -2101,7 +2127,7 @@ export class MatchScene {
 
     this.match.applyOutcome({ outsAdded, runs, finalBases, label });
     if (['single', 'double', 'triple'].includes(label)) {
-      this.bus.emit('vo', 'safe');
+      this.bus.emit('vo', { event: 'safe', gender: this.kicker?.gender });
       if (this.kickingIsPlayer()) this.crownFeed('hit'); // base hits build the crown
     }
     this.pendingRuns = 0;
@@ -2520,7 +2546,7 @@ export class MatchScene {
     }
     this.defenseHasBall = true;
     this.hud.stamp('PICKLE!', 'robbed');
-    this.bus.emit('vo', 'pickle');
+    this.bus.emit('vo', { event: 'pickle', gender: runner.char?.gender });
     if (this.playerControlled) {
       // PLAYER DEFENSE: same duel — your verbs are THROW (button) and PEG (swipe)
       this.duel = {
@@ -2633,6 +2659,7 @@ export class MatchScene {
     const remaining = this.tuning.running.basePathM - r.sim.progressM;
     if (brain.committed && remaining < 5.2 && !duel.spinAnim && r.char.animator.name !== 'slide') {
       r.char.animator.play('slide');
+      this.bus.emit('sfx', 'slide'); // pavement scrape under the slide
     }
 
     const holder = this.fieldingChars().find((c) => c.hasBall);
@@ -2837,7 +2864,7 @@ export class MatchScene {
         this.refreshHud();
         this.field.crowdEnergy = 1;
         this.bus.emit('sfx', 'crowd-cheer');
-        this.bus.emit('vo', 'safe');
+        this.bus.emit('vo', { event: 'safe', gender: r.char?.gender });
         this.hud.call('STOLE THE BAG!', 'crowned');
       } else if (r.state === 'held') {
         // the small win: worked his way back to safety — no out, he lives
@@ -2848,7 +2875,7 @@ export class MatchScene {
     } else if (r.state !== 'running' && r.state !== 'held' && r.state !== 'scored') {
       // defense converted the rundown — double-play-energy celebration
       this.bus.emit('sfx', 'crowd-cheer');
-      this.hud.call('GOT HIM!', 'pegged');
+      this.hud.call(r.char?.gender === 'she' ? 'GOT HER!' : 'GOT HIM!', 'pegged');
     }
   }
 
@@ -2872,7 +2899,11 @@ export class MatchScene {
     const lead = this.leadRunner();
     if (lead) {
       const toRunner = fielder.group.position.distanceTo(this.runnerWorldPos(lead).p);
-      if (toRunner < 5.5) return this.throwBall(fielder, { peg: true });
+      // pegging is a SEEN part of this game (dev, 2026-08-05: "more of an
+      // option"): point-blank is automatic; mid-range is a difficulty-scaled
+      // taste for the highlight throw (the lead-the-runner aim handles range)
+      const pegReach = { Rookie: 6.5, Street: 8.5, King: 10 }[this.difficulty] ?? 8;
+      if (toRunner < 5.5 || (toRunner < pegReach && aiWantsPeg(this.difficulty))) return this.throwBall(fielder, { peg: true });
       return this.throwBall(fielder, { base: lead.targetBase });
     }
     return this.throwBall(fielder, { base: 0 }); // nobody live — flip to first to end it
@@ -2963,7 +2994,8 @@ export class MatchScene {
       const sd = this.stealDefense;
       this.stealDefense = null;
       this.hud.showThrowPad(false);
-      const wrongBag = base !== undefined && base !== this.stealing?.targetBase;
+      // the quick-draw is a BAG throw — mashing PEG costs the same as the wrong bag
+      const wrongBag = peg === true || (base !== undefined && base !== this.stealing?.targetBase);
       sd.throwDown((this.elapsed - sd.t0) + (wrongBag ? 0.6 : 0)); // wrong bag costs you
       return;
     }
@@ -3151,7 +3183,7 @@ export class MatchScene {
         this.ball.place(basePt.clone().setY(0.3));
         this.ball.mode = 'idle';
         this.hud.call('NOBODY COVERING!', 'robbed');
-        this.bus.emit('vo', 'safe');
+        this.bus.emit('vo', { event: 'safe', gender: victim?.char?.gender });
         this.afterThrow();
       } else {
         this.afterThrow(); // caught but safe — still go after any OTHER advancing runner
@@ -3437,6 +3469,7 @@ export class MatchScene {
    *  "buried in the floor" when its legs clip the pavement (dev, twice). */
   outStumble(char) {
     char.recovering = true;
+    this.bus.emit('sfx', 'slide'); // hitting the deck scrapes too
     char.animator.play('stumble', {
       onDone: () => this.after(0.6, () => {
         char.recovering = false;
@@ -3454,6 +3487,7 @@ export class MatchScene {
     this.field.crowdEnergy = 1;
     this.playOuts = (this.playOuts ?? 0) + 1;
     if (!this.kickingIsPlayer()) this.matchStats.defOuts += 1; // your glove, your credit
+    else this.bus.emit('sfx', 'crowd-ooh'); // YOUR runner went down — the block groans
     this.lastOutReason = reason;
     if (reason === 'pegged') {
       this.bus.emit('cine:pegged', { runner: runner.char }); // director fires the 'pegged' call
@@ -3461,7 +3495,7 @@ export class MatchScene {
       this.noteHeat(this.match.fieldingSide(), 'peg');
     } else {
       this.bus.emit('sfx', 'catchpop');
-      this.bus.emit('vo', 'forced'); // out call
+      this.bus.emit('vo', { event: 'forced', gender: runner.char?.gender }); // out call
       this.hud.call(reason === 'tag' ? 'TAGGED OUT!' : 'OUT!', 'pegged');
     }
     // Do NOT finalize here — the kicker/other runners may still be live. The
@@ -3487,6 +3521,7 @@ export class MatchScene {
     fielder.animator.play('catch');
     fielder.hasBall = true;
     if (!this.kickingIsPlayer()) this.matchStats.defOuts += 1;
+    else this.bus.emit('sfx', 'crowd-ooh'); // YOUR ball died in a glove — the block groans
     this.field.crowdEnergy = 1;
 
     // the kicker is OUT on the catch — settle his clip too, or he keeps
@@ -3593,6 +3628,8 @@ export class MatchScene {
     this.chipSkip = true; // the crowned dance skips via the CHIP, not any stray tap
     if (this.kickingIsPlayer()) this.matchStats.hr += 1;
     this.field.crowdEnergy = 1;
+    this.bus.emit('sfx', 'homer');       // air horn + fireworks — the crown is HEARD
+    this.bus.emit('sfx', 'crowd-cheer');
     // everyone on the basepaths trots home and scores
     let runs = 0;
     for (const r of this.runners) {
@@ -3720,7 +3757,7 @@ export class MatchScene {
     f.group.position.z += nz * lunge;
     f.faceYaw = Math.atan2(nx, nz);
     f.animator.play('dive');
-    this.bus.emit('sfx', 'juke');
+    this.bus.emit('sfx', 'slide'); // the layout scrapes the blacktop
     const reach = (this.tuning.fielding.scoopRadiusM ?? 2.6) * 1.1;
     const now = Math.hypot(this.ball.pos.x - f.group.position.x, this.ball.pos.z - f.group.position.z);
     if (now <= reach && this.ball.pos.y < 1.7) {
@@ -4047,7 +4084,27 @@ export class MatchScene {
       const foot = this.kickFootPos();
       if (foot) a.to.set(foot.x, Math.max(0.2, foot.y), foot.z);
       this.ball.place(new THREE.Vector3().lerpVectors(a.from, a.to, k));
+      // the KICKER closes the gap too — a capped side-step into the ball so
+      // contact reads true from both bodies (dev: "line up on every kick")
+      if (a.stepX) {
+        this.kicker.group.position.x += a.stepX * Math.min(1, dt / Math.max(a.dur, 0.01));
+      }
     }
+
+    // the blacktop is HEARD (dev: "way more sound effects"): live hops thump,
+    // the chain-link rattles. First hops only — a settling dribble isn't a drum.
+    if ((this.ball.fenceHits ?? 0) > (this._prevFenceHits ?? 0)) {
+      this.bus.emit('sfx', 'fence');
+    }
+    this._prevFenceHits = this.ball.fenceHits ?? 0;
+    if (this.ball.bounces > (this._prevBounces ?? 0)) {
+      if (this.phase === 'LIVE' && this.ball.bounces <= 3
+          && this.elapsed - (this._lastBounceSfx ?? -9) > 0.18) {
+        this.bus.emit('sfx', 'bounce');
+        this._lastBounceSfx = this.elapsed;
+      }
+    }
+    this._prevBounces = this.ball.bounces;
 
     // walk beat: the freshly-walked kicker jogs to 1st (cosmetic — nextAtBat
     // re-places everyone from engine state right after)
@@ -4065,6 +4122,21 @@ export class MatchScene {
     if (this.phase === 'LIVE' || this.phase === 'RESOLVE') {
       this.updateRunners(dt);
       if (this.duel) this.updateDuel(dt);
+      // PEG truth on the pad (dev: "more of an option"): lit while a runner is
+      // actually peggable, GOLD + hint when no force is on — the peg IS the play
+      if (this.playerControlled && this.activeFielder?.hasBall && !this.throwing && !this.duel) {
+        const t = this.pegTarget();
+        const live = !!t && t.state === 'running';
+        const state = live ? (this.recommendedThrowBase() === null ? 'best' : 'ready') : 'off';
+        if (state !== this._pegState) {
+          this._pegState = state;
+          this.hud.setPegState(state);
+          if (state === 'best') this.hud.hint('NO FORCE — PEG THE RUNNER!');
+        }
+      } else if (this._pegState && this._pegState !== 'off') {
+        this._pegState = 'off';
+        this.hud.setPegState('off');
+      }
     } else if (this.stealing) {
       this.updateStealRunner(dt); // pre-kick steal keeps moving during the pitch
     }

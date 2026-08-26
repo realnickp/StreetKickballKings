@@ -13,6 +13,16 @@ const SFX = [
   { file: 'peg.mp3',      text: "A rubber ball smacking hard into a person's body, heavy dull thud impact, one single hit, dry, no music", dur: 0.8, infl: 0.7 },
   { file: 'fireball.mp3', text: 'A massive fiery whoosh igniting into a powerful explosive boom, cinematic fireball launch with deep bass impact, energetic and prominent, no music', dur: 2.5, infl: 0.6 },
   { file: 'catch.mp3',    text: 'A ball smacking firmly into a leather baseball glove, sharp snappy leather catch pop, one single hit, dry, no music', dur: 0.7, infl: 0.7 },
+  // SFX expansion (dev, 2026-08-05: "way more sound effects"):
+  { file: 'bounce.mp3',   text: 'A rubber playground kickball bouncing once on asphalt, hollow rubbery boing impact, one single bounce, dry, close-up, no music', dur: 0.6, infl: 0.7 },
+  { file: 'fence.mp3',    text: 'A ball smacking into a chain-link fence, metallic chain rattle shaking then settling, one single impact, dry, no music', dur: 1.2, infl: 0.7 },
+  { file: 'slide.mp3',    text: 'A ballplayer sliding hard across gritty asphalt, short rough gravelly scrape, one single slide, dry, no music', dur: 0.8, infl: 0.7 },
+  { file: 'homer.mp3',    text: 'A stadium air horn blast with fireworks crackling behind it, triumphant home run celebration, big and loud, no music', dur: 2.5, infl: 0.6 },
+  { file: 'crowd-ooh.mp3', text: 'A street crowd groaning a big disappointed OHHH together, one collective groan falling off, no music', dur: 1.3, infl: 0.7 },
+  { file: 'whoosh.mp3',   text: 'A fast hard baseball throw cutting the air, sharp short air whip whoosh, one single whoosh, dry, no music', dur: 0.5, infl: 0.7 },
+  { file: 'swish.mp3',    text: 'A powerful leg swinging hard through the air, deep whip whoosh, one single swing, dry, no music', dur: 0.5, infl: 0.7 },
+  { file: 'squeak.mp3',   text: 'A basketball sneaker squeaking hard on pavement during a quick cut, one short sharp squeak, dry, no music', dur: 0.5, infl: 0.7 },
+  { file: 'roll.mp3',     text: 'A rubber kickball rolling fast across rough asphalt toward the listener, continuous gritty rolling rumble, no impacts, no music', dur: 1.2, infl: 0.7 },
 ];
 
 async function gen({ file, text, dur, infl }) {

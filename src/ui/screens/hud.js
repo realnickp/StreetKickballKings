@@ -567,7 +567,16 @@ export class Hud {
 
   showThrowPad(show) {
     this.throwPad.classList.toggle('show', show);
-    if (!show) this.highlightBestBase(null);
+    if (!show) { this.highlightBestBase(null); this.setPegState('off'); }
+  }
+
+  /** PEG button truth (dev: "pegging needs to be more of an option"): 'off' =
+   *  no live target (dim, dead), 'ready' = a runner is peggable, 'best' = no
+   *  force is on — the peg IS the play (gold pulse, same language as .best). */
+  setPegState(state) {
+    const b = this.throwPad.querySelector('.t-peg');
+    b.classList.toggle('ready', state === 'ready');
+    b.classList.toggle('best', state === 'best');
   }
 
   /** Gold-highlight the base where a throw gets a force out (null = none). */

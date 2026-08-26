@@ -36,6 +36,7 @@ export class Ball {
     this.wind = { x: 0, z: 0 };      // element wind accel, m/s² (matchScene sets it)
     this.restitutionScale = 1;       // element bounce liveliness (extra-bounce > 1)
     this.exitedOverFence = false;    // set when the ball leaves the park above the wall
+    this.fenceHits = 0;              // wall-bounce counter (scene rattles the chain-link)
   }
 
   /** Define the outfield wall: balls below topY at the radius bounce back in. */
@@ -84,6 +85,7 @@ export class Ball {
     this.bounces = 0;
     this.onGround = false;
     this.exitedOverFence = false;
+    this.fenceHits = 0;
   }
 
   /** Throw the ball along a flat-ish arc toward a target point. */
@@ -142,6 +144,7 @@ export class Ball {
           this.vel.z -= (1 + e) * vr * nz;
         }
         this.bounces += 1;
+        this.fenceHits += 1;
       }
     }
 

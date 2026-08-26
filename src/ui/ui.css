@@ -277,7 +277,16 @@ body { display: flex; align-items: center; justify-content: center; }
   font-family: var(--marker);
   font-size: 14px;
   box-shadow: 0 0 16px rgba(215,38,61,.65);
-  animation: hintPulse 0.7s ease-in-out infinite;
+  /* the button tells the TRUTH: dim/dead until a runner is actually peggable */
+  opacity: .35;
+  filter: saturate(.4);
+}
+.throw-pad .t-peg.ready { opacity: 1; filter: none; }
+.throw-pad .t-peg.best {
+  opacity: 1; filter: none;
+  border-color: var(--gold);
+  box-shadow: 0 0 22px rgba(245,179,18,.95);
+  animation: hintPulse 0.7s ease-in-out infinite; /* no force on — the peg IS the play */
 }
 .throw-pad .t-peg span { transform: none; }
 
