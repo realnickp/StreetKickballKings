@@ -1557,6 +1557,21 @@ export class MatchScene {
     this.runners.push(kr);
   }
 
+  /** Every RunnerSim in the scene goes through here so the LOCKER cleat
+   *  speedMult (player runners only) can never be dropped by a mid-run
+   *  rebuild (tag-up scramble, GO FOR 2, rundown retreat, …). Pass overrides
+   *  to force a specific option (e.g. `{ human: false }` for an auto-scramble)
+   *  — they're spread last, so they win over the defaults but speedMult still
+   *  comes from cleatSpeedMult unless explicitly overridden too. */
+  newRunnerSim(overrides = {}) {
+    return new RunnerSim({
+      tuning: this.tuning,
+      human: this.kickingIsPlayer(),
+      speedMult: this.kickingIsPlayer() ? this.cleatSpeedMult : 1,
+      ...overrides,
+    });
+  }
+
   makeRunner(idx, char, fromBase) {
     // don't stomp a mid-flight crown swing — its onDone starts the run itself
     if (char.animator.name !== this._gearSwing || !this._gearSwing) char.animator.play('run', { speedFactor: 1 });
@@ -1566,7 +1581,7 @@ export class MatchScene {
       fromBase, // -1 = home plate
       originBase: fromBase, // the time-of-pitch bag — where a TAG UP must return
       targetBase: fromBase + 1,
-      sim: new RunnerSim({ tuning: this.tuning, human: this.kickingIsPlayer(), speedMult: this.kickingIsPlayer() ? this.cleatSpeedMult : 1 }),
+      sim: this.newRunnerSim(),
       trail: this.kickingIsPlayer() ? (this.trailPool.find((t) => !t.busy) ?? null) : null,
       state: 'running',
       decideT: 0,
@@ -1903,7 +1918,7 @@ export class MatchScene {
     r.fromBase = r.heldAt;
     r.targetBase = r.heldAt + 1;
     r.forced = false;
-    r.sim = new RunnerSim({ tuning: this.tuning, human: true });
+    r.sim = this.newRunnerSim({ human: true }); // GO button = always a deliberate human send
     r.state = 'running';
     r.char.animator.play('run');
     this.bus.emit('sfx', 'juke');
@@ -2011,7 +2026,7 @@ export class MatchScene {
               // still not back to his time-of-pitch bag — keep scrambling
               r.fromBase = r.heldAt;
               r.targetBase = r.heldAt - 1;
-              r.sim = new RunnerSim({ tuning: this.tuning, human: false });
+              r.sim = this.newRunnerSim({ human: false }); // still scrambling — auto-runs, not tap-driven
               r.state = 'running';
               r.char.animator.play('run');
             } else if (r.tagUp) {
@@ -2044,7 +2059,7 @@ export class MatchScene {
           r.fromBase = r.heldAt;
           r.targetBase = r.heldAt + 1;
           r.forced = mustVacate;
-          r.sim = new RunnerSim({ tuning: this.tuning, human: this.kickingIsPlayer() });
+          r.sim = this.newRunnerSim();
           r.state = 'running';
           r.char.animator.play('run');
         }
@@ -2549,7 +2564,7 @@ export class MatchScene {
     r.targetBase = r.fromBase;
     r.fromBase = newFrom;
     r.forced = false;
-    r.sim = new RunnerSim({ tuning: this.tuning, human: this.kickingIsPlayer() });
+    r.sim = this.newRunnerSim();
     r.sim.progressM = Math.max(0, this.tuning.running.basePathM - oldP);
     r.char.animator.play('run');
   }
@@ -3613,7 +3628,7 @@ export class MatchScene {
         // he completed an advance while the ball hung — send him scrambling back
         r.fromBase = r.heldAt;
         r.targetBase = r.heldAt - 1;
-        r.sim = new RunnerSim({ tuning: this.tuning, human: false }); // auto-scramble
+        r.sim = this.newRunnerSim({ human: false }); // auto-scramble
         r.state = 'running';
         r.forced = false;
         r.tagUp = true;
