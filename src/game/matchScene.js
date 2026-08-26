@@ -23,6 +23,7 @@ import { CrewHeat } from './crewHeat.js';
 import { CameraDirector } from './cameraDirector.js';
 import { buildField, FIELD_LAYOUT } from './field.js';
 import { pickDance, pickDances } from './animExtras.js';
+import { WALKUP, walkS, pickTaunt } from './walkup.js';
 import { revertStealBooks } from './stealBooks.js';
 import { SpeedTrail } from './fx/speedTrail.js';
 import { Hud } from '../ui/screens/hud.js';
@@ -100,6 +101,14 @@ export class MatchScene {
     this.cleatStealMult = gear?.cleats?.stealMult ?? 1;
     this.cleatHex = gear?.cleats?.hex ?? null;
     this.trailPool = this.cleatHex ? Array.from({ length: 4 }, () => new SpeedTrail(engine.scene, this.cleatHex)) : [];
+    // walk-up cleat ring: a flat ring in the cleat colour under the kicker's feet
+    this.cleatRing = null;
+    if (this.cleatHex) {
+      this.cleatRing = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.6, 40), new THREE.MeshBasicMaterial({ color: this.cleatHex, transparent: true, opacity: 0.85, depthWrite: false }));
+      this.cleatRing.rotation.x = -Math.PI / 2; this.cleatRing.position.y = 0.02; this.cleatRing.visible = false;
+      engine.scene.add(this.cleatRing);
+    }
+    this.walkup = null;
     // walkout gate: resolves when the extras dance pack has settled for this
     // match's squads (null = already loaded, e.g. the dev harness)
     this.extrasReady = extrasReady;
@@ -720,9 +729,7 @@ export class MatchScene {
     const kickerIdx = this.match.currentKickerIdx();
     this.kicker = off[kickerIdx % off.length];
     this.kicker.group.visible = true;
-    this.kicker.group.position.set(-0.9, 0, 0.4);
-    this.faceTo(this.kicker, FIELD_LAYOUT.pitcher, true); // square up to the mound
-    this.kicker.animator.play('plate');
+    this.startWalkup();
     // broadcast lower-third: every new kicker gets the NOW KICKING card
     // (name + best stats, ~2s, non-blocking — the full walkout is match-start only)
     const kp = this.kicker.data;
@@ -733,7 +740,7 @@ export class MatchScene {
         label: 'NOW KICKING', mini: true,
         gear: this.kickingIsPlayer() ? gearLine(this.playerGear) : null,
       });
-      this.after(2.4, () => this.hud.walkoutHide());
+      this.after(walkS() + WALKUP.tauntS + 0.4, () => this.hud.walkoutHide());
     }
 
     this.baseChars = [null, null, null];
@@ -786,12 +793,66 @@ export class MatchScene {
     if (this.kickingIsPlayer()) {
       this.camTarget = CAM.kick;
       this.hud.hint('GET READY…');
-      this.after(1.4, () => this.serve());
     } else {
       this.camTarget = CAM.pitch;
       this.hud.hint('YOUR ARM — PICK A PITCH');
-      this.after(1.2, () => this.serve());
     }
+  }
+
+  /** Every kicker walks up to the plate and hits a taunt before the pitch;
+   *  a tap skips straight to the plate. Drills skip it. */
+  startWalkup() {
+    const k = this.kicker;
+    this.walkup = null; // a new at-bat always supersedes a live walk-up (drills bail below)
+    const drill = new URLSearchParams(location.search).has('drill') || this.tutorialNoHomer;
+    if (drill) { this.placeKickerAtPlate(); this.after(1.2, () => this.serve()); return; }
+    const isPlayer = this.kickingIsPlayer();
+    k.group.position.set(WALKUP.startX, 0, WALKUP.z);
+    this.faceTo(k, new THREE.Vector3(WALKUP.plateX, 0, WALKUP.z), true);
+    k.animator.play('walk', { speedFactor: 1 });
+    const taunt = pickTaunt({ isPlayer, equipped: this.playerGear?.taunt ?? null });
+    this.walkup = { char: k, phase: 'walk', until: this.elapsed + walkS(), taunt: k.animator.hasClip?.(taunt) ? taunt : null, isPlayer };
+    this.bus.emit('sfx', 'stomp');
+    if (this.cleatRing && isPlayer) { this.cleatRing.visible = true; }
+  }
+
+  placeKickerAtPlate() {
+    const k = this.kicker;
+    k.group.position.set(WALKUP.plateX, 0, WALKUP.z);
+    this._kickerPrevX = WALKUP.plateX; // the snap home is not a slide — no phantom strafe
+    this.faceTo(k, FIELD_LAYOUT.pitcher, true);
+    k.animator.play('plate');
+    if (this.cleatRing) this.cleatRing.visible = false;
+  }
+
+  /** Advance the walk-up; called from update(). */
+  updateWalkup(dt) {
+    const w = this.walkup;
+    if (!w) return;
+    const k = w.char;
+    if (w.phase === 'walk') {
+      k.group.position.x = Math.min(WALKUP.plateX, k.group.position.x + WALKUP.mps * dt);
+      if (this.cleatRing?.visible) this.cleatRing.position.set(k.group.position.x, 0.02, k.group.position.z);
+      if (this.elapsed >= w.until || k.group.position.x >= WALKUP.plateX) {
+        k.group.position.x = WALKUP.plateX;
+        if (!w.taunt) return this.endWalkup(false);
+        w.phase = 'taunt';
+        w.until = this.elapsed + WALKUP.tauntS;
+        this.faceCam(k);
+        k.animator.play(w.taunt, { onDone: () => { if (this.walkup === w) this.endWalkup(false); } });
+        this.bus.emit('sfx', w.isPlayer ? 'crowd-cheer' : 'boo');
+        this.field.crowdEnergy = Math.max(this.field.crowdEnergy ?? 0, 0.7);
+      }
+    } else if (this.elapsed >= w.until) {
+      this.endWalkup(false);
+    }
+  }
+
+  endWalkup(skipped) {
+    if (!this.walkup) return;
+    this.walkup = null;
+    this.placeKickerAtPlate();
+    this.after(skipped ? WALKUP.serveDelayS : 0.2, () => this.serve());
   }
 
   /** Serve the next pitch, branching on role. */
@@ -800,6 +861,7 @@ export class MatchScene {
     // stale-timer guard: never re-serve over a live pitch/trace/kick — a
     // double serve kills the ball mid-flight and eats the play silently
     if (this.phase !== 'SETUP' && this.phase !== 'PITCH_SELECT') return;
+    if (this.walkup) return; // a stale timer must never serve mid-walk-up
     this.lastStealCommit = null; // a fresh pitch — the previous steal is settled
     this._gearSwing = null; // any unfinished crown swing is history now
     if (this.kickingIsPlayer()) this.startAutoPitch();
@@ -3263,6 +3325,8 @@ export class MatchScene {
       if (!this.walkoutActive && !this.chipSkip) this.bus.emit('cine:skip');
       return;
     }
+    // walk-up: a tap skips the show and puts the kicker on the plate
+    if (this.walkup) { this.endWalkup(true); return; }
     // DUEL: taps are inert — mash instinct must never fire GO by accident
     if (this.duel && this.kickingIsPlayer()) return;
     // OFFENSE, pre-kick: tap one of YOUR base runners to send him stealing
@@ -3812,6 +3876,7 @@ export class MatchScene {
       this.hud.goalPop('GO!');
       this.bus.emit('sfx', 'juke');
     }
+    this.updateWalkup(dt);
     // a flick the player never released still fires (finger held after the snap)
     if (this.pendingFlick && this.elapsed > this.pendingFlick.tCross + 0.22) this.fireFlick();
     // city element procs (el-train pass / motorcade sweep): flash the HUD, rattle the camera
@@ -3951,7 +4016,7 @@ export class MatchScene {
     // auto-slide — during PITCH/SETUP, drive a real stride (run clip, speed-scaled)
     // so the feet move instead of gliding on the static plate clip. Never during
     // KICK_ANIM (the kick clip is playing).
-    if (this.kicker && (this.phase === 'PITCH' || this.phase === 'SETUP')) {
+    if (this.kicker && !this.walkup && (this.phase === 'PITCH' || this.phase === 'SETUP')) {
       const kx = this.kicker.group.position.x;
       const prevX = this._kickerPrevX ?? kx;
       const vx = rawDt > 0 ? (kx - prevX) / rawDt : 0; // SIGNED — picks the strafe direction
@@ -4155,5 +4220,6 @@ export class MatchScene {
     this.engine.scene.remove(this.field.root, this.ball.mesh, this.marker, this.fielderRing);
     for (const c of [...this.chars.home, ...this.chars.away]) this.engine.scene.remove(c.group);
     for (const t of this.trailPool) this.engine.scene.remove(t.mesh);
+    if (this.cleatRing) this.engine.scene.remove(this.cleatRing);
   }
 }
