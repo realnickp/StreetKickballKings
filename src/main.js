@@ -131,9 +131,9 @@ if (params.has('match')) {
       away: await buildTeamCharsGlb(monarchs, undefined,
         params.has('cleats') ? { cleats: { hex: '#' + params.get('cleats') } } : null),
     };
-    // harness: AWAIT the extras pack (local dev = instant) so the Thriller
-    // walkout / special kicks are testable immediately; the real flow loads
-    // them in the background behind the intro videos
+    // harness: AWAIT the extras pack (local dev = instant) so special kicks
+    // are testable immediately; the real flow loads them in the background
+    // behind the intro videos
     await loadExtrasFor([...chars.home, ...chars.away]);
     // ?field=<id> previews any city field in the harness (defaults to blacktop)
     const harnessField = fieldsData.fields.find(f => f.id === params.get('field')) ?? blacktop;
@@ -285,9 +285,9 @@ async function bootFlow() {
         home: await buildTeamCharsGlb(opponentTeam, homeColor),
         away: await buildTeamCharsGlb(playerTeam, awayColor, gear),
       };
-      // dances/special-kicks extras pack rides the intro-video dead time; the
-      // walkout GATES on this promise (capped) so the lineup always shows —
-      // every other consumer still has its base-pack fallback
+      // dances/special-kicks extras pack rides the intro-video dead time;
+      // nothing gates on it — the HR dance bag and the walk-up taunts use
+      // clips as they land, and every other consumer has its base-pack fallback
       extrasReady = loadExtrasFor([...c.home, ...c.away]);
       return c;
     })();
