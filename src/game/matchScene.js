@@ -83,7 +83,7 @@ export function chooseLiveShot({ phase, kickingIsPlayer, trailBall, deepBall, ru
 }
 
 export class MatchScene {
-  constructor({ engine, input, bus, teams, chars, fieldData, tuning, difficulty = 'Street', playerSide = 'away', firstKick = 'away', hudRoot, autoStart = true, gear = null, extrasReady = null }) {
+  constructor({ engine, input, bus, teams, chars, fieldData, tuning, difficulty = 'Street', playerSide = 'away', firstKick = 'away', hudRoot, autoStart = true, gear = null, extrasReady = null, danceBag = null }) {
     this.engine = engine;
     this.input = input;
     this.bus = bus;
@@ -103,6 +103,7 @@ export class MatchScene {
     // walkout gate: resolves when the extras dance pack has settled for this
     // match's squads (null = already loaded, e.g. the dev harness)
     this.extrasReady = extrasReady;
+    this.danceBag = danceBag;
     // lifetime-career feed: per-match counters, shipped out on matchOver
     this.matchStats = { hr: 0, defOuts: 0, steals: 0, pickleEscapes: 0, perfects: 0 };
 
@@ -3721,7 +3722,7 @@ export class MatchScene {
     for (const c of this.fieldingChars?.() ?? []) {
       if (c !== this.kicker && c.group.position.distanceTo(FIELD_LAYOUT.home) < 3.2) c.group.visible = false;
     }
-    this.bus.emit('cine:crowned', { kicker: this.kicker, team: this.teams[this.match.kickingSide()].id });
+    this.bus.emit('cine:crowned', { kicker: this.kicker, team: this.teams[this.match.kickingSide()].id, dance: this.danceBag?.draw(this.kicker) ?? null });
     if (this.kickingIsPlayer()) this.crownFeed('homerun');
     // payoff readout: the element carried it out (heat carry OR an outward wind)
     const hrWind = this.elements.windAccel();

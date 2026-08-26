@@ -56,3 +56,42 @@ export function pickDances(chars) {
     return pick;
   });
 }
+
+/** No-repeat dance draws for the HR show (dev, 2026-08-25: "different dance
+ *  every time"). A shuffled bag of every playable dance, drawn without
+ *  replacement; a refill never leads with the last dance played. `recent`
+ *  (saved between matches) is pushed to the back so game one isn't a rerun. */
+export class DanceBag {
+  constructor({ recent = [], random = Math.random, onDraw = null } = {}) {
+    this.recent = [...recent].slice(-4); this.random = random; this.onDraw = onDraw;
+    this.known = new Set(); this.bag = [];
+  }
+  _shuffle(list) {
+    for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(this.random() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; }
+    return list;
+  }
+  _learn(char) {
+    const fresh = [...X_DANCES.filter((n) => hasClip(char, n)), ...BASE_DANCES].filter((n) => !this.known.has(n));
+    if (!fresh.length) return;
+    for (const n of fresh) this.known.add(n);
+    this.bag = this._shuffle([...this.bag, ...fresh]);
+    this.bag = [...this.bag.filter((n) => !this.recent.includes(n)), ...this.bag.filter((n) => this.recent.includes(n))];
+  }
+  _refill() {
+    this.bag = this._shuffle([...this.known]);
+    const last = this.recent[this.recent.length - 1];
+    if (this.bag.length > 1 && this.bag[0] === last) [this.bag[0], this.bag[1]] = [this.bag[1], this.bag[0]];
+  }
+  draw(char) {
+    this._learn(char);
+    if (!this.bag.length) this._refill();
+    const playable = (n) => hasClip(char, n) || BASE_DANCES.includes(n);
+    let i = this.bag.findIndex(playable);
+    if (i < 0) { this._refill(); i = this.bag.findIndex(playable); }
+    if (i < 0) return BASE_DANCES[0];
+    const [pick] = this.bag.splice(i, 1);
+    this.recent = [...this.recent, pick].slice(-4);
+    this.onDraw?.(this.recent);
+    return pick;
+  }
+}

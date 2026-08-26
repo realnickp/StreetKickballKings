@@ -9,7 +9,7 @@ import { SaveManager } from './meta/save.js';
 import { buildField } from './game/field.js';
 import { buildPlayer, CLIP_NAMES } from './game/characters.js';
 import { buildTeamCharsGlb } from './game/glbCharacters.js';
-import { loadExtrasFor } from './game/animExtras.js';
+import { loadExtrasFor, DanceBag } from './game/animExtras.js';
 import { MatchScene } from './game/matchScene.js';
 import { CinematicDirector } from './cinematics/director.js';
 import { ReplayPlayer } from './cinematics/replay.js';
@@ -143,6 +143,7 @@ if (params.has('match')) {
       fieldData: harnessField, tuning,
       difficulty: params.get('diff') ?? 'Street',
       playerSide: 'away', hudRoot, autoStart: false,
+      danceBag: new DanceBag({ recent: save.get('dance.recent', []), onDraw: (r) => save.set('dance.recent', r) }),
     });
     window.__skk = scene;
     const replayPlayer = new ReplayPlayer({ engine, hud: scene.hud, bus });
@@ -316,6 +317,7 @@ async function bootFlow() {
       autoStart: false,
       gear,
       extrasReady,
+      danceBag: new DanceBag({ recent: save.get('dance.recent', []), onDraw: (r) => save.set('dance.recent', r) }),
     });
     window.__skk = ctx.scene; // dev/debug handle
     ctx.mapTarget = null; // challenge consumed — future selects cycle freely
@@ -392,6 +394,7 @@ async function bootFlow() {
       playerSide: 'away',
       hudRoot,
       autoStart: false,
+      danceBag: new DanceBag({ recent: save.get('dance.recent', []), onDraw: (r) => save.set('dance.recent', r) }),
     });
     window.__skk = ctx.scene;
     ctx.replayPlayer = ctx.replayPlayer ?? new ReplayPlayer({ engine, hud: ctx.scene.hud, bus });

@@ -1,5 +1,5 @@
 import { it, expect } from 'vitest';
-import { pickDance, pickDances } from '../src/game/animExtras.js';
+import { pickDance, pickDances, DanceBag } from '../src/game/animExtras.js';
 
 const X = ['thriller1', 'thriller2', 'thriller3', 'thriller4', 'danceLock',
   'danceTut', 'danceWave', 'danceChicken', 'danceStep', 'danceSilly'];
@@ -30,4 +30,32 @@ it('pickDances respects per-character clip availability', () => {
   const picks = pickDances([char(X), char()]);
   expect([...X, ...BASE]).toContain(picks[0]);
   expect(BASE).toContain(picks[1]);
+});
+
+it('DanceBag exhausts every loaded dance before any repeat', () => {
+  const bag = new DanceBag(); const c = char(X);
+  const draws = Array.from({ length: 14 }, () => bag.draw(c));
+  expect(new Set(draws).size).toBe(14);
+  expect(draws.sort()).toEqual([...X, ...BASE].sort());
+});
+
+it('DanceBag never repeats the last dance across a refill', () => {
+  for (let trial = 0; trial < 50; trial++) {
+    const bag = new DanceBag(); const c = char();
+    const draws = Array.from({ length: 12 }, () => bag.draw(c));
+    for (let i = 1; i < draws.length; i++) expect(draws[i]).not.toBe(draws[i - 1]);
+  }
+});
+
+it('DanceBag keeps the saved recent list out of the first draws and reports draws', () => {
+  const seen = [];
+  const bag = new DanceBag({ recent: ['dance1', 'dance2', 'dance3'], onDraw: (r) => seen.push([...r]) });
+  expect(bag.draw(char())).toBe('dance4');
+  expect(seen[0]).toEqual(['dance1', 'dance2', 'dance3', 'dance4']);
+});
+
+it('DanceBag only hands a character clips it can play', () => {
+  const bag = new DanceBag(); const rich = char(X), poor = char();
+  bag.draw(rich);
+  for (let i = 0; i < 10; i++) expect(BASE).toContain(bag.draw(poor));
 });

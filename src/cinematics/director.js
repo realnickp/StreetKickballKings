@@ -238,13 +238,13 @@ export class CinematicDirector {
    *  exceptions. Beat 1 watches the ball sail; beat 2 is the show: camera arcs
    *  around the dance while the crowd loses it. Tap-skippable (the old video
    *  wasn't) — finalizePlayHR's cinematicLock poll advances play either way. */
-  crowned({ kicker }) {
+  crowned({ kicker, dance = null }) {
     // the dance skips via the CHIP only — a stray tap must not eat the payoff
     this.hud.showSkipChip?.(() => this.bus.emit('cine:skip'));
     this.bus.emit('vo', { event: 'crowned', gender: kicker.gender });
     const p = kicker.group.position.clone(); // beat 1: wherever he froze mid-trot
     const plate = FIELD_LAYOUT.home.clone(); // beat 2: the show is AT THE PLATE
-    const dance = pickDance(kicker);
+    const pick = dance ?? pickDance(kicker);
     this.engine.shake(0.5);
     this.run([
       { // the ball sails — low behind the kicker, everything slows to savor it
@@ -266,7 +266,7 @@ export class CinematicDirector {
           this.engine.timeScale = 1;
           kicker.group.position.set(plate.x, 0, plate.z);
           kicker.faceYaw = 0; // square up to the arcing camera side (+z)
-          kicker.animator.play(dance);
+          kicker.animator.play(pick);
           this.bus.emit('sfx', 'bassdrop');
         },
         onUpdate: (k) => {
@@ -279,7 +279,7 @@ export class CinematicDirector {
           );
         },
         onEnd: () => {
-          if (kicker.animator.name === dance) kicker.animator.play('idle');
+          if (kicker.animator.name === pick) kicker.animator.play('idle');
         },
       },
     ], { lockCamera: true, noSkip: false });
