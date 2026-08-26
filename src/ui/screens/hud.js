@@ -111,6 +111,7 @@ export class Hud {
     this.duelBtn = this.el.querySelector('.duel-btn');
     this.onDuel = null;
     this.duelBtn.addEventListener('pointerdown', (e) => {
+      this._tap();
       e.stopPropagation();
       this.onDuel?.();
     });
@@ -118,6 +119,7 @@ export class Hud {
     this.reverseBtn = this.el.querySelector('.reverse-btn');
     this.onReverse = null;
     this.reverseBtn.addEventListener('pointerdown', (e) => {
+      this._tap();
       e.stopPropagation();
       this.onReverse?.();
     });
@@ -125,6 +127,7 @@ export class Hud {
     this.callBtn = this.el.querySelector('.call-btn');
     this.onCall = null;
     this.callBtn.addEventListener('pointerdown', (e) => {
+      this._tap('ui-confirm');
       e.stopPropagation();
       this.onCall?.();
     });
@@ -139,8 +142,12 @@ export class Hud {
     this.onSpecial = null;
     this.onPitchSelect = null;
     this.onGo = null;
+    // every HUD press is HEARD (dev, 2026-08-25): the scene routes these to the bus
+    this.onSfx = null;
+    this._tap = (name = 'ui-tap') => this.onSfx?.(name);
 
     this.goBtn.addEventListener('pointerdown', (e) => {
+      this._tap('ui-confirm');
       e.stopPropagation();
       this.onGo?.();
     });
@@ -148,6 +155,7 @@ export class Hud {
     this.pitchSelect.addEventListener('pointerdown', (e) => {
       const btn = e.target.closest('button');
       if (!btn) return;
+      this._tap();
       e.stopPropagation();
       this.onPitchSelect?.(btn.dataset.family);
     });
@@ -155,6 +163,7 @@ export class Hud {
     this.aimBar.addEventListener('pointerdown', (e) => {
       const btn = e.target.closest('button');
       if (!btn) return;
+      this._tap();
       this.aimBar.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === btn));
       this.onAim?.(btn.dataset.aim);
       e.stopPropagation();
@@ -162,11 +171,13 @@ export class Hud {
     this.throwPad.addEventListener('pointerdown', (e) => {
       const btn = e.target.closest('button');
       if (!btn) return;
+      this._tap('ui-confirm');
       e.stopPropagation();
       if (btn.hasAttribute('data-peg')) this.onThrow?.({ peg: true });
       else this.onThrow?.({ base: Number(btn.dataset.base) });
     });
     this.specialBtn.addEventListener('pointerdown', (e) => {
+      this._tap();
       e.stopPropagation();
       this.onSpecial?.();
     });
@@ -247,7 +258,7 @@ export class Hud {
     const b = document.createElement('button');
     b.className = 'skip-chip';
     b.textContent = 'SKIP ⏭';
-    b.addEventListener('pointerdown', (e) => { e.stopPropagation(); onTap?.(); });
+    b.addEventListener('pointerdown', (e) => { e.stopPropagation(); this._tap(); onTap?.(); });
     this.el.appendChild(b);
     this._skipChip = b;
   }
@@ -300,6 +311,7 @@ export class Hud {
       chip.append(i, s);
       chip.addEventListener('pointerdown', (e) => {
         e.stopPropagation();
+        this._tap('ui-confirm');
         this.onSteal?.(b);
       });
       return chip;
@@ -656,6 +668,9 @@ export class Hud {
     const f = Math.max(0, Math.min(1, frac));
     this.traceTimerFill.style.width = `${f * 100}%`;
     this.traceTimerFill.classList.toggle('low', f <= 0.33);
+    const step = Math.ceil(Math.max(0, Math.min(1, frac)) * 10);
+    if (step <= 3 && step >= 1 && step !== this._ttStep) this._tap('countdown');
+    this._ttStep = step;
   }
   hideTraceTimer() {
     this.traceTimer.classList.remove('show');

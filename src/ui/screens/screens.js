@@ -483,6 +483,7 @@ export function PostGameScreen(ctx) {
           </div>
         </div>`);
       root.appendChild(s);
+      fresh.forEach((_, i) => setTimeout(() => ctx.bus.emit('sfx', 'unlock'), 400 + i * 260));
       s.querySelector('[data-side-a]').textContent = 'SIDE A · ' + teams.away.name.toUpperCase();
       s.querySelector('[data-side-b]').textContent = 'SIDE B · ' + teams.home.name.toUpperCase();
       s.addEventListener('pointerdown', (e) => {

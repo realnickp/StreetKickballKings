@@ -238,6 +238,7 @@ export class MatchScene {
     this.hud.onThrow = (t) => this.onPlayerThrow(t);
     this.hud.onGo = () => this.sendHeldRunner();
     this.hud.onSteal = (b) => this.startSteal(b);
+    this.hud.onSfx = (name) => this.bus.emit('sfx', name);
     this.hud.onDuel = () => this.onDuelButton();
     this.hud.onReverse = () => this.duelReverse();
     this.hud.onCall = () => this.onCallButton();
@@ -287,6 +288,7 @@ export class MatchScene {
       this.refreshHeatHud(true);
     });
     this.match.bus.on('halfEnd', () => {
+      this.bus.emit('sfx', 'inning');
       if (this.match.state.inning !== this.elementInning) {
         this.elementInning = this.match.state.inning;
         this.applyElementRoll();
@@ -558,6 +560,7 @@ export class MatchScene {
     });
     this.hud.stamp(`${(this.teams[winner]?.name ?? 'WINNERS').toUpperCase()} TAKE THE BLOCK!`, 'crowned');
     this.bus.emit('sfx', 'crowd-cheer');
+    this.bus.emit('sfx', 'cheer-big');
     this.bus.emit('sfx', 'bassdrop');
     this.field.crowdEnergy = 1;
     let lapT = 0;
@@ -1333,6 +1336,7 @@ export class MatchScene {
     this.hud.call(this.strikes >= 3 ? 'STRUCK OUT!' : label, 'pegged');
     if (this.strikes >= 3) {
       this.cancelSteal(); // at-bat's over anyway; restoreRunners puts him back
+      this.bus.emit('sfx', 'out');
       this.bus.emit('vo', { event: 'strike', gender: this.kicker?.gender });
       if (this.kickingIsPlayer()) this.bus.emit('sfx', 'crowd-ooh'); // struck out — groan
       this.after(0.8, () => this.finalizePlay(1, 'strikeout', { restoreRunners: true }));
@@ -1425,6 +1429,7 @@ export class MatchScene {
     if (this.playFinalized) return;
     this.fouls = (this.fouls ?? 0) + 1;
     this.bus.emit('sfx', 'whiff');
+    this.bus.emit('sfx', 'foul');
     this.bus.emit('vo', 'foul');
     if (this.fouls >= 4) {
       this.cancelSteal();
@@ -1564,6 +1569,17 @@ export class MatchScene {
       forced: false,
       aiRate: aiMashRate(this.difficulty),
     };
+  }
+
+  /** A runner crosses the plate: state + the score sting (silent = the homer
+   *  already blasted its own horn). Stamps scoredAt for the live diamond. */
+  scoreRun(r, { silent = false } = {}) {
+    if (r.state === 'scored') return;
+    r.state = 'scored';
+    r.scoredAt = this.elapsed;
+    if (silent) return;
+    this.bus.emit('sfx', 'score');
+    if (!this.kickingIsPlayer()) this.bus.emit('sfx', 'boo'); // they scored on YOU
   }
 
   leadRunner() {
@@ -1972,7 +1988,7 @@ export class MatchScene {
         if (r.sim.arrived) {
           if (r.targetBase === 3) {
             // HOME — that's a run
-            r.state = 'scored';
+            this.scoreRun(r);
             this.pendingRuns = (this.pendingRuns ?? 0) + 1;
             this.field.crowdEnergy = 1;
             this.bus.emit('sfx', 'crowd-cheer');
@@ -2127,6 +2143,7 @@ export class MatchScene {
 
     this.match.applyOutcome({ outsAdded, runs, finalBases, label });
     if (['single', 'double', 'triple'].includes(label)) {
+      this.bus.emit('sfx', 'safe');
       this.bus.emit('vo', { event: 'safe', gender: this.kicker?.gender });
       if (this.kickingIsPlayer()) this.crownFeed('hit'); // base hits build the crown
     }
@@ -2505,7 +2522,7 @@ export class MatchScene {
     }
     const past = r.sim.progressM > this.tuning.running.basePathM * 0.5;
     if (past && r.targetBase === 3) {
-      r.state = 'scored';
+      this.scoreRun(r);
       this.pendingRuns = (this.pendingRuns ?? 0) + 1;
       r.char.group.visible = false;
     } else {
@@ -2864,6 +2881,7 @@ export class MatchScene {
         this.refreshHud();
         this.field.crowdEnergy = 1;
         this.bus.emit('sfx', 'crowd-cheer');
+        this.bus.emit('sfx', 'safe');
         this.bus.emit('vo', { event: 'safe', gender: r.char?.gender });
         this.hud.call('STOLE THE BAG!', 'crowned');
       } else if (r.state === 'held') {
@@ -3163,7 +3181,7 @@ export class MatchScene {
             // standing ON HOME is a RUN, not a hold — a heldAt=3 runner poisoned
             // the books AND parked himself in the next kicker's face while the
             // GO-offer gate froze the play (dev freeze screenshot, 2026-08-05)
-            victim.state = 'scored';
+            this.scoreRun(victim);
             this.pendingRuns = (this.pendingRuns ?? 0) + 1;
             victim.char.group.visible = false;
             this.hud.call('SAFE AT HOME!', 'crowned');
@@ -3183,6 +3201,7 @@ export class MatchScene {
         this.ball.place(basePt.clone().setY(0.3));
         this.ball.mode = 'idle';
         this.hud.call('NOBODY COVERING!', 'robbed');
+        this.bus.emit('sfx', 'safe');
         this.bus.emit('vo', { event: 'safe', gender: victim?.char?.gender });
         this.afterThrow();
       } else {
@@ -3487,14 +3506,18 @@ export class MatchScene {
     this.field.crowdEnergy = 1;
     this.playOuts = (this.playOuts ?? 0) + 1;
     if (!this.kickingIsPlayer()) this.matchStats.defOuts += 1; // your glove, your credit
-    else this.bus.emit('sfx', 'crowd-ooh'); // YOUR runner went down — the block groans
+    else {
+      this.bus.emit('sfx', 'crowd-ooh'); // YOUR runner went down — the block groans
+      if (this.runners.some((o) => o !== runner && (o.state === 'running' || o.state === 'held'))) this.bus.emit('sfx', 'boo');
+    }
     this.lastOutReason = reason;
     if (reason === 'pegged') {
       this.bus.emit('cine:pegged', { runner: runner.char }); // director fires the 'pegged' call
       if (!this.kickingIsPlayer()) this.crownFeed('peg');
       this.noteHeat(this.match.fieldingSide(), 'peg');
     } else {
-      this.bus.emit('sfx', 'catchpop');
+      this.bus.emit('sfx', reason === 'tag' ? 'tag' : 'catchpop');
+      this.bus.emit('sfx', 'out');
       this.bus.emit('vo', { event: 'forced', gender: runner.char?.gender }); // out call
       this.hud.call(reason === 'tag' ? 'TAGGED OUT!' : 'OUT!', 'pegged');
     }
@@ -3629,14 +3652,11 @@ export class MatchScene {
     if (this.kickingIsPlayer()) this.matchStats.hr += 1;
     this.field.crowdEnergy = 1;
     this.bus.emit('sfx', 'homer');       // air horn + fireworks — the crown is HEARD
-    this.bus.emit('sfx', 'crowd-cheer');
+    this.bus.emit('sfx', 'cheer-big');
     // everyone on the basepaths trots home and scores
     let runs = 0;
     for (const r of this.runners) {
-      if (r.state === 'running' || r.state === 'held' || r.state === 'scored') {
-        if (r.state !== 'scored') runs += 1;
-        r.state = 'scored';
-      }
+      if (r.state === 'running' || r.state === 'held') { runs += 1; this.scoreRun(r, { silent: true }); }
       r.char.group.visible = r.char === this.kicker; // kicker stays out for the dance
     }
     runs += this.pendingRuns ?? 0;
