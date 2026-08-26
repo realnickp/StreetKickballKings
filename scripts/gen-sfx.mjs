@@ -9,10 +9,10 @@ fs.mkdirSync(OUT, { recursive: true });
 
 // punchy, dry, single-hit descriptions — no music, so they layer cleanly in-game
 const SFX = [
-  { file: 'kick.mp3',     text: 'A hard rubber playground kickball struck with a powerful kick, deep punchy low thump impact, one single solid hit, dry, close-up, no music', dur: 1.0, infl: 0.7 },
-  { file: 'peg.mp3',      text: "A rubber ball smacking hard into a person's body, heavy dull thud impact, one single hit, dry, no music", dur: 0.8, infl: 0.7 },
+  { file: 'kick.mp3',        text: 'A rubber playground kickball blasted with a massive kick, huge deep punchy thump with a sharp rubber snap on top, one single hit, dry, close-up, no music', dur: 1.0, infl: 0.7 },
+  { file: 'peg.mp3',         text: "A rubber ball smacking violently into a person's back, loud wet rubber slap with a deep body thud, one single hit, dry, no music", dur: 0.8, infl: 0.7 },
   { file: 'fireball.mp3', text: 'A massive fiery whoosh igniting into a powerful explosive boom, cinematic fireball launch with deep bass impact, energetic and prominent, no music', dur: 2.5, infl: 0.6 },
-  { file: 'catch.mp3',    text: 'A ball smacking firmly into a leather baseball glove, sharp snappy leather catch pop, one single hit, dry, no music', dur: 0.7, infl: 0.7 },
+  { file: 'catch.mp3',       text: 'A fastball smacking into a leather glove, loud sharp leather pop with a crack, one single hit, dry, close-up, no music', dur: 0.7, infl: 0.7 },
   // SFX expansion (dev, 2026-08-05: "way more sound effects"):
   { file: 'bounce.mp3',   text: 'A rubber playground kickball bouncing once on asphalt, hollow rubbery boing impact, one single bounce, dry, close-up, no music', dur: 0.6, infl: 0.7 },
   { file: 'fence.mp3',    text: 'A ball smacking into a chain-link fence, metallic chain rattle shaking then settling, one single impact, dry, no music', dur: 1.2, infl: 0.7 },
@@ -23,6 +23,24 @@ const SFX = [
   { file: 'swish.mp3',    text: 'A powerful leg swinging hard through the air, deep whip whoosh, one single swing, dry, no music', dur: 0.5, infl: 0.7 },
   { file: 'squeak.mp3',   text: 'A basketball sneaker squeaking hard on pavement during a quick cut, one short sharp squeak, dry, no music', dur: 0.5, infl: 0.7 },
   { file: 'roll.mp3',     text: 'A rubber kickball rolling fast across rough asphalt toward the listener, continuous gritty rolling rumble, no impacts, no music', dur: 1.2, infl: 0.7 },
+  { file: 'crowd-cheer.mp3', text: 'A big street crowd bursting into a loud excited cheer with claps and whistles, wide and energetic, no music', dur: 2.5, infl: 0.6 },
+  // Sound-for-everything round (dev, 2026-08-25). One style line so they layer:
+  // arcade-loud, punchy, dry, single hit, no music.
+  { file: 'ui-tap.mp3',     text: 'A crisp arcade button tap, short bright click with a tiny low thump, one single hit, dry, no music', dur: 0.5, infl: 0.7 },
+  { file: 'ui-confirm.mp3', text: 'A punchy arcade confirm blip, two quick rising tones locking in, short, dry, no music', dur: 0.5, infl: 0.7 },
+  { file: 'score.mp3',      text: 'A triumphant arcade score sting, bright rising chime with a deep bass hit underneath, short, punchy, no music', dur: 1.0, infl: 0.6 },
+  { file: 'safe.mp3',       text: 'A ballplayer sliding into a base with a sharp slap of a hand on the bag, gritty scrape then slap, one single hit, dry, no music', dur: 0.8, infl: 0.7 },
+  { file: 'out.mp3',        text: 'A sharp referee whistle blast followed immediately by a deep dull thud, one single hit, dry, no music', dur: 0.8, infl: 0.7 },
+  { file: 'tag.mp3',        text: 'A leather glove slapping hard against a person, sharp leather smack, one single hit, dry, close-up, no music', dur: 0.5, infl: 0.7 },
+  { file: 'foul.mp3',       text: 'A dull hollow rubber thunk of a ball hitting the ground wrong followed by a short sharp whistle chirp, one hit, dry, no music', dur: 0.8, infl: 0.7 },
+  { file: 'inning.mp3',     text: 'A short stadium horn blast, two quick punchy notes, big and bright, no music', dur: 1.2, infl: 0.6 },
+  { file: 'crown-tick.mp3', text: 'A short bright rising arcade ping, single energetic power-up tick, dry, no music', dur: 0.5, infl: 0.7 },
+  { file: 'crown-arm.mp3',  text: 'A powerful arcade power-up charge sound, rising electric whoosh into a solid metallic lock click, short, punchy, no music', dur: 1.0, infl: 0.6 },
+  { file: 'countdown.mp3',  text: 'A single short sharp countdown beep, high clean digital tone, dry, no music', dur: 0.5, infl: 0.7 },
+  { file: 'unlock.mp3',     text: 'A bright arcade unlock chime with a cash register ding and sparkle, short and rewarding, no music', dur: 1.2, infl: 0.6 },
+  { file: 'stomp.mp3',      text: 'A single person walking with a confident swagger on asphalt, heavy sneaker footsteps, steady rhythm, two seconds, dry, no music', dur: 2.0, infl: 0.7 },
+  { file: 'cheer-big.mp3',  text: 'A huge street crowd erupting in a massive roaring cheer with whistles and shouts, explosive and wide, no music', dur: 3.0, infl: 0.6 },
+  { file: 'boo.mp3',        text: 'A street crowd booing loudly together, deep disapproving BOOO, one collective wave, no music', dur: 1.6, infl: 0.7 },
 ];
 
 async function gen({ file, text, dur, infl }) {

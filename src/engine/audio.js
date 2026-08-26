@@ -28,6 +28,22 @@ const FILES = {
     swish: 'assets/audio/sfx/swish.mp3',       // leg swinging through air
     squeak: 'assets/audio/sfx/squeak.mp3',     // sneaker cut on pavement
     roll: 'assets/audio/sfx/roll.mp3',         // kickball rolling in on the pitch
+    // Sound-for-everything round (dev, 2026-08-25: "we need better sound effects for everything")
+    'ui-tap': 'assets/audio/sfx/ui-tap.mp3',
+    'ui-confirm': 'assets/audio/sfx/ui-confirm.mp3',
+    score: 'assets/audio/sfx/score.mp3',
+    safe: 'assets/audio/sfx/safe.mp3',
+    out: 'assets/audio/sfx/out.mp3',
+    tag: 'assets/audio/sfx/tag.mp3',
+    foul: 'assets/audio/sfx/foul.mp3',
+    inning: 'assets/audio/sfx/inning.mp3',
+    'crown-tick': 'assets/audio/sfx/crown-tick.mp3',
+    'crown-arm': 'assets/audio/sfx/crown-arm.mp3',
+    countdown: 'assets/audio/sfx/countdown.mp3',
+    unlock: 'assets/audio/sfx/unlock.mp3',
+    stomp: 'assets/audio/sfx/stomp.mp3',
+    'cheer-big': 'assets/audio/sfx/cheer-big.mp3',
+    boo: 'assets/audio/sfx/boo.mp3',
   },
 };
 
@@ -56,6 +72,13 @@ const SFX_ALIAS = {
   throw: { file: 'whoosh', gain: 0.9 },       // real throw whip (was a synth blip)
   juke: { file: 'squeak', gain: 0.8 },        // real sneaker squeak (was a synth blip)
   'cointoss-flick': { synth: { type: 'triangle', from: 900, to: 1400, dur: 0.18, gain: 0.3 } },
+  // Sound-for-everything round (dev, 2026-08-25)
+  'ui-tap': { file: 'ui-tap', gain: 0.55 }, 'ui-confirm': { file: 'ui-confirm', gain: 0.7 },
+  score: { file: 'score', gain: 1.0 }, safe: { file: 'safe', gain: 1.0 }, out: { file: 'out', gain: 1.0 },
+  tag: { file: 'tag', gain: 1.0 }, foul: { file: 'foul', gain: 0.9 }, inning: { file: 'inning', gain: 0.9 },
+  'crown-tick': { file: 'crown-tick', gain: 0.7 }, 'crown-arm': { file: 'crown-arm', gain: 1.0 },
+  countdown: { file: 'countdown', gain: 0.6 }, unlock: { file: 'unlock', gain: 0.9 }, stomp: { file: 'stomp', gain: 0.5 },
+  'cheer-big': { file: 'cheer-big', gain: 1.1 }, boo: { file: 'boo', gain: 0.8 },
 };
 
 // Booth discipline: play CALLS may hold the mic for one beat; flavor lines are
@@ -65,6 +88,13 @@ const VO_CALLS = new Set([
   'doubleplay', 'tripleplay', 'pickle', 'walk', 'gameover', 'gametime',
 ]);
 const VO_QUEUE_FRESH_MS = 4000; // a held call older than this is stale news
+
+export const WARM_LIST = ['kick', 'peg', 'fireball', 'catch', 'bounce', 'fence', 'slide',
+  'homer', 'crowd-ooh', 'whoosh', 'swish', 'squeak', 'roll', 'crowd-cheer', 'bassdrop', 'scratch',
+  'ui-tap', 'ui-confirm', 'score', 'safe', 'out', 'tag', 'foul', 'inning', 'crown-tick', 'crown-arm',
+  'countdown', 'unlock', 'stomp', 'cheer-big', 'boo'];
+export const SFX_FILES = FILES.sfx;
+export { SFX_ALIAS };
 
 export class AudioBus {
   constructor(bus) {
@@ -89,10 +119,7 @@ export class AudioBus {
   /** Decode the common gameplay SFX up front. The first kick/catch of a match
    *  was SILENT on-device: lazy fetch+decode loses the moment it belongs to. */
   warm() {
-    for (const name of ['kick', 'peg', 'fireball', 'catch', 'bounce', 'fence', 'slide',
-      'homer', 'crowd-ooh', 'whoosh', 'swish', 'squeak', 'roll', 'crowd-cheer', 'bassdrop', 'scratch']) {
-      if (FILES.sfx[name]) this.buffer(FILES.sfx[name]);
-    }
+    for (const name of WARM_LIST) if (FILES.sfx[name]) this.buffer(FILES.sfx[name]);
   }
 
   async _loadAnnouncer() {
