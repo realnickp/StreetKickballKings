@@ -625,6 +625,28 @@ export class Hud {
     }));
   }
 
+  setRunnerArrows(list) {
+    let box = this.runnerArrows;
+    if (!box) { box = this.runnerArrows = document.createElement('div'); box.className = 'runner-arrows'; this.el.appendChild(box); this._arrowEls = new Map(); }
+    const keep = new Set();
+    for (const a of list) {
+      keep.add(a.id);
+      let el = this._arrowEls.get(a.id);
+      if (!el) {
+        el = document.createElement('div'); el.className = 'runner-arrow';
+        el.innerHTML = '<i class="ra-arrow">➤</i><b></b><span></span>';
+        box.appendChild(el); this._arrowEls.set(a.id, el);
+      }
+      el.style.setProperty('--c', a.color);
+      el.classList.toggle('urgent', !!a.urgent);
+      el.querySelector('b').textContent = `#${a.number}`;
+      el.querySelector('span').textContent = a.label;
+      el.style.transform = `translate(${Math.round(a.x)}px, ${Math.round(a.y)}px) translate(-50%, -50%)`;
+      el.querySelector('.ra-arrow').style.transform = `rotate(${a.angle}rad)`;
+    }
+    for (const [id, el] of this._arrowEls) if (!keep.has(id)) { el.remove(); this._arrowEls.delete(id); }
+  }
+
   setPowerKick({ name, charges, armed, meterFill }) {
     this.specialBtn.style.setProperty('--fill', Math.round(meterFill));
     this.specialBtn.classList.toggle('ready', charges > 0);

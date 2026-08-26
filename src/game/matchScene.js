@@ -27,6 +27,7 @@ import { WALKUP, walkS, pickTaunt } from './walkup.js';
 import { revertStealBooks } from './stealBooks.js';
 import { SpeedTrail } from './fx/speedTrail.js';
 import { Hud } from '../ui/screens/hud.js';
+import { edgeClamp } from '../ui/runnerArrows.js';
 import { gearLine } from '../meta/gearLine.js';
 import { pregameTimeline } from './pregame.js';
 
@@ -3386,6 +3387,33 @@ export class MatchScene {
     return { x: r.left + (p.x * 0.5 + 0.5) * r.width, y: r.top + (-p.y * 0.5 + 0.5) * r.height };
   }
 
+  projectPoint(v) {
+    const r = this.engine.renderer.domElement.getBoundingClientRect();
+    const p = v.clone(); p.y += 1.0; p.project(this.engine.camera);
+    return { x: (p.x * 0.5 + 0.5) * r.width, y: (-p.y * 0.5 + 0.5) * r.height, w: r.width, h: r.height, behind: p.z > 1 };
+  }
+
+  updateRunnerArrows() {
+    if (this.cinematicLock || this.walkoutActive || this.walkup || this.duel) { this.hud.setRunnerArrows([]); return; }
+    const live = this.runners.filter((r) => r.state === 'running' || r.state === 'held');
+    if (this.stealing?.state === 'running' && !live.includes(this.stealing)) live.push(this.stealing);
+    if (!live.length) { this.hud.setRunnerArrows([]); return; }
+    const color = this.teams[this.match.kickingSide()].colors?.primary ?? '#3ec6b5';
+    const BASE = ['1ST', '2ND', '3RD', 'HOME'];
+    const out = [];
+    live.sort((a, b) => b.targetBase - a.targetBase);
+    for (const r of live.slice(0, 3)) {
+      const pos = r.state === 'held' ? this.basePos(r.heldAt ?? r.fromBase) : this.runnerWorldPos(r).p;
+      const pr = this.projectPoint(pos);
+      const c = edgeClamp({ x: pr.x, y: pr.y, w: pr.w, h: pr.h, behind: pr.behind });
+      if (c.visible) continue;
+      out.push({ id: r.idx, x: c.x, y: c.y, angle: c.angle, number: r.char.number, color,
+        label: r.state === 'held' ? `ON ${BASE[r.heldAt ?? r.fromBase]}` : `→${BASE[r.targetBase]}`,
+        urgent: r.targetBase === 3 || r === this.stealing });
+    }
+    this.hud.setRunnerArrows(out);
+  }
+
   /** The non-active fielder nearest the tap, if the tap actually lands on one. */
   pickFielderAt(x, y) {
     let best = null;
@@ -4208,6 +4236,8 @@ export class MatchScene {
       const s = 1 + Math.sin(this.elapsed * 6) * 0.12;
       for (const r of this.baseRings) r.scale.setScalar(s);
     }
+
+    this.updateRunnerArrows();
   }
 
   destroy() {
