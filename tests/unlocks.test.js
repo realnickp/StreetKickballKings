@@ -54,7 +54,7 @@ it('equip requires ownership + matching category; null resets the slot', () => {
 });
 
 it('no gear rides the road-win counter (every game is played away — roadWins ≡ wins)', () => {
-  expect(GEAR.some((g) => g.unlock.stat === 'roadWins')).toBe(false);
+  expect(GEAR.some((g) => g.unlock?.stat === 'roadWins')).toBe(false);
 });
 
 it('special kicks never hit softer than the stock crown kick (powerMult ≥ 1.35)', () => {
@@ -67,12 +67,18 @@ it('catalog integrity: unique ids, valid categories, kicks carry clips+mods', ()
   const ids = new Set(GEAR.map((g) => g.id));
   expect(ids.size).toBe(GEAR.length);
   for (const g of GEAR) {
-    expect(['kick', 'cleats', 'uniform']).toContain(g.cat);
-    expect(g.unlock.n).toBeGreaterThan(0);
+    expect(['kick', 'taunt', 'cleats', 'uniform']).toContain(g.cat);
     expect(g.hint.length).toBeGreaterThan(3);
+    if (g.stock) {
+      expect(g.unlock).toBe(null); // owned from day one — no threshold
+    } else {
+      expect(g.unlock.n).toBeGreaterThan(0);
+    }
     if (g.cat === 'kick') {
       expect(g.clip).toMatch(/^kick[A-Z]/);
       expect(g.mods.powerMult).toBeGreaterThan(1);
+    } else if (g.cat === 'taunt') {
+      expect(g.clip).toMatch(/^taunt[A-Z]/);
     } else {
       expect(g.hex).toMatch(/^#[0-9a-f]{6}$/i);
     }
@@ -85,4 +91,27 @@ it('every cleat carries a real speed multiplier', () => {
   const cleats = GEAR.filter((g) => g.cat === 'cleats');
   expect(cleats.map((g) => g.speedMult)).toEqual([1.06, 1.06, 1.08, 1.08, 1.10, 1.12]);
   expect(gearById('cleats-ice').stealMult).toBe(1.1);
+});
+
+it('stock items are owned from day one, never toast, and fill an empty slot', () => {
+  const s = mem();
+  expect(isUnlocked(s, 'taunt-point')).toBe(true);
+  expect(checkUnlocks(s).map((g) => g.id)).not.toContain('taunt-point');
+  expect(equippedGear(s).taunt?.id).toBe('taunt-point');
+  expect(equipGear(s, 'taunt', 'taunt-cry')).toBe(false);          // not earned
+  careerAdd(s, { wins: 1 }); checkUnlocks(s);
+  expect(equipGear(s, 'taunt', 'taunt-cry')).toBe(true);
+  expect(equippedGear(s).taunt.id).toBe('taunt-cry');
+});
+
+it('the new kicks and taunts unlock on realistic career marks', () => {
+  const s = mem();
+  careerAdd(s, { games: 5, runs: 20 });
+  expect(checkUnlocks(s).map((g) => g.id).sort()).toEqual(['kick-armada', 'kick-martelo']);
+  careerAdd(s, { perfects: 10, hr: 25, blowouts: 3, wins: 10, runs: 30, games: 5 });
+  const ids = checkUnlocks(s).map((g) => g.id);
+  // kick-bicycle stays out of the catalog (0.67s fragment clip — see unlocks.js);
+  // its trigger (runs >= 50) is still reached here, but no such GEAR entry exists.
+  for (const id of ['kick-punt', 'kick-kipup', 'kick-flip', 'kick-scissor', 'taunt-gesture', 'taunt-chest', 'taunt-cry']) expect(ids).toContain(id);
+  expect(careerGet(s).games).toBe(10);
 });

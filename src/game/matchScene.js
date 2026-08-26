@@ -104,7 +104,7 @@ export class MatchScene {
     // match's squads (null = already loaded, e.g. the dev harness)
     this.extrasReady = extrasReady;
     // lifetime-career feed: per-match counters, shipped out on matchOver
-    this.matchStats = { hr: 0, defOuts: 0, steals: 0, pickleEscapes: 0 };
+    this.matchStats = { hr: 0, defOuts: 0, steals: 0, pickleEscapes: 0, perfects: 0 };
 
     this.match = new MatchEngine({ home: teams.home.id, away: teams.away.id }, tuning.match, { firstKick });
     this.field = buildField(fieldData, engine.scene);
@@ -273,7 +273,7 @@ export class MatchScene {
 
   /** (Re)start a full match. Safe to call again for a rematch. */
   startMatch(firstKick) {
-    this.matchStats = { hr: 0, defOuts: 0, steals: 0, pickleEscapes: 0 }; // rematch reuses the scene
+    this.matchStats = { hr: 0, defOuts: 0, steals: 0, pickleEscapes: 0, perfects: 0 }; // rematch reuses the scene
     this.match = new MatchEngine(
       { home: this.teams.home.id, away: this.teams.away.id },
       this.tuning.match,
@@ -1401,7 +1401,7 @@ export class MatchScene {
     // The special-meter PERFECT reward stays PERFECT-only (meter economy).
     // (the impact/contact beat began at tap so the full swing reads in slow-mo)
     if (judged.quality === 'PERFECT') {
-      if (this.kickingIsPlayer()) this.crownFeed('PERFECT');
+      if (this.kickingIsPlayer()) { this.crownFeed('PERFECT'); this.matchStats.perfects += 1; }
       this.noteHeat(this.match.kickingSide(), 'PERFECT');
     }
 

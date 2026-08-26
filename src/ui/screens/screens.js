@@ -83,7 +83,7 @@ export function MenuScreen(ctx) {
           <button class="big-play bounce-beat">PLAY 1v1<small>VS AI · THE BLACKTOP</small></button>
           <div class="mode-cards">
             <div class="mode-card map-card">RUN THE MAP<small>${save.get('kingOfStreets', false) ? '👑 KING OF THE STREETS' : `${save.get('unlocks.crews', []).length}/9 CROWNS CLAIMED`}</small></div>
-            <div class="mode-card locker-card">THE LOCKER<small>${save.get('gear.unlocked', []).length}/17 EARNED</small></div>
+            <div class="mode-card locker-card">THE LOCKER<small>${save.get('gear.unlocked', []).length}/${ctx.unlocks.GEAR.filter((g) => !g.stock).length} EARNED</small></div>
             <div class="mode-card locked">DERBY<small>COMING SOON</small></div>
           </div>
           <div class="daily-card">DAILY CHALLENGE<small>Hit 3 home runs — 0/3</small><b>+500 XP</b></div>
@@ -193,10 +193,12 @@ export function LockerScreen(ctx) {
       const eq = equippedGear(save);
       const career = careerGet(save);
       const CATS = [
-        ['kick', 'SPECIAL KICKS — FILL THE CROWN METER, THEN LET IT RIP'],
-        ['cleats', 'CLEATS'],
+        ['kick', 'SPECIAL KICKS — 2 POWER KICKS A GAME · THE CROWN METER MINTS MORE'],
+        ['taunt', 'TAUNTS — YOUR WALK-UP MOVE'],
+        ['cleats', 'CLEATS — REAL SPEED ON THE BASES'],
         ['uniform', 'UNIFORMS'],
       ];
+      const BARE_LABEL = { kick: 'STOCK KICK', taunt: null, cleats: 'CLASSIC', uniform: 'CLASSIC' };
       const s = el(`
         <div class="screen locker-screen">
           <h1 class="screen-title gold">THE LOCKER</h1>
@@ -209,14 +211,18 @@ export function LockerScreen(ctx) {
       for (const [cat, label] of CATS) {
         rows.appendChild(el(`<p class="map-equip-label">${label}</p>`));
         const row = el('<div class="map-equip locker-row"></div>');
-        const bare = el(`<div class="equip-chip ${eq[cat] ? '' : 'on'}" style="--c:#7a7a85">${cat === 'kick' ? 'STOCK KICK' : 'CLASSIC'}</div>`);
-        bare.addEventListener('pointerdown', () => { ctx.bus.emit('sfx', 'juke'); equipGear(save, cat, null); ctx.router.go('locker'); });
-        row.appendChild(bare);
+        const bareLabel = BARE_LABEL[cat];
+        if (bareLabel) {
+          const bare = el(`<div class="equip-chip ${eq[cat] ? '' : 'on'}" style="--c:#7a7a85">${bareLabel}</div>`);
+          bare.addEventListener('pointerdown', () => { ctx.bus.emit('sfx', 'juke'); equipGear(save, cat, null); ctx.router.go('locker'); });
+          row.appendChild(bare);
+        }
         for (const g of GEAR.filter((x) => x.cat === cat)) {
           const own = isUnlocked(save, g.id);
+          const swatch = cat === 'cleats' || cat === 'uniform' ? `<i class="swatch" style="background:${g.hex}"></i>` : '';
           const chip = el(`
             <div class="equip-chip locker-chip ${own ? '' : 'locked'} ${eq[cat]?.id === g.id ? 'on' : ''}" style="--c:${g.hex ?? '#e8792e'}">
-              ${own ? g.name : '🔒 ' + g.name}<small>${own ? '' : g.hint.toUpperCase()}</small>
+              ${swatch}${own ? g.name : '🔒 ' + g.name}<small>${own ? (g.play ?? '') : g.hint.toUpperCase()}</small>
             </div>`);
           if (own) {
             chip.addEventListener('pointerdown', () => { ctx.bus.emit('sfx', 'scratch'); equipGear(save, cat, g.id); ctx.router.go('locker'); });
@@ -452,6 +458,7 @@ export function PostGameScreen(ctx) {
         const myRuns = Number(score?.[playerSide]) || 0;
         const theirRuns = Number(score?.[playerSide === 'away' ? 'home' : 'away']) || 0;
         ctx.unlocks.careerAdd(save, {
+          games: 1,
           wins: won ? 1 : 0,
           roadWins: won && playerSide === 'away' ? 1 : 0,
           blowouts: won && myRuns - theirRuns >= 5 ? 1 : 0,
@@ -460,6 +467,7 @@ export function PostGameScreen(ctx) {
           defOuts: stats?.defOuts ?? 0,
           steals: stats?.steals ?? 0,
           pickleEscapes: stats?.pickleEscapes ?? 0,
+          perfects: stats?.perfects ?? 0,
         });
         fresh = ctx.unlocks.checkUnlocks(save);
       }
