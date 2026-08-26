@@ -804,7 +804,9 @@ export class MatchScene {
   startWalkup() {
     const k = this.kicker;
     this.walkup = null; // a new at-bat always supersedes a live walk-up (drills bail below)
-    const drill = new URLSearchParams(location.search).has('drill') || this.tutorialNoHomer;
+    // the WHOLE tutorial session skips the walk-up (spec: drills/tutorial skip it),
+    // not just the pickle drill — tutorialQuiet is set for the run by TutorialDirector
+    const drill = new URLSearchParams(location.search).has('drill') || this.tutorialNoHomer || this.tutorialQuiet;
     if (drill) { this.placeKickerAtPlate(); this.after(1.2, () => this.serve()); return; }
     const isPlayer = this.kickingIsPlayer();
     k.group.position.set(WALKUP.startX, 0, WALKUP.z);
