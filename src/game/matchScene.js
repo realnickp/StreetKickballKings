@@ -6,10 +6,10 @@
 import * as THREE from 'three';
 import { MatchEngine } from './matchState.js';
 import { judgeKick, launchParams, powerFromError, isHrEligible, flickShape, flickSteerDeg, FLICK, aiSwingStartS } from './kickTiming.js';
-import { routineFor } from './walkoutRoutines.js';
 import { mashSpeed, humanRunSpeed, RunnerSim } from './baseRunning.js';
 import { resolveBaseThrow, resolvePeg } from './throwing.js';
 import { SpecialMeter } from './specialMoves.js';
+import { PowerKicks } from './powerKicks.js';
 import { pickPitch, aiKickError, aiAim, aiWantsPeg, aiMashRate, aiJukes, aiThrowsFire } from './ai.js';
 import { PickleDuel, shuttleDir } from './pickleDuel.js';
 import { RunnerWatchdog } from './runnerWatchdog.js';
@@ -22,9 +22,19 @@ import { CityElements } from './cityElements.js';
 import { CrewHeat } from './crewHeat.js';
 import { CameraDirector } from './cameraDirector.js';
 import { buildField, FIELD_LAYOUT } from './field.js';
-import { allHaveClip, pickDance, pickDances } from './animExtras.js';
+import { pickDance, pickDances } from './animExtras.js';
+import { WALKUP, walkS, pickTaunt, stealAllowed } from './walkup.js';
 import { revertStealBooks } from './stealBooks.js';
+import { SpeedTrail } from './fx/speedTrail.js';
 import { Hud } from '../ui/screens/hud.js';
+import { edgeClamp } from '../ui/runnerArrows.js';
+import { gearLine } from '../meta/gearLine.js';
+import { pregameTimeline } from './pregame.js';
+
+// fallback facing for a trail update on a runner who never got a live `dir`
+// this game (defensive only — every runner passes through the running branch
+// at least once before it could apply); shared + read-only, never mutated.
+const TRAIL_FALLBACK_DIR = new THREE.Vector3(0, 0, 1);
 
 const DEFENSE_SPOTS = [
   { id: 'P', pos: new THREE.Vector3(0, 0, -12) },
@@ -75,7 +85,7 @@ export function chooseLiveShot({ phase, kickingIsPlayer, trailBall, deepBall, ru
 }
 
 export class MatchScene {
-  constructor({ engine, input, bus, teams, chars, fieldData, tuning, difficulty = 'Street', playerSide = 'away', firstKick = 'away', hudRoot, autoStart = true, gear = null, extrasReady = null }) {
+  constructor({ engine, input, bus, teams, chars, fieldData, tuning, difficulty = 'Street', playerSide = 'away', firstKick = 'away', hudRoot, autoStart = true, gear = null, danceBag = null }) {
     this.engine = engine;
     this.input = input;
     this.bus = bus;
@@ -87,11 +97,22 @@ export class MatchScene {
     // entries or nulls). Only the kick slot matters in-scene — cleats/uniform
     // are applied at character build time.
     this.playerGear = gear;
-    // walkout gate: resolves when the extras dance pack has settled for this
-    // match's squads (null = already loaded, e.g. the dev harness)
-    this.extrasReady = extrasReady;
+    // LOCKER cleats: a real leg on the bases + a coloured trail so it's SEEN
+    this.cleatSpeedMult = gear?.cleats?.speedMult ?? 1;
+    this.cleatStealMult = gear?.cleats?.stealMult ?? 1;
+    this.cleatHex = gear?.cleats?.hex ?? null;
+    this.trailPool = this.cleatHex ? Array.from({ length: 4 }, () => new SpeedTrail(engine.scene, this.cleatHex)) : [];
+    // walk-up cleat ring: a flat ring in the cleat colour under the kicker's feet
+    this.cleatRing = null;
+    if (this.cleatHex) {
+      this.cleatRing = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.6, 40), new THREE.MeshBasicMaterial({ color: this.cleatHex, transparent: true, opacity: 0.85, depthWrite: false }));
+      this.cleatRing.rotation.x = -Math.PI / 2; this.cleatRing.position.y = 0.02; this.cleatRing.visible = false;
+      engine.scene.add(this.cleatRing);
+    }
+    this.walkup = null;
+    this.danceBag = danceBag;
     // lifetime-career feed: per-match counters, shipped out on matchOver
-    this.matchStats = { hr: 0, defOuts: 0, steals: 0, pickleEscapes: 0 };
+    this.matchStats = { hr: 0, defOuts: 0, steals: 0, pickleEscapes: 0, perfects: 0 };
 
     this.match = new MatchEngine({ home: teams.home.id, away: teams.away.id }, tuning.match, { firstKick });
     this.field = buildField(fieldData, engine.scene);
@@ -132,7 +153,7 @@ export class MatchScene {
     this.replayRecorder.track(this.replayChars, this.ball);
 
     this.special = new SpecialMeter(teams[playerSide], tuning);
-    this.specialArmed = false;
+    this.power = new PowerKicks({ meter: this.special, gear: gear?.kick ?? null });
 
     this.aim = 'center';
     this.phase = 'IDLE';
@@ -195,12 +216,6 @@ export class MatchScene {
 
     bus.on('cine:start', () => { this.cinematicLock = true; this.hud.hint(''); });
     bus.on('cine:done', () => { this.cinematicLock = false; this.chipSkip = false; this.hud.hideSkipChip?.(); });
-    // the OFFENSE builds the crown: every run the player's side scores feeds
-    // the meter (dev, 2026-08-04: "a meter... based on base hits, runs etc")
-    this.match.bus.on('score', ({ side, runs }) => {
-      if (side !== this.playerSide || runs <= 0) return;
-      for (let i = 0; i < runs; i++) this.crownFeed('run');
-    });
     // city element chip: inning rolls set it, procs pulse it
     bus.on('element:roll', (r) => this.hud.setElement(r));
     // Play It: a proc is a telegraphed WINDOW with a decision — tell the player
@@ -238,6 +253,7 @@ export class MatchScene {
     this.hud.onThrow = (t) => this.onPlayerThrow(t);
     this.hud.onGo = () => this.sendHeldRunner();
     this.hud.onSteal = (b) => this.startSteal(b);
+    this.hud.onSfx = (name) => this.bus.emit('sfx', name);
     this.hud.onDuel = () => this.onDuelButton();
     this.hud.onReverse = () => this.duelReverse();
     this.hud.onCall = () => this.onCallButton();
@@ -245,10 +261,10 @@ export class MatchScene {
     this.robbing = null;  // fence-rob climb state: {fielder, phase, t, topY}
     this.stealHot = false;
     this.hud.onSpecial = () => {
-      if (this.special.ready && this.kickingIsPlayer()) {
-        this.specialArmed = true;
-        this.hud.setSpecial(this.special.value, true, true, this.teams[this.playerSide].special.label);
-      }
+      if (!this.kickingIsPlayer() || !this.power.arm()) return;
+      this.bus.emit('sfx', 'crown-arm');
+      this.hud.hint(`${this.power.name} ARMED — LET IT RIP`);
+      this.refreshHud();
     };
 
     this.offFrame = engine.onFrame((dt, rawDt) => this.update(dt, rawDt));
@@ -259,13 +275,21 @@ export class MatchScene {
 
   /** (Re)start a full match. Safe to call again for a rematch. */
   startMatch(firstKick) {
-    this.matchStats = { hr: 0, defOuts: 0, steals: 0, pickleEscapes: 0 }; // rematch reuses the scene
+    this.matchStats = { hr: 0, defOuts: 0, steals: 0, pickleEscapes: 0, perfects: 0 }; // rematch reuses the scene
     this.match = new MatchEngine(
       { home: this.teams.home.id, away: this.teams.away.id },
       this.tuning.match,
       { firstKick },
     );
     this.match.bus.on('halfEnd', () => { this.halfJustEnded = true; });
+    // the OFFENSE builds the crown: every run the player's side scores feeds
+    // the meter (dev, 2026-08-04: "a meter... based on base hits, runs etc").
+    // Registered HERE, not in the ctor: startMatch swaps in a fresh MatchEngine,
+    // so a ctor-bound listener was feeding a dead bus from the first pitch on.
+    this.match.bus.on('score', ({ side, runs }) => {
+      if (side !== this.playerSide || runs <= 0) return;
+      for (let i = 0; i < runs; i++) this.crownFeed('run');
+    });
     // originalBases = "the bases when this pitch left" — restoreRunners plays
     // (strikeout / foul-out / 3rd-out catch) put runners BACK there. It must
     // track every engine base change, not just kicks (launchRunners): a
@@ -287,13 +311,15 @@ export class MatchScene {
       this.refreshHeatHud(true);
     });
     this.match.bus.on('halfEnd', () => {
+      this.bus.emit('sfx', 'inning');
       if (this.match.state.inning !== this.elementInning) {
         this.elementInning = this.match.state.inning;
         this.applyElementRoll();
       }
     });
     this.special.value = 0;
-    this.specialArmed = false;
+    this.power = new PowerKicks({ meter: this.special, gear: this.playerGear?.kick ?? null }); // fresh charges every match (rematch reuses the scene)
+    this._gearToasted = false; // the YOUR GEAR strip shows again at the first at-bat of a rematch
     const begin = () => {
       this.bus.emit('vo', 'playball');
       this.refreshHud();
@@ -302,38 +328,15 @@ export class MatchScene {
     this.lineupIntro(begin);
   }
 
-  // ---------- STARTING LINEUPS: the walkout (dev: "give names to the players
-  // and have them walk out... announcer shit too, like a real game would be").
-  // Three stars per side swagger toward a low hero camera, street name + best
-  // stats slam in, the booth calls their game. Tap anywhere skips (the
-  // cinematicLock tap route emits cine:skip).
+  // ---------- STARTING LINEUPS: splash cards only (dev, 2026-08-25: the
+  // choreographed walkout dance number is gone — per-kicker walk-up taunts
+  // replace it, a later task). STARTING LINEUPS stamp, then the away crest
+  // splash, then the home crest splash, then the GAME TIME break. Tap
+  // anywhere is inert here — the skip chip is the only way out (the
+  // cinematicLock tap route emits cine:skip; walkoutActive gates it).
   lineupIntro(done) {
     const url = new URLSearchParams(location.search);
     if (url.has('nointro') || url.has('drill')) return done();
-    const starsOf = (side) => {
-      const roster = this.teams[side].roster ?? [];
-      const chars = this.chars[side] ?? [];
-      const idx = (pred) => roster.findIndex(pred);
-      const picks = [];
-      const cap = idx((p) => /captain/i.test(p.pos ?? ''));
-      if (cap >= 0) picks.push({ i: cap, tag: 'walkout-captain', label: 'THE CAPTAIN' });
-      const top = (stat, tag, label) => {
-        let best = -1, bestV = -1;
-        roster.forEach((p, i) => {
-          if (picks.some((q) => q.i === i)) return;
-          if ((p.stats?.[stat] ?? 0) > bestV) { bestV = p.stats?.[stat] ?? 0; best = i; }
-        });
-        if (best >= 0) picks.push({ i: best, tag, label });
-      };
-      top('power', 'walkout-power', 'THE BIG BOOT');
-      top('speed', 'walkout-speed', 'THE WHEELS');
-      return picks
-        .filter((p) => chars[p.i])
-        .map((p) => ({ ...roster[p.i], char: chars[p.i], tag: p.tag, label: p.label }));
-    };
-    const away = starsOf('away');
-    const home = starsOf('home');
-    if (!away.length && !home.length) return done();
 
     this.walkoutActive = true;
     this.cinematicLock = true;
@@ -349,41 +352,31 @@ export class MatchScene {
     const cleanup = () => {
       if (!this.walkoutActive) return;
       this.walkoutActive = false;
-      this.walkout = null;
-      this.walkoutSquad = null;
       // back to the empty-stage invariant — nextAtBat unhides who it needs
       for (const c of [...this.chars.home, ...this.chars.away]) c.group.visible = false;
       offSkip?.();
       this.hud.walkoutHide();
       this.hud.teamSplashHide();
       this.hud.hideSkipChip();
-      this.hud.setLetterbox(false);
-      this.cinematicLock = false;
-      this.engine.cameraLock = false;
-      done();
-    };
-    const offSkip = this.bus.on('cine:skip', cleanup);
-
-    const BEAT = 2.3;
-    const beat = (star, color, t) => {
-      this.after(t, () => {
-        if (!this.walkoutActive) return;
-        // previous star freezes in the back — hide him, bring the next
-        if (this.walkout?.char) this.walkout.char.group.visible = false;
-        const c = star.char;
-        c.group.visible = true;
-        c.group.position.set(0, 0, -13);
-        this.faceTo(c, new THREE.Vector3(0, 0, 8), true);
-        c.animator.play('swagger');
-        this.walkout = { char: c, until: this.elapsed + BEAT };
-        this.hud.walkoutShow({
-          nick: star.nick, number: star.number, pos: star.pos,
-          stats: star.stats, color, label: star.label,
-        });
-        this.bus.emit('vo', star.tag);
-        this.bus.emit('sfx', 'crowd-cheer');
+      // ===== THE BREAK (dev, 2026-08-05: "we need some sort of break between
+      // the opening dance number and the game... the music needs to change").
+      // The dance ends WITH its music — scratch, one breath of crowd, GAME
+      // TIME — then the game starts on its own groove (the in-match beat; the
+      // city track stays the walkout's showcase).
+      this.bus.emit('sfx', 'scratch');
+      this.bus.emit('music', { stop: true });
+      this.bus.emit('sfx', 'crowd-cheer');
+      this.hud.stamp('GAME TIME!', 'crowned');
+      this.bus.emit('vo', 'gametime');
+      this.after(1.6, () => {
+        this.hud.setLetterbox(false);
+        this.cinematicLock = false;
+        this.engine.cameraLock = false;
+        this.bus.emit('music', { name: 'beat' });
+        done();
       });
     };
+    const offSkip = this.bus.on('cine:skip', cleanup);
 
     // full-screen crest splash introducing a side (dev: "a cool splash
     // animation in between... with the logos of the teams")
@@ -391,8 +384,6 @@ export class MatchScene {
       this.after(t, () => {
         if (!this.walkoutActive) return;
         this.hud.walkoutHide();
-        if (this.walkout?.char) this.walkout.char.group.visible = false;
-        this.walkout = null;
         this.hud.teamSplash({
           name: team.name, city: team.city, logo: team.logo,
           color: team.colors?.primary,
@@ -400,103 +391,13 @@ export class MatchScene {
       });
     };
 
-    // ===== CREW WALKOUT (dev, 2026-08-04): the WHOLE team at once, each crew
-    // dancing its OWN two-part signature routine (walkoutRoutines.js), all
-    // eight per side frame-synced in a wedge behind a five-shot broadcast
-    // camera package. Star cards keep cycling on top so the info layer stays.
-    // The show GATE below holds for the extras pack (cap 5 s) — the lineup
-    // must ALWAYS show; the swagger parade is only a slow-network fallback.
-    const SLOTS = [ // captain on point, rows 2-3-2 behind
-      [0, -10.2], [-1.7, -11.4], [1.7, -11.4],
-      [-3.1, -12.6], [0, -12.6], [3.1, -12.6],
-      [-2.2, -13.8], [2.2, -13.8],
-    ];
-    const squadOn = (side, part, t) => {
-      this.after(t, () => {
-        if (!this.walkoutActive) return;
-        const chars = this.chars[side] ?? [];
-        chars.forEach((c, i) => {
-          const [x, z] = SLOTS[i % SLOTS.length];
-          c.group.visible = true;
-          c.group.position.set(x, 0, z);
-          this.faceTo(c, new THREE.Vector3(x, 0, 8), true);
-        });
-        // one play() burst in the same frame = the choreography stays locked
-        for (const c of chars) { c.animator.play(part); c.animator.update(0.0001); }
-        this.walkoutSquad = { chars, t0: this.elapsed }; // t0 drives the shot clock
-        this.bus.emit('sfx', 'crowd-cheer');
-      });
-    };
-    const squadPart = (side, part, t) => {
-      this.after(t, () => {
-        if (!this.walkoutActive) return;
-        for (const c of this.chars[side] ?? []) c.animator.play(part);
-      });
-    };
-    const squadOff = (side, t) => {
-      this.after(t, () => {
-        if (!this.walkoutActive) return;
-        this.walkoutSquad = null;
-        for (const c of this.chars[side] ?? []) c.group.visible = false;
-      });
-    };
-    const card = (star, color, t) => {
-      this.after(t, () => {
-        if (!this.walkoutActive || !star) return;
-        this.hud.walkoutShow({
-          nick: star.nick, number: star.number, pos: star.pos,
-          stats: star.stats, color, label: star.label,
-        });
-        this.bus.emit('vo', star.tag);
-      });
-    };
-
-    // Common open plays immediately — the gate only holds the SHOW choice
-    this.after(0.2, () => { if (this.walkoutActive) { this.bus.emit('vo', 'lineups'); this.hud.stamp('STARTING LINEUPS', 'crowned'); } });
-    splash(this.teams.away, 1.9);
-    const entryT = this.elapsed;
-
-    const scheduleShow = () => {
-      if (!this.walkoutActive) return;
-      const sinceStart = this.elapsed - entryT;
-      const sideOk = (side, r) => !!r && allHaveClip(this.chars[side], r[0]) && allHaveClip(this.chars[side], r[1]);
-      const pick = (side, own, fb) => (sideOk(side, own) ? own : sideOk(side, fb) ? fb : null);
-      const awayR = pick('away', routineFor(this.teams.away.id, 'away'), ['thriller1', 'thriller2']);
-      const homeR = pick('home', routineFor(this.teams.home.id, 'home'), ['thriller3', 'thriller4']);
-
-      if (awayR && homeR) {
-        // pick the timeline up where the open leaves off; if the gate held past
-        // the splash, re-crest so the stage never sits quiet
-        let t = Math.max(0.3, 3.9 - sinceStart);
-        if (sinceStart > 3.6) { splash(this.teams.away, 0.05); t = 2.1; }
-        squadOn('away', awayR[0], t);
-        away.forEach((s, i) => card(s, this.teams.away.colors?.primary, t + i * BEAT));
-        squadPart('away', awayR[1], t + 4.6);
-        t += 6.9;
-        this.after(t, () => { if (this.walkoutActive) this.bus.emit('vo', 'walkout-home'); });
-        squadOff('away', t);
-        splash(this.teams.home, t);
-        t += 2.0;
-        squadOn('home', homeR[0], t);
-        home.forEach((s, i) => card(s, this.teams.home.colors?.primary, t + i * BEAT));
-        squadPart('home', homeR[1], t + 4.6);
-        t += 6.9;
-        this.after(t + 0.4, cleanup);
-        return;
+    for (const e of pregameTimeline().events) {
+      switch (e.kind) {
+        case 'open': this.after(e.t, () => { if (this.walkoutActive) { this.bus.emit('vo', 'lineups'); this.hud.stamp('STARTING LINEUPS', 'crowned'); } }); break;
+        case 'splash': splash(this.teams[e.side], e.t); break;
+        case 'cleanup': this.after(e.t, cleanup); break;
       }
-      // legacy swagger parade — extras never landed for these squads
-      let t = Math.max(0.3, 3.9 - sinceStart);
-      for (const s of away) { beat(s, this.teams.away.colors?.primary, t); t += BEAT; }
-      this.after(t, () => { if (this.walkoutActive) this.bus.emit('vo', 'walkout-home'); });
-      splash(this.teams.home, t);
-      t += 2.0;
-      for (const s of home) { beat(s, this.teams.home.colors?.primary, t); t += BEAT; }
-      this.after(t + 0.4, cleanup);
-    };
-    // LINEUP GUARANTEE: hold the choreographed show for the extras pack —
-    // losing the download race must never cost the player his walkout
-    const cap = new Promise((resolve) => this.after(5.0, resolve));
-    Promise.race([this.extrasReady ?? Promise.resolve(), cap]).then(scheduleShow);
+    }
   }
 
   /** GAME OVER hand-off, shared by every GAME_END site: wait out any running
@@ -545,6 +446,7 @@ export class MatchScene {
     });
     this.hud.stamp(`${(this.teams[winner]?.name ?? 'WINNERS').toUpperCase()} TAKE THE BLOCK!`, 'crowned');
     this.bus.emit('sfx', 'crowd-cheer');
+    this.bus.emit('sfx', 'cheer-big');
     this.bus.emit('sfx', 'bassdrop');
     this.field.crowdEnergy = 1;
     let lapT = 0;
@@ -751,7 +653,7 @@ export class MatchScene {
     this.hud.setBases(s.bases);
     this.hud.setCount(s.balls);
     this.hud.showSpecial(this.kickingIsPlayer()); // crown super-kick is ONLY for when you're kicking
-    this.hud.setSpecial(this.special.value, this.special.ready, this.specialArmed, this.teams[this.playerSide].special.label);
+    this.hud.setPowerKick(this.power.hudState());
   }
   // (worldToScreen lives near the tap-picking helpers below — this class used
   // to define it TWICE; the later, null-returning version always won)
@@ -778,6 +680,12 @@ export class MatchScene {
     this.strikes = 0;
     this.fouls = 0;
     this.runners = [];
+    for (const t of this.trailPool) { t.hide(); t.busy = false; }
+    this.power.disarm(); // an armed-but-unkicked charge is refunded
+    if (this.kickingIsPlayer() && this.playerGear && !this._gearToasted) {
+      this._gearToasted = true;
+      this.after(0.8, () => this.hud.gearToast(gearLine(this.playerGear)));
+    }
     this._hopCalled = false;
     this._kickApproach = null;
     // heat-wave moment (Play It): tell the offense ONCE per half that the
@@ -821,9 +729,7 @@ export class MatchScene {
     const kickerIdx = this.match.currentKickerIdx();
     this.kicker = off[kickerIdx % off.length];
     this.kicker.group.visible = true;
-    this.kicker.group.position.set(-0.9, 0, 0.4);
-    this.faceTo(this.kicker, FIELD_LAYOUT.pitcher, true); // square up to the mound
-    this.kicker.animator.play('plate');
+    this.startWalkup();
     // broadcast lower-third: every new kicker gets the NOW KICKING card
     // (name + best stats, ~2s, non-blocking — the full walkout is match-start only)
     const kp = this.kicker.data;
@@ -832,8 +738,9 @@ export class MatchScene {
         nick: kp.nick, number: kp.number ?? this.kicker.number, pos: kp.pos,
         stats: kp.stats, color: this.teams[this.match.kickingSide()].colors?.primary,
         label: 'NOW KICKING', mini: true,
+        gear: this.kickingIsPlayer() ? gearLine(this.playerGear) : null,
       });
-      this.after(2.4, () => this.hud.walkoutHide());
+      this.after(walkS() + WALKUP.tauntS + 0.4, () => this.hud.walkoutHide());
     }
 
     this.baseChars = [null, null, null];
@@ -886,12 +793,68 @@ export class MatchScene {
     if (this.kickingIsPlayer()) {
       this.camTarget = CAM.kick;
       this.hud.hint('GET READY…');
-      this.after(1.4, () => this.serve());
     } else {
       this.camTarget = CAM.pitch;
       this.hud.hint('YOUR ARM — PICK A PITCH');
-      this.after(1.2, () => this.serve());
     }
+  }
+
+  /** Every kicker walks up to the plate and hits a taunt before the pitch;
+   *  a tap skips straight to the plate. Drills skip it. */
+  startWalkup() {
+    const k = this.kicker;
+    this.walkup = null; // a new at-bat always supersedes a live walk-up (drills bail below)
+    // the WHOLE tutorial session skips the walk-up (spec: drills/tutorial skip it),
+    // not just the pickle drill — tutorialQuiet is set for the run by TutorialDirector
+    const drill = new URLSearchParams(location.search).has('drill') || this.tutorialNoHomer || this.tutorialQuiet;
+    if (drill) { this.placeKickerAtPlate(); this.after(1.2, () => this.serve()); return; }
+    const isPlayer = this.kickingIsPlayer();
+    k.group.position.set(WALKUP.startX, 0, WALKUP.z);
+    this.faceTo(k, new THREE.Vector3(WALKUP.plateX, 0, WALKUP.z), true);
+    k.animator.play('walk', { speedFactor: 1 });
+    const taunt = pickTaunt({ isPlayer, equipped: this.playerGear?.taunt ?? null });
+    this.walkup = { char: k, phase: 'walk', until: this.elapsed + walkS(), taunt: k.animator.hasClip?.(taunt) ? taunt : null, isPlayer };
+    this.bus.emit('sfx', 'stomp');
+    if (this.cleatRing && isPlayer) { this.cleatRing.visible = true; }
+  }
+
+  placeKickerAtPlate() {
+    const k = this.kicker;
+    k.group.position.set(WALKUP.plateX, 0, WALKUP.z);
+    this._kickerPrevX = WALKUP.plateX; // the snap home is not a slide — no phantom strafe
+    this.faceTo(k, FIELD_LAYOUT.pitcher, true);
+    k.animator.play('plate');
+    if (this.cleatRing) this.cleatRing.visible = false;
+  }
+
+  /** Advance the walk-up; called from update(). */
+  updateWalkup(dt) {
+    const w = this.walkup;
+    if (!w) return;
+    const k = w.char;
+    if (w.phase === 'walk') {
+      k.group.position.x = Math.min(WALKUP.plateX, k.group.position.x + WALKUP.mps * dt);
+      if (this.cleatRing?.visible) this.cleatRing.position.set(k.group.position.x, 0.02, k.group.position.z);
+      if (this.elapsed >= w.until || k.group.position.x >= WALKUP.plateX) {
+        k.group.position.x = WALKUP.plateX;
+        if (!w.taunt) return this.endWalkup(false);
+        w.phase = 'taunt';
+        w.until = this.elapsed + WALKUP.tauntS;
+        this.faceCam(k);
+        k.animator.play(w.taunt, { onDone: () => { if (this.walkup === w) this.endWalkup(false); } });
+        this.bus.emit('sfx', w.isPlayer ? 'crowd-cheer' : 'boo');
+        this.field.crowdEnergy = Math.max(this.field.crowdEnergy ?? 0, 0.7);
+      }
+    } else if (this.elapsed >= w.until) {
+      this.endWalkup(false);
+    }
+  }
+
+  endWalkup(skipped) {
+    if (!this.walkup) return;
+    this.walkup = null;
+    this.placeKickerAtPlate();
+    this.after(skipped ? WALKUP.serveDelayS : 0.2, () => this.serve());
   }
 
   /** Serve the next pitch, branching on role. */
@@ -900,6 +863,7 @@ export class MatchScene {
     // stale-timer guard: never re-serve over a live pitch/trace/kick — a
     // double serve kills the ball mid-flight and eats the play silently
     if (this.phase !== 'SETUP' && this.phase !== 'PITCH_SELECT') return;
+    if (this.walkup) return; // a stale timer must never serve mid-walk-up
     this.lastStealCommit = null; // a fresh pitch — the previous steal is settled
     this._gearSwing = null; // any unfinished crown swing is history now
     if (this.kickingIsPlayer()) this.startAutoPitch();
@@ -1102,6 +1066,14 @@ export class MatchScene {
       : null;
 
     if (effErr > this.tuning.kick.okWindowMs * 1.6) {
+      // the miss must READ as a miss: the leg swings through empty air
+      // (a frozen kicker was the worst "kick didn't line up" tell)
+      this.kicker.animator.play('kick', {
+        speed: isPlayerKick ? 1.3 : 1,
+        onDone: () => {
+          if (this.kicker?.animator?.name === 'kick' && this.kicker.group.visible) this.kicker.animator.play('plate');
+        },
+      });
       this.strike('WHIFF!');
       return;
     }
@@ -1109,24 +1081,18 @@ export class MatchScene {
 
     let powerMult = 1;
     this.specialKickGear = null;
-    if (this.kickingIsPlayer() && this.specialArmed) {
-      const sp = this.special.consume();
+    if (this.kickingIsPlayer() && this.power.armed) {
+      const sp = this.power.consume();
       if (sp) {
-        this._crownReadyCalled = false; // meter spent — the next fill announces again
         powerMult = sp.powerMult;
-        this.kickWasSpecial = true; // armed full meter consumed → this kick can be a homer
-        // equipped LOCKER kick: its clip replaces the swing (played at the
-        // kick site) and its mods flavor the launch
-        const g = this.playerGear?.kick;
-        if (g) {
-          this.specialKickGear = g;
-          powerMult = g.mods?.powerMult ?? powerMult;
-          if (g.mods?.curl) aimDeg = Math.max(-60, Math.min(60, aimDeg * g.mods.curl));
-          this.hud.call(`${g.name}!`, 'crowned');
+        this.kickWasSpecial = true;
+        if (sp.gear) {
+          this.specialKickGear = sp.gear;
+          if (sp.gear.mods?.curl) aimDeg = Math.max(-60, Math.min(60, aimDeg * sp.gear.mods.curl));
+          this.hud.call(`${sp.gear.name}!`, 'crowned');
         }
         this.bus.emit('cine:special', { label: sp.label, kicker: this.kicker });
       }
-      this.specialArmed = false;
     }
     // crew on fire: every kick is juiced while the bar burns
     powerMult *= this.heat.kickPowerMult(this.match.kickingSide());
@@ -1212,7 +1178,11 @@ export class MatchScene {
       dur: holdS,
       from: this.ball.pos.clone(),
       to: new THREE.Vector3(this.ball.pos.x, 0.22, this.kicker.group.position.z - 0.5),
+      // capped side-step INTO the ball (visual only — the judge already ran):
+      // the body and the ball close the gap together instead of a magnet ball
+      stepX: Math.max(-0.45, Math.min(0.45, this.ball.pos.x - this.kicker.group.position.x)),
     };
+    this.bus.emit('sfx', 'swing'); // the leg cutting air, before the thump lands
     if (judged.quality === 'PERFECT' || this.kickHrEligible) {
       this.bus.emit('cine:perfect', { kicker: this.kicker, ball: this.ball, holdS });
     } else {
@@ -1268,9 +1238,9 @@ export class MatchScene {
 
   /** Ball four: free pass. The ENGINE already moved everyone (applyWalk). */
   playWalk() {
-    this.hud.call('WALKED HIM!', 'robbed');
+    this.hud.call(this.kicker?.gender === 'she' ? 'WALKED HER!' : 'WALKED HIM!', 'robbed');
     this.hud.setCount(0);
-    this.bus.emit('vo', 'walk');
+    this.bus.emit('vo', { event: 'walk', gender: this.kicker?.gender });
     this.bus.emit('sfx', 'crowd-cheer');
     const k = this.kicker;
     if (k) {
@@ -1308,7 +1278,9 @@ export class MatchScene {
     this.hud.call(this.strikes >= 3 ? 'STRUCK OUT!' : label, 'pegged');
     if (this.strikes >= 3) {
       this.cancelSteal(); // at-bat's over anyway; restoreRunners puts him back
-      this.bus.emit('vo', 'strike');
+      this.bus.emit('sfx', 'out');
+      this.bus.emit('vo', { event: 'strike', gender: this.kicker?.gender });
+      if (this.kickingIsPlayer()) this.bus.emit('sfx', 'crowd-ooh'); // struck out — groan
       this.after(0.8, () => this.finalizePlay(1, 'strikeout', { restoreRunners: true }));
     } else {
       const resume = () => {
@@ -1356,7 +1328,7 @@ export class MatchScene {
     // The special-meter PERFECT reward stays PERFECT-only (meter economy).
     // (the impact/contact beat began at tap so the full swing reads in slow-mo)
     if (judged.quality === 'PERFECT') {
-      if (this.kickingIsPlayer()) this.crownFeed('PERFECT');
+      if (this.kickingIsPlayer()) { this.crownFeed('PERFECT'); this.matchStats.perfects += 1; }
       this.noteHeat(this.match.kickingSide(), 'PERFECT');
     }
 
@@ -1399,6 +1371,7 @@ export class MatchScene {
     if (this.playFinalized) return;
     this.fouls = (this.fouls ?? 0) + 1;
     this.bus.emit('sfx', 'whiff');
+    this.bus.emit('sfx', 'foul');
     this.bus.emit('vo', 'foul');
     if (this.fouls >= 4) {
       this.cancelSteal();
@@ -1523,21 +1496,59 @@ export class MatchScene {
     this.runners.push(kr);
   }
 
+  /** Every RunnerSim in the scene goes through here so the LOCKER cleat
+   *  speedMult (player runners only) can never be dropped by a mid-run
+   *  rebuild (tag-up scramble, GO FOR 2, rundown retreat, …). Pass overrides
+   *  to force a specific option (e.g. `{ human: false }` for an auto-scramble)
+   *  — they're spread last, so they win over the defaults but speedMult still
+   *  comes from cleatSpeedMult unless explicitly overridden too. */
+  newRunnerSim(overrides = {}) {
+    return new RunnerSim({
+      tuning: this.tuning,
+      human: this.kickingIsPlayer(),
+      speedMult: this.kickingIsPlayer() ? this.cleatSpeedMult : 1,
+      ...overrides,
+    });
+  }
+
   makeRunner(idx, char, fromBase) {
     // don't stomp a mid-flight crown swing — its onDone starts the run itself
     if (char.animator.name !== this._gearSwing || !this._gearSwing) char.animator.play('run', { speedFactor: 1 });
-    return {
+    const r = {
       idx,
       char,
       fromBase, // -1 = home plate
       originBase: fromBase, // the time-of-pitch bag — where a TAG UP must return
       targetBase: fromBase + 1,
-      sim: new RunnerSim({ tuning: this.tuning, human: this.kickingIsPlayer() }),
+      sim: this.newRunnerSim(),
+      trail: this.kickingIsPlayer() ? (this.trailPool.find((t) => !t.busy) ?? null) : null,
       state: 'running',
       decideT: 0,
       forced: false,
       aiRate: aiMashRate(this.difficulty),
     };
+    if (r.trail) r.trail.busy = true;
+    return r;
+  }
+
+  /** Hand a runner's trail slot back to the pool. Call this at every site that
+   *  drops a runner from `this.runners` OUTSIDE nextAtBat (which already does
+   *  a wholesale pool reset) — a steal resolving safe/cancelled/caught, or a
+   *  watchdog force-settle — so a busy-forever slot can't starve later runners
+   *  in the same at-bat. */
+  releaseTrail(r) {
+    if (r?.trail) { r.trail.hide(); r.trail.busy = false; r.trail = null; }
+  }
+
+  /** A runner crosses the plate: state + the score sting (silent = the homer
+   *  already blasted its own horn). Stamps scoredAt for the live diamond. */
+  scoreRun(r, { silent = false } = {}) {
+    if (r.state === 'scored') return;
+    r.state = 'scored';
+    r.scoredAt = this.elapsed;
+    if (silent) return;
+    this.bus.emit('sfx', 'score');
+    if (!this.kickingIsPlayer()) this.bus.emit('sfx', 'boo'); // they scored on YOU
   }
 
   leadRunner() {
@@ -1553,8 +1564,9 @@ export class MatchScene {
   /** Send the runner on `baseIdx` stealing the next bag (pre-kick). */
   startSteal(baseIdx) {
     // one steal per pitch: a second launch after a commit would leave the foul
-    // rule with two runners to un-wind and only one race to run it with
-    if (this.stealing || this.lastStealCommit || this.phase === 'LIVE' || this.playFinalized) return;
+    // rule with two runners to un-wind and only one race to run it with.
+    // Also barred during the walk-up — nobody is out there to throw the ball.
+    if (!stealAllowed(this)) return;
     const occ = this.match.state.bases[baseIdx];
     const char = this.baseChars?.[baseIdx];
     if (occ === null || !char) return;
@@ -1583,7 +1595,7 @@ export class MatchScene {
     const rate = this.kickingIsPlayer()
       ? Math.max(1.6, this.input.tapRate(500, performance.now())) // a lazy steal is a DEAD steal — mash it
       : r.aiRate;
-    r.sim.tick(dt, rate);
+    r.sim.tick(dt, rate * (this.kickingIsPlayer() ? this.cleatStealMult : 1));
     if (r.sim.arrived && this.stealResolving) {
       r.sim.progressM = this.tuning.running.basePathM; // hold AT the bag while the throw races in
     }
@@ -1635,6 +1647,7 @@ export class MatchScene {
     }
     r.state = 'done';
     this.runners = this.runners.filter((q) => q !== r);
+    this.releaseTrail(r);
     this.stealing = null;
     this.watchdog.clear(r.idx);
     this.refreshHud();
@@ -1644,6 +1657,7 @@ export class MatchScene {
     const r = this.stealing;
     if (!r) return;
     this.runners = this.runners.filter((q) => q !== r);
+    this.releaseTrail(r);
     this.stealing = null;
     this.watchdog.clear(r.idx);
   }
@@ -1676,11 +1690,12 @@ export class MatchScene {
         }
         r.state = 'done';
         this.runners = this.runners.filter((q) => q !== r);
+        this.releaseTrail(r);
         this.stealing = null;
         this.outStumble(r.char);
         this.hud.call(r.scramble ? 'DEAD BALL — TAGGED OUT!' : 'CAUGHT STEALING!', 'pegged');
         this.bus.emit('sfx', 'catchpop');
-        this.bus.emit('vo', 'forced');
+        this.bus.emit('vo', { event: 'forced', gender: r.char?.gender });
         this.match.applyBaseEvent({ outsAdded: 1, bases });
         this.refreshHud();
         this.after(1.0, () => { r.char.group.visible = false; });
@@ -1720,7 +1735,7 @@ export class MatchScene {
     };
     if (!this.kickingIsPlayer()) {
       // YOU'RE the defense: quick draw — tap the bag on the throw pad
-      this.hud.hint('RUNNER GOING! OUT-DRAW HIM!');
+      this.hud.hint(r.char?.gender === 'she' ? 'RUNNER GOING! OUT-DRAW HER!' : 'RUNNER GOING! OUT-DRAW HIM!');
       this.hud.showThrowPad(true);
       this.hud.highlightBestBase(r.targetBase);
       this.stealDefense = { t0: this.elapsed, throwDown };
@@ -1855,7 +1870,7 @@ export class MatchScene {
     r.fromBase = r.heldAt;
     r.targetBase = r.heldAt + 1;
     r.forced = false;
-    r.sim = new RunnerSim({ tuning: this.tuning, human: true });
+    r.sim = this.newRunnerSim({ human: true }); // GO button = always a deliberate human send
     r.state = 'running';
     r.char.animator.play('run');
     this.bus.emit('sfx', 'juke');
@@ -1940,13 +1955,16 @@ export class MatchScene {
         r.sim.tick(dt, useRate);
         const { p, dir } = this.runnerWorldPos(r);
         r.char.group.position.set(p.x, 0, p.z);
+        r.trailDir = dir; // remembered facing — the trail keeps fading toward it after he stops
+        // 0.6: a real sprint on the phone — 0.8 was never reached in play
+        r.trail?.update(p, dir, r.sim.speedMs > this.tuning.running.maxSpeedMs * 0.6, this.elapsed);
         r.char.faceYaw = Math.atan2(dir.x, dir.z); // run facing forward, never moonwalk
         r.char.animator.ctx.speedFactor = 0.7 + (mashSpeed(useRate, this.tuning) / this.tuning.running.maxSpeedMs) * 0.6;
 
         if (r.sim.arrived) {
           if (r.targetBase === 3) {
             // HOME — that's a run
-            r.state = 'scored';
+            this.scoreRun(r);
             this.pendingRuns = (this.pendingRuns ?? 0) + 1;
             this.field.crowdEnergy = 1;
             this.bus.emit('sfx', 'crowd-cheer');
@@ -1962,7 +1980,7 @@ export class MatchScene {
               // still not back to his time-of-pitch bag — keep scrambling
               r.fromBase = r.heldAt;
               r.targetBase = r.heldAt - 1;
-              r.sim = new RunnerSim({ tuning: this.tuning, human: false });
+              r.sim = this.newRunnerSim({ human: false }); // still scrambling — auto-runs, not tap-driven
               r.state = 'running';
               r.char.animator.play('run');
             } else if (r.tagUp) {
@@ -1995,10 +2013,16 @@ export class MatchScene {
           r.fromBase = r.heldAt;
           r.targetBase = r.heldAt + 1;
           r.forced = mustVacate;
-          r.sim = new RunnerSim({ tuning: this.tuning, human: this.kickingIsPlayer() });
+          r.sim = this.newRunnerSim();
           r.state = 'running';
           r.char.animator.play('run');
         }
+      }
+      // a stopped runner (held/scored) still needs his trail AGED every frame —
+      // it's the fade that reads as "he sprinted, now he's stopped", not a
+      // freeze-framed ribbon nailed to the bag until the pool wipes it
+      if (r.trail && r.state !== 'running') {
+        r.trail.update(r.char.group.position, r.trailDir ?? TRAIL_FALLBACK_DIR, false, this.elapsed);
       }
     }
 
@@ -2022,6 +2046,23 @@ export class MatchScene {
     this.updateRunnerAlerts(); // keep the "runner heading home / stealing 3rd" banners live
     if (!this.playFinalized && this.ballControlled && !someoneAdvancing) {
       this.finalizePlay(this.playOuts ?? 0, this.lastOutReason);
+    }
+
+    // LAST-RESORT play watchdog: whatever state-hole we haven't met yet, a
+    // settled field must ALWAYS close the play (dev froze mid-play with two
+    // runners parked on a bag, 2026-08-05). Runners settled + defense owns the
+    // ball (or it's dead on the turf) + no cinematic = the play ends, period.
+    const everyoneSettled = !this.runners.some((r) => r.state === 'running');
+    if (!this.playFinalized && !this.cinematicLock && everyoneSettled
+      && (this.defenseHasBall || this.ball.mode === 'idle')) {
+      this._settledT = (this._settledT ?? 0) + dt;
+      if (this._settledT > 8) this.ballControlled = true;
+      if (this._settledT > 12) {
+        console.warn('[skk] play watchdog: force-finalizing a stuck play');
+        this.finalizePlay(this.playOuts ?? 0, this.lastOutReason);
+      }
+    } else {
+      this._settledT = 0;
     }
   }
 
@@ -2062,7 +2103,7 @@ export class MatchScene {
     } else {
       for (const r of this.runners) {
         if (r.state === 'scored') runs += 1;
-        else if (r.state === 'held') finalBases[r.heldAt] = r.idx;
+        else if (r.state === 'held' && r.heldAt >= 0 && r.heldAt <= 2) finalBases[r.heldAt] = r.idx; // 3-bag books only
         else if (r.state === 'running') {
           // settled mid-leg: a runner past halfway is credited the base they're
           // headed to (the kicker beats it out to first); otherwise hold the last bag
@@ -2084,7 +2125,8 @@ export class MatchScene {
 
     this.match.applyOutcome({ outsAdded, runs, finalBases, label });
     if (['single', 'double', 'triple'].includes(label)) {
-      this.bus.emit('vo', 'safe');
+      this.bus.emit('sfx', 'safe');
+      this.bus.emit('vo', { event: 'safe', gender: this.kicker?.gender });
       if (this.kickingIsPlayer()) this.crownFeed('hit'); // base hits build the crown
     }
     this.pendingRuns = 0;
@@ -2454,6 +2496,7 @@ export class MatchScene {
         r.char.animator.play('idle');
         this.baseChars[r.fromBase] = r.char;
         this.runners = this.runners.filter((q) => q !== r);
+        this.releaseTrail(r);
         this.stealing = null;
         this.stealResolving = false;
         this.stealDefense = null;
@@ -2462,7 +2505,7 @@ export class MatchScene {
     }
     const past = r.sim.progressM > this.tuning.running.basePathM * 0.5;
     if (past && r.targetBase === 3) {
-      r.state = 'scored';
+      this.scoreRun(r);
       this.pendingRuns = (this.pendingRuns ?? 0) + 1;
       r.char.group.visible = false;
     } else {
@@ -2482,7 +2525,7 @@ export class MatchScene {
     r.targetBase = r.fromBase;
     r.fromBase = newFrom;
     r.forced = false;
-    r.sim = new RunnerSim({ tuning: this.tuning, human: this.kickingIsPlayer() });
+    r.sim = this.newRunnerSim();
     r.sim.progressM = Math.max(0, this.tuning.running.basePathM - oldP);
     r.char.animator.play('run');
   }
@@ -2503,7 +2546,7 @@ export class MatchScene {
     }
     this.defenseHasBall = true;
     this.hud.stamp('PICKLE!', 'robbed');
-    this.bus.emit('vo', 'pickle');
+    this.bus.emit('vo', { event: 'pickle', gender: runner.char?.gender });
     if (this.playerControlled) {
       // PLAYER DEFENSE: same duel — your verbs are THROW (button) and PEG (swipe)
       this.duel = {
@@ -2616,6 +2659,7 @@ export class MatchScene {
     const remaining = this.tuning.running.basePathM - r.sim.progressM;
     if (brain.committed && remaining < 5.2 && !duel.spinAnim && r.char.animator.name !== 'slide') {
       r.char.animator.play('slide');
+      this.bus.emit('sfx', 'slide'); // pavement scrape under the slide
     }
 
     const holder = this.fieldingChars().find((c) => c.hasBall);
@@ -2820,7 +2864,8 @@ export class MatchScene {
         this.refreshHud();
         this.field.crowdEnergy = 1;
         this.bus.emit('sfx', 'crowd-cheer');
-        this.bus.emit('vo', 'safe');
+        this.bus.emit('sfx', 'safe');
+        this.bus.emit('vo', { event: 'safe', gender: r.char?.gender });
         this.hud.call('STOLE THE BAG!', 'crowned');
       } else if (r.state === 'held') {
         // the small win: worked his way back to safety — no out, he lives
@@ -2831,7 +2876,7 @@ export class MatchScene {
     } else if (r.state !== 'running' && r.state !== 'held' && r.state !== 'scored') {
       // defense converted the rundown — double-play-energy celebration
       this.bus.emit('sfx', 'crowd-cheer');
-      this.hud.call('GOT HIM!', 'pegged');
+      this.hud.call(r.char?.gender === 'she' ? 'GOT HER!' : 'GOT HIM!', 'pegged');
     }
   }
 
@@ -2855,7 +2900,11 @@ export class MatchScene {
     const lead = this.leadRunner();
     if (lead) {
       const toRunner = fielder.group.position.distanceTo(this.runnerWorldPos(lead).p);
-      if (toRunner < 5.5) return this.throwBall(fielder, { peg: true });
+      // pegging is a SEEN part of this game (dev, 2026-08-05: "more of an
+      // option"): point-blank is automatic; mid-range is a difficulty-scaled
+      // taste for the highlight throw (the lead-the-runner aim handles range)
+      const pegReach = { Rookie: 6.5, Street: 8.5, King: 10 }[this.difficulty] ?? 8;
+      if (toRunner < 5.5 || (toRunner < pegReach && aiWantsPeg(this.difficulty))) return this.throwBall(fielder, { peg: true });
       return this.throwBall(fielder, { base: lead.targetBase });
     }
     return this.throwBall(fielder, { base: 0 }); // nobody live — flip to first to end it
@@ -2946,7 +2995,8 @@ export class MatchScene {
       const sd = this.stealDefense;
       this.stealDefense = null;
       this.hud.showThrowPad(false);
-      const wrongBag = base !== undefined && base !== this.stealing?.targetBase;
+      // the quick-draw is a BAG throw — mashing PEG costs the same as the wrong bag
+      const wrongBag = peg === true || (base !== undefined && base !== this.stealing?.targetBase);
       sd.throwDown((this.elapsed - sd.t0) + (wrongBag ? 0.6 : 0)); // wrong bag costs you
       return;
     }
@@ -3110,11 +3160,21 @@ export class MatchScene {
           // he's STANDING ON the bag (send-decision window keeps him 'running')
           // — that's a HOLD, not a pickle; a throw must never trap a man who
           // never left the base (dev screenshot, 2026-08-04)
-          victim.state = 'held';
-          victim.heldAt = victim.targetBase;
-          victim.char.group.position.copy(this.basePos(victim.targetBase)).add(new THREE.Vector3(0.4, 0, 0.4));
-          victim.char.animator.play('idle');
-          this.hud.call('HOLDS THE BAG!', 'robbed');
+          if (victim.targetBase >= 3) {
+            // standing ON HOME is a RUN, not a hold — a heldAt=3 runner poisoned
+            // the books AND parked himself in the next kicker's face while the
+            // GO-offer gate froze the play (dev freeze screenshot, 2026-08-05)
+            this.scoreRun(victim);
+            this.pendingRuns = (this.pendingRuns ?? 0) + 1;
+            victim.char.group.visible = false;
+            this.hud.call('SAFE AT HOME!', 'crowned');
+          } else {
+            victim.state = 'held';
+            victim.heldAt = victim.targetBase;
+            victim.char.group.position.copy(this.basePos(victim.targetBase)).add(new THREE.Vector3(0.4, 0, 0.4));
+            victim.char.animator.play('idle');
+            this.hud.call('HOLDS THE BAG!', 'robbed');
+          }
           this.afterThrow();
         } else {
           this.startRundown(victim, base); // can't force him — trap him in a pickle
@@ -3124,7 +3184,8 @@ export class MatchScene {
         this.ball.place(basePt.clone().setY(0.3));
         this.ball.mode = 'idle';
         this.hud.call('NOBODY COVERING!', 'robbed');
-        this.bus.emit('vo', 'safe');
+        this.bus.emit('sfx', 'safe');
+        this.bus.emit('vo', { event: 'safe', gender: victim?.char?.gender });
         this.afterThrow();
       } else {
         this.afterThrow(); // caught but safe — still go after any OTHER advancing runner
@@ -3263,11 +3324,13 @@ export class MatchScene {
 
   onTap(e) {
     if (this.cinematicLock) {
-      // walkout AND the crowned dance skip via their chip only; caught-out
-      // and the victory lap stay tap-anywhere (they barely block)
+      // the pre-game splash intro AND the crowned dance skip via their chip
+      // only; caught-out and the victory lap stay tap-anywhere (they barely block)
       if (!this.walkoutActive && !this.chipSkip) this.bus.emit('cine:skip');
       return;
     }
+    // walk-up: a tap skips the show and puts the kicker on the plate
+    if (this.walkup) { this.endWalkup(true); return; }
     // DUEL: taps are inert — mash instinct must never fire GO by accident
     if (this.duel && this.kickingIsPlayer()) return;
     // OFFENSE, pre-kick: tap one of YOUR base runners to send him stealing
@@ -3323,6 +3386,56 @@ export class MatchScene {
     p.project(this.engine.camera);
     if (p.z > 1) return null; // behind the camera
     return { x: r.left + (p.x * 0.5 + 0.5) * r.width, y: r.top + (-p.y * 0.5 + 0.5) * r.height };
+  }
+
+  // Frame callbacks (matchScene.update() → camDir.update() → this) run BEFORE
+  // composer.render() each frame (src/engine/renderer.js), and three.js only
+  // recomputes camera.matrixWorldInverse during render — so a hard camera cut
+  // earlier in the same update() would otherwise get projected through last
+  // frame's stale pose. Force a fresh matrixWorld/matrixWorldInverse here;
+  // worldToScreen() is left alone (pre-existing, not on this cut's hot path).
+  projectPoint(v, rect) {
+    this.engine.camera.updateMatrixWorld();
+    const r = rect || this.engine.renderer.domElement.getBoundingClientRect();
+    const p = v.clone(); p.y += 1.0; p.project(this.engine.camera);
+    return { x: (p.x * 0.5 + 0.5) * r.width, y: (-p.y * 0.5 + 0.5) * r.height, w: r.width, h: r.height, behind: p.z > 1 };
+  }
+
+  updateRunnerArrows() {
+    if (this.cinematicLock || this.walkoutActive || this.walkup || this.duel) { this.hud.setRunnerArrows([]); return; }
+    const live = this.runners.filter((r) => r.state === 'running' || r.state === 'held');
+    if (this.stealing?.state === 'running' && !live.includes(this.stealing)) live.push(this.stealing);
+    if (!live.length) { this.hud.setRunnerArrows([]); return; }
+    const color = this.teams[this.match.kickingSide()].colors?.primary ?? '#3ec6b5';
+    const BASE = ['1ST', '2ND', '3RD', 'HOME'];
+    const out = [];
+    const rect = this.engine.renderer.domElement.getBoundingClientRect();
+    live.sort((a, b) => b.targetBase - a.targetBase);
+    for (const r of live.slice(0, 3)) {
+      const pos = r.state === 'held' ? this.basePos(r.heldAt ?? r.fromBase) : this.runnerWorldPos(r).p;
+      const pr = this.projectPoint(pos, rect);
+      const c = edgeClamp({ x: pr.x, y: pr.y, w: pr.w, h: pr.h, behind: pr.behind });
+      if (c.visible) continue;
+      out.push({ id: r.idx, x: c.x, y: c.y, angle: c.angle, number: r.char.number, color,
+        label: r.state === 'held' ? `ON ${BASE[r.heldAt ?? r.fromBase]}` : `→${BASE[r.targetBase]}`,
+        urgent: r.targetBase === 3 || r === this.stealing });
+    }
+    this.hud.setRunnerArrows(out);
+  }
+
+  updateRunnerDots() {
+    const color = this.teams[this.match.kickingSide()].colors?.primary ?? '#3ec6b5';
+    const dots = [];
+    for (const r of this.runners) {
+      if (r.state === 'running') dots.push({ id: r.idx, from: r.fromBase, to: r.targetBase, t: r.sim.progressM / this.tuning.running.basePathM, color });
+      else if (r.state === 'held') dots.push({ id: r.idx, from: r.heldAt ?? r.fromBase, to: r.heldAt ?? r.fromBase, t: 0, color });
+      else if (r.state === 'scored' && r.scoredAt != null && this.elapsed - r.scoredAt < 0.8) dots.push({ id: r.idx, from: 3, to: 3, t: 1, color, scored: true });
+    }
+    if (this.stealing?.state === 'running' && !this.runners.includes(this.stealing)) {
+      const s = this.stealing;
+      dots.push({ id: s.idx, from: s.fromBase, to: s.targetBase, t: s.sim.progressM / this.tuning.running.basePathM, color });
+    }
+    this.hud.setRunnerDots(dots);
   }
 
   /** The non-active fielder nearest the tap, if the tap actually lands on one. */
@@ -3394,14 +3507,14 @@ export class MatchScene {
   /** Crown feed: every meter gain pulses the crown button so the buildup is
    *  SEEN (dev: the meter must engage the player). */
   crownFeed(event) {
-    this.special.add(event);
+    const minted = this.power.feed(event);
     this.hud.crownPulse?.();
-    // the ARMING moment must slap (dev): one loud call the second it fills
-    if (this.special.ready && !this._crownReadyCalled) {
-      this._crownReadyCalled = true;
-      this.hud.stamp('CROWN READY!', 'crowned');
-      this.hud.hint('TAP THE 👑 — SUPER KICK, GUARANTEED CROWN');
+    if (minted) {
+      this.hud.stamp('CROWN CHARGED! +1', 'crowned');
+      this.hud.hint(`TAP THE 👑 — ${this.power.name} READY`);
       this.bus.emit('sfx', 'bassdrop');
+    } else {
+      this.bus.emit('sfx', 'crown-tick');
     }
     this.refreshHud();
   }
@@ -3410,6 +3523,7 @@ export class MatchScene {
    *  "buried in the floor" when its legs clip the pavement (dev, twice). */
   outStumble(char) {
     char.recovering = true;
+    this.bus.emit('sfx', 'slide'); // hitting the deck scrapes too
     char.animator.play('stumble', {
       onDone: () => this.after(0.6, () => {
         char.recovering = false;
@@ -3427,14 +3541,21 @@ export class MatchScene {
     this.field.crowdEnergy = 1;
     this.playOuts = (this.playOuts ?? 0) + 1;
     if (!this.kickingIsPlayer()) this.matchStats.defOuts += 1; // your glove, your credit
+    else {
+      // YOUR runner went down — the block reacts ONCE: a boo when the rally is
+      // still alive behind him, a groan when he was the last man moving.
+      const rallyLive = this.runners.some((o) => o !== runner && (o.state === 'running' || o.state === 'held'));
+      this.bus.emit('sfx', rallyLive ? 'boo' : 'crowd-ooh');
+    }
     this.lastOutReason = reason;
     if (reason === 'pegged') {
       this.bus.emit('cine:pegged', { runner: runner.char }); // director fires the 'pegged' call
       if (!this.kickingIsPlayer()) this.crownFeed('peg');
       this.noteHeat(this.match.fieldingSide(), 'peg');
     } else {
-      this.bus.emit('sfx', 'catchpop');
-      this.bus.emit('vo', 'forced'); // out call
+      this.bus.emit('sfx', reason === 'tag' ? 'tag' : 'catchpop');
+      this.bus.emit('sfx', 'out');
+      this.bus.emit('vo', { event: 'forced', gender: runner.char?.gender }); // out call
       this.hud.call(reason === 'tag' ? 'TAGGED OUT!' : 'OUT!', 'pegged');
     }
     // Do NOT finalize here — the kicker/other runners may still be live. The
@@ -3460,6 +3581,7 @@ export class MatchScene {
     fielder.animator.play('catch');
     fielder.hasBall = true;
     if (!this.kickingIsPlayer()) this.matchStats.defOuts += 1;
+    else this.bus.emit('sfx', 'crowd-ooh'); // YOUR ball died in a glove — the block groans
     this.field.crowdEnergy = 1;
 
     // the kicker is OUT on the catch — settle his clip too, or he keeps
@@ -3521,7 +3643,7 @@ export class MatchScene {
         // he completed an advance while the ball hung — send him scrambling back
         r.fromBase = r.heldAt;
         r.targetBase = r.heldAt - 1;
-        r.sim = new RunnerSim({ tuning: this.tuning, human: false }); // auto-scramble
+        r.sim = this.newRunnerSim({ human: false }); // auto-scramble
         r.state = 'running';
         r.forced = false;
         r.tagUp = true;
@@ -3566,13 +3688,12 @@ export class MatchScene {
     this.chipSkip = true; // the crowned dance skips via the CHIP, not any stray tap
     if (this.kickingIsPlayer()) this.matchStats.hr += 1;
     this.field.crowdEnergy = 1;
+    this.bus.emit('sfx', 'homer');       // air horn + fireworks — the crown is HEARD
+    this.bus.emit('sfx', 'cheer-big');
     // everyone on the basepaths trots home and scores
     let runs = 0;
     for (const r of this.runners) {
-      if (r.state === 'running' || r.state === 'held' || r.state === 'scored') {
-        if (r.state !== 'scored') runs += 1;
-        r.state = 'scored';
-      }
+      if (r.state === 'running' || r.state === 'held') { runs += 1; this.scoreRun(r, { silent: true }); }
       r.char.group.visible = r.char === this.kicker; // kicker stays out for the dance
     }
     runs += this.pendingRuns ?? 0;
@@ -3583,7 +3704,7 @@ export class MatchScene {
     for (const c of this.fieldingChars?.() ?? []) {
       if (c !== this.kicker && c.group.position.distanceTo(FIELD_LAYOUT.home) < 3.2) c.group.visible = false;
     }
-    this.bus.emit('cine:crowned', { kicker: this.kicker, team: this.teams[this.match.kickingSide()].id });
+    this.bus.emit('cine:crowned', { kicker: this.kicker, team: this.teams[this.match.kickingSide()].id, dance: this.danceBag?.draw(this.kicker) ?? null });
     if (this.kickingIsPlayer()) this.crownFeed('homerun');
     // payoff readout: the element carried it out (heat carry OR an outward wind)
     const hrWind = this.elements.windAccel();
@@ -3693,7 +3814,7 @@ export class MatchScene {
     f.group.position.z += nz * lunge;
     f.faceYaw = Math.atan2(nx, nz);
     f.animator.play('dive');
-    this.bus.emit('sfx', 'juke');
+    this.bus.emit('sfx', 'slide'); // the layout scrapes the blacktop
     const reach = (this.tuning.fielding.scoopRadiusM ?? 2.6) * 1.1;
     const now = Math.hypot(this.ball.pos.x - f.group.position.x, this.ball.pos.z - f.group.position.z);
     if (now <= reach && this.ball.pos.y < 1.7) {
@@ -3811,45 +3932,9 @@ export class MatchScene {
       this.hud.goalPop('GO!');
       this.bus.emit('sfx', 'juke');
     }
+    this.updateWalkup(dt);
     // a flick the player never released still fires (finger held after the snap)
     if (this.pendingFlick && this.elapsed > this.pendingFlick.tCross + 0.22) this.fireFlick();
-    // STARTING LINEUPS walkout: the whole squad dances up the block behind a
-    // wide low dolly (Thriller mode) — or the legacy star at a trailing hero cam
-    if (this.walkoutSquad) {
-      // five-shot broadcast package, hard cuts on the card beat (2.3 s):
-      // front dolly → side rail → captain push-in → crane settle → wide 3/4
-      const sq = this.walkoutSquad;
-      for (const c of sq.chars) c.group.position.z += dt * 0.5;
-      const frontZ = sq.chars[0]?.group.position.z ?? -10;
-      const cap = sq.chars[0]?.group.position ?? { x: 0, z: frontZ };
-      const tS = this.elapsed - (sq.t0 ?? this.elapsed);
-      const beatN = Math.min(4, Math.floor(tS / 2.3));
-      const k = Math.min(1, (tS - beatN * 2.3) / 2.3);
-      const cam = this.engine.camera;
-      switch (beatN) {
-        case 0: // low front dolly, slow push
-          cam.position.set(0, 1.4, frontZ + 6.0 - k * 0.8);
-          cam.lookAt(0, 1.05, frontZ - 2.6); break;
-        case 1: // side rail, tracking across the wedge
-          cam.position.set(-4 + k * 8, 1.3, frontZ + 3.6);
-          cam.lookAt(0, 1.1, frontZ - 1.2); break;
-        case 2: // captain close-up, push-in at chest height
-          cam.position.set(cap.x + 0.4, 1.35, cap.z + 2.6 - k * 0.9);
-          cam.lookAt(cap.x, 1.25, cap.z); break;
-        case 3: // high crane settling toward the formation
-          cam.position.set(0, 6.2 - k * 3.4, frontZ + 7.2);
-          cam.lookAt(0, 1.0, frontZ - 1.5); break;
-        default: // wide 3/4 drift until the segment ends
-          cam.position.set(3.4 - k * 1.2, 2.0, frontZ + 6.4);
-          cam.lookAt(0, 1.1, frontZ - 1.2); break;
-      }
-    } else if (this.walkout?.char) {
-      const wc = this.walkout.char;
-      wc.group.position.z += dt * 1.55;
-      wc.animator.ctx.speedFactor = 1;
-      this.engine.camera.position.set(0.9, 1.15, wc.group.position.z + 4.2);
-      this.engine.camera.lookAt(-0.2, 1.25, wc.group.position.z - 0.5);
-    }
     // city element procs (el-train pass / motorcade sweep): flash the HUD, rattle the camera
     const procEv = this.elements.update(dt);
     if (procEv) {
@@ -3987,7 +4072,7 @@ export class MatchScene {
     // auto-slide — during PITCH/SETUP, drive a real stride (run clip, speed-scaled)
     // so the feet move instead of gliding on the static plate clip. Never during
     // KICK_ANIM (the kick clip is playing).
-    if (this.kicker && (this.phase === 'PITCH' || this.phase === 'SETUP')) {
+    if (this.kicker && !this.walkup && (this.phase === 'PITCH' || this.phase === 'SETUP')) {
       const kx = this.kicker.group.position.x;
       const prevX = this._kickerPrevX ?? kx;
       const vx = rawDt > 0 ? (kx - prevX) / rawDt : 0; // SIGNED — picks the strafe direction
@@ -4020,7 +4105,27 @@ export class MatchScene {
       const foot = this.kickFootPos();
       if (foot) a.to.set(foot.x, Math.max(0.2, foot.y), foot.z);
       this.ball.place(new THREE.Vector3().lerpVectors(a.from, a.to, k));
+      // the KICKER closes the gap too — a capped side-step into the ball so
+      // contact reads true from both bodies (dev: "line up on every kick")
+      if (a.stepX) {
+        this.kicker.group.position.x += a.stepX * Math.min(1, dt / Math.max(a.dur, 0.01));
+      }
     }
+
+    // the blacktop is HEARD (dev: "way more sound effects"): live hops thump,
+    // the chain-link rattles. First hops only — a settling dribble isn't a drum.
+    if ((this.ball.fenceHits ?? 0) > (this._prevFenceHits ?? 0)) {
+      this.bus.emit('sfx', 'fence');
+    }
+    this._prevFenceHits = this.ball.fenceHits ?? 0;
+    if (this.ball.bounces > (this._prevBounces ?? 0)) {
+      if (this.phase === 'LIVE' && this.ball.bounces <= 3
+          && this.elapsed - (this._lastBounceSfx ?? -9) > 0.18) {
+        this.bus.emit('sfx', 'bounce');
+        this._lastBounceSfx = this.elapsed;
+      }
+    }
+    this._prevBounces = this.ball.bounces;
 
     // walk beat: the freshly-walked kicker jogs to 1st (cosmetic — nextAtBat
     // re-places everyone from engine state right after)
@@ -4038,6 +4143,21 @@ export class MatchScene {
     if (this.phase === 'LIVE' || this.phase === 'RESOLVE') {
       this.updateRunners(dt);
       if (this.duel) this.updateDuel(dt);
+      // PEG truth on the pad (dev: "more of an option"): lit while a runner is
+      // actually peggable, GOLD + hint when no force is on — the peg IS the play
+      if (this.playerControlled && this.activeFielder?.hasBall && !this.throwing && !this.duel) {
+        const t = this.pegTarget();
+        const live = !!t && t.state === 'running';
+        const state = live ? (this.recommendedThrowBase() === null ? 'best' : 'ready') : 'off';
+        if (state !== this._pegState) {
+          this._pegState = state;
+          this.hud.setPegState(state);
+          if (state === 'best') this.hud.hint('NO FORCE — PEG THE RUNNER!');
+        }
+      } else if (this._pegState && this._pegState !== 'off') {
+        this._pegState = 'off';
+        this.hud.setPegState('off');
+      }
     } else if (this.stealing) {
       this.updateStealRunner(dt); // pre-kick steal keeps moving during the pitch
     }
@@ -4092,7 +4212,8 @@ export class MatchScene {
     // STEAL CHIPS: runners on 1st/3rd sit outside the kick framing — pin a
     // tappable chip per eligible runner instead (setStealChips dedupes).
     const chipsOn = (this.phase === 'SETUP' || this.phase === 'PITCH')
-      && this.kickingIsPlayer() && !this.stealing && !this.cinematicLock && !this.playFinalized;
+      && this.kickingIsPlayer() && !this.stealing && !this.cinematicLock && !this.playFinalized
+      && !this.walkup; // no free bag while the kicker is still walking out
     const chips = [];
     if (chipsOn && this.baseChars) {
       for (let b = 0; b < 3; b++) {
@@ -4142,6 +4263,9 @@ export class MatchScene {
       const s = 1 + Math.sin(this.elapsed * 6) * 0.12;
       for (const r of this.baseRings) r.scale.setScalar(s);
     }
+
+    this.updateRunnerArrows();
+    this.updateRunnerDots();
   }
 
   destroy() {
@@ -4153,7 +4277,21 @@ export class MatchScene {
     this.offFrame?.();
     this.clearTimers();
     this.hud.destroy();
-    this.engine.scene.remove(this.field.root, this.ball.mesh, this.marker, this.fielderRing);
+    this.engine.scene.remove(this.field.root, this.ball.mesh);
     for (const c of [...this.chars.home, ...this.chars.away]) this.engine.scene.remove(c.group);
+    // every mesh this scene OWNS: off the graph and its GPU buffers freed —
+    // a rematch builds a fresh scene, so leaked geo/materials just pile up
+    const drop = (m) => {
+      if (!m) return;
+      this.engine.scene.remove(m);
+      m.geometry?.dispose?.();
+      m.material?.dispose?.();
+    };
+    for (const t of this.trailPool) drop(t.mesh);
+    drop(this.cleatRing);
+    drop(this.marker);
+    drop(this.fielderRing);
+    for (const r of this.baseRings ?? []) drop(r);
+    drop(this.youRing);
   }
 }

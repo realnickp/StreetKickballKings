@@ -370,5 +370,156 @@
    2.2
   ],
   "rate": 1.1
+ },
+ {
+  "file": "Martelo Do Chau.fbx",
+  "name": "kickMartelo",
+  "loop": false,
+  "contactAt": 0.583,
+  "inPlace": true,
+  "pack": "k",
+  "rate": 1.1,
+  "trim": [
+   0.27,
+   1.9
+  ]
+ },
+ {
+  "file": "Armada To Esquiva.fbx",
+  "name": "kickArmada",
+  "loop": false,
+  "contactAt": 0.72,
+  "inPlace": true,
+  "pack": "k",
+  "rate": 1.1,
+  "trim": [
+   0.23,
+   1.55
+  ]
+ },
+ {
+  "file": "Scissor Kick.fbx",
+  "name": "kickScissor",
+  "loop": false,
+  "contactAt": 0.35,
+  "inPlace": true,
+  "pack": "k",
+  "rate": 1.1,
+  "trim": [
+   0,
+   2.2
+  ]
+ },
+ {
+  "file": "Kicking 1.fbx",
+  "name": "kickPunt",
+  "loop": false,
+  "contactAt": 0.576,
+  "inPlace": true,
+  "pack": "k",
+  "rate": 1.1,
+  "trim": [
+   0.85,
+   2.5
+  ]
+ },
+ {
+  "file": "Flip Kick.fbx",
+  "name": "kickFlip",
+  "loop": false,
+  "contactAt": 0.421,
+  "inPlace": true,
+  "pack": "k",
+  "rate": 1.1,
+  "trim": [
+   0,
+   1.97
+  ]
+ },
+ {
+  "file": "Flying Bicycle Kick.fbx",
+  "name": "kickBicycle",
+  "loop": false,
+  "contactAt": 0.879,
+  "inPlace": true,
+  "pack": "k",
+  "rate": 1.1,
+  "trim": [
+   0,
+   0.66
+  ]
+ },
+ {
+  "file": "Inverted Double Kick To Kip Up.fbx",
+  "name": "kickKipUp",
+  "loop": false,
+  "contactAt": 0.372,
+  "inPlace": true,
+  "pack": "k",
+  "rate": 1.1,
+  "trim": [
+   0,
+   2.5
+  ]
+ },
+ {
+  "file": "Taunt.fbx",
+  "name": "tauntPoint",
+  "loop": false,
+  "inPlace": true,
+  "pack": "k",
+  "bakeHz": 15,
+  "trim": [
+   0.2,
+   1.9
+  ]
+ },
+ {
+  "file": "Standing Taunt Battlecry.fbx",
+  "name": "tauntCry",
+  "loop": false,
+  "inPlace": true,
+  "pack": "k",
+  "bakeHz": 15,
+  "trim": [
+   0,
+   1.8
+  ]
+ },
+ {
+  "file": "Standing Taunt Chest Thump.fbx",
+  "name": "tauntChest",
+  "loop": false,
+  "inPlace": true,
+  "pack": "k",
+  "bakeHz": 15,
+  "trim": [
+   0.1,
+   1.9
+  ]
+ },
+ {
+  "file": "Taunt Gesture.fbx",
+  "name": "tauntGesture",
+  "loop": false,
+  "inPlace": true,
+  "pack": "k",
+  "bakeHz": 15,
+  "trim": [
+   0.1,
+   1.9
+  ]
+ },
+ {
+  "file": "Loser.fbx",
+  "name": "tauntLoser",
+  "loop": false,
+  "inPlace": true,
+  "pack": "k",
+  "bakeHz": 15,
+  "trim": [
+   0.1,
+   1.9
+  ]
  }
 ]

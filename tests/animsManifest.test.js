@@ -12,6 +12,8 @@ const REQUIRED = [
   'thriller1', 'thriller2', 'thriller3', 'thriller4',
   'danceLock', 'danceTut', 'danceWave', 'danceChicken', 'danceStep', 'danceSilly',
   'soccerSpin',
+  // pack k: the taunt pool (the seven new kicks ride the LOCKER gear check)
+  'tauntPoint', 'tauntCry', 'tauntChest', 'tauntGesture', 'tauntLoser',
 ];
 
 describe('anims manifest', () => {
@@ -43,7 +45,14 @@ describe('anims manifest', () => {
       expect(m, `${g.id} clip ${g.clip} missing from manifest`).toBeTruthy();
       expect(m.loop).toBe(false);
       expect(m.contactAt, `${g.clip} needs contactAt`).toBeGreaterThan(0);
-      expect(m.pack).toBe('x');
+      expect(['x', 'k']).toContain(m.pack);
+    }
+  });
+  it('taunts are one-shot, in-place, short', () => {
+    for (const n of ['tauntPoint', 'tauntCry', 'tauntChest', 'tauntGesture', 'tauntLoser']) {
+      const m = manifest.find((x) => x.name === n);
+      expect(m.pack).toBe('k'); expect(m.loop).toBe(false); expect(m.inPlace).toBe(true);
+      expect(m.trim[1] - m.trim[0]).toBeLessThanOrEqual(1.8);
     }
   });
 });

@@ -21,3 +21,6 @@ public/assets/audio/samples/
 *.log
 tools/anims-src/
 tools/world-src/
+
+# codex CLI scratch
+.codex/

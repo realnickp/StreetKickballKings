@@ -21,7 +21,13 @@ export class Hud {
           <span class="inning" data-inning>▲ 1</span>
           <span class="outs"><i></i><i></i><i></i></span>
           <span class="ballct" data-ballct><em>B</em><i></i><i></i><i></i></span>
-          <span class="diamond"><b data-b="1"></b><b data-b="2"></b><b data-b="3"></b></span>
+          <svg class="diamond" viewBox="0 0 44 30" aria-hidden="true">
+            <path class="dm-path" d="M22 3 L41 15 L22 27 L3 15 Z"/>
+            <rect class="dm-b" data-b="1" x="37" y="11" width="8" height="8"/>
+            <rect class="dm-b" data-b="2" x="18" y="-1" width="8" height="8"/>
+            <rect class="dm-b" data-b="3" x="-1" y="11" width="8" height="8"/>
+            <g class="dm-dots"></g>
+          </svg>
         </div>
         <div class="team"><span class="abbr" data-abbr-home></span><span class="runs" data-home>0</span><div class="heat-bar"><div class="heat-fill" data-heat-home></div></div></div>
       </div>
@@ -49,7 +55,7 @@ export class Hud {
         <button class="t-h" data-base="3"><span>HOME</span></button>
         <button class="t-peg" data-peg><span>PEG</span></button>
       </div>
-      <div class="special-btn"><div class="core">👑</div></div>
+      <div class="special-btn"><div class="core">👑</div><span class="pk-label"></span></div>
       <button class="go-btn"><span></span></button>
       <div class="steal-chips"></div>
       <button class="duel-btn"><span>GO!</span></button>
@@ -111,6 +117,7 @@ export class Hud {
     this.duelBtn = this.el.querySelector('.duel-btn');
     this.onDuel = null;
     this.duelBtn.addEventListener('pointerdown', (e) => {
+      this._tap();
       e.stopPropagation();
       this.onDuel?.();
     });
@@ -118,6 +125,7 @@ export class Hud {
     this.reverseBtn = this.el.querySelector('.reverse-btn');
     this.onReverse = null;
     this.reverseBtn.addEventListener('pointerdown', (e) => {
+      this._tap();
       e.stopPropagation();
       this.onReverse?.();
     });
@@ -125,6 +133,7 @@ export class Hud {
     this.callBtn = this.el.querySelector('.call-btn');
     this.onCall = null;
     this.callBtn.addEventListener('pointerdown', (e) => {
+      this._tap('ui-confirm');
       e.stopPropagation();
       this.onCall?.();
     });
@@ -139,8 +148,12 @@ export class Hud {
     this.onSpecial = null;
     this.onPitchSelect = null;
     this.onGo = null;
+    // every HUD press is HEARD (dev, 2026-08-25): the scene routes these to the bus
+    this.onSfx = null;
+    this._tap = (name = 'ui-tap') => this.onSfx?.(name);
 
     this.goBtn.addEventListener('pointerdown', (e) => {
+      this._tap('ui-confirm');
       e.stopPropagation();
       this.onGo?.();
     });
@@ -148,6 +161,7 @@ export class Hud {
     this.pitchSelect.addEventListener('pointerdown', (e) => {
       const btn = e.target.closest('button');
       if (!btn) return;
+      this._tap();
       e.stopPropagation();
       this.onPitchSelect?.(btn.dataset.family);
     });
@@ -155,6 +169,7 @@ export class Hud {
     this.aimBar.addEventListener('pointerdown', (e) => {
       const btn = e.target.closest('button');
       if (!btn) return;
+      this._tap();
       this.aimBar.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === btn));
       this.onAim?.(btn.dataset.aim);
       e.stopPropagation();
@@ -162,11 +177,13 @@ export class Hud {
     this.throwPad.addEventListener('pointerdown', (e) => {
       const btn = e.target.closest('button');
       if (!btn) return;
+      this._tap('ui-confirm');
       e.stopPropagation();
       if (btn.hasAttribute('data-peg')) this.onThrow?.({ peg: true });
       else this.onThrow?.({ base: Number(btn.dataset.base) });
     });
     this.specialBtn.addEventListener('pointerdown', (e) => {
+      this._tap();
       e.stopPropagation();
       this.onSpecial?.();
     });
@@ -184,10 +201,30 @@ export class Hud {
 
   /** bases: [first, second, third] — truthy = runner standing on it */
   setBases(bases) {
-    for (const b of this.el.querySelectorAll('.diamond b')) {
+    for (const b of this.el.querySelectorAll('.diamond .dm-b')) {
       const i = Number(b.dataset.b) - 1;
       b.classList.toggle('on', bases[i] !== null && bases[i] !== undefined && bases[i] !== false);
     }
+  }
+
+  /** dots: [{ id, from, to, t, color, scored }] — from/to are -1|0|1|2|3 (-1/3 = home). */
+  setRunnerDots(dots) {
+    const XY = { [-1]: [22, 27], 0: [41, 15], 1: [22, 3], 2: [3, 15], 3: [22, 27] };
+    const g = this.el.querySelector('.dm-dots'); if (!g) return;
+    this._dotEls ??= new Map();
+    const keep = new Set();
+    for (const d of dots) {
+      keep.add(d.id);
+      let c = this._dotEls.get(d.id);
+      // r as an ATTRIBUTE too: the CSS `r` property needs Safari 16.4+, and an
+      // r-less circle draws nothing at all on anything older
+      if (!c) { c = document.createElementNS('http://www.w3.org/2000/svg', 'circle'); c.classList.add('dm-dot'); c.setAttribute('r', '3.2'); g.appendChild(c); this._dotEls.set(d.id, c); }
+      const [ax, ay] = XY[d.from] ?? XY[-1], [bx, by] = XY[d.to] ?? XY[3];
+      const t = Math.max(0, Math.min(1, d.t));
+      c.setAttribute('cx', (ax + (bx - ax) * t).toFixed(1)); c.setAttribute('cy', (ay + (by - ay) * t).toFixed(1));
+      c.setAttribute('fill', d.color); c.classList.toggle('scored', !!d.scored);
+    }
+    for (const [id, c] of this._dotEls) if (!keep.has(id)) { c.remove(); this._dotEls.delete(id); }
   }
 
   showPitch(pitch) {
@@ -247,7 +284,7 @@ export class Hud {
     const b = document.createElement('button');
     b.className = 'skip-chip';
     b.textContent = 'SKIP ⏭';
-    b.addEventListener('pointerdown', (e) => { e.stopPropagation(); onTap?.(); });
+    b.addEventListener('pointerdown', (e) => { e.stopPropagation(); this._tap(); onTap?.(); });
     this.el.appendChild(b);
     this._skipChip = b;
   }
@@ -300,6 +337,7 @@ export class Hud {
       chip.append(i, s);
       chip.addEventListener('pointerdown', (e) => {
         e.stopPropagation();
+        this._tap('ui-confirm');
         this.onSteal?.(b);
       });
       return chip;
@@ -497,7 +535,7 @@ export class Hud {
 
   /** Starting-lineup walkout card: street name BIG, number/position, and the
    *  player's two best stats. One at a time — showing replaces the last. */
-  walkoutShow({ nick, number, pos, stats, color, label, mini = false }) {
+  walkoutShow({ nick, number, pos, stats, color, label, mini = false, gear = null }) {
     this.walkoutHide();
     const card = document.createElement('div');
     card.className = mini ? 'walkout-card mini' : 'walkout-card';
@@ -511,7 +549,8 @@ export class Hud {
       `<span class="wo-sub">${number != null ? `#${number} · ` : ''}${(pos ?? '').toUpperCase()}</span>` +
       best.map(([k, v]) =>
         `<div class="stat-row"><span>${STAT_LABEL[k] ?? k}</span>` +
-        `<div class="stat-bar"><i style="width:${v * 10}%"></i></div></div>`).join('');
+        `<div class="stat-bar"><i style="width:${v * 10}%"></i></div></div>`).join('') +
+      (gear ? `<div class="wo-gear">YOUR GEAR — ${gear}</div>` : '');
     card.querySelector('.wo-nick').textContent = nick ?? '';
     this.el.appendChild(card);
     this._walkoutCard = card;
@@ -522,6 +561,20 @@ export class Hud {
   walkoutHide() {
     this._walkoutCard?.remove();
     this._walkoutCard = null;
+  }
+
+  /** One-time toast at the player's first at-bat: names the equipped gear so
+   *  cleats/uniform choices actually register on screen (dev, 2026-08-25). */
+  gearToast(line) {
+    const t = document.createElement('div');
+    t.className = 'gear-toast';
+    t.textContent = `YOUR GEAR — ${line}`;
+    this.el.appendChild(t);
+    requestAnimationFrame(() => {
+      t.classList.add('show');
+      this._fitText(t, { minPx: 9, pad: 24 }); // long gear names must still fit a phone width
+    });
+    setTimeout(() => t.remove(), 2800);
   }
 
   /** Full-screen team splash between walkout sides: crest slams in over a
@@ -567,7 +620,16 @@ export class Hud {
 
   showThrowPad(show) {
     this.throwPad.classList.toggle('show', show);
-    if (!show) this.highlightBestBase(null);
+    if (!show) { this.highlightBestBase(null); this.setPegState('off'); }
+  }
+
+  /** PEG button truth (dev: "pegging needs to be more of an option"): 'off' =
+   *  no live target (dim, dead), 'ready' = a runner is peggable, 'best' = no
+   *  force is on — the peg IS the play (gold pulse, same language as .best). */
+  setPegState(state) {
+    const b = this.throwPad.querySelector('.t-peg');
+    b.classList.toggle('ready', state === 'ready');
+    b.classList.toggle('best', state === 'best');
   }
 
   /** Gold-highlight the base where a throw gets a force out (null = none). */
@@ -589,11 +651,34 @@ export class Hud {
     }));
   }
 
-  setSpecial(fill, ready, armed, label) {
-    this.specialBtn.style.setProperty('--fill', Math.round(fill));
-    this.specialBtn.classList.toggle('ready', ready);
+  setRunnerArrows(list) {
+    let box = this.runnerArrows;
+    if (!box) { box = this.runnerArrows = document.createElement('div'); box.className = 'runner-arrows'; this.el.appendChild(box); this._arrowEls = new Map(); }
+    const keep = new Set();
+    for (const a of list) {
+      keep.add(a.id);
+      let el = this._arrowEls.get(a.id);
+      if (!el) {
+        el = document.createElement('div'); el.className = 'runner-arrow';
+        el.innerHTML = '<i class="ra-arrow">➤</i><b></b><span></span>';
+        box.appendChild(el); this._arrowEls.set(a.id, el);
+      }
+      el.style.setProperty('--c', a.color);
+      el.classList.toggle('urgent', !!a.urgent);
+      el.querySelector('b').textContent = `#${a.number}`;
+      el.querySelector('span').textContent = a.label;
+      el.style.transform = `translate(${Math.round(a.x)}px, ${Math.round(a.y)}px) translate(-50%, -50%)`;
+      el.querySelector('.ra-arrow').style.transform = `rotate(${a.angle}rad)`;
+    }
+    for (const [id, el] of this._arrowEls) if (!keep.has(id)) { el.remove(); this._arrowEls.delete(id); }
+  }
+
+  setPowerKick({ name, charges, armed, meterFill }) {
+    this.specialBtn.style.setProperty('--fill', Math.round(meterFill));
+    this.specialBtn.classList.toggle('ready', charges > 0);
     this.specialBtn.classList.toggle('armed', armed);
-    if (label) this.specialBtn.title = label;
+    this.specialBtn.querySelector('.pk-label').textContent = charges > 0 ? `${name} ×${charges}` : name;
+    this.specialBtn.title = name;
   }
 
   /** The crown super-kick button only belongs in the KICK role — hide it on defense. */
@@ -647,6 +732,9 @@ export class Hud {
     const f = Math.max(0, Math.min(1, frac));
     this.traceTimerFill.style.width = `${f * 100}%`;
     this.traceTimerFill.classList.toggle('low', f <= 0.33);
+    const step = Math.ceil(Math.max(0, Math.min(1, frac)) * 10);
+    if (step <= 3 && step >= 1 && step !== this._ttStep) this._tap('countdown');
+    this._ttStep = step;
   }
   hideTraceTimer() {
     this.traceTimer.classList.remove('show');

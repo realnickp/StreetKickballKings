@@ -1,6 +1,7 @@
 // All pre/post-game screens: Title, Menu, TeamSelect, CoinToss, PostGame.
 // Mockup style: dark slate, orange/teal, graffiti marker accents.
 import { playVideo } from '../../cinematics/videoPlayer.js';
+import { LockerPreview } from '../lockerPreview.js';
 
 function el(html) {
   const t = document.createElement('template');
@@ -83,7 +84,7 @@ export function MenuScreen(ctx) {
           <button class="big-play bounce-beat">PLAY 1v1<small>VS AI · THE BLACKTOP</small></button>
           <div class="mode-cards">
             <div class="mode-card map-card">RUN THE MAP<small>${save.get('kingOfStreets', false) ? '👑 KING OF THE STREETS' : `${save.get('unlocks.crews', []).length}/9 CROWNS CLAIMED`}</small></div>
-            <div class="mode-card locker-card">THE LOCKER<small>${save.get('gear.unlocked', []).length}/17 EARNED</small></div>
+            <div class="mode-card locker-card">THE LOCKER<small>${save.get('gear.unlocked', []).length}/${ctx.unlocks.GEAR.filter((g) => !g.stock).length} EARNED</small></div>
             <div class="mode-card locked">DERBY<small>COMING SOON</small></div>
           </div>
           <div class="daily-card">DAILY CHALLENGE<small>Hit 3 home runs — 0/3</small><b>+500 XP</b></div>
@@ -193,14 +194,17 @@ export function LockerScreen(ctx) {
       const eq = equippedGear(save);
       const career = careerGet(save);
       const CATS = [
-        ['kick', 'SPECIAL KICKS — FILL THE CROWN METER, THEN LET IT RIP'],
-        ['cleats', 'CLEATS'],
+        ['kick', 'SPECIAL KICKS — 2 POWER KICKS A GAME · THE CROWN METER MINTS MORE'],
+        ['taunt', 'TAUNTS — YOUR WALK-UP MOVE'],
+        ['cleats', 'CLEATS — REAL SPEED ON THE BASES'],
         ['uniform', 'UNIFORMS'],
       ];
+      const BARE_LABEL = { kick: 'STOCK KICK', taunt: null, cleats: 'CLASSIC', uniform: 'CLASSIC' };
       const s = el(`
         <div class="screen locker-screen">
           <h1 class="screen-title gold">THE LOCKER</h1>
           <p class="map-sub">Earn it on the block. Tap it to rock it.</p>
+          <div class="locker-stage"><canvas class="locker-preview" width="440" height="520"></canvas><p class="locker-stage-cap"></p></div>
           <div class="locker-rows"></div>
           <p class="locker-career">W ${career.wins} · HR ${career.hr} · STEALS ${career.steals} · GLOVE ${career.defOuts} · ESCAPES ${career.pickleEscapes} · CREWS ${career.crews}/9</p>
           <div class="coin-buttons"><button data-act="menu">MAIN MENU</button></div>
@@ -209,14 +213,18 @@ export function LockerScreen(ctx) {
       for (const [cat, label] of CATS) {
         rows.appendChild(el(`<p class="map-equip-label">${label}</p>`));
         const row = el('<div class="map-equip locker-row"></div>');
-        const bare = el(`<div class="equip-chip ${eq[cat] ? '' : 'on'}" style="--c:#7a7a85">${cat === 'kick' ? 'STOCK KICK' : 'CLASSIC'}</div>`);
-        bare.addEventListener('pointerdown', () => { ctx.bus.emit('sfx', 'juke'); equipGear(save, cat, null); ctx.router.go('locker'); });
-        row.appendChild(bare);
+        const bareLabel = BARE_LABEL[cat];
+        if (bareLabel) {
+          const bare = el(`<div class="equip-chip ${eq[cat] ? '' : 'on'}" style="--c:#7a7a85">${bareLabel}</div>`);
+          bare.addEventListener('pointerdown', () => { ctx.bus.emit('sfx', 'juke'); equipGear(save, cat, null); ctx.router.go('locker'); });
+          row.appendChild(bare);
+        }
         for (const g of GEAR.filter((x) => x.cat === cat)) {
           const own = isUnlocked(save, g.id);
+          const swatch = cat === 'cleats' || cat === 'uniform' ? `<i class="swatch" style="background:${g.hex}"></i>` : '';
           const chip = el(`
             <div class="equip-chip locker-chip ${own ? '' : 'locked'} ${eq[cat]?.id === g.id ? 'on' : ''}" style="--c:${g.hex ?? '#e8792e'}">
-              ${own ? g.name : '🔒 ' + g.name}<small>${own ? '' : g.hint.toUpperCase()}</small>
+              ${swatch}${own ? g.name : '🔒 ' + g.name}<small>${own ? (g.play ?? '') : g.hint.toUpperCase()}</small>
             </div>`);
           if (own) {
             chip.addEventListener('pointerdown', () => { ctx.bus.emit('sfx', 'scratch'); equipGear(save, cat, g.id); ctx.router.go('locker'); });
@@ -227,7 +235,22 @@ export function LockerScreen(ctx) {
       }
       s.querySelector('[data-act="menu"]').addEventListener('pointerdown', () => ctx.router.go('menu'));
       root.appendChild(s);
+      // Live turntable of YOUR captain in what you just equipped — the whole
+      // point of the Locker is SEEING the kit and the cleats change.
+      const team = ctx.playerTeam ?? ctx.data.teams[0];
+      const cap = s.querySelector('.locker-stage-cap');
+      cap.textContent = `${(team.roster?.[0]?.nick ?? 'YOUR CAPTAIN').toUpperCase()} — ${eq.uniform?.name ?? 'STOCK KIT'} · ${eq.cleats?.name ?? 'STOCK CLEATS'}`;
+      try {
+        this.preview = new LockerPreview(s.querySelector('.locker-preview'));
+        // .catch too: the GLB fetch is async, so a missing model would escape
+        // the try/catch as an unhandled rejection instead of this warn
+        this.preview.show({ team, uniformHex: eq.uniform?.hex ?? null, gear: eq })
+          .catch((e) => console.warn('[skk] locker preview failed to build:', e));
+      } catch (e) { console.warn('[skk] locker preview unavailable:', e); }
     },
+    // the router calls unmount() on the outgoing screen — kill the RAF loop and
+    // the WebGL context so re-mounting on every equip can't leak contexts
+    unmount() { this.preview?.destroy(); this.preview = null; },
   };
 }
 
@@ -452,6 +475,7 @@ export function PostGameScreen(ctx) {
         const myRuns = Number(score?.[playerSide]) || 0;
         const theirRuns = Number(score?.[playerSide === 'away' ? 'home' : 'away']) || 0;
         ctx.unlocks.careerAdd(save, {
+          games: 1,
           wins: won ? 1 : 0,
           roadWins: won && playerSide === 'away' ? 1 : 0,
           blowouts: won && myRuns - theirRuns >= 5 ? 1 : 0,
@@ -460,6 +484,7 @@ export function PostGameScreen(ctx) {
           defOuts: stats?.defOuts ?? 0,
           steals: stats?.steals ?? 0,
           pickleEscapes: stats?.pickleEscapes ?? 0,
+          perfects: stats?.perfects ?? 0,
         });
         fresh = ctx.unlocks.checkUnlocks(save);
       }
@@ -483,6 +508,7 @@ export function PostGameScreen(ctx) {
           </div>
         </div>`);
       root.appendChild(s);
+      fresh.forEach((_, i) => setTimeout(() => ctx.bus.emit('sfx', 'unlock'), 400 + i * 260));
       s.querySelector('[data-side-a]').textContent = 'SIDE A · ' + teams.away.name.toUpperCase();
       s.querySelector('[data-side-b]').textContent = 'SIDE B · ' + teams.home.name.toUpperCase();
       s.addEventListener('pointerdown', (e) => {

@@ -62,6 +62,7 @@ function recolorKitTexture(srcTex, primaryHex) {
 // sampling those texels. Vertex colours select the exact foot-weighted
 // vertices instead (≥0.55 to Foot/ToeBase), multiplied over the baked map so
 // shading survives; a tiny shader patch tints the emissive channel to match.
+export const CLEAT_BOOST = 1.6;
 function applyCleatVertexTint(mesh, cleatHex) {
   try {
     const src = mesh.geometry;
@@ -78,7 +79,7 @@ function applyCleatVertexTint(mesh, cleatHex) {
       let fw = 0;
       for (let k = 0; k < 4; k++) if (footIdx.has(ji.getComponent(vi, k))) fw += w.getComponent(vi, k);
       if (fw < 0.55) continue;
-      col[vi * 3] = c.r / 255; col[vi * 3 + 1] = c.g / 255; col[vi * 3 + 2] = c.b / 255;
+      col[vi * 3] = (c.r / 255) * CLEAT_BOOST; col[vi * 3 + 1] = (c.g / 255) * CLEAT_BOOST; col[vi * 3 + 2] = (c.b / 255) * CLEAT_BOOST;
       hits += 1;
     }
     if (!hits) return;
@@ -275,7 +276,8 @@ CLIPS.slide = CLIPS.stumble;
 CLIPS.dive = CLIPS.stumble;
 CLIPS.climb = CLIPS.idle;
 CLIPS.climbDown = CLIPS.idle;
-// extras pack (mocap-x-*, lazy) -> nearest legacy clips so the ?codeanim
+// extras packs (mocap-<pack>-*, lazy: x = dances/special kicks, k = kicks/taunts)
+// -> nearest legacy clips so the ?codeanim
 // fallback never statues on the new names
 CLIPS.thriller1 = CLIPS.dance1; CLIPS.thriller2 = CLIPS.dance1;
 CLIPS.thriller3 = CLIPS.dance1; CLIPS.thriller4 = CLIPS.dance1;
@@ -287,6 +289,9 @@ CLIPS.kickFlair = CLIPS.kick; CLIPS.kickHurricane = CLIPS.kick;
 CLIPS.kickSpinFlip = CLIPS.kick; CLIPS.kickCrescent = CLIPS.kick;
 CLIPS.kickBlast = CLIPS.kick; CLIPS.kickMeia = CLIPS.kick;
 CLIPS.kickMeiaBack = CLIPS.kick; CLIPS.kickSweep = CLIPS.kick;
+// pack k (mocap-k-*, lazy): seven more special kicks + the taunt pool
+for (const n of ['kickMartelo', 'kickArmada', 'kickScissor', 'kickPunt', 'kickFlip', 'kickBicycle', 'kickKipUp']) CLIPS[n] = CLIPS.kick;
+for (const n of ['tauntPoint', 'tauntCry', 'tauntChest', 'tauntGesture', 'tauntLoser']) CLIPS[n] = CLIPS.idle;
 
 class GlbCodeAnimator {
   constructor(bones) {
@@ -389,14 +394,14 @@ export async function buildGlbCharacter(def, { heightM = 2.05, clips = null } = 
         // overriding any recolour). Make it cloth/skin-like so the base colour shows,
         // and aim the self-illumination at the same (recoloured) texture.
         o.material.metalness = 0.0;
-        o.material.roughness = 0.85;
+        o.material.roughness = 0.7;
         if (def.teamColor && o.material.map) {
           const recol = recolorKitTexture(o.material.map, def.teamColor);
           o.material.map = recol;
           if (o.material.emissiveMap) o.material.emissiveMap = recol;
-          o.material.emissiveIntensity = 0.55;
+          o.material.emissiveIntensity = 0.4;
         } else {
-          o.material.emissiveIntensity = 0.6;
+          o.material.emissiveIntensity = 0.4;
         }
         // LOCKER cleats tint by GEOMETRY, not texels: the atlases re-use
         // texels across UV islands, so painting "shoe texels" splattered the
@@ -485,6 +490,22 @@ const ARCHETYPES = [
 const FALLBACK_MODEL = '/assets/models/monarchs-23.glb';
 const FEMALE_ARCHETYPES = new Set([2, 5, 7, 9, 11, 13, 15, 17]);
 
+// archetypes whose GLB can't animate (see the BENCHED note above) — remap to
+// a working body so no cast or hash-fallback pick ever fields a statue
+const BENCHED = new Map([[17, 5]]);
+
+/** Which archetype roster slot `i` of `team` wears. Per-team offset into the
+ *  archetype pool: rosters are ~8 deep and plain cycling would give every team
+ *  the SAME first eight faces. Hashing the team id slides each crew to its own
+ *  slice, so Philly's people aren't Brooklyn's people. Deterministic — a team
+ *  always fields the same folks. Shared by the match roster and the Locker
+ *  preview, so the captain you dress IS the captain you field. */
+function archIdxFor(team, i) {
+  const teamOffset = [...(team.id ?? '')].reduce((a, c) => a + c.charCodeAt(0), 0) % ARCHETYPES.length;
+  const archIdx = (team.roster?.[i]?.archetype ?? (teamOffset + i)) % ARCHETYPES.length;
+  return BENCHED.get(archIdx) ?? archIdx;
+}
+
 /** Build a full team of detailed GLB characters, recolored to a uniform colour
  *  (defaults to the team's primary; pass `uniformColor` for a light/dark kit so
  *  two teams don't clash). `gear` (THE LOCKER, player team only) applies the
@@ -507,18 +528,9 @@ export async function buildTeamCharsGlb(team, uniformColor, gear = null) {
     catch (e) { console.warn(`[skk] mocap-${key}.glb unavailable, using code animator:`, e); return null; }
   };
   const out = [];
-  // Per-team offset into the archetype pool: rosters are ~8 deep and plain
-  // cycling would give every team the SAME first eight faces. Hashing the
-  // team id slides each crew to its own slice, so Philly's people aren't
-  // Brooklyn's people. Deterministic — a team always fields the same folks.
-  const teamOffset = [...(team.id ?? '')].reduce((a, c) => a + c.charCodeAt(0), 0) % ARCHETYPES.length;
-  // archetypes whose GLB can't animate (see the BENCHED note above) — remap to
-  // a working body so no cast or hash-fallback pick ever fields a statue
-  const BENCHED = new Map([[17, 5]]);
   for (let i = 0; i < roster.length; i++) {
     const p = roster[i];
-    let archIdx = (p.archetype ?? (teamOffset + i)) % ARCHETYPES.length;
-    archIdx = BENCHED.get(archIdx) ?? archIdx;
+    const archIdx = archIdxFor(team, i); // shared with the Locker preview
     const clips = await clipsFor(archIdx);
     let char;
     try {
@@ -531,8 +543,20 @@ export async function buildTeamCharsGlb(team, uniformColor, gear = null) {
     char.number = p.number ?? JERSEY_NUMBERS[i % JERSEY_NUMBERS.length];
     char.gender = FEMALE_ARCHETYPES.has(archIdx) ? 'she' : 'he'; // for the announcer's he/she calls
     char.hasBall = false;
-    char.archKey = clips ? archKeyOf(archIdx) : null; // which extras pack (mocap-x-*) fits this rig
+    char.archKey = clips ? archKeyOf(archIdx) : null; // which extras packs (mocap-<pack>-*) fit this rig
     out.push(char);
   }
   return out;
+}
+
+/** The captain (roster[0]) alone, wearing a kit colour + cleats — the Locker
+ *  preview. Same model/recolour/tint path as the match so what you see is
+ *  what you field. */
+export async function buildCaptainPreview(team, uniformHex, gear = null) {
+  const idx = archIdxFor(team, 0);
+  let clips = null;
+  try { clips = await loadMocapClips(`/assets/anims/mocap-${ARCHETYPES[idx].match(/arch-(\w+)\.glb/)?.[1]}.glb`); } catch { clips = null; }
+  const char = await buildGlbCharacter({ model: ARCHETYPES[idx], teamColor: uniformHex ?? team.colors?.primary, cleatHex: gear?.cleats?.hex ?? null }, { heightM: 2.05, clips });
+  char.data = team.roster?.[0] ?? null;
+  return char;
 }

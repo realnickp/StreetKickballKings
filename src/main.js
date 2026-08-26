@@ -9,7 +9,7 @@ import { SaveManager } from './meta/save.js';
 import { buildField } from './game/field.js';
 import { buildPlayer, CLIP_NAMES } from './game/characters.js';
 import { buildTeamCharsGlb } from './game/glbCharacters.js';
-import { loadExtrasFor } from './game/animExtras.js';
+import { loadExtrasFor, DanceBag } from './game/animExtras.js';
 import { MatchScene } from './game/matchScene.js';
 import { CinematicDirector } from './cinematics/director.js';
 import { ReplayPlayer } from './cinematics/replay.js';
@@ -131,9 +131,9 @@ if (params.has('match')) {
       away: await buildTeamCharsGlb(monarchs, undefined,
         params.has('cleats') ? { cleats: { hex: '#' + params.get('cleats') } } : null),
     };
-    // harness: AWAIT the extras pack (local dev = instant) so the Thriller
-    // walkout / special kicks are testable immediately; the real flow loads
-    // them in the background behind the intro videos
+    // harness: AWAIT the extras pack (local dev = instant) so special kicks
+    // are testable immediately; the real flow loads them in the background
+    // behind the intro videos
     await loadExtrasFor([...chars.home, ...chars.away]);
     // ?field=<id> previews any city field in the harness (defaults to blacktop)
     const harnessField = fieldsData.fields.find(f => f.id === params.get('field')) ?? blacktop;
@@ -143,6 +143,7 @@ if (params.has('match')) {
       fieldData: harnessField, tuning,
       difficulty: params.get('diff') ?? 'Street',
       playerSide: 'away', hudRoot, autoStart: false,
+      danceBag: new DanceBag({ recent: save.get('dance.recent', []), onDraw: (r) => save.set('dance.recent', r) }),
     });
     window.__skk = scene;
     const replayPlayer = new ReplayPlayer({ engine, hud: scene.hud, bus });
@@ -278,16 +279,15 @@ async function bootFlow() {
     // the two teams never clash (player keeps their colour, opponent gets a variant).
     const awayColor = gear.uniform?.hex ?? kits?.away ?? playerTeam.colors.primary;
     const homeColor = kits?.home ?? contrastUniform(opponentTeam.colors.primary, awayColor);
-    let extrasReady = Promise.resolve();
     const charsPromise = (async () => {
       const c = {
         home: await buildTeamCharsGlb(opponentTeam, homeColor),
         away: await buildTeamCharsGlb(playerTeam, awayColor, gear),
       };
-      // dances/special-kicks extras pack rides the intro-video dead time; the
-      // walkout GATES on this promise (capped) so the lineup always shows —
-      // every other consumer still has its base-pack fallback
-      extrasReady = loadExtrasFor([...c.home, ...c.away]);
+      // dances/special-kicks extras pack rides the intro-video dead time;
+      // nothing gates on it — the HR dance bag and the walk-up taunts use
+      // clips as they land, and every other consumer has its base-pack fallback
+      void loadExtrasFor([...c.home, ...c.away]);
       return c;
     })();
 
@@ -315,7 +315,7 @@ async function bootFlow() {
       hudRoot,
       autoStart: false,
       gear,
-      extrasReady,
+      danceBag: new DanceBag({ recent: save.get('dance.recent', []), onDraw: (r) => save.set('dance.recent', r) }),
     });
     window.__skk = ctx.scene; // dev/debug handle
     ctx.mapTarget = null; // challenge consumed — future selects cycle freely
@@ -339,8 +339,10 @@ async function bootFlow() {
 
   function beginMatch(firstKick) {
     uiRoot.querySelectorAll('.screen').forEach(s => s.remove());
+    audio.warm(); // decode gameplay SFX NOW — the first kick must be heard
     // the field scores its own city (hip hop dialect per crew town) — starts
-    // AFTER the coin toss so it never clashes with the intro videos' audio
+    // AFTER the coin toss, rides the walkout show, and hands off to the
+    // in-match beat at the GAME TIME break (walkout cleanup owns the switch)
     audio.music(cityTrackId(ctx.opponentTeam?.city));
     ctx.setMatchActive?.(true);
     ctx.scene.startMatch(firstKick);
@@ -390,6 +392,7 @@ async function bootFlow() {
       playerSide: 'away',
       hudRoot,
       autoStart: false,
+      danceBag: new DanceBag({ recent: save.get('dance.recent', []), onDraw: (r) => save.set('dance.recent', r) }),
     });
     window.__skk = ctx.scene;
     ctx.replayPlayer = ctx.replayPlayer ?? new ReplayPlayer({ engine, hud: ctx.scene.hud, bus });
@@ -401,6 +404,7 @@ async function bootFlow() {
     ctx.director.hud = ctx.scene.hud;
 
     black.remove();
+    audio.warm(); // drills hit the same SFX — decode them up front
     audio.music('beat');
     audio.ambience(true);
     ctx.setMatchActive?.(true);

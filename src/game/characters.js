@@ -88,7 +88,7 @@ export function buildPlayer(look, colors, number = Math.floor(Math.random() * 89
   torso.add(numberDecal);
   // shoulder caps
   for (const sgn of [-1, 1]) {
-    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.1 * b.w, 10, 8), look.fit === 'sleeveless' ? skinMat : jerseyPlainMat);
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.1 * b.w, 20, 16), look.fit === 'sleeveless' ? skinMat : jerseyPlainMat);
     cap.position.set(sgn * 0.27 * b.w * fitScale, 0.54 * b.h, 0);
     cap.castShadow = true;
     torso.add(cap);
@@ -103,7 +103,7 @@ export function buildPlayer(look, colors, number = Math.floor(Math.random() * 89
   torso.add(head);
   joints.head = head;
   // slightly oval expressive head — a touch oversized for the stylized look
-  const skull = new THREE.Mesh(new THREE.SphereGeometry(0.17, 16, 13), skinMat);
+  const skull = new THREE.Mesh(new THREE.SphereGeometry(0.17, 32, 24), skinMat);
   skull.scale.set(0.94, 1.1, 0.98);
   skull.position.y = 0.12;
   skull.castShadow = true;
@@ -115,7 +115,7 @@ export function buildPlayer(look, colors, number = Math.floor(Math.random() * 89
   head.add(jaw);
   // ears
   for (const sgn of [-1, 1]) {
-    const ear = new THREE.Mesh(new THREE.SphereGeometry(0.032, 7, 6), skinMat);
+    const ear = new THREE.Mesh(new THREE.SphereGeometry(0.032, 14, 12), skinMat);
     ear.position.set(sgn * 0.145, 0.115, 0.01);
     head.add(ear);
   }
@@ -169,7 +169,7 @@ export function buildPlayer(look, colors, number = Math.floor(Math.random() * 89
     arm.position.set(sgn * (0.27 * b.w * fitScale + 0.04), 0.54 * b.h, 0);
     torso.add(arm);
     joints[`arm${side}`] = arm;
-    const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.055 * b.w + 0.01, 0.24 * b.h, 3, 8), armMat);
+    const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.055 * b.w + 0.01, 0.24 * b.h, 6, 16), armMat);
     upper.position.y = -0.16 * b.h;
     upper.castShadow = true;
     arm.add(upper);
@@ -177,11 +177,11 @@ export function buildPlayer(look, colors, number = Math.floor(Math.random() * 89
     fore.position.y = -0.34 * b.h;
     arm.add(fore);
     joints[`fore${side}`] = fore;
-    const foreMesh = new THREE.Mesh(new THREE.CapsuleGeometry(0.046, 0.2 * b.h, 3, 8), skinMat);
+    const foreMesh = new THREE.Mesh(new THREE.CapsuleGeometry(0.046, 0.2 * b.h, 6, 16), skinMat);
     foreMesh.position.y = -0.13 * b.h;
     foreMesh.castShadow = true;
     fore.add(foreMesh);
-    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 7), skinMat);
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.055, 16, 14), skinMat);
     hand.position.y = -0.27 * b.h;
     fore.add(hand);
     if (look.accessory === 'wristband') {
@@ -198,7 +198,7 @@ export function buildPlayer(look, colors, number = Math.floor(Math.random() * 89
     leg.position.set(sgn * 0.12 * b.w, -0.14, 0);
     hips.add(leg);
     joints[`leg${side}`] = leg;
-    const thigh = new THREE.Mesh(new THREE.CapsuleGeometry(0.075 * b.w + 0.01, 0.26 * b.h, 3, 9), shortsMat);
+    const thigh = new THREE.Mesh(new THREE.CapsuleGeometry(0.075 * b.w + 0.01, 0.26 * b.h, 6, 18), shortsMat);
     thigh.position.y = -0.17 * b.h;
     thigh.castShadow = true;
     leg.add(thigh);
@@ -206,7 +206,7 @@ export function buildPlayer(look, colors, number = Math.floor(Math.random() * 89
     shin.position.y = -0.4 * b.h;
     leg.add(shin);
     joints[`shin${side}`] = shin;
-    const calf = new THREE.Mesh(new THREE.CapsuleGeometry(0.052, 0.2 * b.h, 3, 8), skinMat);
+    const calf = new THREE.Mesh(new THREE.CapsuleGeometry(0.052, 0.2 * b.h, 6, 16), skinMat);
     calf.position.y = -0.14 * b.h;
     calf.castShadow = true;
     shin.add(calf);
@@ -231,14 +231,14 @@ export function buildPlayer(look, colors, number = Math.floor(Math.random() * 89
 function addHair(head, hair, hairMat, jerseyMat, colors) {
   switch (hair) {
     case 'afro': {
-      const m = new THREE.Mesh(new THREE.SphereGeometry(0.21, 10, 8), hairMat);
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.21, 20, 16), hairMat);
       m.position.y = 0.21;
       head.add(m);
       break;
     }
     case 'locs': {
       for (let i = 0; i < 8; i++) {
-        const loc = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.02, 0.26, 5), hairMat);
+        const loc = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.02, 0.26, 10), hairMat);
         const a = (i / 8) * Math.PI * 2;
         loc.position.set(Math.cos(a) * 0.12, 0.18, Math.sin(a) * 0.12);
         loc.rotation.set(Math.sin(a) * 0.7, 0, Math.cos(a) * -0.7);

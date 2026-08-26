@@ -8,10 +8,14 @@ import manifest from '../src/data/anims.manifest.json' with { type: 'json' };
 
 const DIR = 'public/assets/anims';
 const BASE_BUDGET_KB = 1600;   // eager per-archetype payload
-const X_BUDGET_KB = 1100;      // lazy extras pack
+// every extras pack the manifest declares, and its lazy-pack size budget
+const PACKS = [...new Set(manifest.map((m) => m.pack).filter(Boolean))];
+const BUDGET = { x: 1100, k: 900 };
 // clips allowed to ride LOW for real (floor poses); everything else must keep
 // its hips above 40% of rest height for the bulk of the clip
-const LOW_OK = new Set(['stumble', 'dive', 'slide', 'dejected', 'kickFlair', 'kickSweep', 'kickMeia', 'kickMeiaBack']);
+const LOW_OK = new Set(['stumble', 'dive', 'slide', 'dejected', 'kickFlair', 'kickSweep', 'kickMeia', 'kickMeiaBack',
+  // pack k: capoeira/acrobatic kicks that spend most of the clip on the floor
+  'kickMartelo', 'kickArmada', 'kickScissor', 'kickFlip', 'kickBicycle', 'kickKipUp', 'kickPunt']);
 
 function parseGlb(path) {
   const buf = readFileSync(path);
@@ -35,14 +39,14 @@ let fail = 0;
 const bad = (msg) => { console.error('FAIL', msg); fail = 1; };
 
 const files = readdirSync(DIR).filter((f) => f.endsWith('.glb'));
-const archs = [...new Set(files.map((f) => f.replace(/^mocap-(x-)?/, '').replace('.glb', '')))].sort();
-const wantBase = manifest.filter((m) => m.pack !== 'x').map((m) => m.name);
-const wantX = manifest.filter((m) => m.pack === 'x').map((m) => m.name);
+const archs = [...new Set(files.map((f) => f.replace(/^mocap-([a-z]-)?/, '').replace('.glb', '')))].sort();
+const wantBase = manifest.filter((m) => !m.pack).map((m) => m.name);
 
 for (const arch of archs) {
   for (const [file, want, budget] of [
     [`mocap-${arch}.glb`, wantBase, BASE_BUDGET_KB],
-    [`mocap-x-${arch}.glb`, wantX, X_BUDGET_KB],
+    ...PACKS.map((p) => [`mocap-${p}-${arch}.glb`,
+      manifest.filter((m) => m.pack === p).map((m) => m.name), BUDGET[p] ?? 1000]),
   ]) {
     let g;
     try { g = parseGlb(`${DIR}/${file}`); } catch (e) { bad(`${file}: ${e.message}`); continue; }
@@ -72,5 +76,5 @@ for (const arch of archs) {
     }
   }
 }
-console.log(`checked ${archs.length} archetypes × 2 packs${fail ? '' : ' — ALL GOOD'}`);
+console.log(`checked ${archs.length} archetypes × ${1 + PACKS.length} packs${fail ? '' : ' — ALL GOOD'}`);
 process.exit(fail);
