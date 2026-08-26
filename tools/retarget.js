@@ -11,13 +11,16 @@ import manifest from '../src/data/anims.manifest.json';
 
 // ?archs=pilot,newguy bakes ONLY those (new-archetype workflow — no code edit
 // per batch); default = the full shipped set.
-// ?auto=1 exports every baked archetype (both packs) to the :5199 sink with no
-// clicks — uploads are fetch POSTs, so no user gesture is needed.
+// ?auto=1 exports every baked archetype to the :5199 sink with no clicks —
+// uploads are fetch POSTs, so no user gesture is needed. ?packs=k limits the
+// export to those packs (comma list, manifest `pack` names + 'base'); default
+// = every pack the manifest declares.
 const PARAMS = new URLSearchParams(location.search);
 const ARCHS = PARAMS.get('archs')?.split(',').filter(Boolean)
   ?? ['afro', 'bald', 'braids', 'bun', 'curls', 'durag', 'fro', 'locs', 'longhair',
     'pilot', 'pony', 'puff', 'shaggy', 'sprint', 'stache', 'stocky', 'twists', 'vet', 'waves'];
 const AUTO = PARAMS.get('auto') === '1';
+const PACKS = PARAMS.get('packs')?.split(',').filter(Boolean) ?? null;
 
 const logEl = document.getElementById('log');
 const log = (...a) => { logEl.textContent += a.join(' ') + '\n'; logEl.scrollTop = logEl.scrollHeight; console.log(...a); };
@@ -305,15 +308,15 @@ for (const arch of ARCHS) {
   const hips = gltf.scene.getObjectByName('Hips');
   rig.hipRestPos.copy(hips.position);
   rig.hipY = hips.getWorldPosition(new THREE.Vector3()).y;
-  rig.packs = { base: [], x: [] };
+  rig.packs = {};
   for (const entry of manifest) {
     const src = await loadSource(entry.file);
     const clip = retargetWorld(entry, src, rig);
     rig.clips.push(clip);
-    rig.packs[entry.pack === 'x' ? 'x' : 'base'].push(clip);
+    (rig.packs[entry.pack ?? 'base'] ??= []).push(clip);
   }
   rigs.set(arch, rig);
-  log(`baked ${rig.clips.length} clips for arch-${arch} (base ${rig.packs.base.length} + x ${rig.packs.x.length}, hip restY ${rig.hipY.toExponential(2)})`);
+  log(`baked ${rig.clips.length} clips for arch-${arch} (${Object.entries(rig.packs).map(([p, c]) => `${p} ${c.length}`).join(' + ')}, hip restY ${rig.hipY.toExponential(2)})`);
 }
 log(`DONE: ${rigs.size} archetypes baked`);
 
@@ -349,7 +352,7 @@ function analyzeContact(rig, clip) {
   const first = rigs.values().next().value;
   if (first) {
     for (const m of manifest) {
-      if (!m.contactAt || m.pack !== 'x') continue;
+      if (!m.contactAt || !m.pack) continue;
       const clip = first.clips.find((c) => c.name === m.name);
       if (clip) log(`CONTACT ${m.name} (${clip.duration.toFixed(2)}s): ${analyzeContact(first, clip)}`);
     }
@@ -411,14 +414,15 @@ slow.onclick = () => { slowOn = !slowOn; slow.textContent = slowOn ? 'SPEED x1' 
 ui.appendChild(slow);
 
 // ---------- export: animation-only GLBs per archetype, one per pack ----------
-// base pack -> mocap-<arch>.glb (eager-loaded), x pack -> mocap-x-<arch>.glb
-// (dances/kicks extras, lazy-loaded by src/game/animExtras.js)
+// base pack -> mocap-<arch>.glb (eager-loaded), every other pack ->
+// mocap-<pack>-<arch>.glb (x = dances/special kicks, k = the 2026-08-25 kicks +
+// taunts; lazy-loaded by src/game/animExtras.js)
 function exportArch(arch, pack = 'base') {
   return new Promise((resolve) => {
     const rig = rigs.get(arch);
     const clips = rig.packs[pack];
     if (!clips?.length) { resolve(); return; }
-    const outName = pack === 'x' ? `mocap-x-${arch}.glb` : `mocap-${arch}.glb`;
+    const outName = pack === 'base' ? `mocap-${arch}.glb` : `mocap-${pack}-${arch}.glb`;
     let skin = null;
     rig.gltf.scene.traverse((o) => { if (o.isSkinnedMesh && !skin) skin = o; });
     let rootBone = skin.skeleton.bones[0];
@@ -454,9 +458,9 @@ function exportArch(arch, pack = 'base') {
 // manual buttons per archetype × pack (uploads don't need a gesture, but the
 // buttons stay for one-off rebakes)
 for (const arch of rigs.keys()) {
-  for (const pack of ['base', 'x']) {
+  for (const pack of Object.keys(rigs.get(arch).packs)) {
     const b = document.createElement('button');
-    b.textContent = `EXPORT${pack === 'x' ? '-X' : ''} ${arch}`; b.style.background = pack === 'x' ? '#a4e' : '#e63';
+    b.textContent = `EXPORT-${pack.toUpperCase()} ${arch}`; b.style.background = pack === 'base' ? '#e63' : '#a4e';
     b.onclick = () => exportArch(arch, pack);
     ui.appendChild(b);
   }
@@ -465,8 +469,10 @@ for (const arch of rigs.keys()) {
 // ---------- auto mode: bake + export everything, no clicks ----------
 async function autoExport() {
   for (const arch of rigs.keys()) {
-    await exportArch(arch, 'base');
-    await exportArch(arch, 'x');
+    for (const pack of Object.keys(rigs.get(arch).packs)) {
+      if (PACKS && !PACKS.includes(pack)) continue;
+      await exportArch(arch, pack);
+    }
   }
   log('AUTO EXPORT DONE');
   document.title = 'retarget: AUTO DONE';

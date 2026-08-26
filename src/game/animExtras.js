@@ -1,22 +1,26 @@
-// src/game/animExtras.js — lazy extras animation pack (dances, special kicks,
-// soccer spin). The eager base bakes (mocap-<arch>.glb) stay lean; this fetches
-// mocap-x-<arch>.glb in the background once a match's characters exist and
-// merges the clips into each character's MocapAnimator. Consumers must ALWAYS
-// keep a fallback for the not-yet-loaded case (slow cell connections):
+// src/game/animExtras.js — lazy extras animation packs (dances, special kicks,
+// soccer spin, taunts). The eager base bakes (mocap-<arch>.glb) stay lean; this
+// fetches mocap-<pack>-<arch>.glb in the background once a match's characters
+// exist and merges the clips into each character's MocapAnimator. Consumers
+// must ALWAYS keep a fallback for the not-yet-loaded case (slow cell connections):
 // HR dance -> dance1-4, walkout -> legacy swagger parade, special kick ->
 // 'kick', soccerSpin -> the whirl rotation.
 import { loadMocapClips } from './mocapAnimator.js';
 
-/** Kick off background loading of the extras pack for every character in the
+export const PACKS = ['x', 'k']; // x = dances/special kicks, k = the 2026-08-25 kicks + taunts
+
+/** Kick off background loading of EVERY extras pack for every character in the
  *  match. Safe to call more than once (per-URL promise cache) and never
  *  rejects — a missing pack just logs and the fallbacks stay in force. */
 export function loadExtrasFor(chars) {
   const jobs = [];
   for (const c of chars ?? []) {
     if (!c?.archKey || !c.animator?.addClips) continue;
-    jobs.push(loadMocapClips(`/assets/anims/mocap-x-${c.archKey}.glb`)
-      .then((clips) => c.animator.addClips(clips))
-      .catch((e) => console.warn(`[skk] extras mocap-x-${c.archKey}.glb unavailable:`, e?.message ?? e)));
+    for (const p of PACKS) {
+      jobs.push(loadMocapClips(`/assets/anims/mocap-${p}-${c.archKey}.glb`)
+        .then((clips) => c.animator.addClips(clips))
+        .catch((e) => console.warn(`[skk] extras mocap-${p}-${c.archKey}.glb unavailable:`, e?.message ?? e)));
+    }
   }
   return Promise.allSettled(jobs);
 }

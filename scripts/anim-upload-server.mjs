@@ -1,5 +1,5 @@
 // scripts/anim-upload-server.mjs — dev-only sink for the bake harnesses.
-// Receives POST /save?name=mocap-<arch>.glb | world-<name>.glb and writes into
+// Receives POST /save?name=mocap[-<pack>]-<arch>.glb | world-<name>.glb, writes into
 // public/assets/{anims,world}/. Run: node scripts/anim-upload-server.mjs
 import http from 'node:http';
 import { writeFileSync, mkdirSync } from 'node:fs';
@@ -9,7 +9,7 @@ http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   if (req.method === 'OPTIONS') { res.end(); return; }
   const name = new URL(req.url, 'http://x').searchParams.get('name') ?? '';
-  if (req.method !== 'POST' || !/^(mocap(-x)?|world)-[a-z]+\.glb$/.test(name)) {
+  if (req.method !== 'POST' || !/^(mocap(-[a-z])?|world)-[a-z]+\.glb$/.test(name)) {
     res.statusCode = 400; res.end('bad request'); return;
   }
   const chunks = [];

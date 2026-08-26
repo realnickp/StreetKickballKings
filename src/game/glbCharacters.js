@@ -288,6 +288,9 @@ CLIPS.kickFlair = CLIPS.kick; CLIPS.kickHurricane = CLIPS.kick;
 CLIPS.kickSpinFlip = CLIPS.kick; CLIPS.kickCrescent = CLIPS.kick;
 CLIPS.kickBlast = CLIPS.kick; CLIPS.kickMeia = CLIPS.kick;
 CLIPS.kickMeiaBack = CLIPS.kick; CLIPS.kickSweep = CLIPS.kick;
+// pack k (mocap-k-*, lazy): seven more special kicks + the taunt pool
+for (const n of ['kickMartelo', 'kickArmada', 'kickScissor', 'kickPunt', 'kickFlip', 'kickBicycle', 'kickKipUp']) CLIPS[n] = CLIPS.kick;
+for (const n of ['tauntPoint', 'tauntCry', 'tauntChest', 'tauntGesture', 'tauntLoser']) CLIPS[n] = CLIPS.idle;
 
 class GlbCodeAnimator {
   constructor(bones) {
