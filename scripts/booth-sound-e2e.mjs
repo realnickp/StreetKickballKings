@@ -105,26 +105,32 @@ async function queueScenario(page) {
     a.ctx = { currentTime: 0 };
     a.gains = { music: { gain } };
     a.ensureCtx = () => a.ctx;
+    const until = async (fn, ms = 2000) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) { if (fn()) return true; await new Promise((r) => setTimeout(r, 10)); }
+      return false;
+    };
     const played = [];
     let endFirst = null;
+    let firstSrc = null;
     a.playBuffer = async (url) => {
       played.push(url.split('/').pop());
       const src = { onended: null, buffer: { duration: 30 } }; // long line — we end it by hand
-      if (played.length === 1) endFirst = () => src.onended?.();
+      if (played.length === 1) { firstSrc = src; endFirst = () => src.onended?.(); }
       return { src, g: {} };
     };
     a.vo({ event: 'safe', gender: 'she' });          // line 1 takes the mic
-    await new Promise((r) => setTimeout(r, 80));
+    await until(() => a._voLive && !!firstSrc?.onended); // mic claimed AND end hook wired
     const liveAfterFirst = a._voLive;
     a.vo('fire');                                     // flavor mid-line -> dropped
     const heldAfterFlavor = !!a._voHeld;
     a.vo({ event: 'forced', gender: 'he' });          // play call mid-line -> held
     a.vo({ event: 'pegged', gender: 'she' });         // newer call takes the slot
     const heldAfterCalls = !!a._voHeld;
-    await new Promise((r) => setTimeout(r, 80));
+    await until(() => played.length > 1, 200);        // give an overlap its chance to happen
     const playedWhileLive = played.length;            // still just line 1
     endFirst?.();                                     // line 1 ends -> held line plays
-    await new Promise((r) => setTimeout(r, 120));
+    await until(() => played.length >= 2);
     const playedAfterEnd = played.length;
     Object.assign(a, orig);                           // real (silent) audio back
     a._voLive = false; a._voHeld = null;              // leave the booth clean
@@ -183,6 +189,13 @@ async function pegPadScenario(page) {
     // force means 'ready' (lit) is the correct pad truth, not gold
     s.runners = [];
     s.stealing = null;
+    // The premise is YOU'RE IN THE FIELD — make that true of the whole scene,
+    // not just assignDefense. While the player is still the kicking side,
+    // updateRunners reads the staged runner as a human who stopped tapping and
+    // commits him to a bag 0.7s after the defense secures the ball
+    // (matchScene.js:1947-1958). THAT, not travel time, was killing the gold
+    // state ~1.4s in — a race the 4s poll only won by sampling early.
+    s.playerSide = s.match.fieldingSide();
     s.pred = { point: s.basePos(1).clone(), t: 1 };
     s.assignDefense({ playerControlled: true });
     const off = s.kickingChars();
@@ -191,6 +204,20 @@ async function pegPadScenario(page) {
     const r = s.makeRunner(5, char, 0); // 1st -> 2nd, NON-forced: no force out anywhere
     r.forced = false;
     r.sim.progressM = s.tuning.running.basePathM * 0.4;
+    // PIN him in the rundown for the gold check. An AI runner is driven at
+    // r.aiRate every frame no matter who holds the ball, and mashSpeed(0) still
+    // returns baseSpeedMs — zeroing the rate would NOT stop him; he'd reach the
+    // bag in ~1.5s and flip himself to 'held'. A dead-stop sim isn't safe either
+    // (6s of no progress trips the stall watchdog, runnerWatchdog.js:25). So
+    // shuttle him between 25% and 45% of the path: never arrives, never stalls,
+    // stays 'running' and peggable indefinitely. The release step drops it.
+    const path = s.tuning.running.basePathM;
+    let dir = 1;
+    r.sim.tick = (dt) => {
+      r.sim.progressM += dir * 6 * dt;
+      if (r.sim.progressM > path * 0.45) dir = -1;
+      else if (r.sim.progressM < path * 0.25) dir = 1;
+    };
     s.runners.push(r);
     s.phase = 'LIVE';
     s.liveStart = s.elapsed;
@@ -202,7 +229,10 @@ async function pegPadScenario(page) {
   ok(staged, 'defense holds the ball with a live non-forced runner');
   const gold = await poll(page, () => document.querySelector('.t-peg.best') && !document.querySelector('.throw-pad button[data-base].best'), 4000, 'gold PEG');
   ok(!!gold, 'no force on -> PEG pulses gold as THE play');
-  await page.evaluate(() => { for (const r of window.__skk.runners) r.state = 'held'; });
+  // release the pin, then settle him on the bag — PEG must go dead with no live target
+  await page.evaluate(() => {
+    for (const r of window.__skk.runners) { delete r.sim.tick; r.state = 'held'; }
+  });
   const dim = await poll(page, () => !document.querySelector('.t-peg.best') && !document.querySelector('.t-peg.ready'), 4000, 'PEG dims');
   ok(!!dim, 'runner settles -> PEG goes dim/dead');
 }
