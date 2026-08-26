@@ -19,9 +19,11 @@ export function humanRunSpeed(tapsPerSec, tuning) {
 const LATERAL_DECAY_MS = 3; // m/s the juke offset relaxes back toward the base path
 
 export class RunnerSim {
-  constructor({ tuning, human = false }) {
+  constructor({ tuning, human = false, speedMult = 1 }) {
     this.tuning = tuning;
     this.human = human;
+    this.speedMult = speedMult;
+    this.speedMs = 0;
     this.progressM = 0;
     this.lateral = 0;
     this.arrived = false;
@@ -33,7 +35,8 @@ export class RunnerSim {
     if (this.arrived) return;
     this.jukeCooldown = Math.max(0, this.jukeCooldown - dt * 1000);
 
-    const speed = this.human ? humanRunSpeed(tapsPerSec, this.tuning) : mashSpeed(tapsPerSec, this.tuning);
+    const speed = (this.human ? humanRunSpeed(tapsPerSec, this.tuning) : mashSpeed(tapsPerSec, this.tuning)) * this.speedMult;
+    this.speedMs = speed;
     this.progressM += speed * dt;
     if (this.progressM >= this.tuning.running.basePathM) {
       this.progressM = this.tuning.running.basePathM;

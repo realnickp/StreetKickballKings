@@ -80,3 +80,9 @@ it('catalog integrity: unique ids, valid categories, kicks carry clips+mods', ()
   expect(gearById('kick-flair').cat).toBe('kick');
   expect(gearById('nope')).toBe(null);
 });
+
+it('every cleat carries a real speed multiplier', () => {
+  const cleats = GEAR.filter((g) => g.cat === 'cleats');
+  expect(cleats.map((g) => g.speedMult)).toEqual([1.06, 1.06, 1.08, 1.08, 1.10, 1.12]);
+  expect(gearById('cleats-ice').stealMult).toBe(1.1);
+});

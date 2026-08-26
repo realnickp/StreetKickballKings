@@ -48,3 +48,11 @@ it('juke cooldown expires with time and lateral decays', () => {
   for (let i = 0; i < 40; i++) r.tick(0.05, 0);
   expect(Math.abs(r.lateral)).toBeLessThan(0.05);
 });
+
+it('cleat speedMult scales the leg and is reported on the sim', () => {
+  const plain = new RunnerSim({ tuning });
+  const fast = new RunnerSim({ tuning, speedMult: 1.12 });
+  plain.tick(0.5, 8); fast.tick(0.5, 8);
+  expect(fast.progressM).toBeCloseTo(plain.progressM * 1.12, 5);
+  expect(fast.speedMs).toBeCloseTo(plain.speedMs * 1.12, 5);
+});

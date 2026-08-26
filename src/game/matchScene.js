@@ -25,6 +25,7 @@ import { CameraDirector } from './cameraDirector.js';
 import { buildField, FIELD_LAYOUT } from './field.js';
 import { allHaveClip, pickDance, pickDances } from './animExtras.js';
 import { revertStealBooks } from './stealBooks.js';
+import { SpeedTrail } from './fx/speedTrail.js';
 import { Hud } from '../ui/screens/hud.js';
 
 const DEFENSE_SPOTS = [
@@ -88,6 +89,11 @@ export class MatchScene {
     // entries or nulls). Only the kick slot matters in-scene — cleats/uniform
     // are applied at character build time.
     this.playerGear = gear;
+    // LOCKER cleats: a real leg on the bases + a coloured trail so it's SEEN
+    this.cleatSpeedMult = gear?.cleats?.speedMult ?? 1;
+    this.cleatStealMult = gear?.cleats?.stealMult ?? 1;
+    this.cleatHex = gear?.cleats?.hex ?? null;
+    this.trailPool = this.cleatHex ? Array.from({ length: 4 }, () => new SpeedTrail(engine.scene, this.cleatHex)) : [];
     // walkout gate: resolves when the extras dance pack has settled for this
     // match's squads (null = already loaded, e.g. the dev harness)
     this.extrasReady = extrasReady;
@@ -795,6 +801,7 @@ export class MatchScene {
     this.strikes = 0;
     this.fouls = 0;
     this.runners = [];
+    for (const t of this.trailPool) { t.hide(); t.busy = false; }
     this.power.disarm(); // an armed-but-unkicked charge is refunded
     this._hopCalled = false;
     this._kickApproach = null;
@@ -1553,18 +1560,21 @@ export class MatchScene {
   makeRunner(idx, char, fromBase) {
     // don't stomp a mid-flight crown swing — its onDone starts the run itself
     if (char.animator.name !== this._gearSwing || !this._gearSwing) char.animator.play('run', { speedFactor: 1 });
-    return {
+    const r = {
       idx,
       char,
       fromBase, // -1 = home plate
       originBase: fromBase, // the time-of-pitch bag — where a TAG UP must return
       targetBase: fromBase + 1,
-      sim: new RunnerSim({ tuning: this.tuning, human: this.kickingIsPlayer() }),
+      sim: new RunnerSim({ tuning: this.tuning, human: this.kickingIsPlayer(), speedMult: this.kickingIsPlayer() ? this.cleatSpeedMult : 1 }),
+      trail: this.kickingIsPlayer() ? (this.trailPool.find((t) => !t.busy) ?? null) : null,
       state: 'running',
       decideT: 0,
       forced: false,
       aiRate: aiMashRate(this.difficulty),
     };
+    if (r.trail) r.trail.busy = true;
+    return r;
   }
 
   /** A runner crosses the plate: state + the score sting (silent = the homer
@@ -1621,7 +1631,7 @@ export class MatchScene {
     const rate = this.kickingIsPlayer()
       ? Math.max(1.6, this.input.tapRate(500, performance.now())) // a lazy steal is a DEAD steal — mash it
       : r.aiRate;
-    r.sim.tick(dt, rate);
+    r.sim.tick(dt, rate * (this.kickingIsPlayer() ? this.cleatStealMult : 1));
     if (r.sim.arrived && this.stealResolving) {
       r.sim.progressM = this.tuning.running.basePathM; // hold AT the bag while the throw races in
     }
@@ -1978,6 +1988,7 @@ export class MatchScene {
         r.sim.tick(dt, useRate);
         const { p, dir } = this.runnerWorldPos(r);
         r.char.group.position.set(p.x, 0, p.z);
+        r.trail?.update(p, dir, r.sim.speedMs > this.tuning.running.maxSpeedMs * 0.8, this.elapsed);
         r.char.faceYaw = Math.atan2(dir.x, dir.z); // run facing forward, never moonwalk
         r.char.animator.ctx.speedFactor = 0.7 + (mashSpeed(useRate, this.tuning) / this.tuning.running.maxSpeedMs) * 0.6;
 
@@ -4270,5 +4281,6 @@ export class MatchScene {
     this.hud.destroy();
     this.engine.scene.remove(this.field.root, this.ball.mesh, this.marker, this.fielderRing);
     for (const c of [...this.chars.home, ...this.chars.away]) this.engine.scene.remove(c.group);
+    for (const t of this.trailPool) this.engine.scene.remove(t.mesh);
   }
 }

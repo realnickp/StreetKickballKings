@@ -19,17 +19,17 @@ export const GEAR = [
   { id: 'kick-meia', cat: 'kick', name: 'MEIA LUA', clip: 'kickMeia', mods: { powerMult: 1.35, curl: 1.5 }, unlock: { stat: 'wins', n: 3 }, hint: '3 career wins' },
   { id: 'kick-meiaback', cat: 'kick', name: 'MEIA LUA BACK', clip: 'kickMeiaBack', mods: { powerMult: 1.35, curl: -1.4 }, unlock: { stat: 'pickleEscapes', n: 5 }, hint: '5 pickle escapes' },
   { id: 'kick-sweep', cat: 'kick', name: 'LEG SWEEP', clip: 'kickSweep', mods: { powerMult: 1.35, speed: 1.2, loftDeg: -12 }, unlock: { stat: 'steals', n: 15 }, hint: '15 career steals' },
-  // ---- cleats: foot-region tint on the kit texture
-  { id: 'cleats-fire', cat: 'cleats', name: 'FIRE REDS', hex: '#ff3b1f', unlock: { stat: 'wins', n: 1 }, hint: 'Win your first game' },
-  { id: 'cleats-ice', cat: 'cleats', name: 'ICE KICKS', hex: '#7fe7ff', unlock: { stat: 'wins', n: 2 }, hint: 'Win 2 games' },
-  { id: 'cleats-volt', cat: 'cleats', name: 'NEON VOLTS', hex: '#c8ff1f', unlock: { stat: 'crews', n: 3 }, hint: 'Beat 3 crews on their turf' },
-  { id: 'cleats-royal', cat: 'cleats', name: 'ROYALS', hex: '#8a4dff', unlock: { stat: 'crews', n: 5 }, hint: 'Beat 5 crews on their turf' },
-  { id: 'cleats-black', cat: 'cleats', name: 'BLACKOUTS', hex: '#15151a', unlock: { stat: 'runs', n: 25 }, hint: '25 career runs' },
-  { id: 'cleats-gold', cat: 'cleats', name: 'GOLD CROWNS', hex: '#f5c518', unlock: { stat: 'king', n: 1 }, hint: 'Become King of the Streets' },
+  // ---- cleats: foot-region tint on the kit texture + a real leg on the bases
+  { id: 'cleats-fire', cat: 'cleats', name: 'FIRE REDS', hex: '#ff3b1f', speedMult: 1.06, play: '+6% speed on the bases', unlock: { stat: 'wins', n: 1 }, hint: 'Win your first game' },
+  { id: 'cleats-ice', cat: 'cleats', name: 'ICE KICKS', hex: '#7fe7ff', speedMult: 1.06, stealMult: 1.1, play: '+6% speed · +10% steal jump', unlock: { stat: 'wins', n: 2 }, hint: 'Win 2 games' },
+  { id: 'cleats-volt', cat: 'cleats', name: 'NEON VOLTS', hex: '#c8ff1f', speedMult: 1.08, play: '+8% speed on the bases', unlock: { stat: 'crews', n: 3 }, hint: 'Beat 3 crews on their turf' },
+  { id: 'cleats-royal', cat: 'cleats', name: 'ROYALS', hex: '#8a4dff', speedMult: 1.08, play: '+8% speed on the bases', unlock: { stat: 'crews', n: 5 }, hint: 'Beat 5 crews on their turf' },
+  { id: 'cleats-black', cat: 'cleats', name: 'BLACKOUTS', hex: '#15151a', speedMult: 1.10, play: '+10% speed on the bases', unlock: { stat: 'runs', n: 25 }, hint: '25 career runs' },
+  { id: 'cleats-gold', cat: 'cleats', name: 'GOLD CROWNS', hex: '#f5c518', speedMult: 1.12, play: '+12% speed on the bases', unlock: { stat: 'king', n: 1 }, hint: 'Become King of the Streets' },
   // ---- uniforms: whole-kit tint override for YOUR squad
-  { id: 'kit-blackout', cat: 'uniform', name: 'BLACKOUT KIT', hex: '#1b1b22', unlock: { stat: 'wins', n: 3 }, hint: '3 career wins' },
-  { id: 'kit-whiteout', cat: 'uniform', name: 'WHITEOUT KIT', hex: '#f2f2f4', unlock: { stat: 'blowouts', n: 1 }, hint: 'Win by 5 or more' },
-  { id: 'kit-gold', cat: 'uniform', name: 'GOLD RUSH KIT', hex: '#f5c518', unlock: { stat: 'king', n: 1 }, hint: 'Become King of the Streets' },
+  { id: 'kit-blackout', cat: 'uniform', name: 'BLACKOUT KIT', hex: '#1b1b22', play: "your crew's kit", unlock: { stat: 'wins', n: 3 }, hint: '3 career wins' },
+  { id: 'kit-whiteout', cat: 'uniform', name: 'WHITEOUT KIT', hex: '#f2f2f4', play: "your crew's kit", unlock: { stat: 'blowouts', n: 1 }, hint: 'Win by 5 or more' },
+  { id: 'kit-gold', cat: 'uniform', name: 'GOLD RUSH KIT', hex: '#f5c518', play: "your crew's kit", unlock: { stat: 'king', n: 1 }, hint: 'Become King of the Streets' },
 ];
 
 export const gearById = (id) => GEAR.find((g) => g.id === id) ?? null;
