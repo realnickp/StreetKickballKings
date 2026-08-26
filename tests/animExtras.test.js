@@ -59,3 +59,11 @@ it('DanceBag only hands a character clips it can play', () => {
   bag.draw(rich);
   for (let i = 0; i < 10; i++) expect(BASE).toContain(bag.draw(poor));
 });
+
+it('DanceBag never repeats the last dance across a refill for a shared, mixed roster', () => {
+  for (let trial = 0; trial < 50; trial++) {
+    const bag = new DanceBag(); const rich = char(X), poor = char();
+    const draws = Array.from({ length: 30 }, (_, i) => bag.draw(i % 2 === 0 ? rich : poor));
+    for (let i = 1; i < draws.length; i++) expect(draws[i]).not.toBe(draws[i - 1]);
+  }
+});

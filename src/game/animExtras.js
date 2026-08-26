@@ -86,7 +86,12 @@ export class DanceBag {
     this._learn(char);
     if (!this.bag.length) this._refill();
     const playable = (n) => hasClip(char, n) || BASE_DANCES.includes(n);
-    let i = this.bag.findIndex(playable);
+    // a shared bag serves every kicker in the match — the drawing character's
+    // first PLAYABLE slot, not bag[0], is what must dodge the last dance
+    // played (fix round 1, 2026-08-26: mixed-roster refill could repeat it)
+    const last = this.recent[this.recent.length - 1];
+    let i = this.bag.findIndex((n) => playable(n) && n !== last);
+    if (i < 0) i = this.bag.findIndex(playable);
     if (i < 0) { this._refill(); i = this.bag.findIndex(playable); }
     if (i < 0) return BASE_DANCES[0];
     const [pick] = this.bag.splice(i, 1);
