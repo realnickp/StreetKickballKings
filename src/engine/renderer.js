@@ -9,6 +9,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { PerfWatchdog } from './perfWatchdog.js';
 
 // Combined vignette + chromatic aberration + scene tint + film grain grade.
 // Cheap single pass. Tint and grain exist to marry the clean 3D layer to the
@@ -18,11 +19,11 @@ import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 const GradeShader = {
   uniforms: {
     tDiffuse: { value: null },
-    vignette: { value: 0.3 },
-    caAmount: { value: 0.0004 },
-    sat: { value: 1.12 },
+    vignette: { value: 0.18 },
+    caAmount: { value: 0.0 },
+    sat: { value: 1.2 },
     tint: { value: new THREE.Vector3(1, 1, 1) },
-    grain: { value: 0.028 },
+    grain: { value: 0.008 },
     time: { value: 0 },
   },
   vertexShader: /* glsl */ `
@@ -68,7 +69,7 @@ export function createEngine(canvas) {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   // ACES at default exposure reads muddy on phones — lift the whole image.
   // Dev directive 2026-07-21: "the graphics need to be brighter."
-  renderer.toneMappingExposure = 1.22;
+  renderer.toneMappingExposure = 1.35;
 
   const scene = new THREE.Scene();
 
@@ -83,7 +84,7 @@ export function createEngine(canvas) {
     // Hold the IBL well back: full-strength RoomEnvironment + the bright per-sky
     // lights blew every surface past the bloom threshold (everything glowed). This
     // keeps the material reflectance cue without lifting overall scene brightness.
-    scene.environmentIntensity = 0.3;
+    scene.environmentIntensity = 0.5;
   } catch (e) {
     console.warn('[skk] env map (RoomEnvironment/PMREM) unavailable, skipping:', e);
   }
@@ -92,7 +93,14 @@ export function createEngine(canvas) {
   camera.position.set(0, 6.5, 8.5);
   camera.lookAt(0, 1, -12);
 
-  const composer = new EffectComposer(renderer);
+  // MSAA lives on the COMPOSER's target: every frame renders through the
+  // post chain, so the WebGLRenderer's own antialias flag never applied
+  // (effective AA was none — the jagged edges the dev saw). ?msaa=N overrides.
+  const msaaParam = new URLSearchParams(location.search).get('msaa');
+  let samples = msaaParam != null ? Math.max(0, Math.min(4, Number(msaaParam) || 0)) : 4;
+  const composer = new EffectComposer(renderer,
+    new THREE.WebGLRenderTarget(1, 1, { samples, type: THREE.HalfFloatType }));
+  const watchdog = new PerfWatchdog();
   const renderPass = new RenderPass(scene, camera);
   // threshold 1.0 (was .95): the exposure lift above would otherwise push
   // ordinary surfaces over the bloom cutoff and everything would glow
@@ -148,6 +156,14 @@ export function createEngine(canvas) {
       quality = q;
       rebuildChain();
     },
+    get samples() { return samples; },
+    /** Drop the composer's MSAA sample count in place (targets re-allocate lazily). */
+    setSamples(n) {
+      samples = n;
+      for (const rt of [composer.renderTarget1, composer.renderTarget2]) { rt.samples = n; rt.dispose(); }
+      if (n === 0) engine.setQuality('low'); // no MSAA = a phone on its knees: shed the grade pass too
+      console.info(`[skk] msaa samples -> ${n}`);
+    },
     /** Scene-matched image-based lighting: build the environment map FROM the
      *  field's own backdrop art so the court and players are lit by the scene's
      *  actual colors (warm dusk wall glow from the sides, sky tone from above)
@@ -175,7 +191,7 @@ export function createEngine(canvas) {
           const envRT = pmrem.fromEquirectangular(tex);
           tex.dispose();
           scene.environment = envRT.texture;
-          scene.environmentIntensity = 0.55; // scene maps are darker than the white room
+          scene.environmentIntensity = 0.7; // scene maps are darker than the white room
           // subtle grade pull toward the scene's average hue (never brightness)
           const d = ctx.getImageData(0, bandTop, W, bandH).data;
           let ar = 0, ag = 0, ab = 0;
@@ -232,6 +248,10 @@ export function createEngine(canvas) {
     requestAnimationFrame(loop);
     lastFrameAt = performance.now();
     const rawDt = Math.min(clock.getDelta(), 0.05);
+    if (!document.hidden && msaaParam == null) {
+      const drop = watchdog.tick(rawDt);
+      if (drop !== null) engine.setSamples(drop);
+    }
     const dt = rawDt * engine.timeScale;
     gradePass.uniforms.time.value = clock.elapsedTime; // animates the film grain
 
