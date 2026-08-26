@@ -489,6 +489,22 @@ const ARCHETYPES = [
 const FALLBACK_MODEL = '/assets/models/monarchs-23.glb';
 const FEMALE_ARCHETYPES = new Set([2, 5, 7, 9, 11, 13, 15, 17]);
 
+// archetypes whose GLB can't animate (see the BENCHED note above) — remap to
+// a working body so no cast or hash-fallback pick ever fields a statue
+const BENCHED = new Map([[17, 5]]);
+
+/** Which archetype roster slot `i` of `team` wears. Per-team offset into the
+ *  archetype pool: rosters are ~8 deep and plain cycling would give every team
+ *  the SAME first eight faces. Hashing the team id slides each crew to its own
+ *  slice, so Philly's people aren't Brooklyn's people. Deterministic — a team
+ *  always fields the same folks. Shared by the match roster and the Locker
+ *  preview, so the captain you dress IS the captain you field. */
+function archIdxFor(team, i) {
+  const teamOffset = [...(team.id ?? '')].reduce((a, c) => a + c.charCodeAt(0), 0) % ARCHETYPES.length;
+  const archIdx = (team.roster?.[i]?.archetype ?? (teamOffset + i)) % ARCHETYPES.length;
+  return BENCHED.get(archIdx) ?? archIdx;
+}
+
 /** Build a full team of detailed GLB characters, recolored to a uniform colour
  *  (defaults to the team's primary; pass `uniformColor` for a light/dark kit so
  *  two teams don't clash). `gear` (THE LOCKER, player team only) applies the
@@ -511,18 +527,9 @@ export async function buildTeamCharsGlb(team, uniformColor, gear = null) {
     catch (e) { console.warn(`[skk] mocap-${key}.glb unavailable, using code animator:`, e); return null; }
   };
   const out = [];
-  // Per-team offset into the archetype pool: rosters are ~8 deep and plain
-  // cycling would give every team the SAME first eight faces. Hashing the
-  // team id slides each crew to its own slice, so Philly's people aren't
-  // Brooklyn's people. Deterministic — a team always fields the same folks.
-  const teamOffset = [...(team.id ?? '')].reduce((a, c) => a + c.charCodeAt(0), 0) % ARCHETYPES.length;
-  // archetypes whose GLB can't animate (see the BENCHED note above) — remap to
-  // a working body so no cast or hash-fallback pick ever fields a statue
-  const BENCHED = new Map([[17, 5]]);
   for (let i = 0; i < roster.length; i++) {
     const p = roster[i];
-    let archIdx = (p.archetype ?? (teamOffset + i)) % ARCHETYPES.length;
-    archIdx = BENCHED.get(archIdx) ?? archIdx;
+    const archIdx = archIdxFor(team, i); // shared with the Locker preview
     const clips = await clipsFor(archIdx);
     let char;
     try {
@@ -539,4 +546,16 @@ export async function buildTeamCharsGlb(team, uniformColor, gear = null) {
     out.push(char);
   }
   return out;
+}
+
+/** The captain (roster[0]) alone, wearing a kit colour + cleats — the Locker
+ *  preview. Same model/recolour/tint path as the match so what you see is
+ *  what you field. */
+export async function buildCaptainPreview(team, uniformHex, gear = null) {
+  const idx = archIdxFor(team, 0);
+  let clips = null;
+  try { clips = await loadMocapClips(`/assets/anims/mocap-${ARCHETYPES[idx].match(/arch-(\w+)\.glb/)?.[1]}.glb`); } catch { clips = null; }
+  const char = await buildGlbCharacter({ model: ARCHETYPES[idx], teamColor: uniformHex ?? team.colors?.primary, cleatHex: gear?.cleats?.hex ?? null }, { heightM: 2.05, clips });
+  char.data = team.roster?.[0] ?? null;
+  return char;
 }

@@ -1334,6 +1334,11 @@ body { display: flex; align-items: center; justify-content: center; }
 .locker-chip .swatch { display: block; width: 100%; height: 14px; border-radius: 6px; margin-bottom: 4px; border: 1px solid rgba(255,255,255,.25); }
 .locker-career { color: var(--muted); font-size: 11px; letter-spacing: .6px; margin: 10px 0 4px; text-align: center; }
 
+/* Locker turntable — your captain, live, in the kit + cleats you just tapped */
+.locker-stage { display:flex; flex-direction:column; align-items:center; gap:4px; }
+.locker-preview { width: 220px; height: 260px; border-radius: 14px; background: radial-gradient(ellipse at 50% 80%, rgba(245,179,18,.18), transparent 60%); }
+.locker-stage-cap { font-family: var(--sans); font-weight: 900; font-size: 11px; letter-spacing: .6px; color: var(--gold); }
+
 /* element teach card: full-screen "know your block" intro (Know It pillar) */
 /* starting-lineup walkout card — bottom third, slams in per player */
 .walkout-card {

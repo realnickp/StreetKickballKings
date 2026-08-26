@@ -1,6 +1,7 @@
 // All pre/post-game screens: Title, Menu, TeamSelect, CoinToss, PostGame.
 // Mockup style: dark slate, orange/teal, graffiti marker accents.
 import { playVideo } from '../../cinematics/videoPlayer.js';
+import { LockerPreview } from '../lockerPreview.js';
 
 function el(html) {
   const t = document.createElement('template');
@@ -203,6 +204,7 @@ export function LockerScreen(ctx) {
         <div class="screen locker-screen">
           <h1 class="screen-title gold">THE LOCKER</h1>
           <p class="map-sub">Earn it on the block. Tap it to rock it.</p>
+          <div class="locker-stage"><canvas class="locker-preview" width="440" height="520"></canvas><p class="locker-stage-cap"></p></div>
           <div class="locker-rows"></div>
           <p class="locker-career">W ${career.wins} · HR ${career.hr} · STEALS ${career.steals} · GLOVE ${career.defOuts} · ESCAPES ${career.pickleEscapes} · CREWS ${career.crews}/9</p>
           <div class="coin-buttons"><button data-act="menu">MAIN MENU</button></div>
@@ -233,7 +235,19 @@ export function LockerScreen(ctx) {
       }
       s.querySelector('[data-act="menu"]').addEventListener('pointerdown', () => ctx.router.go('menu'));
       root.appendChild(s);
+      // Live turntable of YOUR captain in what you just equipped — the whole
+      // point of the Locker is SEEING the kit and the cleats change.
+      const team = ctx.playerTeam ?? ctx.data.teams[0];
+      const cap = s.querySelector('.locker-stage-cap');
+      cap.textContent = `${(team.roster?.[0]?.nick ?? 'YOUR CAPTAIN').toUpperCase()} — ${eq.uniform?.name ?? 'STOCK KIT'} · ${eq.cleats?.name ?? 'STOCK CLEATS'}`;
+      try {
+        this.preview = new LockerPreview(s.querySelector('.locker-preview'));
+        this.preview.show({ team, uniformHex: eq.uniform?.hex ?? null, gear: eq });
+      } catch (e) { console.warn('[skk] locker preview unavailable:', e); }
     },
+    // the router calls unmount() on the outgoing screen — kill the RAF loop and
+    // the WebGL context so re-mounting on every equip can't leak contexts
+    unmount() { this.preview?.destroy(); this.preview = null; },
   };
 }
 
