@@ -27,6 +27,7 @@ import { allHaveClip, pickDance, pickDances } from './animExtras.js';
 import { revertStealBooks } from './stealBooks.js';
 import { SpeedTrail } from './fx/speedTrail.js';
 import { Hud } from '../ui/screens/hud.js';
+import { gearLine } from '../meta/gearLine.js';
 
 const DEFENSE_SPOTS = [
   { id: 'P', pos: new THREE.Vector3(0, 0, -12) },
@@ -302,7 +303,7 @@ export class MatchScene {
       }
     });
     this.special.value = 0;
-    this.power.disarm();
+    this.power = new PowerKicks({ meter: this.special, gear: this.playerGear?.kick ?? null }); // fresh charges every match (rematch reuses the scene)
     const begin = () => {
       this.bus.emit('vo', 'playball');
       this.refreshHud();
@@ -803,6 +804,10 @@ export class MatchScene {
     this.runners = [];
     for (const t of this.trailPool) { t.hide(); t.busy = false; }
     this.power.disarm(); // an armed-but-unkicked charge is refunded
+    if (this.kickingIsPlayer() && this.playerGear && !this._gearToasted) {
+      this._gearToasted = true;
+      this.after(0.8, () => this.hud.gearToast(gearLine(this.playerGear)));
+    }
     this._hopCalled = false;
     this._kickApproach = null;
     // heat-wave moment (Play It): tell the offense ONCE per half that the
@@ -857,6 +862,7 @@ export class MatchScene {
         nick: kp.nick, number: kp.number ?? this.kicker.number, pos: kp.pos,
         stats: kp.stats, color: this.teams[this.match.kickingSide()].colors?.primary,
         label: 'NOW KICKING', mini: true,
+        gear: this.kickingIsPlayer() ? gearLine(this.playerGear) : null,
       });
       this.after(2.4, () => this.hud.walkoutHide());
     }

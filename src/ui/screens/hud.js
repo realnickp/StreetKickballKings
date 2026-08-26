@@ -509,7 +509,7 @@ export class Hud {
 
   /** Starting-lineup walkout card: street name BIG, number/position, and the
    *  player's two best stats. One at a time — showing replaces the last. */
-  walkoutShow({ nick, number, pos, stats, color, label, mini = false }) {
+  walkoutShow({ nick, number, pos, stats, color, label, mini = false, gear = null }) {
     this.walkoutHide();
     const card = document.createElement('div');
     card.className = mini ? 'walkout-card mini' : 'walkout-card';
@@ -523,7 +523,8 @@ export class Hud {
       `<span class="wo-sub">${number != null ? `#${number} · ` : ''}${(pos ?? '').toUpperCase()}</span>` +
       best.map(([k, v]) =>
         `<div class="stat-row"><span>${STAT_LABEL[k] ?? k}</span>` +
-        `<div class="stat-bar"><i style="width:${v * 10}%"></i></div></div>`).join('');
+        `<div class="stat-bar"><i style="width:${v * 10}%"></i></div></div>`).join('') +
+      (gear ? `<div class="wo-gear">YOUR GEAR — ${gear}</div>` : '');
     card.querySelector('.wo-nick').textContent = nick ?? '';
     this.el.appendChild(card);
     this._walkoutCard = card;
@@ -534,6 +535,17 @@ export class Hud {
   walkoutHide() {
     this._walkoutCard?.remove();
     this._walkoutCard = null;
+  }
+
+  /** One-time toast at the player's first at-bat: names the equipped gear so
+   *  cleats/uniform choices actually register on screen (dev, 2026-08-25). */
+  gearToast(line) {
+    const t = document.createElement('div');
+    t.className = 'gear-toast';
+    t.textContent = `YOUR GEAR — ${line}`;
+    this.el.appendChild(t);
+    requestAnimationFrame(() => t.classList.add('show'));
+    setTimeout(() => t.remove(), 2800);
   }
 
   /** Full-screen team splash between walkout sides: crest slams in over a
