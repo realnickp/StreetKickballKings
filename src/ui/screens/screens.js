@@ -242,7 +242,10 @@ export function LockerScreen(ctx) {
       cap.textContent = `${(team.roster?.[0]?.nick ?? 'YOUR CAPTAIN').toUpperCase()} — ${eq.uniform?.name ?? 'STOCK KIT'} · ${eq.cleats?.name ?? 'STOCK CLEATS'}`;
       try {
         this.preview = new LockerPreview(s.querySelector('.locker-preview'));
-        this.preview.show({ team, uniformHex: eq.uniform?.hex ?? null, gear: eq });
+        // .catch too: the GLB fetch is async, so a missing model would escape
+        // the try/catch as an unhandled rejection instead of this warn
+        this.preview.show({ team, uniformHex: eq.uniform?.hex ?? null, gear: eq })
+          .catch((e) => console.warn('[skk] locker preview failed to build:', e));
       } catch (e) { console.warn('[skk] locker preview unavailable:', e); }
     },
     // the router calls unmount() on the outgoing screen — kill the RAF loop and
