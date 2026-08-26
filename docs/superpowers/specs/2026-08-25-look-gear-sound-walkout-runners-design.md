@@ -272,3 +272,240 @@ In `nextAtBat`, instead of appearing at the plate:
 
 Backdrop regeneration, new dance clips, new VO lines, the AO pass, any currency/shop, the
 pickle duel, kick judging values (Addendum truth), a whole-team lineup show (dropped).
+
+## Real-play pass results (2026-08-26, local dev via claude-in-chrome)
+
+Harness: `http://localhost:5173/?match&nosplash[&nointro][&cleats=ff3b1f]` and
+`?nosplash[&go=locker]`, Chrome, the app's own portrait letterbox (~410x790 CSS,
+513x988 drawing buffer). Screenshots in
+`.superpowers/sdd/2026-08-25-look-gear-sound-walkout-runners/playpass/`.
+
+**How it was driven — read this before trusting any timing claim.** The automation
+window is *occluded* (`document.visibilityState === 'hidden'`, `document.hasFocus()`
+true), so Chrome froze `requestAnimationFrame` and the engine loop never ticked on its
+own. **Every observation below is virtual-clock stepped; none is live-rAF.** Rather
+than call `__skk.update()` in isolation, `requestAnimationFrame` and `performance.now`
+were replaced with a queue + virtual clock so the renderer's *real* `loop()` ran — every
+`engine.onFrame` callback, the shake/watchdog block and `composer.render()` — one
+faithful frame at a time. Consequences worth knowing:
+
+- **OS-level input never reached the page at all.** A `computer` click at the SKIP
+  chip's own coordinates produced *no* event on a document-level capture listener for
+  `pointerdown`/`mousedown`/`click`. Taps were therefore dispatched as DOM
+  `PointerEvent`s on the real elements (hitting the real listeners) and kicks through
+  the scene's real `onSwipe()`. **Hit-testing / touch-target geometry is NOT verified.**
+- HUD teardown timers and CSS animations run on *real* time while the engine runs on the
+  virtual clock, so `setTimeout` was stretched and `document.getAnimations()` frozen
+  mid-animation to let screenshots land. A stamp lingering in two shots is that stretch,
+  not a bug.
+- Repeatedly forcing window resizes eventually lost the WebGL context and then tripped
+  Chrome's "context could not be created — blocked" guard. Both are artifacts of this
+  environment, not app faults; a fresh tab cleared them each time.
+
+### 1. Edges + brightness — VERIFIED (measured, not just eyeballed)
+
+Same frame, MSAA flipped in place with `engine.setSamples()` so the A/B is pixel-exact
+(`?msaa=0` drives the same path; round-e2e asserts it). Read back off the drawing buffer
+with `gl.readPixels` and scored: among "edge" pixels (3x3 luma range > 60), the share
+sitting at a *blended* intermediate value rather than snapping to an extreme.
+
+- **Character silhouette:** MSAA 4 = **35.1%** blended over 800 edge pixels; MSAA 0 =
+  **22.0%** over 939. Repeated on a second load: 37.6% / 1381 vs 21.6% / 1730. MSAA is
+  doing real geometric work — more blended pixels, *fewer* hard-stepped ones.
+- **Fence / brownstone band:** 52.8% vs 50.7% — essentially no difference. That band's
+  shimmer is *texture* aliasing (backdrop image + brick), which MSAA cannot touch. Honest
+  read: MSAA smooths bodies, kit edges, the crown logo and the painted lines; it does not
+  clean up the backdrop.
+- The 7x crop `01c-msaa4-vs-msaa0-7x-kicker.jpg` shows it plainly: at MSAA 0 the jersey's
+  right edge, the arm/torso boundary, the shorts hem and the logo's diagonals are visibly
+  stair-stepped; at MSAA 4 they read smooth.
+- **Brightness** (no "before" build to compare against, so absolute figures): whole-frame
+  mean luma **144-150 / 255**, max **244**, and **0.00%** of pixels blown to white. Faces
+  and kits read bright and legible in the sunset field light with real highlight headroom
+  left — nothing is clipped.
+- Screens: `01a-plate-msaa4-default.jpg`, `01b-plate-msaa0.jpg`,
+  `01c-msaa4-vs-msaa0-7x-kicker.jpg`.
+
+### 2. Pre-game — VERIFIED end to end
+
+The timeline fired exactly as `pregameTimeline()` specifies: **STARTING LINEUPS** stamp at
+t≈0.2s with `vo:lineups` → **away crest** (BALTIMORE / MONARCHS,
+`assets/logos/monarchs.png`) → **home crest** (NEW YORK / SNAPPERS) → cleanup at t≈4.3s
+firing `sfx:scratch`, `music stop`, `sfx:crowd-cheer`, the **GAME TIME!** stamp and
+`vo:gametime` → letterbox off, `cinematicLock` released → `phase: SETUP`, walk-up starts,
+`vo:playball`, `sfx:stomp`. The empty-stage invariant held (all characters hidden through
+the splashes).
+
+- **Stray tap is inert:** three `onTap()` calls at different points during the splash left
+  `walkoutActive` and `cinematicLock` both `true` — the show was not eaten.
+- **SKIP chip works:** a `pointerdown` on the real chip gave `sfx:ui-tap`,
+  `walkoutActive:false`, splash and chip removed, GAME TIME! stamp + `scratch` +
+  `crowd-cheer` + `vo:gametime` immediately, then the first walk-up 2s later. The chip's
+  handler is `pointerdown` (hud.js:285), so it is a deliberate press, not a stray tap.
+- Screens: `02a-pregame-starting-lineups.jpg`, `02b-pregame-away-crest-monarchs.jpg`,
+  `02c-pregame-home-crest-snappers.jpg`, `02d-pregame-game-time.jpg`.
+
+### 3. Walk-up + taunt — VERIFIED both sides
+
+- **Player:** the kicker spawns at `x=-3.4` and walks in to the plate at `x=-0.9`
+  (`sfx:stomp` at the off), squares up, and the **NOW KICKING** card shows
+  "KING REESE / #23 · CAPTAIN / PWR / ARM" plus the gear line. Entering the taunt at the
+  plate fired `sfx:crowd-cheer`. Stock taunt picked = `tauntPoint`; with BATTLE CRY
+  equipped it picked `tauntCry`.
+- **CPU** (forced `playerSide='home'`): `isPlayer:false`, taunt randomly drawn = `tauntCry`
+  (not the stock pick), and the taunt fired **`sfx:boo`**. Its NOW KICKING card correctly
+  carries **no** YOUR GEAR line.
+- **Tap-skip:** `onTap()` during a walk-up runs `endWalkup(true)` and serves after
+  `WALKUP.serveDelayS`; verified by that code path plus the pre-game skip above (a DOM tap
+  on the play surface, not an OS touch).
+- Screens: `03a-walkup-walking-in.jpg`, `03b-walkup-taunt-player.jpg`,
+  `03c-walkup-taunt-cpu-boo.jpg`.
+
+### 4. HR dance — VERIFIED, six in a row, all different
+
+`homer()` on six consecutive live at-bats (resetting `hrFired` each time) drew
+**`thriller1 → thriller2 → danceLock → dance2 → dance1 → danceSilly`** — six distinct
+clips, no repeat. The dancer stood alone at the plate (0, 0) with the clip playing while
+the rest of the stage stayed clear. Every homer stamped **CROWNED!** and fired
+`sfx: homer, cheer-big, crowd-cheer, crown-tick, bassdrop` with
+`vo: {event:'crowned', gender:'he'}`. `danceBag.recent` persisted to
+`localStorage['skk-save-v1']['dance.recent']` between draws.
+
+- Screens: `04a-hr-dance-1-crowned.jpg`, `04b-hr-dance-2-different.jpg`.
+
+### 5. POWER KICK — VERIFIED lit → armed → spent
+
+With MARTELO equipped (`power.gear` set from the real catalog entry):
+
+- **Lit:** button class `special-btn ready`, label **"MARTELO x2"** — the kick's name and
+  its charge count, exactly as `hudState()` renders it.
+- **Armed:** a `pointerdown` on the real button gave `sfx: ui-tap, crown-arm`, class became
+  `special-btn ready armed`, the button turned **solid gold**, and the hint bar read
+  **"MARTELO ARMED — LET IT RIP"**. Charges stayed at 2 (spent at launch, not at arm).
+- **Spent:** the armed kick fired `sfx: bassdrop, swing, kick`, **charges 2 → 1**, and
+  **`cine:special` fired with `label: "MARTELO"`**. A whiff while armed did *not* burn a
+  charge (stayed 2, stayed armed) — the refund rule holds.
+- Charges also minted from play: two homers filled the crown meter and the button read
+  "CROWN KICK x2" with no gear equipped.
+- Screens: `05a-power-kick-armed-martelo.jpg`.
+
+### 6. Cleats + gear strip — MOSTLY VERIFIED (one real gap)
+
+With FIRE REDS equipped and `?cleats=ff3b1f` tinting the away squad:
+
+- **Cleat ring:** visible during the player's walk-up only, tracking the kicker's feet
+  frame by frame (`cleatRing.visible === true`, position following `x`), and hidden again
+  once he squares up. It reads as a bright red ring on the dirt.
+- **YOUR GEAR strip:** the NOW KICKING card shows
+  **"YOUR GEAR — MARTELO · FIRE REDS · BLACKOUT KIT"**, and the same string appears as the
+  one-shot gear toast banner. The CPU's card has no such line.
+- **Trail:** the pool allocated 4 `SpeedTrail` ribbons in `#ff3b1f` and one was correctly
+  assigned to the player's runner (`r.trail` set, `busy: true`). The ribbon renders as
+  designed — a tapering additive red-orange streak at ground level. **But see the gap: I
+  never caught it behind an actually sprinting runner.**
+- **Black kit on the field: NOT verified** — the `?match` harness builds the away squad
+  without the uniform hex, so the kit stayed Monarchs yellow. BLACKOUT KIT is verified on
+  the Locker turntable instead (item 9).
+- Screens: `06a-gear-walkup-cleat-ring-gearstrip.jpg`, `06b-cleat-trail-ribbon.jpg`,
+  `06c-cleat-trail-ribbon-3x.jpg`.
+
+### 7. Runners — VERIFIED
+
+Both from a real kicked ball in play and from a staged runner:
+
+- **Edge chip:** one gold chip pinned to the screen edge reading **`➤ #88 → 1ST`** /
+  **`➤ #7 → 2ND`** / **`➤ #7 ON 1ST`** for a held runner — number, arrow and destination
+  bag, clamped on-screen rather than projected off it.
+- **Live diamond:** the score bug's diamond carried a lit runner dot sitting on the
+  first-base corner of the basepath, alongside the out dots (one red) and the
+  `MONA 0 / ▲1 / SNAP 0` line.
+- Screens: `07a-runner-edge-arrow-and-diamond.jpg`, `07b-scorebug-diamond-dots-4x.jpg`.
+
+### 8. Sounds — VERIFIED (24 distinct aliases heard in ordinary play)
+
+`__bus.on('sfx', …)` across pre-game, walk-ups, kicks, fielding, outs and an inning flip:
+`stomp, crowd-cheer, pitch, swing, kick, crush, whiff, bounce, catchpop, catch, throw,
+slide, crowd-ooh, out, inning, boo, scratch, ui-tap, ui-confirm, crown-arm, crown-tick,
+bassdrop, homer, cheer-big`. VO heard: `lineups, gametime, playball, nowkicking, crowned,
+robbed, forced`. One full play chained
+`swing → kick → bounce → catchpop → throw → catch → slide → crowd-ooh → boo → catchpop →
+out → throw`. HUD presses are audible: the SKIP chip and the POWER KICK button both emit
+`ui-tap`; a menu card emits `scratch`.
+
+- **`foul` not heard live** — a POWER KICK did drive the scene to `phase: FOUL`, but I
+  could not re-create a foul once the half flipped. It is wired at matchScene.js:1375, is
+  in the alias table, and round-e2e asserts every alias resolves to a file on disk.
+
+### 9. Locker — VERIFIED, preview changes on equip
+
+- **Fresh save:** the menu card reads **`0/27 EARNED`**; the Locker caption reads
+  **"KING REESE — STOCK KIT · STOCK CLEATS"**, the turntable rotates the captain in the
+  Monarchs yellow kit with yellow stock cleats, and every special kick is locked with its
+  hint ("20 CAREER RUNS", "10 CAREER WINS", …).
+- **After granting the four items:** the menu card reads **`4/27 EARNED`**; the caption
+  becomes **"KING REESE — BLACKOUT KIT · FIRE REDS"** and the turntable model visibly
+  changes — **the kit reads black** (dark charcoal jersey replacing the yellow) and the
+  cleats switch to the Fire Reds hex. The MARTELO chip lights as equipped, and BATTLE CRY
+  / FIRE REDS / BLACKOUT KIT all show `on`.
+- Honest nit: under the turntable's warm key light the FIRE REDS read dark
+  **maroon/brown** rather than the bright red they show on the field. Worth a glance.
+- Screens: `09a-menu-0of27-earned.jpg`, `09b-locker-stock-turntable.jpg`,
+  `09b1-turntable-stock-2x.jpg`, `09c-locker-blackout-firereds-martelo.jpg`,
+  `09c1-turntable-blackout-2x.jpg`.
+
+### 10. Console — CLEAN
+
+**Zero errors or exceptions** across the whole pass. Only warnings, all pre-existing
+three.js / driver noise: `THREE.Clock: This module has been deprecated. Please use
+THREE.Timer instead.`, `THREE.WebGLShadowMap: PCFSoftShadowMap has been deprecated`, and
+an HLSL `X4122 … cannot be represented accurately in double precision` shader-compile
+warning. The `WebGL context could not be created … blocked` errors seen mid-session were
+caused by this harness force-resizing the window, not by the game.
+
+### Test suite
+
+- `npm test` — **Test Files 41 passed (41) · Tests 235 passed (235)**
+- `node scripts/verify-anims.mjs` — **checked 19 archetypes x 3 packs — ALL GOOD**
+- `node scripts/booth-sound-e2e.mjs` — **ALL GREEN**
+- `node scripts/round-e2e.mjs` — **ALL PASS**
+
+### Gaps / not verified
+
+- **Nothing was watched at live 60 fps.** The occluded window froze rAF; every frame was
+  stepped on a virtual clock. Real-time feel, frame pacing, and the perf watchdog's MSAA
+  drop are untested here.
+- **Touch/click hit-testing.** OS-level input never reached the page, so taps were DOM
+  `PointerEvent`s on the elements. Whether the SKIP chip, POWER KICK button and
+  base-runner tap targets are actually *hittable with a thumb* is unverified — a phone
+  check.
+- **The real Locker → match gear flow.** The `?match` harness passes no gear, and the real
+  flow gates on two intro videos that will not play in this stalled-rAF tab. Gear was
+  applied to the live scene by re-running MatchScene's own constructor lines with catalog
+  objects pulled from `/src/meta/unlocks.js` — faithful to the code, but it is injection,
+  not the shipping path. `equippedGear(save)` itself was exercised only through the Locker.
+- **The cleat trail behind a sprinting runner.** The ribbon only activates above
+  `maxSpeedMs * 0.8` = 6.64 m/s and I never caught a runner there across ~15 at-bats; the
+  ribbon in the screenshot was driven through `SpeedTrail.update()` directly. Whether it
+  fires in ordinary play is **open** and should be the dev's first look on the phone.
+- **The BLACKOUT KIT on the field** (Locker turntable only — see item 6).
+- **`foul`, `score`, `safe`, `tag` SFX** not heard live (all wired and covered by
+  round-e2e).
+- **No "before" build** for the brightness claim — item 1 reports absolute values only.
+- **No real device.** Everything here is desktop Chrome.
+
+### Amendments as shipped
+
+- **`WALKUP.tauntS` is a 1.9s cap, not a 1.5s play length** (the spec said ~1.5s). The
+  taunt phase ends on the clip's own `onDone` or at the cap, whichever lands first;
+  observed live, the taunt ended by `onDone` at ~1.77s, well inside the cap.
+- **`kick-bicycle` is omitted from the GEAR catalog** — its source clip is a 0.67s
+  fragment (`trim: [0, 0.66]` in `anims.manifest.json`, against a 0.879s `contactAt`, so
+  contact falls *past the end of the clip*). Re-add when a full Flying Bicycle Kick lands;
+  the bake entry stays in the manifest under the name `kickBicycle`.
+- **UI blips were generated at 0.5s**, the ElevenLabs minimum — shorter was not available
+  from the generator.
+- **Three kicks cannot reach the 0.8s wind-up** their pack targets: **SCISSOR KICK at
+  0.70s** and **FLIP KICK at 0.75s**, plus a third in the same sub-0.8s band — the
+  manifest's shortest remaining k-pack `contactAt`s are `kickScissor` 0.35, `kickKipUp`
+  0.372 and `kickFlip` 0.421 (post-retime, `rate: 1.1`). They kick correctly, just with a
+  shorter tell than the pack's other moves.
