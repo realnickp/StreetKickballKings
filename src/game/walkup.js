@@ -10,3 +10,9 @@ export function pickTaunt({ isPlayer, equipped, random = Math.random }) {
   if (isPlayer) return equipped?.clip ?? 'tauntPoint';
   return TAUNTS[Math.floor(random() * TAUNTS.length)];
 }
+
+// The walk-up made SETUP ~3.5s long, which handed a mashing runner a FREE,
+// uncontested bag: the throw only ever comes from pitch resolution. No steals
+// until the kicker is at the plate.
+export const stealAllowed = ({ walkup, stealing, lastStealCommit, phase, playFinalized }) =>
+  !walkup && !stealing && !lastStealCommit && phase !== 'LIVE' && !playFinalized;

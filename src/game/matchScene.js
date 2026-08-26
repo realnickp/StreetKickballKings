@@ -23,7 +23,7 @@ import { CrewHeat } from './crewHeat.js';
 import { CameraDirector } from './cameraDirector.js';
 import { buildField, FIELD_LAYOUT } from './field.js';
 import { pickDance, pickDances } from './animExtras.js';
-import { WALKUP, walkS, pickTaunt } from './walkup.js';
+import { WALKUP, walkS, pickTaunt, stealAllowed } from './walkup.js';
 import { revertStealBooks } from './stealBooks.js';
 import { SpeedTrail } from './fx/speedTrail.js';
 import { Hud } from '../ui/screens/hud.js';
@@ -219,12 +219,6 @@ export class MatchScene {
 
     bus.on('cine:start', () => { this.cinematicLock = true; this.hud.hint(''); });
     bus.on('cine:done', () => { this.cinematicLock = false; this.chipSkip = false; this.hud.hideSkipChip?.(); });
-    // the OFFENSE builds the crown: every run the player's side scores feeds
-    // the meter (dev, 2026-08-04: "a meter... based on base hits, runs etc")
-    this.match.bus.on('score', ({ side, runs }) => {
-      if (side !== this.playerSide || runs <= 0) return;
-      for (let i = 0; i < runs; i++) this.crownFeed('run');
-    });
     // city element chip: inning rolls set it, procs pulse it
     bus.on('element:roll', (r) => this.hud.setElement(r));
     // Play It: a proc is a telegraphed WINDOW with a decision — tell the player
@@ -291,6 +285,14 @@ export class MatchScene {
       { firstKick },
     );
     this.match.bus.on('halfEnd', () => { this.halfJustEnded = true; });
+    // the OFFENSE builds the crown: every run the player's side scores feeds
+    // the meter (dev, 2026-08-04: "a meter... based on base hits, runs etc").
+    // Registered HERE, not in the ctor: startMatch swaps in a fresh MatchEngine,
+    // so a ctor-bound listener was feeding a dead bus from the first pitch on.
+    this.match.bus.on('score', ({ side, runs }) => {
+      if (side !== this.playerSide || runs <= 0) return;
+      for (let i = 0; i < runs; i++) this.crownFeed('run');
+    });
     // originalBases = "the bases when this pitch left" — restoreRunners plays
     // (strikeout / foul-out / 3rd-out catch) put runners BACK there. It must
     // track every engine base change, not just kicks (launchRunners): a
@@ -1565,8 +1567,9 @@ export class MatchScene {
   /** Send the runner on `baseIdx` stealing the next bag (pre-kick). */
   startSteal(baseIdx) {
     // one steal per pitch: a second launch after a commit would leave the foul
-    // rule with two runners to un-wind and only one race to run it with
-    if (this.stealing || this.lastStealCommit || this.phase === 'LIVE' || this.playFinalized) return;
+    // rule with two runners to un-wind and only one race to run it with.
+    // Also barred during the walk-up — nobody is out there to throw the ball.
+    if (!stealAllowed(this)) return;
     const occ = this.match.state.bases[baseIdx];
     const char = this.baseChars?.[baseIdx];
     if (occ === null || !char) return;
@@ -1956,7 +1959,8 @@ export class MatchScene {
         const { p, dir } = this.runnerWorldPos(r);
         r.char.group.position.set(p.x, 0, p.z);
         r.trailDir = dir; // remembered facing — the trail keeps fading toward it after he stops
-        r.trail?.update(p, dir, r.sim.speedMs > this.tuning.running.maxSpeedMs * 0.8, this.elapsed);
+        // 0.6: a real sprint on the phone — 0.8 was never reached in play
+        r.trail?.update(p, dir, r.sim.speedMs > this.tuning.running.maxSpeedMs * 0.6, this.elapsed);
         r.char.faceYaw = Math.atan2(dir.x, dir.z); // run facing forward, never moonwalk
         r.char.animator.ctx.speedFactor = 0.7 + (mashSpeed(useRate, this.tuning) / this.tuning.running.maxSpeedMs) * 0.6;
 
@@ -4209,7 +4213,8 @@ export class MatchScene {
     // STEAL CHIPS: runners on 1st/3rd sit outside the kick framing — pin a
     // tappable chip per eligible runner instead (setStealChips dedupes).
     const chipsOn = (this.phase === 'SETUP' || this.phase === 'PITCH')
-      && this.kickingIsPlayer() && !this.stealing && !this.cinematicLock && !this.playFinalized;
+      && this.kickingIsPlayer() && !this.stealing && !this.cinematicLock && !this.playFinalized
+      && !this.walkup; // no free bag while the kicker is still walking out
     const chips = [];
     if (chipsOn && this.baseChars) {
       for (let b = 0; b < 3; b++) {
