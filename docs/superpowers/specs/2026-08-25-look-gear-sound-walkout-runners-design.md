@@ -509,3 +509,11 @@ caused by this harness force-resizing the window, not by the game.
   manifest's shortest remaining k-pack `contactAt`s are `kickScissor` 0.35, `kickKipUp`
   0.372 and `kickFlip` 0.421 (post-retime, `rate: 1.1`). They kick correctly, just with a
   shorter tell than the pack's other moves.
+- **No steals during the walk-up** (final review, 2026-08-26): the 3.5 s walk-up had opened a
+  free, uncontested pre-pitch steal (a runner covers the bag in ~1.8 s and nothing races
+  the throw until the pitch resolves). `stealAllowed()` in `walkup.js` refuses while a
+  walk-up is live and the steal chips stay hidden until the kicker is set at the plate.
+- **Speed-trail threshold 0.6×maxSpeedMs** (spec said 80 %): the 80 % mark was never reached
+  in fifteen at-bats of the real-play pass, so the cleat payoff would not have been SEEN.
+- **Crown-meter `score` feed** was registered on the constructor's `MatchEngine`, which
+  `startMatch` replaces — runs never fed the meter (pre-existing). Moved into `startMatch`.
