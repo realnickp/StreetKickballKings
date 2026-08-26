@@ -2,6 +2,7 @@
 // sprinting runner's feet — the LOCKER cleats must be SEEN doing something.
 import * as THREE from 'three';
 const N = 10, WIDTH = 0.28, LIFE_S = 0.32;
+const _perp = new THREE.Vector3(); // reused every update() — no per-frame allocation
 export class SpeedTrail {
   constructor(scene, hex) {
     this.samples = []; this.busy = false;
@@ -22,7 +23,7 @@ export class SpeedTrail {
     while (this.samples.length > N || (this.samples.length && nowS - this.samples[this.samples.length - 1].t > LIFE_S)) this.samples.pop();
     if (this.samples.length < 2) { this.mesh.visible = false; return; }
     const pos3 = this.mesh.geometry.getAttribute('position'), col = this.mesh.geometry.getAttribute('color');
-    const perp = new THREE.Vector3(-dir.z, 0, dir.x);
+    const perp = _perp.set(-dir.z, 0, dir.x);
     for (let i = 0; i < N; i++) {
       const s = this.samples[Math.min(i, this.samples.length - 1)];
       const k = 1 - i / (N - 1), w = WIDTH * k, a = k * k;

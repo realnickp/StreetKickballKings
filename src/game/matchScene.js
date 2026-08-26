@@ -29,6 +29,11 @@ import { SpeedTrail } from './fx/speedTrail.js';
 import { Hud } from '../ui/screens/hud.js';
 import { gearLine } from '../meta/gearLine.js';
 
+// fallback facing for a trail update on a runner who never got a live `dir`
+// this game (defensive only — every runner passes through the running branch
+// at least once before it could apply); shared + read-only, never mutated.
+const TRAIL_FALLBACK_DIR = new THREE.Vector3(0, 0, 1);
+
 const DEFENSE_SPOTS = [
   { id: 'P', pos: new THREE.Vector3(0, 0, -12) },
   { id: 'C', pos: new THREE.Vector3(1.9, 0, 2.8) },
@@ -1598,6 +1603,15 @@ export class MatchScene {
     return r;
   }
 
+  /** Hand a runner's trail slot back to the pool. Call this at every site that
+   *  drops a runner from `this.runners` OUTSIDE nextAtBat (which already does
+   *  a wholesale pool reset) — a steal resolving safe/cancelled/caught, or a
+   *  watchdog force-settle — so a busy-forever slot can't starve later runners
+   *  in the same at-bat. */
+  releaseTrail(r) {
+    if (r?.trail) { r.trail.hide(); r.trail.busy = false; r.trail = null; }
+  }
+
   /** A runner crosses the plate: state + the score sting (silent = the homer
    *  already blasted its own horn). Stamps scoredAt for the live diamond. */
   scoreRun(r, { silent = false } = {}) {
@@ -1704,6 +1718,7 @@ export class MatchScene {
     }
     r.state = 'done';
     this.runners = this.runners.filter((q) => q !== r);
+    this.releaseTrail(r);
     this.stealing = null;
     this.watchdog.clear(r.idx);
     this.refreshHud();
@@ -1713,6 +1728,7 @@ export class MatchScene {
     const r = this.stealing;
     if (!r) return;
     this.runners = this.runners.filter((q) => q !== r);
+    this.releaseTrail(r);
     this.stealing = null;
     this.watchdog.clear(r.idx);
   }
@@ -1745,6 +1761,7 @@ export class MatchScene {
         }
         r.state = 'done';
         this.runners = this.runners.filter((q) => q !== r);
+        this.releaseTrail(r);
         this.stealing = null;
         this.outStumble(r.char);
         this.hud.call(r.scramble ? 'DEAD BALL — TAGGED OUT!' : 'CAUGHT STEALING!', 'pegged');
@@ -2009,6 +2026,7 @@ export class MatchScene {
         r.sim.tick(dt, useRate);
         const { p, dir } = this.runnerWorldPos(r);
         r.char.group.position.set(p.x, 0, p.z);
+        r.trailDir = dir; // remembered facing — the trail keeps fading toward it after he stops
         r.trail?.update(p, dir, r.sim.speedMs > this.tuning.running.maxSpeedMs * 0.8, this.elapsed);
         r.char.faceYaw = Math.atan2(dir.x, dir.z); // run facing forward, never moonwalk
         r.char.animator.ctx.speedFactor = 0.7 + (mashSpeed(useRate, this.tuning) / this.tuning.running.maxSpeedMs) * 0.6;
@@ -2069,6 +2087,12 @@ export class MatchScene {
           r.state = 'running';
           r.char.animator.play('run');
         }
+      }
+      // a stopped runner (held/scored) still needs his trail AGED every frame —
+      // it's the fade that reads as "he sprinted, now he's stopped", not a
+      // freeze-framed ribbon nailed to the bag until the pool wipes it
+      if (r.trail && r.state !== 'running') {
+        r.trail.update(r.char.group.position, r.trailDir ?? TRAIL_FALLBACK_DIR, false, this.elapsed);
       }
     }
 
@@ -2542,6 +2566,7 @@ export class MatchScene {
         r.char.animator.play('idle');
         this.baseChars[r.fromBase] = r.char;
         this.runners = this.runners.filter((q) => q !== r);
+        this.releaseTrail(r);
         this.stealing = null;
         this.stealResolving = false;
         this.stealDefense = null;
