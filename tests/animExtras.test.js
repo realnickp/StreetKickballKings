@@ -60,10 +60,29 @@ it('DanceBag only hands a character clips it can play', () => {
   for (let i = 0; i < 10; i++) expect(BASE).toContain(bag.draw(poor));
 });
 
+// tiny seeded PRNG (mulberry32) — makes the mixed-roster refill test
+// deterministic across runs instead of relying on Math.random luck
+function mulberry32(seed) {
+  return function () {
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// these 20 seeds are proven (by brute-force search over 3000 seeds against
+// the pre-fix code) to hit the forced mid-cycle refill (tier 3) AND land the
+// drawing character on the last-played slot — a real regression guard, not
+// a lucky Math.random run
+const MIXED_ROSTER_SEEDS = [110, 129, 322, 377, 607, 652, 676, 911, 1164, 1305,
+  1360, 1489, 1663, 1710, 1714, 1715, 1739, 1815, 1982, 2161];
+
 it('DanceBag never repeats the last dance across a refill for a shared, mixed roster', () => {
-  for (let trial = 0; trial < 50; trial++) {
-    const bag = new DanceBag(); const rich = char(X), poor = char();
-    const draws = Array.from({ length: 30 }, (_, i) => bag.draw(i % 2 === 0 ? rich : poor));
+  for (const seed of MIXED_ROSTER_SEEDS) {
+    const bag = new DanceBag({ random: mulberry32(seed) });
+    const rich = char(X), poor = char();
+    const draws = Array.from({ length: 60 }, (_, i) => bag.draw(i % 2 === 0 ? rich : poor));
     for (let i = 1; i < draws.length; i++) expect(draws[i]).not.toBe(draws[i - 1]);
   }
 });

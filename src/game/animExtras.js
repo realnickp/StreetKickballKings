@@ -88,11 +88,17 @@ export class DanceBag {
     const playable = (n) => hasClip(char, n) || BASE_DANCES.includes(n);
     // a shared bag serves every kicker in the match — the drawing character's
     // first PLAYABLE slot, not bag[0], is what must dodge the last dance
-    // played (fix round 1, 2026-08-26: mixed-roster refill could repeat it)
+    // played, and that preference must hold on EVERY refill path, including
+    // the forced mid-cycle one below (fix rounds 1 + 2, 2026-08-26: a
+    // character whose playable subset runs dry mid-cycle in a shared bag
+    // forces the second refill, which had no last-dance exclusion of its own)
     const last = this.recent[this.recent.length - 1];
-    let i = this.bag.findIndex((n) => playable(n) && n !== last);
-    if (i < 0) i = this.bag.findIndex(playable);
-    if (i < 0) { this._refill(); i = this.bag.findIndex(playable); }
+    const pickIdx = () => {
+      const j = this.bag.findIndex((n) => playable(n) && n !== last);
+      return j >= 0 ? j : this.bag.findIndex(playable);
+    };
+    let i = pickIdx();
+    if (i < 0) { this._refill(); i = pickIdx(); }
     if (i < 0) return BASE_DANCES[0];
     const [pick] = this.bag.splice(i, 1);
     this.recent = [...this.recent, pick].slice(-4);
