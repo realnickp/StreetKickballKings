@@ -11,22 +11,22 @@
 export const GEAR = [
   // ---- special kicks: the clip swaps in when the crown meter is armed, and
   //      the mods flavor the launch (powerMult replaces the stock 1.35)
-  { id: 'kick-flair', cat: 'kick', name: 'THE FLAIR', clip: 'kickFlair', mods: { powerMult: 1.45 }, stock: true, unlock: null, hint: 'FREE · yours from day one', play: '2 power kicks a game · ×1.45 power' },
-  { id: 'kick-hurricane', cat: 'kick', name: 'HURRICANE KICK', clip: 'kickHurricane', mods: { powerMult: 1.38, loftDeg: 10 }, unlock: { stat: 'hr', n: 3 }, hint: '3 career home runs', play: '2 power kicks a game · ×1.38 power, +10° loft' },
-  { id: 'kick-spinflip', cat: 'kick', name: 'SPIN FLIP KICK', clip: 'kickSpinFlip', mods: { powerMult: 1.42, curl: 1.2 }, unlock: { stat: 'hr', n: 10 }, hint: '10 career home runs', play: '2 power kicks a game · ×1.42 power, curl ×1.2' },
-  { id: 'kick-crescent', cat: 'kick', name: 'INSIDE CRESCENT', clip: 'kickCrescent', mods: { powerMult: 1.35, curl: 1.5 }, unlock: { stat: 'wins', n: 5 }, hint: '5 career wins', play: '2 power kicks a game · ×1.35 power, curl ×1.5' },
-  { id: 'kick-blast', cat: 'kick', name: 'STRAIGHT BLAST', clip: 'kickBlast', mods: { powerMult: 1.35, speed: 1.12, loftDeg: -8 }, unlock: { stat: 'defOuts', n: 10 }, hint: '10 outs in the field', play: '2 power kicks a game · ×1.35 power, low liner ×1.12 speed' },
-  { id: 'kick-meia', cat: 'kick', name: 'MEIA LUA', clip: 'kickMeia', mods: { powerMult: 1.35, curl: 1.5 }, unlock: { stat: 'wins', n: 3 }, hint: '3 career wins', play: '2 power kicks a game · ×1.35 power, curl ×1.5' },
-  { id: 'kick-meiaback', cat: 'kick', name: 'MEIA LUA BACK', clip: 'kickMeiaBack', mods: { powerMult: 1.35, curl: -1.4 }, unlock: { stat: 'pickleEscapes', n: 5 }, hint: '5 pickle escapes', play: '2 power kicks a game · ×1.35 power, reverse curl' },
-  { id: 'kick-sweep', cat: 'kick', name: 'LEG SWEEP', clip: 'kickSweep', mods: { powerMult: 1.35, speed: 1.2, loftDeg: -12 }, unlock: { stat: 'steals', n: 15 }, hint: '15 career steals', play: '2 power kicks a game · ×1.35 power, grounder ×1.2 speed' },
+  { id: 'kick-flair', cat: 'kick', name: 'THE FLAIR', clip: 'kickFlair', mods: { powerMult: 1.45 }, stock: true, unlock: null, hint: 'FREE · yours from day one', play: 'your crown swing · ×1.45 power' },
+  { id: 'kick-hurricane', cat: 'kick', name: 'HURRICANE KICK', clip: 'kickHurricane', mods: { powerMult: 1.38, loftDeg: 10 }, unlock: { stat: 'hr', n: 3 }, hint: '3 career home runs', play: 'your crown swing · ×1.38 power, +10° loft' },
+  { id: 'kick-spinflip', cat: 'kick', name: 'SPIN FLIP KICK', clip: 'kickSpinFlip', mods: { powerMult: 1.42, curl: 1.2 }, unlock: { stat: 'hr', n: 10 }, hint: '10 career home runs', play: 'your crown swing · ×1.42 power, curl ×1.2' },
+  { id: 'kick-crescent', cat: 'kick', name: 'INSIDE CRESCENT', clip: 'kickCrescent', mods: { powerMult: 1.35, curl: 1.5 }, unlock: { stat: 'wins', n: 5 }, hint: '5 career wins', play: 'your crown swing · ×1.35 power, curl ×1.5' },
+  { id: 'kick-blast', cat: 'kick', name: 'STRAIGHT BLAST', clip: 'kickBlast', mods: { powerMult: 1.35, speed: 1.12, loftDeg: -8 }, unlock: { stat: 'defOuts', n: 10 }, hint: '10 outs in the field', play: 'your crown swing · ×1.35 power, low liner ×1.12 speed' },
+  { id: 'kick-meia', cat: 'kick', name: 'MEIA LUA', clip: 'kickMeia', mods: { powerMult: 1.35, curl: 1.5 }, unlock: { stat: 'wins', n: 3 }, hint: '3 career wins', play: 'your crown swing · ×1.35 power, curl ×1.5' },
+  { id: 'kick-meiaback', cat: 'kick', name: 'MEIA LUA BACK', clip: 'kickMeiaBack', mods: { powerMult: 1.35, curl: -1.4 }, unlock: { stat: 'pickleEscapes', n: 5 }, hint: '5 pickle escapes', play: 'your crown swing · ×1.35 power, reverse curl' },
+  { id: 'kick-sweep', cat: 'kick', name: 'LEG SWEEP', clip: 'kickSweep', mods: { powerMult: 1.35, speed: 1.2, loftDeg: -12 }, unlock: { stat: 'steals', n: 15 }, hint: '15 career steals', play: 'your crown swing · ×1.35 power, grounder ×1.2 speed' },
   // ---- pack k kicks (dev, 2026-08-25): earned on realistic career marks
-  { id: 'kick-martelo', cat: 'kick', name: 'MARTELO', clip: 'kickMartelo', mods: { powerMult: 1.4, loftDeg: 6 }, unlock: { stat: 'runs', n: 20 }, hint: '20 career runs', play: '2 power kicks a game · ×1.4 power, +6° loft' },
-  { id: 'kick-armada', cat: 'kick', name: 'ARMADA', clip: 'kickArmada', mods: { powerMult: 1.38, curl: 1.3 }, unlock: { stat: 'games', n: 5 }, hint: 'Play 5 games', play: '2 power kicks a game · ×1.38 power, curl ×1.3' },
-  { id: 'kick-scissor', cat: 'kick', name: 'SCISSOR KICK', clip: 'kickScissor', mods: { powerMult: 1.4, speed: 1.1 }, unlock: { stat: 'wins', n: 10 }, hint: '10 career wins', play: '2 power kicks a game · ×1.4 power, ×1.1 speed' },
-  { id: 'kick-punt', cat: 'kick', name: 'STREET PUNT', clip: 'kickPunt', mods: { powerMult: 1.35, loftDeg: 12 }, unlock: { stat: 'perfects', n: 10 }, hint: '10 PERFECT kicks', play: '2 power kicks a game · ×1.35 power, +12° sky ball' },
-  { id: 'kick-flip', cat: 'kick', name: 'FLIP KICK', clip: 'kickFlip', mods: { powerMult: 1.42, curl: -1.3 }, unlock: { stat: 'blowouts', n: 3 }, hint: 'Win 3 games by 5+', play: '2 power kicks a game · ×1.42 power, reverse curl' },
+  { id: 'kick-martelo', cat: 'kick', name: 'MARTELO', clip: 'kickMartelo', mods: { powerMult: 1.4, loftDeg: 6 }, unlock: { stat: 'runs', n: 20 }, hint: '20 career runs', play: 'your crown swing · ×1.4 power, +6° loft' },
+  { id: 'kick-armada', cat: 'kick', name: 'ARMADA', clip: 'kickArmada', mods: { powerMult: 1.38, curl: 1.3 }, unlock: { stat: 'games', n: 5 }, hint: 'Play 5 games', play: 'your crown swing · ×1.38 power, curl ×1.3' },
+  { id: 'kick-scissor', cat: 'kick', name: 'SCISSOR KICK', clip: 'kickScissor', mods: { powerMult: 1.4, speed: 1.1 }, unlock: { stat: 'wins', n: 10 }, hint: '10 career wins', play: 'your crown swing · ×1.4 power, ×1.1 speed' },
+  { id: 'kick-punt', cat: 'kick', name: 'STREET PUNT', clip: 'kickPunt', mods: { powerMult: 1.35, loftDeg: 12 }, unlock: { stat: 'perfects', n: 10 }, hint: '10 PERFECT kicks', play: 'your crown swing · ×1.35 power, +12° sky ball' },
+  { id: 'kick-flip', cat: 'kick', name: 'FLIP KICK', clip: 'kickFlip', mods: { powerMult: 1.42, curl: -1.3 }, unlock: { stat: 'blowouts', n: 3 }, hint: 'Win 3 games by 5+', play: 'your crown swing · ×1.42 power, reverse curl' },
   // kick-bicycle: source clip is a 0.67 s fragment — re-add when a full Flying Bicycle Kick lands (bake name kickBicycle)
-  { id: 'kick-kipup', cat: 'kick', name: 'KIP-UP DOUBLE', clip: 'kickKipUp', mods: { powerMult: 1.5 }, unlock: { stat: 'hr', n: 25 }, hint: '25 career home runs', play: '2 power kicks a game · ×1.5 power — the biggest boot in the game' },
+  { id: 'kick-kipup', cat: 'kick', name: 'KIP-UP DOUBLE', clip: 'kickKipUp', mods: { powerMult: 1.5 }, unlock: { stat: 'hr', n: 25 }, hint: '25 career home runs', play: 'your crown swing · ×1.5 power — the biggest boot in the game' },
   // ---- taunts: the walk-up move before every kick
   { id: 'taunt-point', cat: 'taunt', name: 'THE POINT', clip: 'tauntPoint', stock: true, unlock: null, hint: 'Yours from day one', play: 'your walk-up taunt' },
   { id: 'taunt-cry', cat: 'taunt', name: 'BATTLE CRY', clip: 'tauntCry', unlock: { stat: 'wins', n: 1 }, hint: 'Win your first game', play: 'your walk-up taunt' },

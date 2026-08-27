@@ -11,12 +11,15 @@
 //                    1.6 m/s, taunts to camera with the crowd, lands on the
 //                    plate, then the pitch. A tap skips it. CPU kickers walk
 //                    up too — and get booed.
-//   4. POWER KICK  — dark with no charges, lit + named with one, tap arms it
-//                    with the crown-arm sting, hidden while you're fielding.
+//   4. CROWN       — dark and unnamed while it fills, offense feeds light it
+//                    and name the swing, tap arms it with the crown-arm sting,
+//                    the swing RESETS it to zero, hidden while you're fielding.
 //   5. SFX         — every alias resolves, every warm name is a real file,
 //                    every sfx URL is actually on disk, HUD presses are heard.
-//   6. ARROWS      — an off-frame runner gets ONE clamped edge chip naming his
-//                    bag; in frame he gets none; the walk-up gate clears them.
+//   6. ARROWS      — an off-frame runner gets ONE icon-only edge marker whose
+//                    data-base names his bag, clamped fully on screen inside
+//                    the HUD safe box; in frame he gets none; the walk-up gate
+//                    clears them.
 //   7. DIAMOND     — score-bug dots ride the basepath at the right fraction
 //                    and flash home on a score.
 //   8. DANCE BAG   — a full bag cycle is all-distinct, and no draw ever
@@ -32,14 +35,21 @@
 //                    node (no remount): the caption and the chip follow, the
 //                    tapped taunt PLAYS on the captain, four cleat equips leave
 //                    the GPU flat, and ICE/BLACKOUTS read in their own colour.
-//  13. KICK CONTACT— an armed ARMADA launches at the clip's contact frame
-//                    (approach ≥ 95%) with the ball riding the LEFT foot.
+//  13. KICK CONTACT— an armed ARMADA and the stock FLAIR each launch at their
+//                    clip's contact frame, on the foot that clip swings.
 //  14. WALK-UP CAM — walkupDolly rides 2.8 m off the kicker through the walk,
 //                    walkupTaunt owns the taunt, and the cut lands the kick /
 //                    pitch-select cam EXACTLY on its mark. CPU side too.
+//  15. FENCE CAM   — every frame of a full at-bat (walk-up, taunt, the
+//                    camera-LOCKED contact beat, the live shots) sits inside
+//                    fenceMaxX(z) — both pull directions.
 import { webkit } from 'playwright';
 
 const BASE = process.env.SKK_URL ?? 'http://localhost:5173';
+// SILENT RUNS: every page this harness opens carries ?mute (audio.js pins the
+// master gain at 0 and every set-piece <video> comes up muted). The dev can
+// HEAR this machine — a harness that plays the soundtrack is not runnable.
+const url = (q) => `${BASE}/?${q}&mute`;
 let failures = 0;
 let skips = 0;
 const ok = (cond, label) => {
@@ -81,7 +91,7 @@ async function poll(page, fn, timeoutMs, label) {
  *  element card — every observer below is installed before a single frame runs,
  *  which is what makes the walk-up travel samples start at the far mark. */
 async function boot(page, q) {
-  await page.goto(`${BASE}/?${q}`, { waitUntil: 'domcontentloaded' });
+  await page.goto(url(q), { waitUntil: 'domcontentloaded' });
   if (!(await poll(page, () => !!window.__skk, 30000, 'scene boot'))) throw new Error('scene never booted');
   return page.evaluate(() => {
     const s = window.__skk;
@@ -115,6 +125,26 @@ async function boot(page, q) {
 async function pregameScenario(page) {
   console.log('\n--- 1: PRE-GAME ---');
   await boot(page, 'match&nosplash');
+  // ---- SILENCE FIRST. The dev shares this machine with the agent browsers:
+  // the run has to be provably mute before the show (music, booth, crowd) runs.
+  const silent = await page.evaluate(() => ({
+    muted: window.__audio.muted,
+    master: window.__audio.userVol.master,
+    gain: window.__audio.master ? window.__audio.master.gain.value : null,
+    loud: [...document.querySelectorAll('video,audio')].filter((m) => !m.muted).length,
+    made: window.__mediaEls.length,
+    loudMade: window.__mediaEls.filter((m) => !m.muted).map((m) => (m.currentSrc || m.src || '?').split('/').pop()),
+    loudPlays: window.__loudPlays.slice(),
+  }));
+  ok(silent.muted === true && silent.master === 0 && (silent.gain === null || silent.gain === 0),
+    `?mute runs the whole harness SILENT (muted ${silent.muted}, userVol.master ${silent.master}, master gain ${silent.gain ?? 'no AudioContext in WebKit'})`);
+  // the CENSUS, not the DOM: the field's backdrop <video> is never appended, so
+  // querySelectorAll on its own would call an unmuted one silent.
+  ok(silent.made > 0, `the media census is live — the boot made ${silent.made} media element(s) to check`);
+  ok(silent.loudMade.length === 0 && silent.loudPlays.length === 0 && silent.loud === 0,
+    `every media element the page made is muted BY THE APP (${silent.made} made, ${silent.loud} unmuted in the DOM${silent.loudMade.length ? `, LOUD: ${silent.loudMade.join(',')}` : ''}${silent.loudPlays.length ? `, played loud: ${silent.loudPlays.join(',')}` : ''})`);
+  ok(await page.evaluate(() => { window.__audio.setVolume('master', 1); return window.__audio.userVol.master === 0; }),
+    'the sound editor cannot lift a muted master back up');
   ok(!!(await poll(page, () => window.__skk.walkoutActive === true, 10000, 'pre-game')), 'pre-game show started (walkoutActive)');
   ok(await page.evaluate(() => !!document.querySelector('.skip-chip')), 'the SKIP chip is offered');
   ok(!!(await poll(page, () => window.__stamps.includes('STARTING LINEUPS'), 6000, 'lineups stamp')), 'STARTING LINEUPS stamp opens the show');
@@ -197,17 +227,61 @@ async function walkupScenario(page) {
   ok(plated?.anim === 'plate', `he settles into the plate stance (${plated?.anim})`);
   ok(!!(await poll(page, () => ['PITCH', 'PITCH_SELECT'].includes(window.__skk.phase), 6000, 'serve')), 'the pitch follows the walk-up');
 
+  // ---- the NOW KICKING plate: up while he walks, gone by its own timer on
+  // the normal (unskipped) path (fix round, 2026-08-27). Driven with a
+  // virtual clock (s.update(1/60,1/60) in a loop) instead of real polling —
+  // deterministic and exact against walkS().
+  const plateLifecycle = await page.evaluate(async () => {
+    const s = window.__skk;
+    const { walkS } = await import('/src/game/walkup.js');
+    const STEP = 1 / 60;
+    s.clearTimers();
+    s.nextAtBat();
+    const card = () => !!document.querySelector('.walkout-card');
+    const duringWalk = card();
+    // the whole sweep runs SYNCHRONOUSLY (no await inside the loop), so no rAF
+    // frame of the real game slips in and the elapsed deltas below are exact
+    let tauntAt = null; let atTaunt = null; let goneAt = null;
+    const frames = Math.ceil((walkS() + 0.3) / STEP);
+    for (let i = 0; i < frames; i++) {
+      s.update(STEP, STEP);
+      if (tauntAt === null && s.walkup?.phase === 'taunt') { tauntAt = s.elapsed; atTaunt = card(); }
+      if (goneAt === null && !card()) goneAt = s.elapsed;
+    }
+    return { duringWalk, afterNormal: card(), atTaunt,
+      reachedTaunt: tauntAt !== null,
+      tauntToHideS: tauntAt !== null && goneAt !== null ? goneAt - tauntAt : null };
+  });
+  ok(plateLifecycle.duringWalk === true, 'the NOW KICKING plate is up while he walks out');
+  ok(plateLifecycle.afterNormal === false,
+    `the plate is gone by walkS()+0.3s on the normal path (still up: ${plateLifecycle.afterNormal})`);
+  // ...and it must be gone for the TAUNT: the close-up and the swing are his,
+  // not the graphic's. The hide timer is walkS()+0.1 while the taunt phase
+  // starts at walkS(), so the plate outlives the phase change by ~0.1 s —
+  // asserted as a bound on that overlap rather than "already gone at frame 1".
+  ok(plateLifecycle.reachedTaunt === true, 'the staged at-bat reaches the taunt phase');
+  ok(plateLifecycle.tauntToHideS !== null && plateLifecycle.tauntToHideS <= 0.2,
+    `the plate clears the taunt phase within 0.2s of it starting (measured ${plateLifecycle.tauntToHideS?.toFixed(3) ?? 'never hid'}s; up at the first taunt frame: ${plateLifecycle.atTaunt})`);
+
   // ---- a tap skips the next one, and the walk starts with a stomp
   await page.evaluate(() => { const s = window.__skk; s.clearTimers(); window.__sfxLog.length = 0; s.nextAtBat(); });
   ok(!!(await poll(page, () => window.__skk.walkup?.phase === 'walk', 5000, 'second walk-up')), 'every at-bat gets a walk-up, not just the first');
   ok(await page.evaluate(() => window.__sfxLog.includes('stomp')), 'a stomp lands under the first step');
   const snapped = await page.evaluate(() => {
     const s = window.__skk;
+    const beforeTap = !!document.querySelector('.walkout-card');
     s.onTap({ x: 200, y: 500 });
-    return { walkup: !!s.walkup, x: s.kicker.group.position.x, anim: s.kicker.animator.name };
+    // "hidden within 2 frames": step the virtual clock twice and re-check —
+    // the fix hides it synchronously in endWalkup(true), so this is a
+    // deliberately loose bound on top of that.
+    s.update(1 / 60, 1 / 60); s.update(1 / 60, 1 / 60);
+    const afterTap = !!document.querySelector('.walkout-card');
+    return { walkup: !!s.walkup, x: s.kicker.group.position.x, anim: s.kicker.animator.name, beforeTap, afterTap };
   });
   ok(snapped.walkup === false && snapped.x === -0.9 && snapped.anim === 'plate',
     `a tap snaps him straight to the plate (x ${snapped.x}, ${snapped.anim})`);
+  ok(snapped.beforeTap === true && snapped.afterTap === false,
+    `a tap-skip hides the NOW KICKING plate within 2 frames (before ${snapped.beforeTap}, after ${snapped.afterTap})`);
   ok(!!(await poll(page, () => ['PITCH', 'PITCH_SELECT'].includes(window.__skk.phase), 3000, 'serve after skip')), 'the serve follows the skip');
 
   // ---- the CPU side walks up too (and gets booed, not cheered)
@@ -230,40 +304,110 @@ async function walkupScenario(page) {
   ok(await page.evaluate(() => window.__skk.kickingIsPlayer()), 'the bat is back with the player');
 }
 
-// -------------------------------------------------------------- 4. POWER KICK
-async function powerKickScenario(page) {
-  console.log('\n--- 4: POWER KICK ---');
+// ------------------------------------------------------------------- 4. CROWN
+// ONE crown, offense-only, spent to zero on the swing (dev, 2026-08-27: "the
+// crown needs to reset to zero every time it's used").
+async function crownScenario(page) {
+  console.log('\n--- 4: CROWN ---');
   const res = await page.evaluate(() => {
     const s = window.__skk;
     const btn = document.querySelector('.special-btn');
     const label = () => btn.querySelector('.pk-label').textContent;
-    // no charges banked: dark, and a tap must do nothing
-    s.power.charges = 0; s.power.armed = false; s.refreshHud();
+    // empty crown: dark, unnamed, and a tap must do nothing
+    s.crown.disarm(); s.special.value = 0; s.refreshHud();
     window.__sfxLog.length = 0;
     btn.dispatchEvent(new Event('pointerdown'));
-    const dark = { ready: btn.classList.contains('ready'), armed: s.power.armed, label: label(), sfx: [...window.__sfxLog] };
-    // one banked charge: lit, named, and armable
-    s.power.charges = 1; s.refreshHud();
-    const lit = { ready: btn.classList.contains('ready'), hidden: btn.classList.contains('hidden'), label: label() };
+    const dark = { ready: btn.classList.contains('ready'), armed: s.crown.armed, label: label(), sfx: [...window.__sfxLog] };
+    // defense events feed NOTHING
+    s.crownFeed('peg'); s.crownFeed('catch');
+    const defense = { fill: s.special.value, ready: btn.classList.contains('ready') };
+    // offense feeds fill it: 60 + 40 = a full crown
+    s.crownFeed('pickleEscape');
+    const half = { fill: s.special.value, ready: btn.classList.contains('ready'), label: label() };
+    s.crownFeed('homerun');
+    const lit = { ready: btn.classList.contains('ready'), hidden: btn.classList.contains('hidden'), label: label(), fill: s.special.value };
     window.__sfxLog.length = 0;
     btn.dispatchEvent(new Event('pointerdown'));
-    const armed = { armed: s.power.armed, cls: btn.classList.contains('armed'), sfx: [...window.__sfxLog], label: label() };
+    const armed = { armed: s.crown.armed, cls: btn.classList.contains('armed'), sfx: [...window.__sfxLog], label: label() };
+    // the swing SPENDS it: back to zero, dark again
+    const sp = s.crown.consume(); s.refreshHud();
+    const spent = { got: !!sp, value: s.special.value, ready: btn.classList.contains('ready'), armed: s.crown.armed, label: label() };
     // fielding: the crown has no business on screen
-    s.power.disarm();
     s.playerSide = s.match.fieldingSide(); s.refreshHud();
     const fielding = { hidden: btn.classList.contains('hidden'), isPlayer: s.kickingIsPlayer() };
-    s.playerSide = 'away'; s.power.charges = 0; s.refreshHud();
-    return { dark, lit, armed, fielding, restored: s.kickingIsPlayer() };
+    s.playerSide = 'away'; s.special.value = 0; s.refreshHud();
+    return { dark, defense, half, lit, armed, spent, fielding, restored: s.kickingIsPlayer() };
   });
-  ok(res.dark.ready === false, 'no charge banked -> the crown stays dark');
+  ok(res.dark.ready === false, 'an empty crown stays dark');
   ok(res.dark.armed === false && !res.dark.sfx.includes('crown-arm'), `tapping a dark crown arms nothing (${res.dark.sfx.join(',') || 'silent'})`);
-  ok(res.dark.label === 'CROWN KICK', `the dark label is the bare name (${res.dark.label})`);
-  ok(res.lit.ready === true && res.lit.hidden === false, 'a banked charge lights the button');
-  ok(res.lit.label === 'CROWN KICK ×1', `the label carries name and count (${res.lit.label})`);
+  ok(res.dark.label === 'CROWN', `the dark label is the bare word CROWN (${res.dark.label})`);
+  ok(res.defense.fill === 0 && res.defense.ready === false, `pegs and catches feed the crown NOTHING (fill ${res.defense.fill})`);
+  ok(res.half.fill === 60 && res.half.ready === false, `a pickle escape banks 60 but does not arm it (fill ${res.half.fill})`);
+  ok(res.half.label === 'CROWN', `a partly-filled crown is still just CROWN (${res.half.label})`);
+  ok(res.lit.ready === true && res.lit.hidden === false && res.lit.fill === 100, `a full crown lights the button (fill ${res.lit.fill})`);
+  ok(res.lit.label === 'CROWN KICK', `a FULL crown names the swing (${res.lit.label})`);
   ok(res.armed.armed === true && res.armed.cls === true, 'the tap ARMS the kick');
   ok(res.armed.sfx.includes('crown-arm'), `the arm plays the crown-arm sting (${res.armed.sfx.join(',')})`);
+  ok(res.spent.got === true && res.spent.value === 0 && res.spent.armed === false, `the swing RESETS the crown to zero (value ${res.spent.value})`);
+  ok(res.spent.ready === false && res.spent.label === 'CROWN', `a spent crown goes dark and unnamed again (${res.spent.label})`);
   ok(res.fielding.hidden === true && res.fielding.isPlayer === false, 'the crown hides while you are in the field');
   ok(res.restored === true, 'the kicking role is restored for the rest of the run');
+
+  // ---- THE SHUTOUT FEED (+25): the one way DEFENSE touches the crown. Driven
+  // through the engine's own bus — MatchState.endHalf() emits exactly this
+  // event, exactly this shape, BEFORE it advances the half — with the scene's
+  // half-tracking fields staged the way beginHalfTracking() leaves them.
+  // Everything below happens inside ONE synchronous evaluate: no frame of the
+  // live game interleaves with the staged score, and it is all put back after.
+  const shut = await page.evaluate(() => {
+    const s = window.__skk;
+    const st = s.match.state;
+    const saved = {
+      score: { ...st.score }, inning: st.inning, half: st.half,
+      elemInning: s.elementInning, halfJustEnded: s.halfJustEnded, hinted: s._crownHinted,
+    };
+    const calls = () => [...document.querySelectorAll('.coach-callout')].map((c) => c.textContent);
+    /** Stage a half and end it. `fielded` = the player spent it in the field;
+     *  `runs` = what the KICKING side put up during it. */
+    const endHalf = ({ inning, half, fielded, runs = 0, score = { home: 0, away: 0 } }) => {
+      s.hud.clearCallouts();          // the callout map dedupes by key across drives
+      st.inning = inning; st.half = half;
+      s.elementInning = inning;       // don't let the emit re-roll the city element
+      Object.assign(st.score, score);
+      s.crown.disarm(); s.special.value = 0; s._crownHinted = false; s.refreshHud();
+      s._halfFielding = fielded;                 // what beginHalfTracking() records...
+      s._halfScore = { ...st.score };            // ...at the half's first at-bat
+      st.score[s.match.kickingSide()] += runs;   // the half's scoring, after the snapshot
+      s.match.bus.emit('halfEnd', { inning, half });
+      return { fill: s.crown.fill, calls: calls() };
+    };
+    const innings = s.match.cfg.innings;
+    const held = endHalf({ inning: 1, half: 'top', fielded: true });
+    const scoredOn = endHalf({ inning: 1, half: 'top', fielded: true, runs: 2 });
+    const yourHalf = endHalf({ inning: 1, half: 'top', fielded: false });
+    // the LAST half is a shutout too — and pays nothing: a '+25 CROWN' stamp
+    // over GAME OVER is noise for a crown nobody will ever swing
+    const final = endHalf({ inning: innings, half: 'bottom', fielded: true, score: { home: 3, away: 1 } });
+    // ...but the same half one inning earlier still pays, so `final` is the
+    // FINAL-half rule biting and not just "bottom halves never pay"
+    const notFinal = endHalf({ inning: innings - 1, half: 'bottom', fielded: true, score: { home: 3, away: 1 } });
+    s.hud.clearCallouts();
+    st.inning = saved.inning; st.half = saved.half;
+    Object.assign(st.score, saved.score);
+    s.elementInning = saved.elemInning; s.halfJustEnded = saved.halfJustEnded;
+    s._crownHinted = saved.hinted; s._halfFielding = false; s._halfScore = null;
+    s.crown.disarm(); s.special.value = 0; s.refreshHud();
+    return { held, scoredOn, yourHalf, final, notFinal, innings, restored: { ...st.score } };
+  });
+  const shutCall = (r) => r.calls.some((t) => /SHUTOUT! \+25 CROWN/.test(t));
+  ok(shut.held.fill === 25, `a half you FIELDED with a zero on the board feeds the crown +25 (fill ${shut.held.fill})`);
+  ok(shutCall(shut.held), `...and says so on screen (${shut.held.calls.join(' | ') || 'no callout'})`);
+  ok(shut.scoredOn.fill === 0 && !shutCall(shut.scoredOn), `a half they SCORED in feeds nothing (fill ${shut.scoredOn.fill})`);
+  ok(shut.yourHalf.fill === 0 && !shutCall(shut.yourHalf), `your own kicking half is not a shutout (fill ${shut.yourHalf.fill})`);
+  ok(shut.final.fill === 0 && !shutCall(shut.final),
+    `the FINAL half's shutout feeds NOTHING — inning ${shut.innings} bottom, game decided (fill ${shut.final.fill}, ${shut.final.calls.join(' | ') || 'no callout'})`);
+  ok(shut.notFinal.fill === 25 && shutCall(shut.notFinal),
+    `...while the same bottom half one inning earlier still pays (fill ${shut.notFinal.fill})`);
 }
 
 // --------------------------------------------------------------------- 5. SFX
@@ -305,14 +449,21 @@ async function arrowsScenario(page) {
     const r = s.makeRunner(0, runner, 0); // on 1st, running for 2nd
     r.sim.progressM = 4;
     s.runners.push(r);
+    // markers are ICONS now (dev, 2026-08-27: "an icon or something that just
+    // moves ... not off screen because it's getting cut off"): the bag rides
+    // data-base for the probe, and the whole 40px box must land on screen
+    const SAFE = { top: 96, bottom: 232, left: 12, right: 20 }; // mirrors src/ui/runnerArrows.js (inset 0 in the harness viewport)
     const read = () => {
       const els = [...document.querySelectorAll('.runner-arrow')];
       const first = els[0];
       const m = /translate\(\s*(-?[\d.]+)px,\s*(-?[\d.]+)px\)/.exec(first?.style.transform ?? '');
       return {
         n: els.length,
-        label: first?.querySelector('span')?.textContent,
-        number: first?.querySelector('b')?.textContent,
+        base: first?.dataset.base,
+        // the chevron glyph is the only text allowed — no number, no label
+        words: (first?.textContent ?? '').replace(/[^\w#]/g, ''),
+        chev: !!first?.querySelector('.ra-chev'), icon: !!first?.querySelector('.ra-icon'),
+        rects: els.map((e) => { const b = e.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom }; }),
         x: m ? Number(m[1]) : NaN, y: m ? Number(m[2]) : NaN,
       };
     };
@@ -326,12 +477,22 @@ async function arrowsScenario(page) {
     s.engine.camera.position.set(p.x, p.y + 4, p.z + 14); s.engine.camera.lookAt(p.x, p.y + 1, p.z);
     s.updateRunnerArrows();
     const inFrame = read();
+    // camera below him looking DOWN: he projects off the TOP, straight into the
+    // score bug's strip — the safe box has to push the marker back down
+    s.engine.camera.position.set(p.x, p.y - 7, p.z + 9); s.engine.camera.lookAt(p.x, p.y - 10, p.z);
+    s.updateRunnerArrows();
+    const above = read();
+    // camera ABOVE him looking UP: he projects off the BOTTOM, straight into
+    // the throw pad / GO row — the safe box has to push the marker back up
+    s.engine.camera.position.set(p.x, p.y + 7, p.z + 9); s.engine.camera.lookAt(p.x, p.y + 10, p.z);
+    s.updateRunnerArrows();
+    const below = read();
     // held on the bag reads the bag, not a target
     s.engine.camera.position.set(0, 3, 30); s.engine.camera.lookAt(0, 1, 60);
     r.state = 'held'; r.heldAt = 1;
     s.updateRunnerArrows();
     const held = read();
-    // a live walk-up owns the screen: no chips
+    // a live walk-up owns the screen: no markers
     r.state = 'running';
     s.walkup = { char: s.kicker, phase: 'walk', until: s.elapsed + 1, taunt: null, isPlayer: true };
     s.updateRunnerArrows();
@@ -341,17 +502,35 @@ async function arrowsScenario(page) {
     s.runners.length = 0;
     s.updateRunnerArrows(); s.updateRunnerDots();
     s.engine.cameraLock = false;
-    return { off, inFrame, held, gated, cleared: document.querySelectorAll('.runner-arrow').length, number: runner.number, w: rect.width, h: rect.height };
+    return { off, inFrame, above, below, held, gated, SAFE,
+      cleared: document.querySelectorAll('.runner-arrow').length,
+      w: rect.width, h: rect.height, vw: window.innerWidth, vh: window.innerHeight };
   });
-  ok(res.off.n === 1, `one edge chip for the off-frame runner (${res.off.n})`);
-  ok(res.off.label === '→2ND', `the chip names the bag he is running for (${res.off.label})`);
-  ok(res.off.number === `#${res.number}`, `the chip carries his number (${res.off.number})`);
-  ok(res.off.x >= 0 && res.off.x <= res.w && res.off.y >= 0 && res.off.y <= res.h,
-    `the chip is CLAMPED on screen, not projected off it (${res.off.x?.toFixed(0)},${res.off.y?.toFixed(0)} in ${res.w}x${res.h})`);
-  ok(res.inFrame.n === 0, `no chip when the camera can already see him (${res.inFrame.n})`);
-  ok(res.held.n === 1 && res.held.label === 'ON 2ND', `a held runner reads his bag (${res.held.label})`);
-  ok(res.gated.n === 0, `a live walk-up clears the chips (${res.gated.n})`);
-  ok(res.cleared === 0, 'chips clear with the runners');
+  const S = res.SAFE;
+  // the whole marker BOX on screen, and its centre out of the top/bottom strips
+  const onScreen = (r) => r.l >= 0 && r.t >= 0 && r.r <= res.vw && r.b <= res.vh;
+  // 1 px of slack: setRunnerArrows writes Math.round(x/y) into the transform
+  // while the canvas rect is fractional (843.98 tall at this viewport), so an
+  // exactly-clamped marker reads one rounded pixel past its own floor.
+  const PX = 1;
+  const safeCentre = (m) => m.x >= 56 + S.left - PX && m.x <= res.w - 56 - S.right + PX
+    && m.y >= S.top - PX && m.y <= res.h - S.bottom + PX;
+  ok(res.off.n === 1, `one edge marker for the off-frame runner (${res.off.n})`);
+  ok(res.off.base === '2ND', `the marker carries the bag he is running for (data-base=${res.off.base})`);
+  ok(res.off.words === '', `the marker is icon-only — no number, no label (text "${res.off.words}")`);
+  ok(res.off.icon && res.off.chev, `it is a runner glyph plus a chevron (icon ${res.off.icon}, chev ${res.off.chev})`);
+  ok(res.off.rects.every(onScreen) && safeCentre(res.off),
+    `the marker is CLAMPED fully on screen (${res.off.x?.toFixed(0)},${res.off.y?.toFixed(0)} box ${JSON.stringify(res.off.rects[0])} in ${res.vw}x${res.vh})`);
+  ok(res.inFrame.n === 0, `no marker when the camera can already see him (${res.inFrame.n})`);
+  ok(res.above.n === 1 && res.above.rects.every(onScreen) && safeCentre(res.above),
+    `a runner off the TOP still lands inside the safe box, not under the bug (y ${res.above.y?.toFixed(0)}, top ${res.above.rects[0]?.t?.toFixed(0)})`);
+  ok(res.below.n === 1 && res.below.rects.every(onScreen) && safeCentre(res.below),
+    `a runner off the BOTTOM lands inside the safe box too, not under the throw pad (y ${res.below.y?.toFixed(0)}, box bottom ${res.below.rects[0]?.b?.toFixed(0)} of ${res.vh})`);
+  ok(res.below.y <= res.h - S.bottom + 1 && res.below.y > res.above.y,
+    `the bottom marker is CLAMPED by SAFE.bottom, not merely on screen (y ${res.below.y?.toFixed(1)} vs the ${(res.h - S.bottom).toFixed(0)} floor; the top case sat at ${res.above.y?.toFixed(1)})`);
+  ok(res.held.n === 1 && res.held.base === '2ND', `a held runner reads his bag (data-base=${res.held.base})`);
+  ok(res.gated.n === 0, `a live walk-up clears the markers (${res.gated.n})`);
+  ok(res.cleared === 0, 'markers clear with the runners');
 }
 
 // ----------------------------------------------------------------- 7. DIAMOND
@@ -415,7 +594,7 @@ async function msaaScenario(page) {
   // A FRESH page: the perf watchdog steps 4 -> 2 -> 0 after 5s warm-up + a 3s
   // window, so the default has to be read before the harness's own slow frames
   // earn a downgrade.
-  await page.goto(`${BASE}/?nosplash&go=menu`, { waitUntil: 'domcontentloaded' });
+  await page.goto(url('nosplash&go=menu'), { waitUntil: 'domcontentloaded' });
   if (!ok(!!(await poll(page, () => !!window.__engine?.composer, 20000, 'engine')), 'engine up on the flow page')) return;
   const start = await page.evaluate(() => ({ s: window.__engine.samples, rt1: window.__engine.composer.renderTarget1.samples, rt2: window.__engine.composer.renderTarget2.samples }));
   ok(start.s === 4 && start.rt1 === 4 && start.rt2 === 4, `the composer targets start at 4x MSAA (${JSON.stringify(start)})`);
@@ -429,7 +608,7 @@ async function msaaScenario(page) {
   });
   ok(dropped.s === 2 && dropped.rt1 === 2 && dropped.rt2 === 2, `setSamples(2) lands on both targets (${JSON.stringify(dropped)})`);
   ok(dropped.frames > 2, `the render loop survives the re-allocation (${dropped.frames} frames after)`);
-  await page.goto(`${BASE}/?nosplash&go=menu&msaa=0`, { waitUntil: 'domcontentloaded' });
+  await page.goto(url('nosplash&go=menu&msaa=0'), { waitUntil: 'domcontentloaded' });
   if (!(await poll(page, () => !!window.__engine?.composer, 20000, 'engine (msaa=0)'))) return ok(false, '?msaa=0 page booted');
   const forced = await page.evaluate(() => ({ s: window.__engine.samples, rt1: window.__engine.composer.renderTarget1.samples }));
   ok(forced.s === 0 && forced.rt1 === 0, `?msaa=0 overrides the default (${JSON.stringify(forced)})`);
@@ -439,7 +618,7 @@ async function msaaScenario(page) {
 async function lockerScenario(page) {
   console.log('\n--- 10: LOCKER ---');
   // ?e2e turns on preserveDrawingBuffer for the pixel read-back below
-  await page.goto(`${BASE}/?nosplash&go=locker&e2e`, { waitUntil: 'domcontentloaded' });
+  await page.goto(url('nosplash&go=locker&e2e'), { waitUntil: 'domcontentloaded' });
   const cap = await poll(page, () => document.querySelector('.locker-stage-cap')?.textContent || null, 20000, 'locker caption');
   ok(!!cap && cap.includes('—'), `the stage caption names the captain and his kit (${cap})`);
   ok(await page.evaluate(() => !!document.querySelector('canvas.locker-preview')), 'the preview canvas is mounted');
@@ -481,14 +660,14 @@ async function lockerScenario(page) {
 // thing under test.
 async function gearUpScenario(page) {
   console.log('\n--- 11: GEAR UP ---');
-  await page.goto(`${BASE}/?nosplash&go=menu`, { waitUntil: 'domcontentloaded' });
+  await page.goto(url('nosplash&go=menu'), { waitUntil: 'domcontentloaded' });
   await page.evaluate(() => localStorage.setItem('skk-save-v1', JSON.stringify({ tutorialPlayed: true })));
   // the dev deep link carries no matchup — GEAR UP must route on, not throw
   // (a pageerror here is counted as a failure by the harness's own handler)
-  await page.goto(`${BASE}/?nosplash&go=gearUp`, { waitUntil: 'domcontentloaded' });
+  await page.goto(url('nosplash&go=gearUp'), { waitUntil: 'domcontentloaded' });
   ok(!!(await poll(page, () => !!document.querySelector('.matchup-screen .m-start') && !document.querySelector('.locker-screen.gear-up'), 20000, 'gearUp deep link')),
     'a bare ?go=gearUp deep link falls through to team select instead of throwing');
-  await page.goto(`${BASE}/?nosplash&go=teamSelect`, { waitUntil: 'domcontentloaded' });
+  await page.goto(url('nosplash&go=teamSelect'), { waitUntil: 'domcontentloaded' });
   if (!ok(!!(await poll(page, () => !!document.querySelector('.matchup-screen .m-start'), 20000, 'team select')), 'team select is up')) return;
   // cycle off the defaults and flip a kit, so "← TEAMS put the matchup back"
   // means the CHOSEN matchup, not just any matchup
@@ -564,11 +743,11 @@ async function gearUpScenario(page) {
 // (and a fresh GL context) and the change would arrive a beat late.
 async function lockerTabsScenario(page) {
   console.log('\n--- 12: LOCKER TABS ---');
-  await page.goto(`${BASE}/?nosplash&go=menu`, { waitUntil: 'domcontentloaded' });
+  await page.goto(url('nosplash&go=menu'), { waitUntil: 'domcontentloaded' });
   await page.evaluate(() => localStorage.setItem('skk-save-v1', JSON.stringify({
     tutorialPlayed: true, gearSeen: true, 'gear.unlocked': ['kit-blackout', 'cleats-ice', 'cleats-black'],
   })));
-  await page.goto(`${BASE}/?nosplash&go=locker&e2e`, { waitUntil: 'domcontentloaded' });
+  await page.goto(url('nosplash&go=locker&e2e'), { waitUntil: 'domcontentloaded' });
   const tabs = await poll(page, () => {
     const bar = [...document.querySelectorAll('.locker-tab')];
     return bar.length === 4 ? bar.map((b) => b.childNodes[0].textContent.trim()) : null;
@@ -699,17 +878,36 @@ async function lockerTabsScenario(page) {
 // "the new kicks must be timed so the kick actually hits the ball". The ball's
 // approach glide is the measurable: it must be ~all the way into the foot when
 // the launch fires, and the foot it rides must be the one the clip swings.
+// Run for BOTH crown swings that ship: ARMADA (pack k, LEFT foot, contactAt
+// 0.687) and THE FLAIR (pack x, RIGHT foot, contactAt 0.94 — the stock crown
+// kick every player owns on day one).
 async function kickContactScenario(page) {
   console.log('\n--- 13: KICK CONTACT ---');
+  // ARMADA: a LEFT-footed pack-k kick — the exact case the old hard-coded
+  // RightFoot lookup got wrong.
+  await kickContactRun(page, {
+    gear: { id: 'kick-armada', name: 'ARMADA', clip: 'kickArmada', mods: { powerMult: 1.38, curl: 1.3 } },
+    foot: 'L', minFrac: 0.95,
+  });
+  // THE FLAIR: the stock crown swing, and a RIGHT-footed clip whose contact
+  // frame sits at 0.94 of the clip. A launch fraction of 1.0 is unreachable —
+  // the last sample is the frame BEFORE the launch — so the floor here is 0.93
+  // (one 60 Hz frame of the ~0.5 s approach is worth ~0.03).
+  await kickContactRun(page, {
+    gear: { id: 'kick-flair', name: 'THE FLAIR', clip: 'kickFlair', mods: { powerMult: 1.45 } },
+    foot: 'R', minFrac: 0.93,
+  });
+}
+
+async function kickContactRun(page, { gear, foot, minFrac }) {
+  console.log(`  · ${gear.name} (${gear.clip}, ${foot} foot)`);
   await boot(page, 'match&nosplash&nointro');
   if (!ok(!!(await poll(page, () => window.__skk.phase === 'PITCH' && !window.__skk.walkup, 30000, 'first pitch')),
-    'the first at-bat reaches a live pitch')) return;
-  const armed = await page.evaluate(() => {
+    `${gear.name}: the first at-bat reaches a live pitch`)) return;
+  const armed = await page.evaluate((g) => {
     const s = window.__skk;
-    // ARMADA: a LEFT-footed pack-k kick — the exact case the old hard-coded
-    // RightFoot lookup got wrong
-    s.power.gear = { id: 'kick-armada', name: 'ARMADA', clip: 'kickArmada', mods: { powerMult: 1.38, curl: 1.3 } };
-    s.power.charges = 1; s.power.armed = false; s.refreshHud();
+    s.crown.gear = g;
+    s.crown.disarm(); s.special.value = 100; s.refreshHud(); // a FULL crown is the one swing
     document.querySelector('.special-btn').dispatchEvent(new Event('pointerdown'));
     window.__lastFrac = null; window.__lastSwing = null; window.__footDist = null;
     // PER-FRAME probe. onKickContact can't be wrapped for this: launchNow()
@@ -732,10 +930,10 @@ async function kickContactScenario(page) {
       });
       if (L && R) window.__footDist = [foot.distanceTo(L.getWorldPosition(foot.clone())), foot.distanceTo(R.getWorldPosition(foot.clone()))];
     });
-    return { armed: s.power.armed, hasClip: !!s.kicker.animator.hasClip('kickArmada') };
-  });
-  ok(armed.hasClip === true, 'the ARMADA clip is loaded on the kicker (extras pack k)');
-  if (!ok(armed.armed === true, 'the crown arms with ARMADA equipped')) return;
+    return { armed: s.crown.armed, hasClip: !!s.kicker.animator.hasClip(g.clip) };
+  }, gear);
+  ok(armed.hasClip === true, `${gear.name}: the ${gear.clip} clip is loaded on the kicker (extras pack)`);
+  if (!ok(armed.armed === true, `${gear.name}: the crown arms with it equipped`)) return;
   // Release AT the arrival stamp: attemptKick reads errMs = (tapTime -
   // pitchArrival) * 1000, so handing it pitchArrival is a PERFECT release —
   // and lining the kicker up under the ball zeroes the align term. A mistimed
@@ -749,15 +947,17 @@ async function kickContactScenario(page) {
     s.attemptKick({ align: true, flick: { risePx: 120, durMs: 140, driftPx: 0 } }, s.pitchArrival);
     return s.phase;
   }, 25000, 'kick fired');
-  ok(fired === 'KICK_ANIM', `the armed swing starts on a well-timed release (phase ${fired})`);
+  ok(fired === 'KICK_ANIM', `${gear.name}: the armed swing starts on a well-timed release (phase ${fired})`);
   const away = await poll(page, () => (['LIVE', 'FOUL'].includes(window.__skk.phase)
     ? { frac: window.__lastFrac, swing: window.__lastSwing, dist: window.__footDist, phase: window.__skk.phase }
     : null), 25000, 'ball away');
-  ok(!!away, `the ball leaves the foot (phase ${away?.phase ?? 'stuck in KICK_ANIM'})`);
-  ok(away?.frac >= 0.95, `the launch fires AT the clip's contact frame — approach ${away?.frac?.toFixed(3) ?? 'never sampled'} (needs ≥ 0.95)`);
-  ok(away?.swing === 'kickArmada', `the swing on screen is the equipped move, not the stock kick (${away?.swing})`);
-  ok(!!away?.dist && away.dist[0] < away.dist[1],
-    `the ball rides ARMADA's LEFT foot (LeftFoot ${away?.dist?.[0]?.toFixed(3) ?? '?'} m vs RightFoot ${away?.dist?.[1]?.toFixed(3) ?? '?'} m)`);
+  ok(!!away, `${gear.name}: the ball leaves the foot (phase ${away?.phase ?? 'stuck in KICK_ANIM'})`);
+  ok(away?.frac >= minFrac,
+    `${gear.name}: the launch fires AT the clip's contact frame — approach ${away?.frac?.toFixed(3) ?? 'never sampled'} (needs ≥ ${minFrac})`);
+  ok(away?.swing === gear.clip, `${gear.name}: the swing on screen is the equipped move, not the stock kick (${away?.swing})`);
+  const [L, R] = away?.dist ?? [];
+  ok(!!away?.dist && (foot === 'L' ? L < R : R < L),
+    `${gear.name}: the ball rides its ${foot === 'L' ? 'LEFT' : 'RIGHT'} foot (LeftFoot ${L?.toFixed(3) ?? '?'} m vs RightFoot ${R?.toFixed(3) ?? '?'} m)`);
 }
 
 // ------------------------------------------------------------ 14. WALK-UP CAM
@@ -831,6 +1031,97 @@ async function walkupCamScenario(page) {
   await page.evaluate(() => { window.__skk.playerSide = 'away'; });
 }
 
+// -------------------------------------------------------------- 15. FENCE CAM
+// NEVER FILM THROUGH THE BACKSTOP (dev, 2026-08-27: the camera "films the
+// kicker from behind the fence"). The ceiling is NOT a flat |x| box: it is the
+// backstop's own line, |x| = 4.22 + 0.668·(z + 1.66), less a 0.35 m lens
+// margin inside -1.7 < z < 6.7 and ramped open at 8 m/m outside it —
+// fenceMaxX(z) in cameraDirector.js. Every frame of a full at-bat has to sit
+// inside it: the walk-up dolly, the taunt push-in, the camera-LOCKED
+// contact/PERFECT beat (which solves its own reach instead of being clamped
+// flat, so the push-in survives on the pinched side) and the live shots.
+// Run for BOTH pull directions — the beat mirrors its shot around the kicker,
+// so a bug that only bites on one side hides behind a single kick.
+async function fenceCamScenario(page) {
+  console.log('\n--- 15: FENCE CAM ---');
+  await boot(page, 'match&nosplash&nointro');
+  // The ceiling is computed IN THE PAGE from the shipped fenceMaxX, so this
+  // probe can never drift from the geometry it is guarding.
+  await page.evaluate(async () => {
+    const s = window.__skk;
+    const { fenceMaxX } = await import('/src/game/cameraDirector.js');
+    window.__fenceReset = () => { window.__fence = { n: 0, locked: 0, walk: 0, worst: null, bad: [], shots: {}, sides: {} }; };
+    window.__fenceReset();
+    s.engine.onFrame(() => {
+      const f = window.__fence;
+      const c = s.engine.camera.position;
+      const max = fenceMaxX(c.z);
+      const over = Math.abs(c.x) - max;
+      const locked = !!s.engine.cameraLock;
+      const shot = locked ? `cine(${s.camDir.shot})` : s.camDir.shot;
+      f.n += 1;
+      if (locked) {
+        f.locked += 1;
+        const side = Math.sign(c.x - s.kicker.group.position.x);
+        f.sides[side] = (f.sides[side] ?? 0) + 1;
+      }
+      if (s.walkup) f.walk += 1;
+      f.shots[shot] = (f.shots[shot] ?? 0) + 1;
+      if (!f.worst || over > f.worst.over) f.worst = { over, x: c.x, z: c.z, max, shot };
+      if (over > 0.01 && f.bad.length < 6) {
+        f.bad.push({ over: +over.toFixed(3), x: +c.x.toFixed(2), z: +c.z.toFixed(2), max: +max.toFixed(2), shot });
+      }
+    });
+  });
+
+  /** One full staged at-bat: walk-up, taunt, a well-timed kick pulled `pull`
+   *  metres/s sideways, the locked beat, and the live shots after it. The beat
+   *  reads its side off the ball's lateral velocity AT CONTACT (the emit
+   *  happens before the launch, while the rock is still rolling in), so the
+   *  pull is set on that velocity — the flight itself comes from launchParams. */
+  const atBat = async (pull, label, wantSide) => {
+    await page.evaluate((p) => {
+      const s = window.__skk;
+      window.__pull = p;
+      window.__fenceReset();
+      s.clearTimers();
+      s.playerSide = s.match.kickingSide(); // keep the bat, however the half fell
+      s.nextAtBat();
+    }, pull);
+    if (!ok(!!(await poll(page, () => (window.__skk.walkup?.phase === 'taunt' ? true : null), 20000, `walk-up (${label})`)),
+      `${label}: the staged at-bat walks up`)) return null;
+    const fired = await poll(page, () => {
+      const s = window.__skk;
+      if (s.phase !== 'PITCH' || s.kicked || !Number.isFinite(s.pitchArrival)) return null;
+      if (!(s.ball.pos.z > -3)) return null; // the pitch is close — the release is real
+      s.kicker.group.position.x = s.ball.pos.x;
+      s._kickerPrevX = s.ball.pos.x;
+      s.ball.vel.x = window.__pull; // which way the beat mirrors its shot
+      s.attemptKick({ align: true, flick: { risePx: 120, durMs: 140, driftPx: 0 } }, s.pitchArrival);
+      return s.phase;
+    }, 30000, `kick fired (${label})`);
+    if (!ok(fired === 'KICK_ANIM', `${label}: the kick lands on a well-timed release (phase ${fired})`)) return null;
+    // the locked beat has to run AND release before the frames are read
+    await poll(page, () => (window.__fence.locked > 4 && !window.__skk.engine.cameraLock ? true : null), 20000, `beat done (${label})`);
+    await page.waitForTimeout(600); // ...plus a beat of the live/flight shots
+    const f = await page.evaluate(() => window.__fence);
+    ok(f.walk > 4 && f.locked > 4,
+      `${label}: the sweep covers the walk-up AND the camera-locked beat (${f.n} frames: ${f.walk} walk-up, ${f.locked} locked — ${Object.entries(f.shots).map(([k, v]) => `${k}×${v}`).join(', ')})`);
+    ok((f.sides[wantSide] ?? 0) > 4,
+      `${label}: the beat frames sit on the ${wantSide > 0 ? '+x' : '-x'} side of the kicker (${JSON.stringify(f.sides)})`);
+    ok(f.bad.length === 0,
+      `${label}: EVERY frame is inside the fence line — worst |x| was ${f.worst?.over.toFixed(3)} m ${f.worst?.over <= 0 ? 'INSIDE' : 'OUTSIDE'} the ${f.worst?.max.toFixed(2)} m ceiling at z ${f.worst?.z.toFixed(2)} (${f.worst?.shot})${f.bad.length ? ` — ${JSON.stringify(f.bad)}` : ''}`);
+    return f;
+  };
+
+  // pull LEFT (vel.x < 0) -> the beat shoots from +x; pull RIGHT -> from -x.
+  // With the kicker left of centre the +x reach is open and the -x reach is the
+  // one the fence line takes back, so this pair covers clamped AND open.
+  await atBat(-3, 'pulled LEFT', 1);
+  await atBat(3, 'pulled RIGHT', -1);
+  await page.evaluate(() => { window.__skk.playerSide = 'away'; });
+}
+
 // fail FAST and legibly when the dev server isn't up, instead of ten scenarios
 // each grinding through a 30s boot timeout
 try {
@@ -843,6 +1134,31 @@ try {
 
 const browser = await webkit.launch();
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+// belt-and-braces on top of ?mute: nothing this browser plays can make noise,
+// even a media element some future code path forgets to mute. The CENSUS this
+// keeps is what makes the SILENT assertion mean anything: querySelectorAll only
+// sees ATTACHED media, and the field's backdrop <video> (field.js) is never
+// appended to the document — a detached element plays sound just fine. So every
+// video/audio the page ever creates is recorded, and any that reaches play()
+// un-muted BY THE APP is logged before this net forces it quiet.
+await page.addInitScript(() => {
+  window.__mediaEls = [];   // every media element ever created, attached or not
+  window.__loudPlays = [];  // ...that hit play() while the app had it un-muted
+  const ce = Document.prototype.createElement;
+  Document.prototype.createElement = function (tag, ...rest) {
+    const el = ce.call(this, tag, ...rest);
+    if (/^(video|audio)$/i.test(String(tag))) window.__mediaEls.push(el);
+    return el;
+  };
+  const m = HTMLMediaElement.prototype;
+  const p = m.play;
+  m.play = function () {
+    if (!window.__mediaEls.includes(this)) window.__mediaEls.push(this); // new Audio()
+    if (!this.muted) window.__loudPlays.push((this.currentSrc || this.src || '?').split('/').pop());
+    this.muted = true;
+    return p.call(this);
+  };
+});
 page.on('pageerror', (e) => { console.log('PAGEERROR', e.message); failures += 1; });
 
 const scenarios = [
@@ -850,7 +1166,7 @@ const scenarios = [
   ['SKIP CHIP', skipChipScenario],
   // 3-8 share ONE ?nosplash&nointro match page: walkupScenario boots it
   ['WALK-UP', walkupScenario],
-  ['POWER KICK', powerKickScenario],
+  ['CROWN', crownScenario],
   ['SFX', sfxScenario],
   ['ARROWS', arrowsScenario],
   ['DIAMOND', diamondScenario],
@@ -863,6 +1179,7 @@ const scenarios = [
   ['LOCKER TABS', lockerTabsScenario],
   ['KICK CONTACT', kickContactScenario],
   ['WALK-UP CAM', walkupCamScenario],
+  ['FENCE CAM', fenceCamScenario],
 ];
 // SKK_ONLY="KICK CONTACT,WALK-UP CAM" runs a subset while iterating on one
 // scenario (the full pass is ~8 min). CI/verification always runs them all.

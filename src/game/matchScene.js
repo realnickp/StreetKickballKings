@@ -5,11 +5,11 @@
 // exact field outcome via applyOutcome().
 import * as THREE from 'three';
 import { MatchEngine } from './matchState.js';
-import { judgeKick, launchParams, powerFromError, isHrEligible, flickShape, flickSteerDeg, FLICK, aiSwingStartS, safetyLaunchDelayS, footBoneRegex } from './kickTiming.js';
+import { judgeKick, crownJudge, launchParams, weakContactLaunch, powerFromError, isHrEligible, flickShape, flickSteerDeg, FLICK, aiSwingStartS, safetyLaunchDelayS, footBoneRegex, clampCrownDirection } from './kickTiming.js';
 import { mashSpeed, humanRunSpeed, RunnerSim } from './baseRunning.js';
 import { resolveBaseThrow, resolvePeg } from './throwing.js';
 import { SpecialMeter } from './specialMoves.js';
-import { PowerKicks } from './powerKicks.js';
+import { Crown, halfRuns, isFinalHalf, CROWN_EVENTS } from './crown.js';
 import { pickPitch, aiKickError, aiAim, aiWantsPeg, aiMashRate, aiJukes, aiThrowsFire } from './ai.js';
 import { PickleDuel, shuttleDir } from './pickleDuel.js';
 import { RunnerWatchdog } from './runnerWatchdog.js';
@@ -18,6 +18,7 @@ import { PITCH_PATTERNS, PITCH_FAMILIES, pickVariant, scoreTrace } from './pitch
 import { igniteBall, douseBall, makeGlowTexture } from '../cinematics/fx.js';
 import { ReplayRecorder } from '../cinematics/replay.js';
 import { Ball } from './ball.js';
+import { isFoulLanding } from './foulRule.js';
 import { CityElements } from './cityElements.js';
 import { CrewHeat } from './crewHeat.js';
 import { CameraDirector, SHOTS } from './cameraDirector.js';
@@ -27,7 +28,7 @@ import { WALKUP, walkS, pickTaunt, stealAllowed } from './walkup.js';
 import { revertStealBooks } from './stealBooks.js';
 import { SpeedTrail } from './fx/speedTrail.js';
 import { Hud } from '../ui/screens/hud.js';
-import { edgeClamp } from '../ui/runnerArrows.js';
+import { markerClamp } from '../ui/runnerArrows.js';
 import { gearLine } from '../meta/gearLine.js';
 import { pregameTimeline } from './pregame.js';
 
@@ -137,6 +138,8 @@ export class MatchScene {
     this.hud = new Hud(hudRoot, {
       homeAbbr: teams.home.name.split(' ').pop().slice(0, 4).toUpperCase(),
       awayAbbr: teams.away.name.split(' ').pop().slice(0, 4).toUpperCase(),
+      homeColor: teams.home.colors?.primary ?? null,
+      awayColor: teams.away.colors?.primary ?? null,
     });
 
     this.chars = chars;
@@ -153,7 +156,8 @@ export class MatchScene {
     this.replayRecorder.track(this.replayChars, this.ball);
 
     this.special = new SpecialMeter(teams[playerSide], tuning);
-    this.power = new PowerKicks({ meter: this.special, gear: gear?.kick ?? null });
+    this.crown = new Crown({ meter: this.special, gear: gear?.kick ?? null });
+    this._crownHinted = false; // "TAP THE 👑" fires once per fill, on offense only
 
     this.aim = 'center';
     this.phase = 'IDLE';
@@ -261,9 +265,9 @@ export class MatchScene {
     this.robbing = null;  // fence-rob climb state: {fielder, phase, t, topY}
     this.stealHot = false;
     this.hud.onSpecial = () => {
-      if (!this.kickingIsPlayer() || !this.power.arm()) return;
+      if (!this.kickingIsPlayer() || !this.crown.arm()) return;
       this.bus.emit('sfx', 'crown-arm');
-      this.hud.hint(`${this.power.name} ARMED — LET IT RIP`);
+      this.hud.hint('CROWN ARMED — LET IT RIP');
       this.refreshHud();
     };
 
@@ -289,6 +293,26 @@ export class MatchScene {
     this.match.bus.on('score', ({ side, runs }) => {
       if (side !== this.playerSide || runs <= 0) return;
       for (let i = 0; i < runs; i++) this.crownFeed('run');
+    });
+    // THE SHUTOUT BONUS (+25): the ONE way defense touches the crown. Hold them
+    // scoreless for a whole half you spent in the field and the crown pays out.
+    // halfEnd fires BEFORE state.half advances, so kickingSide() here still
+    // names the side that was up — the opponent whose runs must be zero.
+    this.match.bus.on('halfEnd', (e) => {
+      const before = this._halfScore;
+      const fielded = this._halfFielding;
+      this._halfScore = null; this._halfFielding = false; // one payout per half
+      if (!fielded || !before) return;
+      if (halfRuns(before, this.match.state.score, this.match.kickingSide()) !== 0) return;
+      // The LAST half is a shutout too — but a '+25 CROWN' stamp over GAME OVER
+      // is noise for a crown nobody will ever swing. The score is FINAL at emit
+      // time, so decide it right here from the event (state.phase has not
+      // flipped yet, and deferring the read would bind us to endHalf's timing).
+      if (isFinalHalf(e, this.match.state.score, this.match.cfg.innings)) return;
+      this.crownFeed('shutout');
+      this.hud.callout('SHUTOUT! +25 CROWN', {
+        x: window.innerWidth / 2, y: window.innerHeight * 0.3, ttl: 1600, key: 'shutout',
+      });
     });
     // originalBases = "the bases when this pitch left" — restoreRunners plays
     // (strikeout / foul-out / 3rd-out catch) put runners BACK there. It must
@@ -318,7 +342,9 @@ export class MatchScene {
       }
     });
     this.special.value = 0;
-    this.power = new PowerKicks({ meter: this.special, gear: this.playerGear?.kick ?? null }); // fresh charges every match (rematch reuses the scene)
+    this.crown = new Crown({ meter: this.special, gear: this.playerGear?.kick ?? null }); // an empty crown every match (rematch reuses the scene)
+    this._halfKey = null; this._halfFielding = false; this._halfScore = null;
+    this._crownHinted = false;
     this._gearToasted = false; // the YOUR GEAR strip shows again at the first at-bat of a rematch
     const begin = () => {
       this.bus.emit('vo', 'playball');
@@ -654,7 +680,8 @@ export class MatchScene {
     this.hud.setBases(s.bases);
     this.hud.setCount(s.balls);
     this.hud.showSpecial(this.kickingIsPlayer()); // crown super-kick is ONLY for when you're kicking
-    this.hud.setPowerKick(this.power.hudState());
+    if (!this.crown.ready) this._crownHinted = false; // spent (or not yet full) — the next fill hints again
+    this.hud.setCrown(this.crown.hudState());
   }
   // (worldToScreen lives near the tap-picking helpers below — this class used
   // to define it TWICE; the later, null-returning version always won)
@@ -682,7 +709,7 @@ export class MatchScene {
     this.fouls = 0;
     this.runners = [];
     for (const t of this.trailPool) { t.hide(); t.busy = false; }
-    this.power.disarm(); // an armed-but-unkicked charge is refunded
+    this.crown.disarm(); // an armed-but-unkicked crown stays banked, full
     if (this.kickingIsPlayer() && this.playerGear && !this._gearToasted) {
       this._gearToasted = true;
       this.after(0.8, () => this.hud.gearToast(gearLine(this.playerGear)));
@@ -692,6 +719,7 @@ export class MatchScene {
     // heat-wave moment (Play It): tell the offense ONCE per half that the
     // defense is gassed — then the pulsing steal chips carry the message
     const halfKey = `${this.match.state.inning}-${this.match.state.half}`;
+    if (this._halfKey !== halfKey) { this._halfKey = halfKey; this.beginHalfTracking(); }
     if (this.elements.id === 'heat-wave' && this.match.state.inning >= 3
         && this.kickingIsPlayer() && this._gassedHalf !== halfKey) {
       this._gassedHalf = halfKey;
@@ -731,8 +759,8 @@ export class MatchScene {
     this.kicker = off[kickerIdx % off.length];
     this.kicker.group.visible = true;
     this.startWalkup();
-    // broadcast lower-third: every new kicker gets the NOW KICKING card
-    // (name + best stats, ~2s, non-blocking — the full walkout is match-start only)
+    // broadcast lower-third: every new kicker gets the NOW KICKING plate
+    // (name + #/pos, non-blocking — the full walkout is match-start only)
     const kp = this.kicker.data;
     if (kp?.nick && !this.walkoutActive) {
       this.hud.walkoutShow({
@@ -741,7 +769,9 @@ export class MatchScene {
         label: 'NOW KICKING', mini: true,
         gear: this.kickingIsPlayer() ? gearLine(this.playerGear) : null,
       });
-      this.after(walkS() + WALKUP.tauntS + 0.4, () => this.hud.walkoutHide());
+      // gone the moment he reaches the plate: the taunt close-up and the swing
+      // are his, not the graphic's (dev, 2026-08-27)
+      this.after(walkS() + 0.1, () => this.hud.walkoutHide());
     }
 
     this.baseChars = [null, null, null];
@@ -793,7 +823,14 @@ export class MatchScene {
 
     if (this.kickingIsPlayer()) {
       this.camTarget = CAM.kick;
-      this.hud.hint('GET READY…');
+      // a crown banked on DEFENSE (the shutout bonus) becomes actionable only
+      // here, when the button comes back on screen — tell them once per fill
+      if (this.crown.ready && !this.crown.armed && !this._crownHinted) {
+        this._crownHinted = true;
+        this.hud.hint(`TAP THE 👑 — ${this.crown.name}`);
+      } else {
+        this.hud.hint('GET READY…');
+      }
     } else {
       this.camTarget = CAM.pitch;
       this.hud.hint('YOUR ARM — PICK A PITCH');
@@ -857,6 +894,11 @@ export class MatchScene {
     if (!this.walkup) return;
     this.walkup = null;
     this.placeKickerAtPlate();
+    // a tap-skip snaps the kicker to the plate NOW — the NOW KICKING card
+    // must leave with him, not linger through the wind-up to the
+    // pitch-launch hide (fix round, 2026-08-27); the normal (unskipped)
+    // path still leaves the hide to its walkS()+0.1 timer.
+    if (skipped && !this.walkoutActive) this.hud.walkoutHide();
     this.camDir.request(this.camTarget === CAM.pitch ? 'pitchSelect' : 'kick', this.camCtx(), { cut: true });
     this.after(skipped ? WALKUP.serveDelayS : 0.2, () => this.serve());
   }
@@ -1081,12 +1123,12 @@ export class MatchScene {
       this.strike('WHIFF!');
       return;
     }
-    const judged = judgeKick(Math.sign(errMs || 1) * effErr, this.tuning);
+    let judged = judgeKick(Math.sign(errMs || 1) * effErr, this.tuning);
 
     let powerMult = 1;
     this.specialKickGear = null;
-    if (this.kickingIsPlayer() && this.power.armed) {
-      const sp = this.power.consume();
+    if (this.kickingIsPlayer() && this.crown.armed) {
+      const sp = this.crown.consume();
       if (sp) {
         powerMult = sp.powerMult;
         this.kickWasSpecial = true;
@@ -1096,6 +1138,12 @@ export class MatchScene {
           this.hud.call(`${sp.gear.name}!`, 'crowned');
         }
         this.bus.emit('cine:special', { label: sp.label, kicker: this.kicker });
+        // A CONSUMED CROWN IS NEVER A DRIBBLER (dev, 2026-08-27: "I just did a
+        // crowned kick and it was a normal kick"). `effErr` folds alignment into
+        // the timing error, so good timing while standing ~0.8 m off the ball
+        // judged FOUL — the weak-contact path then overrode the floored crown
+        // launch and burned the meter on a nothing kick. Floor the judge at OK.
+        judged = crownJudge(judged, this.tuning);
       }
     }
     // crew on fire: every kick is juiced while the bar burns
@@ -1156,6 +1204,9 @@ export class MatchScene {
     if (this.kickWasSpecial && Math.abs(errMs) <= this.tuning.kick.okWindowMs) {
       this.kickHrEligible = true;
       launch.loftDeg = Math.max(launch.loftDeg, 34);
+      // ...and it must stay FAIR: a floored arc pulled past the wedge was a
+      // guaranteed foul that still burned the crown (dev, 2026-08-27).
+      launch.directionDeg = clampCrownDirection(launch.directionDeg);
       const clearSpeed = Math.sqrt(((this.fenceM + 10) * 9.8) / Math.sin((2 * launch.loftDeg * Math.PI) / 180));
       launch.speed = Math.max(launch.speed, clearSpeed);
     }
@@ -1300,26 +1351,28 @@ export class MatchScene {
   }
 
   onKickContact(judged, launch) {
-    if (judged.quality === 'FOUL') {
-      // weak mistimed contact dribbles foul (the contact beat began at tap)
-      this.ball.launch(launch.speed * 0.5, 70, (Math.random() - 0.5) * 90);
-      this.bus.emit('sfx', 'kick');
-      this.phase = 'FOUL';
-      this.ballCamUntil = this.elapsed + 1.0;
-      this.after(0.9, () => this.foulBall('FOUL!'));
-      return;
-    }
+    // SHORT KICKS ARE LIVE (dev rule, 2026-08-27): "foul balls should only be
+    // called foul if it goes outside the boundaries, short kicks should not be
+    // called fouls." Weak mistimed contact is no longer an automatic foul —
+    // it squirts off the foot as a slow grounder and falls through to the SAME
+    // landing test as every other kick, so it's foul only if it LANDS foul.
+    // (kickWasSpecial can't reach here — crownJudge floors a crown swing at OK —
+    // but a super kick must never dribble, so the guard is explicit.)
+    const weakContact = judged.quality === 'FOUL' && !this.kickWasSpecial;
+    if (weakContact) launch = weakContactLaunch(launch, this.tuning);
 
     this.ball.launch(launch.speed, launch.loftDeg, launch.directionDeg);
     if (this.heat.onFire(this.match.kickingSide())) igniteBall(this.ball); // burning crew = burning ball
-    this.engine.shake(judged.quality === 'PERFECT' ? 0.55 : 0.25);
+    if (weakContact) this.engine.shake(0.15);
+    else this.engine.shake(judged.quality === 'PERFECT' ? 0.55 : 0.25);
     this.bus.emit('sfx', judged.quality === 'PERFECT' ? 'crush' : 'kick');
     this.field.crowdEnergy = judged.quality === 'PERFECT' ? 1 : 0.5;
 
     this.pred = Ball.predictLanding(this.ball.pos.clone(), launch.speed, launch.loftDeg, launch.directionDeg);
     const lp = this.pred.point;
-    // REAL foul: lands behind home, or outside the 45° foul lines (|x| > -z)
-    if (lp.z > -1.0 || Math.abs(lp.x) > -lp.z + 1.0) {
+    // The ONLY foul call: behind the plate line, or outside the 45° foul lines
+    // (see src/game/foulRule.js — a dribbler that dies fair stays in play).
+    if (isFoulLanding(lp)) {
       this.phase = 'FOUL';
       this.ballCamUntil = this.elapsed + 1.4;
       this.after(Math.min(1.4, Math.max(0.5, this.pred.t * 0.85)), () => this.foulBall('FOUL BALL!'));
@@ -2327,10 +2380,16 @@ export class MatchScene {
         if (c.animator.name !== 'run') c.animator.play('run');
         // stride reads at actual chase speed — fast chases visibly sprint
         c.animator.ctx.speedFactor = 0.7 + Math.min(1.3, (step / dt) / this.tuning.running.maxSpeedMs);
-      } else if (c.animator.name === 'run' && c !== this.chaser) {
-        // arrived — settle (includes a stood-down thrower back at his spot)
-        c.animator.play(c.hasBall ? 'holdball' : 'crouch');
-        this.faceTo(c, this.ball.pos);
+      } else {
+        if (c.animator.name === 'run' && c !== this.chaser) {
+          // arrived — settle (includes a stood-down thrower back at his spot)
+          c.animator.play(c.hasBall ? 'holdball' : 'crouch');
+        }
+        // EVERY standing fielder KEEPS TRACKING THE BALL, not just on the
+        // frame he arrives (dev, 2026-08-27: "all fielders should always be
+        // facing the direction of the ball" — the bag man was taking a throw
+        // over his shoulder). Movers keep the travel facing set above.
+        this.faceAtBall(c);
       }
     }
 
@@ -2338,6 +2397,35 @@ export class MatchScene {
       this.fielderRing.position.copy(this.chaser.group.position).setY(0.05);
     }
     if (reacted) this.handleChaserBall();
+  }
+
+  /**
+   * A waiting fielder's eyes follow the BALL. Pure math (yawTo + one assign,
+   * no allocation) so it is safe for every fielder every frame. No-op for the
+   * carrier, the chaser / player-driven fielder (the chase code aims those at
+   * the ball already) and anyone mid-throw — a wind-up owns its own aim.
+   */
+  faceAtBall(c) {
+    if (!c || c.hasBall || c === this.chaser || c === this.activeFielder) return;
+    if (c.animator?.name === 'throw') return;
+    // PITCH IN FLIGHT: the catcher squares to the MOUND instead — the ball is
+    // coming straight at him and a raw look-at whips 180 deg as it crosses.
+    const to = (this.phase === 'PITCH' && c.spot?.id === 'C') ? FIELD_LAYOUT.pitcher : this.ball.pos;
+    c.faceYaw = this.yawTo(c.group.position, to);
+  }
+
+  /**
+   * Pre-kick pass: the defense watches the pitch too (updateDefense is LIVE-only).
+   * ONLY when the ball is actually back at the mound: after a home run
+   * `returnBallToPitcher` early-returns with no holder, so the ball can still be
+   * sitting in the outfield during the next wind-up — and the whole defense
+   * would turn its back on the plate, then whip around at release (dev,
+   * 2026-08-27). A stale ball just means fielders hold the yaw they had.
+   */
+  faceWaitingFielders() {
+    // squared compare, no Vector3 allocation — this runs every PITCH frame
+    if (this.ball.pos.distanceToSquared(FIELD_LAYOUT.pitcher) > 9) return; // 3 m
+    for (const c of this.fieldingChars()) this.faceAtBall(c);
   }
 
   catchRadius() {
@@ -3406,6 +3494,26 @@ export class MatchScene {
     return { x: (p.x * 0.5 + 0.5) * r.width, y: (-p.y * 0.5 + 0.5) * r.height, w: r.width, h: r.height, behind: p.z > 1 };
   }
 
+  /**
+   * The phone's bottom safe-area inset, in CSS px. Every bottom HUD control is
+   * offset by `env(safe-area-inset-bottom)`, so the marker safe band has to
+   * move up with them on an installed PWA (~34 px on a notched iPhone).
+   * getComputedStyle is a layout read — cache it and only re-read when the
+   * viewport actually changed size (resize / orientationchange).
+   */
+  safeAreaBottom() {
+    const h = typeof window !== 'undefined' ? window.innerHeight : 0;
+    const w = typeof window !== 'undefined' ? window.innerWidth : 0;
+    if (this._sab != null && this._sabH === h && this._sabW === w) return this._sab;
+    this._sabH = h; this._sabW = w;
+    this._sab = 0;
+    try {
+      const v = getComputedStyle(document.documentElement).getPropertyValue('--sab');
+      this._sab = parseFloat(v) || 0;
+    } catch { this._sab = 0; }
+    return this._sab;
+  }
+
   updateRunnerArrows() {
     if (this.cinematicLock || this.walkoutActive || this.walkup || this.duel) { this.hud.setRunnerArrows([]); return; }
     const live = this.runners.filter((r) => r.state === 'running' || r.state === 'held');
@@ -3415,14 +3523,17 @@ export class MatchScene {
     const BASE = ['1ST', '2ND', '3RD', 'HOME'];
     const out = [];
     const rect = this.engine.renderer.domElement.getBoundingClientRect();
+    const sab = this.safeAreaBottom(); // the control row rides on the phone inset
     live.sort((a, b) => b.targetBase - a.targetBase);
     for (const r of live.slice(0, 3)) {
       const pos = r.state === 'held' ? this.basePos(r.heldAt ?? r.fromBase) : this.runnerWorldPos(r).p;
       const pr = this.projectPoint(pos, rect);
-      const c = edgeClamp({ x: pr.x, y: pr.y, w: pr.w, h: pr.h, behind: pr.behind });
+      // markerClamp, not edgeClamp: the 56px inset + the HUD safe box keep the
+      // whole 40px icon on screen instead of half of it hanging off the edge
+      const c = markerClamp({ x: pr.x, y: pr.y, w: pr.w, h: pr.h, behind: pr.behind, extraBottom: sab });
       if (c.visible) continue;
-      out.push({ id: r.idx, x: c.x, y: c.y, angle: c.angle, number: r.char.number, color,
-        label: r.state === 'held' ? `ON ${BASE[r.heldAt ?? r.fromBase]}` : `→${BASE[r.targetBase]}`,
+      out.push({ id: r.idx, x: c.x, y: c.y, angle: c.angle, color,
+        base: r.state === 'held' ? BASE[r.heldAt ?? r.fromBase] : BASE[r.targetBase],
         urgent: r.targetBase === 3 || r === this.stealing });
     }
     this.hud.setRunnerArrows(out);
@@ -3511,17 +3622,27 @@ export class MatchScene {
     return foot ? foot.getWorldPosition(new THREE.Vector3()) : null;
   }
 
+  /** Snapshot the half at its FIRST at-bat: which role the player is in and the
+   *  score going in. The halfEnd listener diffs against this for the SHUTOUT. */
+  beginHalfTracking() {
+    this._halfFielding = !this.kickingIsPlayer();
+    this._halfScore = { ...this.match.state.score };
+  }
+
   /** Crown feed: every meter gain pulses the crown button so the buildup is
    *  SEEN (dev: the meter must engage the player). */
   crownFeed(event) {
-    const minted = this.power.feed(event);
+    const full = this.crown.feed(event);
     this.hud.crownPulse?.();
-    if (minted) {
-      this.hud.stamp('CROWN CHARGED! +1', 'crowned');
-      this.hud.hint(`TAP THE 👑 — ${this.power.name} READY`);
+    if (full) {
+      this.hud.stamp('CROWN READY!', 'crowned');
+      // "TAP THE 👑" only makes sense while the button is ON SCREEN. A shutout
+      // tops the meter while you are FIELDING, where showSpecial() has it
+      // hidden — that hint waits for your half (see nextAtBat's handoff).
+      if (this.kickingIsPlayer()) { this._crownHinted = true; this.hud.hint(`TAP THE 👑 — ${this.crown.name}`); }
       this.bus.emit('sfx', 'bassdrop');
-    } else {
-      this.bus.emit('sfx', 'crown-tick');
+    } else if (CROWN_EVENTS.includes(event)) {
+      this.bus.emit('sfx', 'crown-tick'); // a defense event feeds nothing — stay silent
     }
     this.refreshHud();
   }
@@ -3557,8 +3678,7 @@ export class MatchScene {
     this.lastOutReason = reason;
     if (reason === 'pegged') {
       this.bus.emit('cine:pegged', { runner: runner.char }); // director fires the 'pegged' call
-      if (!this.kickingIsPlayer()) this.crownFeed('peg');
-      this.noteHeat(this.match.fieldingSide(), 'peg');
+      this.noteHeat(this.match.fieldingSide(), 'peg'); // (no crown feed — the crown is OFFENSE-only)
     } else {
       this.bus.emit('sfx', reason === 'tag' ? 'tag' : 'catchpop');
       this.bus.emit('sfx', 'out');
@@ -3601,7 +3721,6 @@ export class MatchScene {
     }
     this.playOuts = (this.playOuts ?? 0) + 1;
     this.lastOutReason = 'catch';
-    if (!this.kickingIsPlayer()) this.crownFeed('catch');
     // heat: a deep or homer-eligible ball snagged = a ROBBERY, else a plain catch
     // (live catches count HERE, once — the finalizePlay 'catch' label is skipped)
     const heatRobbed = this.kickHrEligible || this.landDist > this.fenceM * 0.7;
@@ -4168,6 +4287,9 @@ export class MatchScene {
     } else if (this.stealing) {
       this.updateStealRunner(dt); // pre-kick steal keeps moving during the pitch
     }
+    // the defense watches the PITCH too — updateDefense only runs once the
+    // ball is in play, so nobody was tracking it before contact.
+    if (this.phase === 'PITCH') this.faceWaitingFielders();
     if (this.phase === 'LIVE') {
       this.updateDefense(dt);
 

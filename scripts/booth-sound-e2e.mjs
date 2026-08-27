@@ -16,6 +16,10 @@
 import { webkit } from 'playwright';
 
 const BASE = process.env.SKK_URL ?? 'http://localhost:5173';
+// SILENT RUNS: every page this harness opens carries ?mute (audio.js pins the
+// master gain at 0 and every set-piece <video> comes up muted). The dev can
+// HEAR this machine — a harness that plays the soundtrack is not runnable.
+const url = (q) => `${BASE}/?${q}&mute`;
 let failures = 0;
 const ok = (cond, label) => {
   console.log(`${cond ? 'PASS' : 'FAIL'}  ${label}`);
@@ -36,9 +40,26 @@ async function poll(page, fn, timeoutMs, label) {
 
 async function breakScenario(page) {
   console.log('\n--- scenario 1: the dance -> game BREAK ---');
-  await page.goto(`${BASE}/?match&nosplash`, { waitUntil: 'domcontentloaded' });
+  await page.goto(url('match&nosplash'), { waitUntil: 'domcontentloaded' });
   const booted = await poll(page, () => !!window.__skk, 20000, 'scene boot');
   if (!booted) throw new Error('scene never booted');
+  // prove the silence before a single frame of the show runs
+  const silent = await page.evaluate(() => ({
+    muted: window.__audio.muted,
+    master: window.__audio.userVol.master,
+    gain: window.__audio.master ? window.__audio.master.gain.value : null,
+    loud: [...document.querySelectorAll('video,audio')].filter((m) => !m.muted).length,
+    made: window.__mediaEls.length,
+    loudMade: window.__mediaEls.filter((m) => !m.muted).map((m) => (m.currentSrc || m.src || '?').split('/').pop()),
+    loudPlays: window.__loudPlays.slice(),
+  }));
+  ok(silent.muted === true && silent.master === 0 && (silent.gain === null || silent.gain === 0),
+    `?mute runs the whole harness SILENT (muted ${silent.muted}, userVol.master ${silent.master}, master gain ${silent.gain ?? 'no AudioContext in WebKit'})`);
+  // the CENSUS, not the DOM: the field's backdrop <video> is never appended, so
+  // querySelectorAll on its own would call an unmuted one silent.
+  ok(silent.made > 0, `the media census is live — the boot made ${silent.made} media element(s) to check`);
+  ok(silent.loudMade.length === 0 && silent.loudPlays.length === 0 && silent.loud === 0,
+    `every media element the page made is muted BY THE APP (${silent.made} made, ${silent.loud} unmuted in the DOM${silent.loudMade.length ? `, LOUD: ${silent.loudMade.join(',')}` : ''}${silent.loudPlays.length ? `, played loud: ${silent.loudPlays.join(',')}` : ''})`);
   await page.evaluate(() => {
     window.__musicLog = [];
     window.__sfxLog = [];
@@ -239,6 +260,31 @@ async function pegPadScenario(page) {
 
 const browser = await webkit.launch();
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+// belt-and-braces on top of ?mute: nothing this browser plays can make noise,
+// even a media element some future code path forgets to mute. The CENSUS this
+// keeps is what makes the SILENT assertion mean anything: querySelectorAll only
+// sees ATTACHED media, and the field's backdrop <video> (field.js) is never
+// appended to the document — a detached element plays sound just fine. So every
+// video/audio the page ever creates is recorded, and any that reaches play()
+// un-muted BY THE APP is logged before this net forces it quiet.
+await page.addInitScript(() => {
+  window.__mediaEls = [];   // every media element ever created, attached or not
+  window.__loudPlays = [];  // ...that hit play() while the app had it un-muted
+  const ce = Document.prototype.createElement;
+  Document.prototype.createElement = function (tag, ...rest) {
+    const el = ce.call(this, tag, ...rest);
+    if (/^(video|audio)$/i.test(String(tag))) window.__mediaEls.push(el);
+    return el;
+  };
+  const m = HTMLMediaElement.prototype;
+  const p = m.play;
+  m.play = function () {
+    if (!window.__mediaEls.includes(this)) window.__mediaEls.push(this); // new Audio()
+    if (!this.muted) window.__loudPlays.push((this.currentSrc || this.src || '?').split('/').pop());
+    this.muted = true;
+    return p.call(this);
+  };
+});
 page.on('pageerror', (e) => { console.log('PAGEERROR', e.message); failures += 1; });
 try {
   await breakScenario(page);

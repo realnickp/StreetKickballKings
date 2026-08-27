@@ -27,10 +27,14 @@ export const SHOTS = {
     return { pos: V(k.x + 0.9, 1.35, k.z + 3.2 - 0.8 * t), look: V(k.x, 1.25, k.z), fovScale: 0.7, stiffness: 20 };
   },
 
-  // hard CUT on contact: low hero cam beside the plate, looking up the lane
+  // hard CUT on contact: low hero cam beside the plate, looking up the lane.
+  // TIGHTER than it was (dev, 2026-08-27: the camera "films the kicker from
+  // behind the fence") — +2.2/+3.2 put the lens out past the side-fence panel,
+  // so every contact cut shot through chain-link. +1.9/+2.4 keeps it inside
+  // the V, and clampNearHome() below is the hard backstop for every shot.
   contact: (c) => {
     const k = c.kickerPos ?? V(0, 0, 0.4);
-    return { pos: V(k.x + 2.2, 0.9, k.z + 3.2), look: V(k.x, 1.3, k.z - 6), fovScale: 0.9, stiffness: 60 };
+    return { pos: V(k.x + 1.9, 0.95, k.z + 2.4), look: V(k.x, 1.3, k.z - 6), fovScale: 0.9, stiffness: 60 };
   },
 
   // telephoto ball tracker: far back + narrow lens = background compression
@@ -116,6 +120,80 @@ export const SHOTS = {
   },
 };
 
+// z of the panel ends nearest home — the anchor the fence line is measured
+// from. FENCE_V.z0 is the same edge rounded a hair wide, so the band test
+// never straddles the anchor.
+const PANEL_Z = -1.66;
+
+/**
+ * The V behind home, as geometry. The field runs toward -Z, so the two
+ * backstop panels stand BEHIND the plate: each sweeps from (+-4.22, z -1.66)
+ * out to (+-9.78, z 6.66), which means the mouth of the V opens away from the
+ * field, toward +z. Its inner face is the line |x| = x0 + slope * (z -
+ * PANEL_Z), not a box — a camera 4 m to the side of the plate at z 3 is in
+ * open air, while the same 4 m at z -1 is out past the chain-link. x0 is a
+ * HALF-width: the narrow end of the gap is 4.22 m per side, ~8.4 m across.
+ */
+export const FENCE_V = { z0: -1.7, z1: 6.7, x0: 4.22, slope: 0.668, margin: 0.35 };
+
+// How fast the ceiling opens up once a shot leaves the band. A hard "no
+// ceiling outside" would be a CLIFF at the edges — one frame capped at 3.84,
+// the next uncapped — and a target crossing z0 (foulTrail rides the ball out
+// past z -13) would jump metres sideways. 8 m of ceiling per metre of z means
+// the cap is effectively gone 1.5 m outside the band while the function stays
+// continuous through both edges.
+const RAMP = 8;
+
+/**
+ * The widest |x| a camera may sit at for a given z without the backstop
+ * crossing its lens: the fence line minus a 0.35 m margin inside the band, and
+ * a ramp that opens at RAMP m/m outside it. Defined and CONTINUOUS everywhere,
+ * so a shot whose z is moving never sees the ceiling step.
+ */
+export function fenceMaxX(z) {
+  const line = (zz) => FENCE_V.x0 + FENCE_V.slope * (zz - PANEL_Z) - FENCE_V.margin;
+  if (z <= FENCE_V.z0) return line(FENCE_V.z0) + RAMP * (FENCE_V.z0 - z);
+  if (z >= FENCE_V.z1) return line(FENCE_V.z1) + RAMP * (z - FENCE_V.z1);
+  return line(z);
+}
+
+/**
+ * THE CONTACT CAM MUST NEVER COLLAPSE INTO A FACE (dev, 2026-08-27). The hero
+ * contact/perfect beats stand off to the side AWAY from the pull:
+ * `reach = min(5, fenceMaxX(p.z - 0.8) - side * p.x)`. But the kicker can slide
+ * to |x| = 3.4 (KMAX), and when `side` points at the side he slid to, the fence
+ * line has only ~1.3 m left to give — the lens ends up in his cheek. The
+ * MIRRORED side always has the full 5 m in that case, so flip instead of
+ * collapsing: a slightly worse angle beats a close-up of nothing.
+ * @param {{x:number,z:number}} p kicker position
+ * @param {number} side +1 / -1, the pull-away side the beat asked for
+ * @param {(z:number)=>number} [maxX] fence ceiling (injectable for tests)
+ * @returns {{side:number, reach:number}}
+ */
+export function contactSide(p, side, maxX = fenceMaxX) {
+  const ceil = maxX(p.z - 0.8);
+  const reachFor = (s) => Math.min(5.0, ceil - s * p.x);
+  const reach = reachFor(side);
+  if (reach >= 2.6) return { side, reach };
+  return { side: -side, reach: reachFor(-side) };
+}
+
+/**
+ * NEVER FILM THROUGH THE BACKSTOP (dev, 2026-08-27: the camera "films the
+ * kicker from behind the fence"). Pulls a camera TARGET back inside
+ * fenceMaxX(z) — the fence line with a lens margin near home, ramping away to
+ * nothing outside the V. Ordinary plate-side shots are untouched: the gap is
+ * 4.2 m per side at its narrowest and ~9 m per side by the time the panels
+ * end. Mutates + returns p so it can wrap a shot target inline. The ceiling is
+ * continuous in z (the line moves smoothly, and the band edges ramp instead of
+ * stepping), so a dolly never jumps sideways.
+ */
+export function clampNearHome(p) {
+  const maxX = fenceMaxX(p.z);
+  if (Math.abs(p.x) > maxX) p.x = Math.sign(p.x) * maxX;
+  return p;
+}
+
 /** critically damped spring toward target (no overshoot wobble, real weight) */
 function spring(current, vel, target, stiffness, dt) {
   const c = 2 * Math.sqrt(stiffness);
@@ -147,6 +225,7 @@ export class CameraDirector {
     this.shot = name;
     if (cut) {
       const t = SHOTS[name](ctx);
+      clampNearHome(t.pos); // a broadcast CUT must never land behind the fence
       this.pos.copy(t.pos); this.look.copy(t.look);
       this.posVel.set(0, 0, 0); this.lookVel.set(0, 0, 0);
       this.fov = this.baseFov * (t.fovScale ?? 1); this.fovVel = 0;
@@ -157,6 +236,7 @@ export class CameraDirector {
     const def = SHOTS[this.shot];
     if (!def) return;
     const t = def(ctx);
+    clampNearHome(t.pos); // every shot, every frame — including the walk-up dolly
     const dt = Math.min(rawDt, 0.05);
     const k = t.stiffness ?? 10;
     spring(this.pos, this.posVel, t.pos, k, dt);

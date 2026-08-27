@@ -11,6 +11,7 @@ import * as THREE from 'three';
 import { BallFx } from './fx.js';
 import { pickDance } from '../game/animExtras.js';
 import { FIELD_LAYOUT } from '../game/field.js';
+import { clampNearHome, contactSide } from '../game/cameraDirector.js';
 
 // caught-out one-liners — the whole "robbed screen" is now this one sweep
 const CAUGHT_LINES = [
@@ -113,8 +114,16 @@ export class CinematicDirector {
    */
   contactKick({ kicker, ball, quality, holdS = 0 }) {
     const p = kicker.group.position.clone();
-    const side = (ball.vel?.x ?? 0) >= 0 ? -1 : 1;
     const look = new THREE.Vector3(p.x, 0.9, p.z - 1.0);
+    // How far the lens can actually stand off on the chosen side. Clamping
+    // the shot alone froze the push-in whenever the fence ceiling bit for the
+    // whole beat, so the move only read on one pull direction. Solve for the
+    // reach ONCE and dolly from there instead: camera x = p.x + side * reach,
+    // and |p.x + side * reach| <= maxX gives reach <= maxX - side * p.x for
+    // both signs of side. contactSide also FLIPS the side when the kicker slid
+    // that way and the fence line leaves under 2.6 m — otherwise the hero shot
+    // collapses to a face close-up. (clampNearHome below stays as the safety net.)
+    const { side, reach } = contactSide(p, (ball.vel?.x ?? 0) >= 0 ? -1 : 1);
     const foul = quality === 'FOUL';
     this.engine.shake(0.2);
 
@@ -130,8 +139,14 @@ export class CinematicDirector {
           this.engine.timeScale = 0.3;
           if (this.engine.fx.gradePass) this.engine.fx.gradePass.uniforms.caAmount.value = 0.0012;
         },
+        // With side = +1 and the kicker right of the plate this shot used to
+        // sit OUT PAST the first-base panel and film the swing through
+        // chain-link (dev, 2026-08-27). The solved reach gives back the distance
+        // the fence line allows (~4.4 m instead of 5.0) and the 0.5 m push-in
+        // rides on top of it, so BOTH pull directions move. Side selection and
+        // timing are untouched.
         onUpdate: (k) => this.cam(
-          new THREE.Vector3(p.x + side * (5.0 - k * 0.5), 0.72 + k * 0.08, p.z - 0.8),
+          clampNearHome(new THREE.Vector3(p.x + side * (reach - k * 0.5), 0.72 + k * 0.08, p.z - 0.8)),
           look,
         ),
       },
@@ -163,9 +178,11 @@ export class CinematicDirector {
     // camera whited out the whole frame — fire + bloom at 2m eats everything).
     // Shot from the side away from the pull so the body never blocks the ball.
     const p = kicker.group.position.clone();
-    const side = (ball.vel?.x ?? 0) >= 0 ? -1 : 1;
     // portrait aspect = narrow horizontal FOV: ~5m side distance is what it
-    // takes to hold the full body PLUS a lane of ball flight in frame
+    // takes to hold the full body PLUS a lane of ball flight in frame — minus
+    // whatever the fence line takes back on this side, and mirrored to the open
+    // side when a slid kicker leaves this one too tight (see contactKick).
+    const { side, reach } = contactSide(p, (ball.vel?.x ?? 0) >= 0 ? -1 : 1);
     const look = new THREE.Vector3(p.x, 0.9, p.z - 1.0);
 
     this.run([
@@ -177,8 +194,9 @@ export class CinematicDirector {
           this.engine.timeScale = 0.3;
           if (this.engine.fx.gradePass) this.engine.fx.gradePass.uniforms.caAmount.value = 0.0012;
         },
+        // same fence line as contactKick — never shoot the swing through wire
         onUpdate: (k) => this.cam(
-          new THREE.Vector3(p.x + side * 5.0, 0.72, p.z - 0.8),
+          clampNearHome(new THREE.Vector3(p.x + side * reach, 0.72, p.z - 0.8)),
           look,
         ),
       },
@@ -191,8 +209,10 @@ export class CinematicDirector {
           this.engine.fx.bloomPass.strength = 1.1; // hot fire near the lens — a full surge floods the frame
           if (this.engine.fx.gradePass) this.engine.fx.gradePass.uniforms.caAmount.value = 0.002;
         },
+        // the 0.6 m crawl-in rides on the solved reach too, so the fireball
+        // beat pushes in on the clamped side just as it does on the open one
         onUpdate: (k) => this.cam(
-          new THREE.Vector3(p.x + side * (5.0 - k * 0.6), 0.72 + k * 0.1, p.z - 0.8),
+          clampNearHome(new THREE.Vector3(p.x + side * (reach - k * 0.6), 0.72 + k * 0.1, p.z - 0.8)),
           look,
         ),
       },
@@ -295,8 +315,12 @@ export class CinematicDirector {
       { // brief slow-mo hold on the fielder finishing the catch clip
         dur: 0.6,
         onStart: () => { this.engine.timeScale = 0.35; },
+        // a SHALLOW catch puts this +3.0/+4.4 offset inside the V band with
+        // real x on it (a fielder at x 5, z -6 lands the lens at x 8, z -1.6,
+        // well past the line) — clamp it; deep catches are outside the band
+        // and untouched.
         onUpdate: () => this.cam(
-          new THREE.Vector3(p.x + 3.0, 1.7, p.z + 4.4),
+          clampNearHome(new THREE.Vector3(p.x + 3.0, 1.7, p.z + 4.4)),
           new THREE.Vector3(p.x, 1.05, p.z),
         ),
       },

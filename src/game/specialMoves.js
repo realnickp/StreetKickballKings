@@ -13,7 +13,7 @@ export class SpecialMeter {
     return this.value >= this.tuning.special.meterMax;
   }
 
-  /** @param {'PERFECT'|'catch'|'peg'|'homerun'} event */
+  /** @param {'PERFECT'|'hit'|'run'|'steal'|'homerun'|'pickleEscape'|'shutout'} event */
   add(event) {
     const gain = this.tuning.special.gain[event] ?? 0;
     this.value = Math.min(this.tuning.special.meterMax, this.value + gain);
