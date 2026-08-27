@@ -303,7 +303,7 @@ export function TeamSelectScreen(ctx) {
           away: kitFor(ready[sel.away], kit.away).hex,
           home: kitFor(ready[sel.home], kit.home).hex,
         };
-        ctx.startMatchFlow(ready[sel.away], ready[sel.home], kits); // away = you, home = opponent (their field)
+        ctx.router.go('gearUp', { away: ready[sel.away], home: ready[sel.home], kits }); // away = you, home = opponent (their field)
       });
 
       render('away');

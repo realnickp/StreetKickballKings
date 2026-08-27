@@ -17,7 +17,7 @@ import { playVideo } from './cinematics/videoPlayer.js';
 import { showLogoClash } from './cinematics/introSequence.js';
 import { ScreenRouter } from './ui/router.js';
 import { TitleScreen, MenuScreen, TeamSelectScreen, CoinTossScreen, PostGameScreen, MapScreen } from './ui/screens/screens.js';
-import { LockerScreen } from './ui/screens/lockerScreen.js';
+import { LockerScreen, GearUpScreen } from './ui/screens/lockerScreen.js';
 import * as trophies from './meta/trophies.js';
 import * as unlocks from './meta/unlocks.js';
 import { TutorialScreen } from './ui/screens/tutorial.js';
@@ -188,6 +188,7 @@ async function bootFlow() {
   router.register('postGame', PostGameScreen);
   router.register('map', MapScreen);
   router.register('locker', LockerScreen);
+  router.register('gearUp', GearUpScreen);
   router.register('tutorial', TutorialScreen);
 
   // ---------- pause button + pause/sound overlay ----------

@@ -110,3 +110,29 @@ export function LockerScreen(ctx) {
     unmount() { this.locker?.destroy(); this.locker = null; },
   };
 }
+
+export function gearUpArgs({ away, home, kits }) {
+  if (!away || !home) throw new Error('gearUp needs { away, home }');
+  return [away, home, kits ?? {}];
+}
+/** Pre-game GEAR UP: the Locker with PLAY. Team select routes here; PLAY hands
+ *  the untouched team/kit choice to startMatchFlow, which reads equippedGear. */
+export function GearUpScreen(ctx) {
+  return {
+    mount(root, params = {}) {
+      const [away, home, kits] = gearUpArgs(params);
+      this.locker = buildLocker(ctx, {
+        mode: 'gearUp', team: away,
+        onPlay: () => ctx.startMatchFlow(away, home, kits),
+        onBack: () => ctx.router.go('teamSelect'),
+      });
+      root.appendChild(this.locker.el);
+      if (!ctx.save.get('gearSeen', false)) {   // first time: show them the free gear ON the player
+        ctx.save.set('gearSeen', true);
+        this.locker.selectTab('cleats');
+        this.locker.flashFree();
+      }
+    },
+    unmount() { this.locker?.destroy(); this.locker = null; },
+  };
+}
