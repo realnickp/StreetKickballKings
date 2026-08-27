@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { CameraDirector, SHOTS, clampNearHome } from '../src/game/cameraDirector.js';
+import { CameraDirector, SHOTS, clampNearHome, fenceMaxX, FENCE_V } from '../src/game/cameraDirector.js';
 
 const mkCam = () => new THREE.PerspectiveCamera(58, 0.6, 0.1, 500);
 const ctx = (over = {}) => ({
@@ -91,6 +91,18 @@ describe('CameraDirector', () => {
     expect(clampNearHome(new THREE.Vector3(-6, 1, 8.0)).x).toBeCloseTo(-6);         // past the V
     expect(clampNearHome(new THREE.Vector3(2.0, 0.9, 3.6)).x).toBeCloseTo(2.0);     // deep in the gap
     expect(clampNearHome(new THREE.Vector3(-7.5, 1, 3.2)).x).toBeCloseTo(-7.12);    // out past the wire
+  });
+  it('the ceiling RAMPS at the band edges instead of stepping', () => {
+    // a hard edge would snap a shot that crosses z0 (foulTrail rides the ball
+    // out past z -13) metres sideways in one frame.
+    const inside = fenceMaxX(FENCE_V.z0 + 1e-6);
+    const outside = fenceMaxX(FENCE_V.z0 - 1e-6);
+    expect(Math.abs(inside - outside)).toBeLessThan(1e-3);
+    expect(inside).toBeCloseTo(3.84, 2);
+    // half a metre out of the band the ceiling has already opened 4 m
+    expect(clampNearHome(new THREE.Vector3(8, 1, -2.2)).x).toBeCloseTo(7.84, 2);
+    expect(clampNearHome(new THREE.Vector3(8, 1, -3.5)).x).toBeCloseTo(8);      // effectively free
+    expect(fenceMaxX(FENCE_V.z1 + 1e-6)).toBeCloseTo(fenceMaxX(FENCE_V.z1 - 1e-6), 3);
   });
   it('contact shot sits inside the V', () => {
     const s = SHOTS.contact(ctx({ kickerPos: new THREE.Vector3(0.6, 0, 0.4) }));

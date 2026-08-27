@@ -11,7 +11,7 @@ import * as THREE from 'three';
 import { BallFx } from './fx.js';
 import { pickDance } from '../game/animExtras.js';
 import { FIELD_LAYOUT } from '../game/field.js';
-import { clampNearHome } from '../game/cameraDirector.js';
+import { clampNearHome, fenceMaxX } from '../game/cameraDirector.js';
 
 // caught-out one-liners — the whole "robbed screen" is now this one sweep
 const CAUGHT_LINES = [
@@ -116,6 +116,13 @@ export class CinematicDirector {
     const p = kicker.group.position.clone();
     const side = (ball.vel?.x ?? 0) >= 0 ? -1 : 1;
     const look = new THREE.Vector3(p.x, 0.9, p.z - 1.0);
+    // How far the lens can actually stand off on the chosen side. Clamping
+    // the shot alone froze the push-in whenever the fence ceiling bit for the
+    // whole beat, so the move only read on one pull direction. Solve for the
+    // reach ONCE and dolly from there instead: camera x = p.x + side * reach,
+    // and |p.x + side * reach| <= maxX gives reach <= maxX - side * p.x for
+    // both signs of side. (clampNearHome below stays as the safety net.)
+    const reach = Math.min(5.0, fenceMaxX(p.z - 0.8) - side * p.x);
     const foul = quality === 'FOUL';
     this.engine.shake(0.2);
 
@@ -131,13 +138,14 @@ export class CinematicDirector {
           this.engine.timeScale = 0.3;
           if (this.engine.fx.gradePass) this.engine.fx.gradePass.uniforms.caAmount.value = 0.0012;
         },
-        // clampNearHome: with side = +1 and the kicker right of the plate this
-        // shot sat OUT PAST the first-base panel and filmed the swing through
-        // chain-link (dev, 2026-08-27). The clamp gives back the side distance
-        // the fence line allows (~4.4 m instead of 5.0) and is a no-op when the
-        // chosen side is already clear. Side selection and timing are untouched.
+        // With side = +1 and the kicker right of the plate this shot used to
+        // sit OUT PAST the first-base panel and film the swing through
+        // chain-link (dev, 2026-08-27). The solved reach gives back the distance
+        // the fence line allows (~4.4 m instead of 5.0) and the 0.5 m push-in
+        // rides on top of it, so BOTH pull directions move. Side selection and
+        // timing are untouched.
         onUpdate: (k) => this.cam(
-          clampNearHome(new THREE.Vector3(p.x + side * (5.0 - k * 0.5), 0.72 + k * 0.08, p.z - 0.8)),
+          clampNearHome(new THREE.Vector3(p.x + side * (reach - k * 0.5), 0.72 + k * 0.08, p.z - 0.8)),
           look,
         ),
       },
@@ -171,7 +179,9 @@ export class CinematicDirector {
     const p = kicker.group.position.clone();
     const side = (ball.vel?.x ?? 0) >= 0 ? -1 : 1;
     // portrait aspect = narrow horizontal FOV: ~5m side distance is what it
-    // takes to hold the full body PLUS a lane of ball flight in frame
+    // takes to hold the full body PLUS a lane of ball flight in frame — minus
+    // whatever the fence line takes back on this side (see contactKick).
+    const reach = Math.min(5.0, fenceMaxX(p.z - 0.8) - side * p.x);
     const look = new THREE.Vector3(p.x, 0.9, p.z - 1.0);
 
     this.run([
@@ -185,7 +195,7 @@ export class CinematicDirector {
         },
         // same fence line as contactKick — never shoot the swing through wire
         onUpdate: (k) => this.cam(
-          clampNearHome(new THREE.Vector3(p.x + side * 5.0, 0.72, p.z - 0.8)),
+          clampNearHome(new THREE.Vector3(p.x + side * reach, 0.72, p.z - 0.8)),
           look,
         ),
       },
@@ -198,8 +208,10 @@ export class CinematicDirector {
           this.engine.fx.bloomPass.strength = 1.1; // hot fire near the lens — a full surge floods the frame
           if (this.engine.fx.gradePass) this.engine.fx.gradePass.uniforms.caAmount.value = 0.002;
         },
+        // the 0.6 m crawl-in rides on the solved reach too, so the fireball
+        // beat pushes in on the clamped side just as it does on the open one
         onUpdate: (k) => this.cam(
-          clampNearHome(new THREE.Vector3(p.x + side * (5.0 - k * 0.6), 0.72 + k * 0.1, p.z - 0.8)),
+          clampNearHome(new THREE.Vector3(p.x + side * (reach - k * 0.6), 0.72 + k * 0.1, p.z - 0.8)),
           look,
         ),
       },
