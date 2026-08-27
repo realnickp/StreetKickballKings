@@ -123,7 +123,12 @@ export function GearUpScreen(ctx) {
       const [away, home, kits] = gearUpArgs(params);
       this.locker = buildLocker(ctx, {
         mode: 'gearUp', team: away,
-        onPlay: () => ctx.startMatchFlow(away, home, kits),
+        // startMatchFlow (main.js) tears down #ui-root itself instead of going
+        // through router.go(), so the router never calls our unmount() — kill
+        // the preview's WebGL context/rAF loop HERE, before handoff, or it
+        // keeps running against a detached canvas through the whole intro
+        // (and leaks for good if anything throws before coinToss unmounts it).
+        onPlay: () => { this.locker?.destroy(); this.locker = null; ctx.startMatchFlow(away, home, kits); },
         onBack: () => ctx.router.go('teamSelect'),
       });
       root.appendChild(this.locker.el);
