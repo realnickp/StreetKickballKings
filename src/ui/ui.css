@@ -8,6 +8,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Archivo:wght@500;700;900&display=swap');
 
 :root {
+  --sab: env(safe-area-inset-bottom, 0px); /* read by updateRunnerArrows so markers clear the phone's control row */
   --bg: #13151c;
   --panel: #1c1f2a;
   --panel-2: #232736;

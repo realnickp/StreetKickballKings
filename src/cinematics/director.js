@@ -11,7 +11,7 @@ import * as THREE from 'three';
 import { BallFx } from './fx.js';
 import { pickDance } from '../game/animExtras.js';
 import { FIELD_LAYOUT } from '../game/field.js';
-import { clampNearHome, fenceMaxX } from '../game/cameraDirector.js';
+import { clampNearHome, contactSide } from '../game/cameraDirector.js';
 
 // caught-out one-liners — the whole "robbed screen" is now this one sweep
 const CAUGHT_LINES = [
@@ -114,15 +114,16 @@ export class CinematicDirector {
    */
   contactKick({ kicker, ball, quality, holdS = 0 }) {
     const p = kicker.group.position.clone();
-    const side = (ball.vel?.x ?? 0) >= 0 ? -1 : 1;
     const look = new THREE.Vector3(p.x, 0.9, p.z - 1.0);
     // How far the lens can actually stand off on the chosen side. Clamping
     // the shot alone froze the push-in whenever the fence ceiling bit for the
     // whole beat, so the move only read on one pull direction. Solve for the
     // reach ONCE and dolly from there instead: camera x = p.x + side * reach,
     // and |p.x + side * reach| <= maxX gives reach <= maxX - side * p.x for
-    // both signs of side. (clampNearHome below stays as the safety net.)
-    const reach = Math.min(5.0, fenceMaxX(p.z - 0.8) - side * p.x);
+    // both signs of side. contactSide also FLIPS the side when the kicker slid
+    // that way and the fence line leaves under 2.6 m — otherwise the hero shot
+    // collapses to a face close-up. (clampNearHome below stays as the safety net.)
+    const { side, reach } = contactSide(p, (ball.vel?.x ?? 0) >= 0 ? -1 : 1);
     const foul = quality === 'FOUL';
     this.engine.shake(0.2);
 
@@ -177,11 +178,11 @@ export class CinematicDirector {
     // camera whited out the whole frame — fire + bloom at 2m eats everything).
     // Shot from the side away from the pull so the body never blocks the ball.
     const p = kicker.group.position.clone();
-    const side = (ball.vel?.x ?? 0) >= 0 ? -1 : 1;
     // portrait aspect = narrow horizontal FOV: ~5m side distance is what it
     // takes to hold the full body PLUS a lane of ball flight in frame — minus
-    // whatever the fence line takes back on this side (see contactKick).
-    const reach = Math.min(5.0, fenceMaxX(p.z - 0.8) - side * p.x);
+    // whatever the fence line takes back on this side, and mirrored to the open
+    // side when a slid kicker leaves this one too tight (see contactKick).
+    const { side, reach } = contactSide(p, (ball.vel?.x ?? 0) >= 0 ? -1 : 1);
     const look = new THREE.Vector3(p.x, 0.9, p.z - 1.0);
 
     this.run([

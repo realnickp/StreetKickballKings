@@ -40,3 +40,34 @@ it('markerClamp keeps a left/behind marker clear of the left edge too', () => {
   expect(behind.y).toBeGreaterThanOrEqual(SAFE.top);
   expect(behind.y).toBeLessThanOrEqual(844 - SAFE.bottom);
 });
+
+// THE PHONE'S CONTROL ROW MOVES (dev, 2026-08-27). `.special-btn` (crown),
+// `.go-btn` and `.throw-pad` are all positioned with
+// `calc(... + env(safe-area-inset-bottom))`, so on an installed PWA the whole
+// row rides ~34 px higher than a fixed band assumes — a bottom marker landed on
+// the crown. `extraBottom` is that inset, added to the band.
+it('extraBottom lifts the bottom band by exactly the phone inset', () => {
+  const base = markerClamp({ x: 195, y: 900, w: 390, h: 844 });
+  const inset = markerClamp({ x: 195, y: 900, w: 390, h: 844, extraBottom: 34 });
+  expect(base.y).toBeCloseTo(844 - SAFE.bottom);
+  expect(inset.y).toBeCloseTo(base.y - 34);
+});
+it('the default is unchanged — no inset means no extra lift', () => {
+  const a = markerClamp({ x: 195, y: 900, w: 390, h: 844 });
+  const b = markerClamp({ x: 195, y: 900, w: 390, h: 844, extraBottom: 0 });
+  expect(b).toEqual(a);
+  // a garbage/absent computed value must not shift the band either
+  expect(markerClamp({ x: 195, y: 900, w: 390, h: 844, extraBottom: NaN }).y).toBeCloseTo(a.y);
+});
+it('the bottom band clears the GO button and the crown at any inset', () => {
+  // .go-btn: bottom calc(150px + inset), ~46px tall -> its top edge is
+  // h - 196 - inset. A 40px marker glyph reaches 20px below its centre.
+  for (const inset of [0, 34]) {
+    const c = markerClamp({ x: 195, y: 900, w: 390, h: 844, extraBottom: inset });
+    expect(c.y + 20).toBeLessThanOrEqual(844 - 196 - inset);
+  }
+});
+it('extraBottom never fights the top band on a short viewport', () => {
+  const c = markerClamp({ x: 900, y: 20, w: 390, h: 844, extraBottom: 34 });
+  expect(c.y).toBeGreaterThanOrEqual(SAFE.top);
+});

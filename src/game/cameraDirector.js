@@ -158,6 +158,27 @@ export function fenceMaxX(z) {
 }
 
 /**
+ * THE CONTACT CAM MUST NEVER COLLAPSE INTO A FACE (dev, 2026-08-27). The hero
+ * contact/perfect beats stand off to the side AWAY from the pull:
+ * `reach = min(5, fenceMaxX(p.z - 0.8) - side * p.x)`. But the kicker can slide
+ * to |x| = 3.4 (KMAX), and when `side` points at the side he slid to, the fence
+ * line has only ~1.3 m left to give — the lens ends up in his cheek. The
+ * MIRRORED side always has the full 5 m in that case, so flip instead of
+ * collapsing: a slightly worse angle beats a close-up of nothing.
+ * @param {{x:number,z:number}} p kicker position
+ * @param {number} side +1 / -1, the pull-away side the beat asked for
+ * @param {(z:number)=>number} [maxX] fence ceiling (injectable for tests)
+ * @returns {{side:number, reach:number}}
+ */
+export function contactSide(p, side, maxX = fenceMaxX) {
+  const ceil = maxX(p.z - 0.8);
+  const reachFor = (s) => Math.min(5.0, ceil - s * p.x);
+  const reach = reachFor(side);
+  if (reach >= 2.6) return { side, reach };
+  return { side: -side, reach: reachFor(-side) };
+}
+
+/**
  * NEVER FILM THROUGH THE BACKSTOP (dev, 2026-08-27: the camera "films the
  * kicker from behind the fence"). Pulls a camera TARGET back inside
  * fenceMaxX(z) — the fence line with a lens margin near home, ramping away to

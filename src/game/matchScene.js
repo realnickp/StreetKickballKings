@@ -5,7 +5,7 @@
 // exact field outcome via applyOutcome().
 import * as THREE from 'three';
 import { MatchEngine } from './matchState.js';
-import { judgeKick, crownJudge, launchParams, weakContactLaunch, powerFromError, isHrEligible, flickShape, flickSteerDeg, FLICK, aiSwingStartS, safetyLaunchDelayS, footBoneRegex } from './kickTiming.js';
+import { judgeKick, crownJudge, launchParams, weakContactLaunch, powerFromError, isHrEligible, flickShape, flickSteerDeg, FLICK, aiSwingStartS, safetyLaunchDelayS, footBoneRegex, clampCrownDirection } from './kickTiming.js';
 import { mashSpeed, humanRunSpeed, RunnerSim } from './baseRunning.js';
 import { resolveBaseThrow, resolvePeg } from './throwing.js';
 import { SpecialMeter } from './specialMoves.js';
@@ -1204,6 +1204,9 @@ export class MatchScene {
     if (this.kickWasSpecial && Math.abs(errMs) <= this.tuning.kick.okWindowMs) {
       this.kickHrEligible = true;
       launch.loftDeg = Math.max(launch.loftDeg, 34);
+      // ...and it must stay FAIR: a floored arc pulled past the wedge was a
+      // guaranteed foul that still burned the crown (dev, 2026-08-27).
+      launch.directionDeg = clampCrownDirection(launch.directionDeg);
       const clearSpeed = Math.sqrt(((this.fenceM + 10) * 9.8) / Math.sin((2 * launch.loftDeg * Math.PI) / 180));
       launch.speed = Math.max(launch.speed, clearSpeed);
     }
@@ -2411,8 +2414,17 @@ export class MatchScene {
     c.faceYaw = this.yawTo(c.group.position, to);
   }
 
-  /** Pre-kick pass: the defense watches the pitch too (updateDefense is LIVE-only). */
+  /**
+   * Pre-kick pass: the defense watches the pitch too (updateDefense is LIVE-only).
+   * ONLY when the ball is actually back at the mound: after a home run
+   * `returnBallToPitcher` early-returns with no holder, so the ball can still be
+   * sitting in the outfield during the next wind-up — and the whole defense
+   * would turn its back on the plate, then whip around at release (dev,
+   * 2026-08-27). A stale ball just means fielders hold the yaw they had.
+   */
   faceWaitingFielders() {
+    // squared compare, no Vector3 allocation — this runs every PITCH frame
+    if (this.ball.pos.distanceToSquared(FIELD_LAYOUT.pitcher) > 9) return; // 3 m
     for (const c of this.fieldingChars()) this.faceAtBall(c);
   }
 
@@ -3482,6 +3494,26 @@ export class MatchScene {
     return { x: (p.x * 0.5 + 0.5) * r.width, y: (-p.y * 0.5 + 0.5) * r.height, w: r.width, h: r.height, behind: p.z > 1 };
   }
 
+  /**
+   * The phone's bottom safe-area inset, in CSS px. Every bottom HUD control is
+   * offset by `env(safe-area-inset-bottom)`, so the marker safe band has to
+   * move up with them on an installed PWA (~34 px on a notched iPhone).
+   * getComputedStyle is a layout read — cache it and only re-read when the
+   * viewport actually changed size (resize / orientationchange).
+   */
+  safeAreaBottom() {
+    const h = typeof window !== 'undefined' ? window.innerHeight : 0;
+    const w = typeof window !== 'undefined' ? window.innerWidth : 0;
+    if (this._sab != null && this._sabH === h && this._sabW === w) return this._sab;
+    this._sabH = h; this._sabW = w;
+    this._sab = 0;
+    try {
+      const v = getComputedStyle(document.documentElement).getPropertyValue('--sab');
+      this._sab = parseFloat(v) || 0;
+    } catch { this._sab = 0; }
+    return this._sab;
+  }
+
   updateRunnerArrows() {
     if (this.cinematicLock || this.walkoutActive || this.walkup || this.duel) { this.hud.setRunnerArrows([]); return; }
     const live = this.runners.filter((r) => r.state === 'running' || r.state === 'held');
@@ -3491,13 +3523,14 @@ export class MatchScene {
     const BASE = ['1ST', '2ND', '3RD', 'HOME'];
     const out = [];
     const rect = this.engine.renderer.domElement.getBoundingClientRect();
+    const sab = this.safeAreaBottom(); // the control row rides on the phone inset
     live.sort((a, b) => b.targetBase - a.targetBase);
     for (const r of live.slice(0, 3)) {
       const pos = r.state === 'held' ? this.basePos(r.heldAt ?? r.fromBase) : this.runnerWorldPos(r).p;
       const pr = this.projectPoint(pos, rect);
       // markerClamp, not edgeClamp: the 56px inset + the HUD safe box keep the
       // whole 40px icon on screen instead of half of it hanging off the edge
-      const c = markerClamp({ x: pr.x, y: pr.y, w: pr.w, h: pr.h, behind: pr.behind });
+      const c = markerClamp({ x: pr.x, y: pr.y, w: pr.w, h: pr.h, behind: pr.behind, extraBottom: sab });
       if (c.visible) continue;
       out.push({ id: r.idx, x: c.x, y: c.y, angle: c.angle, color,
         base: r.state === 'held' ? BASE[r.heldAt ?? r.fromBase] : BASE[r.targetBase],

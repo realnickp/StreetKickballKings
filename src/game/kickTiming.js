@@ -182,6 +182,23 @@ export function footBoneRegex(foot) {
 }
 
 /**
+ * A GUARANTEED CROWN SWING MUST STAY FAIR (dev, 2026-08-27). The crown
+ * guarantee floors loft and speed so the ball always clears the fence — but it
+ * never touched DIRECTION, and `aimSpreadDeg` (52) plus the gear curl (±60)
+ * can pull well past the ~45° fair wedge at `fenceM + 10`. That turned the
+ * game's biggest swing into a guaranteed FOUL that ate the meter. Pull the
+ * heading back inside the wedge — only on the guaranteed swing; every ordinary
+ * kick keeps its full pull-to-the-pole risk.
+ * @param {number} deg heading in degrees (sign = pull direction)
+ * @param {number} [maxDeg] the fair half-wedge to hold inside
+ * @returns {number}
+ */
+export function clampCrownDirection(deg, maxDeg = 40) {
+  if (!Number.isFinite(deg)) return 0;
+  return clamp(deg, -maxDeg, maxDeg);
+}
+
+/**
  * A CONSUMED CROWN IS NEVER A DRIBBLER (dev, 2026-08-27: "I just did a crowned
  * kick and it was a normal kick"). The judge runs on an EFFECTIVE error —
  * timing plus alignment (1 m off ≈ 175 ms) — so a well-timed super kick taken

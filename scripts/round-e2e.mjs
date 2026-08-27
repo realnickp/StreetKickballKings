@@ -452,7 +452,7 @@ async function arrowsScenario(page) {
     // markers are ICONS now (dev, 2026-08-27: "an icon or something that just
     // moves ... not off screen because it's getting cut off"): the bag rides
     // data-base for the probe, and the whole 40px box must land on screen
-    const SAFE = { top: 96, bottom: 216, left: 12, right: 20 };
+    const SAFE = { top: 96, bottom: 232, left: 12, right: 20 }; // mirrors src/ui/runnerArrows.js (inset 0 in the harness viewport)
     const read = () => {
       const els = [...document.querySelectorAll('.runner-arrow')];
       const first = els[0];

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { CameraDirector, SHOTS, clampNearHome, fenceMaxX, FENCE_V } from '../src/game/cameraDirector.js';
+import { CameraDirector, SHOTS, clampNearHome, fenceMaxX, FENCE_V, contactSide } from '../src/game/cameraDirector.js';
 
 const mkCam = () => new THREE.PerspectiveCamera(58, 0.6, 0.1, 500);
 const ctx = (over = {}) => ({
@@ -107,5 +107,56 @@ describe('CameraDirector', () => {
   it('contact shot sits inside the V', () => {
     const s = SHOTS.contact(ctx({ kickerPos: new THREE.Vector3(0.6, 0, 0.4) }));
     expect(s.pos.toArray().map((v) => +v.toFixed(2))).toEqual([2.5, 0.95, 2.8]);
+  });
+});
+
+// THE CONTACT CAM MUST NEVER COLLAPSE (dev, 2026-08-27). The hero beat stands
+// off `min(5, fenceMaxX(p.z - 0.8) - side * p.x)` on the side away from the
+// pull. A kicker slid to the KMAX 3.4 m leaves that side ~1.3 m of room — a
+// face close-up. contactSide flips to the mirrored side, which always has the
+// full reach for any legal kicker x.
+describe('contactSide', () => {
+  const K = (x, z = 0.4) => ({ x, z });
+
+  it('leaves a centred kicker alone on both sides', () => {
+    const right = contactSide(K(0.3), 1);
+    expect(right.side).toBe(1);
+    expect(right.reach).toBeCloseTo(4.41, 2);
+    const left = contactSide(K(0.3), -1);
+    expect(left.side).toBe(-1);
+    expect(left.reach).toBeCloseTo(5.0, 5);
+  });
+
+  it('flips off the side a max-slid kicker occupies', () => {
+    const r = contactSide(K(3.4), 1);   // KMAX right, shot asked for the right
+    expect(r.side).toBe(-1);
+    expect(r.reach).toBeCloseTo(5.0, 5);
+    const l = contactSide(K(-3.4), -1); // KMAX left, shot asked for the left
+    expect(l.side).toBe(1);
+    expect(l.reach).toBeCloseTo(5.0, 5);
+  });
+
+  it('never returns a collapsed reach for any legal kicker x', () => {
+    for (let x = -3.4; x <= 3.4001; x += 0.2) {
+      for (const s of [1, -1]) {
+        const r = contactSide(K(+x.toFixed(2)), s);
+        expect(r.reach).toBeGreaterThanOrEqual(2.6);
+        expect(Math.abs(r.side)).toBe(1);
+      }
+    }
+  });
+
+  it('the flipped camera x still lands inside the fence line', () => {
+    for (const [x, s] of [[3.4, 1], [-3.4, -1], [2.6, 1], [0, 1]]) {
+      const p = K(x);
+      const { side, reach } = contactSide(p, s);
+      expect(Math.abs(p.x + side * reach)).toBeLessThanOrEqual(fenceMaxX(p.z - 0.8) + 1e-6);
+    }
+  });
+
+  it('accepts an injected ceiling (pure — no module state)', () => {
+    const flat = () => 10;
+    expect(contactSide(K(3.4), 1, flat).side).toBe(1); // 10 - 3.4 = 6.6, capped 5
+    expect(contactSide(K(3.4), 1, flat).reach).toBeCloseTo(5.0, 5);
   });
 });
