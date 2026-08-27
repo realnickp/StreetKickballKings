@@ -3,7 +3,7 @@
 // (dev, 2026-08-25). Own tiny renderer: screens sit on an opaque background,
 // so the main engine canvas can't show through.
 import * as THREE from 'three';
-import { buildCaptainPreview } from '../game/glbCharacters.js';
+import { buildCaptainPreview, disposeCharacter } from '../game/glbCharacters.js';
 
 export class LockerPreview {
   constructor(canvas) {
@@ -24,9 +24,31 @@ export class LockerPreview {
     this.camera.position.set(0, 1.15, 4.2); this.camera.lookAt(0, 1.0, 0);
     this.char = null; this.token = 0; this.clock = new THREE.Clock(); this.running = true;
     this.spinning = true; // false while a tapped move plays, so it faces the lens
+    this._w = 0; this._h = 0;
+    // A phone can drop this canvas's GL context at any time (backgrounded tab,
+    // memory pressure, another context taking the last slot). Without a guard
+    // the rAF loop keeps rendering into a dead context and the captain is a
+    // black hole for the rest of the visit — onLost lets the screen rebuild.
+    canvas.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault();
+      this.running = false;
+      this.onLost?.();
+    });
     const loop = () => {
       if (!this.running) return;
       requestAnimationFrame(loop);
+      // The canvas is measured HERE, not in the constructor: buildLocker builds
+      // the preview while its root is still detached, where clientWidth reads 0
+      // and the old `|| 220` fallback baked a 220x260 frame into a canvas the
+      // CSS sizes to clamp(140px, 50vw, 240px) x clamp(150px, 34vh, 280px) —
+      // a stretched captain that also span on the wrong aspect.
+      const w = canvas.clientWidth, h = canvas.clientHeight;
+      if (w && h && (w !== this._w || h !== this._h)) {
+        this._w = w; this._h = h;
+        this.renderer.setSize(w, h, false);
+        this.camera.aspect = w / h;
+        this.camera.updateProjectionMatrix();
+      }
       const dt = Math.min(this.clock.getDelta(), 0.05);
       if (this.char) {
         if (this.spinning) this.char.group.rotation.y += dt * 0.6;
@@ -40,9 +62,12 @@ export class LockerPreview {
   async show({ team, uniformHex, gear }) {
     const token = ++this.token;
     const next = await buildCaptainPreview(team, uniformHex, gear);
-    if (token !== this.token) return; // a newer equip won the race
-    if (!this.running) return;        // ...or the screen unmounted while it loaded
-    if (this.char) this.scene.remove(this.char.group);
+    // a newer equip won the race, or the screen unmounted while this loaded —
+    // either way THIS captain is never shown, and every one of them owns a
+    // 2048² recoloured texture + cloned material/geometry. Dropping the
+    // reference alone leaves those on the GPU until the context dies.
+    if (token !== this.token || !this.running) { disposeCharacter(next); return; }
+    if (this.char) { this.scene.remove(this.char.group); disposeCharacter(this.char); }
     this.char = next;
     this.char.group.position.set(0, 0, 0);
     this.char.animator?.play?.('idle');
@@ -78,6 +103,7 @@ export class LockerPreview {
     // character to a scene nobody renders — orphaning its GPU buffers.
     this.token += 1;
     this.running = false;
+    if (this.char) { this.scene.remove(this.char.group); disposeCharacter(this.char); this.char = null; }
     this.renderer.dispose();
     this.renderer.forceContextLoss?.();
   }

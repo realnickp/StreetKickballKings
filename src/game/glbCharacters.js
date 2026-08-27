@@ -54,6 +54,9 @@ function recolorKitTexture(srcTex, primaryHex) {
   tex.colorSpace = srcTex.colorSpace;
   tex.flipY = srcTex.flipY;
   tex.wrapS = srcTex.wrapS; tex.wrapT = srcTex.wrapT;
+  // owned = allocated FOR THIS CHARACTER, so disposeCharacter() may free it.
+  // The early-out above hands back the SHARED gltf texture — never tagged.
+  tex.userData.owned = true;
   tex.needsUpdate = true;
   return tex;
 }
@@ -61,9 +64,16 @@ function recolorKitTexture(srcTex, primaryHex) {
 // ---- LOCKER cleats: tint the FOOT GEOMETRY --------------------------------
 // The archetypes are one skinned mesh + one atlas with texels RE-USED across
 // UV islands — a texel-space mask splatters the cleat colour onto every part
-// sampling those texels. Vertex colours select the exact foot-weighted
-// vertices instead (≥0.55 to Foot/ToeBase), multiplied over the baked map so
-// shading survives; a tiny shader patch tints the emissive channel to match.
+// sampling those texels. A per-vertex MASK selects the exact foot-weighted
+// vertices instead (≥0.55 to Foot/ToeBase).
+//
+// The mask carries no colour: multiplying the cleat hex over the baked shoe
+// can only SUBTRACT channels from a warm brown-orange boot, so ICE #7fe7ff
+// came out swamp-green ≈(159,154,27) and BLACKOUTS ≈(70,41,0) rust (review,
+// 2026-08-27). We COLORIZE BY LUMINANCE instead: keep the baked shading as a
+// brightness curve and paint it in the gear's own colour, diffuse + emissive.
+// The colour rides a UNIFORM, so three's program cache (keyed on the shader
+// string) hands every cleat the SAME compiled program.
 export const CLEAT_BOOST = 1.6;
 function applyCleatVertexTint(mesh, cleatHex) {
   try {
@@ -74,30 +84,59 @@ function applyCleatVertexTint(mesh, cleatHex) {
     const footIdx = new Set(bones.map((b, i) => (/Foot|ToeBase/i.test(b.name) ? i : -1)).filter((i) => i >= 0));
     if (!ji || !w || !footIdx.size) return;
     const n = src.getAttribute('position').count;
-    const col = new Float32Array(n * 3).fill(1);
-    const c = hexToRgb(cleatHex);
+    const mask = new Float32Array(n);
     let hits = 0;
     for (let vi = 0; vi < n; vi++) {
       let fw = 0;
       for (let k = 0; k < 4; k++) if (footIdx.has(ji.getComponent(vi, k))) fw += w.getComponent(vi, k);
       if (fw < 0.55) continue;
-      col[vi * 3] = (c.r / 255) * CLEAT_BOOST; col[vi * 3 + 1] = (c.g / 255) * CLEAT_BOOST; col[vi * 3 + 2] = (c.b / 255) * CLEAT_BOOST;
+      mask[vi] = 1;
       hits += 1;
     }
     if (!hits) return;
     const geo = src.clone(); // instances share geometry — never tint the shared copy
-    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    geo.userData.owned = true; // per-character clone: disposeCharacter() frees it
+    geo.setAttribute('aCleat', new THREE.BufferAttribute(mask, 1));
     mesh.geometry = geo;
-    mesh.material.vertexColors = true;
-    // vertex colours only feed the diffuse path — patch the emissive term too,
-    // or the self-illuminated original shoe washes the tint back out
+    mesh.material.vertexColors = false;
+    const uCleat = new THREE.Color(cleatHex).convertSRGBToLinear();
     mesh.material.onBeforeCompile = (shader) => {
-      shader.fragmentShader = shader.fragmentShader.replace(
-        '#include <emissivemap_fragment>',
-        '#include <emissivemap_fragment>\n#ifdef USE_COLOR\n\ttotalEmissiveRadiance *= vColor.rgb;\n#endif',
-      );
+      shader.uniforms.uCleat = { value: uCleat };
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nattribute float aCleat;\nvarying float vCleat;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvCleat = aCleat;');
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', '#include <common>\nuniform vec3 uCleat;\nvarying float vCleat;')
+        .replace('#include <map_fragment>', '#include <map_fragment>\n\tif (vCleat > 0.5) {\n\t\tfloat l = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));\n\t\tdiffuseColor.rgb = uCleat * clamp(l * 1.6 + 0.10, 0.06, 1.0);\n\t}')
+        // the shoe self-illuminates with the baked map — recolour that term too
+        // or the original boot washes the tint straight back out
+        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n\tif (vCleat > 0.5) {\n\t\tfloat le = dot(totalEmissiveRadiance, vec3(0.2126, 0.7152, 0.0722));\n\t\ttotalEmissiveRadiance = uCleat * le;\n\t}');
     };
+    // one key for every cleat colour (the hue is a uniform, not a #define) and
+    // never shared with the untinted materials on the rest of the body
+    mesh.material.customProgramCacheKey = () => 'cleat';
   } catch { /* cosmetic only — never block a character build */ }
+}
+
+/**
+ * Free everything a character build ALLOCATED — and nothing it borrowed.
+ * buildGlbCharacter clones the material per character, may hand it a fresh
+ * 2048² recoloured CanvasTexture, and clones the geometry for cleats; the
+ * GLTF's own geometry/textures are SHARED by every clone and must survive.
+ * `userData.owned` is the tag the builder leaves on what it made.
+ */
+export function disposeCharacter(char) {
+  char?.group?.traverse((o) => {
+    if (!o.isMesh || !o.material) return;
+    if (o.geometry?.userData?.owned) o.geometry.dispose();
+    if (o.material.map?.userData?.owned) o.material.map.dispose();
+    o.material.dispose(); // always a per-character clone
+    // SkeletonUtils.clone() builds a FRESH Skeleton per character, and three
+    // uploads its bone matrices as a DataTexture — one more GPU texture per
+    // captain that no material references. (Measured: the turntable grew a
+    // texture per equip until this line existed.)
+    if (o.isSkinnedMesh) o.skeleton?.dispose?.();
+  });
 }
 
 export function loadGltf(url) {

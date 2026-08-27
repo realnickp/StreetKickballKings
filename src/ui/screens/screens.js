@@ -188,10 +188,19 @@ export function MapScreen(ctx) {
 //            home field — so picking the HOME side chooses the stadium.) ----------
 export function TeamSelectScreen(ctx) {
   return {
-    mount(root) {
+    mount(root, params = {}) {
       const ready = ctx.data.teams.filter(t => t.status === 'ready');
       const sel = { away: 0, home: Math.min(1, ready.length - 1) }; // away = you, home = their field
       const kit = { away: 'dark', home: 'light' }; // default contrasting kits (one dark, one light)
+      // ← TEAMS from GEAR UP hands the cursor back: cycling to the matchup you
+      // want and then checking your gear must not throw the matchup away.
+      if (params.pick) {
+        const p = params.pick;
+        if (Number.isInteger(p.sel?.away) && p.sel.away < ready.length) sel.away = p.sel.away;
+        if (Number.isInteger(p.sel?.home) && p.sel.home < ready.length) sel.home = p.sel.home;
+        if (p.kit?.away) kit.away = p.kit.away;
+        if (p.kit?.home) kit.home = p.kit.home;
+      }
       // Run the Map challenge: the HOME side is the crew you called out — locked.
       const mapLock = ctx.mapTarget && ready.some((t) => t.id === ctx.mapTarget);
       if (mapLock) {
@@ -303,7 +312,9 @@ export function TeamSelectScreen(ctx) {
           away: kitFor(ready[sel.away], kit.away).hex,
           home: kitFor(ready[sel.home], kit.home).hex,
         };
-        ctx.router.go('gearUp', { away: ready[sel.away], home: ready[sel.home], kits }); // away = you, home = opponent (their field)
+        // `pick` is the cursor, not a match arg (gearUpArgs ignores it): GEAR
+        // UP carries it so ← TEAMS can put this exact matchup back on screen.
+        ctx.router.go('gearUp', { away: ready[sel.away], home: ready[sel.home], kits, pick: { sel: { ...sel }, kit: { ...kit } } }); // away = you, home = opponent (their field)
       });
 
       render('away');
