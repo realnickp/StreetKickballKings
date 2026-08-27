@@ -29,7 +29,9 @@
 //                    on CLEATS with the FREE callout, BACK returns to the
 //                    matchup, a second visit is quiet, PLAY runs the flow.
 //  12. LOCKER TABS — four tabs, and an equip re-renders on the SAME canvas
-//                    node (no remount): the caption and the chip follow.
+//                    node (no remount): the caption and the chip follow, the
+//                    tapped taunt PLAYS on the captain, four cleat equips leave
+//                    the GPU flat, and ICE/BLACKOUTS read in their own colour.
 //  13. KICK CONTACT— an armed ARMADA launches at the clip's contact frame
 //                    (approach ≥ 95%) with the ball riding the LEFT foot.
 //  14. WALK-UP CAM — walkupDolly rides 2.8 m off the kicker through the walk,
@@ -47,6 +49,20 @@ const ok = (cond, label) => {
 };
 const skip = (label) => { console.log(`SKIP  ${label}`); skips += 1; };
 const near = (a, b, tol) => Number.isFinite(a) && Math.abs(a - b) <= tol;
+// hue in degrees (0-360) from an sRGB triple; the cleat assertions compare a
+// rendered boot pixel against the gear's own hex, and only the HUE survives
+// tone mapping + the baked shoe's shading intact enough to assert on.
+const hueOf = (r, g, b) => {
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  if (!d) return 0;
+  let h;
+  if (mx === r) h = ((g - b) / d) % 6;
+  else if (mx === g) h = (b - r) / d + 2;
+  else h = (r - g) / d + 4;
+  h *= 60;
+  return h < 0 ? h + 360 : h;
+};
+const hueGap = (a, b) => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
 
 async function poll(page, fn, timeoutMs, label) {
   const t0 = Date.now();
@@ -467,8 +483,26 @@ async function gearUpScenario(page) {
   console.log('\n--- 11: GEAR UP ---');
   await page.goto(`${BASE}/?nosplash&go=menu`, { waitUntil: 'domcontentloaded' });
   await page.evaluate(() => localStorage.setItem('skk-save-v1', JSON.stringify({ tutorialPlayed: true })));
+  // the dev deep link carries no matchup — GEAR UP must route on, not throw
+  // (a pageerror here is counted as a failure by the harness's own handler)
+  await page.goto(`${BASE}/?nosplash&go=gearUp`, { waitUntil: 'domcontentloaded' });
+  ok(!!(await poll(page, () => !!document.querySelector('.matchup-screen .m-start') && !document.querySelector('.locker-screen.gear-up'), 20000, 'gearUp deep link')),
+    'a bare ?go=gearUp deep link falls through to team select instead of throwing');
   await page.goto(`${BASE}/?nosplash&go=teamSelect`, { waitUntil: 'domcontentloaded' });
   if (!ok(!!(await poll(page, () => !!document.querySelector('.matchup-screen .m-start'), 20000, 'team select')), 'team select is up')) return;
+  // cycle off the defaults and flip a kit, so "← TEAMS put the matchup back"
+  // means the CHOSEN matchup, not just any matchup
+  const matchup = () => page.evaluate(() => ({
+    away: document.querySelector('.m-side.away .m-name').textContent,
+    home: document.querySelector('.m-side.home .m-name').textContent,
+    kits: [...document.querySelectorAll('.kit-label')].map((k) => k.textContent).join('/'),
+  }));
+  await page.evaluate(() => {
+    document.querySelector('.m-side.away .next').dispatchEvent(new Event('pointerdown'));
+    document.querySelector('.m-side.home .next').dispatchEvent(new Event('pointerdown'));
+    document.querySelector('.m-side.home .kit-toggle').dispatchEvent(new Event('pointerdown'));
+  });
+  const chosen = await matchup();
   await page.evaluate(() => document.querySelector('.m-start').dispatchEvent(new Event('pointerdown')));
 
   const first = await poll(page, () => {
@@ -494,6 +528,9 @@ async function gearUpScenario(page) {
   await page.evaluate(() => document.querySelector('.locker-back').dispatchEvent(new Event('pointerdown')));
   ok(!!(await poll(page, () => !!document.querySelector('.matchup-screen .m-start') && !document.querySelector('.locker-screen'), 8000, 'back to teams')),
     '← TEAMS puts the matchup screen back');
+  const restored = await matchup();
+  ok(restored.away === chosen.away && restored.home === chosen.home && restored.kits === chosen.kits,
+    `← TEAMS keeps the matchup you picked (${restored.away} @ ${restored.home}, ${restored.kits}) — chosen was (${chosen.away} @ ${chosen.home}, ${chosen.kits})`);
   await page.evaluate(() => document.querySelector('.m-start').dispatchEvent(new Event('pointerdown')));
   const second = await poll(page, () => {
     const s = document.querySelector('.locker-screen.gear-up');
@@ -529,7 +566,7 @@ async function lockerTabsScenario(page) {
   console.log('\n--- 12: LOCKER TABS ---');
   await page.goto(`${BASE}/?nosplash&go=menu`, { waitUntil: 'domcontentloaded' });
   await page.evaluate(() => localStorage.setItem('skk-save-v1', JSON.stringify({
-    tutorialPlayed: true, gearSeen: true, 'gear.unlocked': ['kit-blackout'],
+    tutorialPlayed: true, gearSeen: true, 'gear.unlocked': ['kit-blackout', 'cleats-ice', 'cleats-black'],
   })));
   await page.goto(`${BASE}/?nosplash&go=locker&e2e`, { waitUntil: 'domcontentloaded' });
   const tabs = await poll(page, () => {
@@ -544,9 +581,12 @@ async function lockerTabsScenario(page) {
     b?.dispatchEvent(new Event('pointerdown'));
     return !!b;
   }, label);
+  // pointerDOWN then pointerUP, no movement between them: the row scrolls
+  // sideways, so an equip only fires on a pointer that stayed put (<= 10 px).
   const tapChip = (name) => page.evaluate((n) => {
     const c = [...document.querySelectorAll('.locker-chip')].find((x) => x.textContent.trim().startsWith(n));
     c?.dispatchEvent(new Event('pointerdown'));
+    c?.dispatchEvent(new Event('pointerup'));
     return !!c;
   }, name);
   const chipState = (name) => page.evaluate((n) => {
@@ -579,7 +619,80 @@ async function lockerTabsScenario(page) {
   ok(capAfter === capBefore, `equipping a taunt leaves the kick/cleats/kit loadout line alone (${capAfter})`);
   ok(await page.evaluate(() => document.querySelector('canvas.locker-preview')?.__e2eTag === 'pinned'),
     'the taunt plays on the SAME turntable too');
-  skip("the turntable's animator name — this round exposes nothing new and the LockerPreview lives inside the screen closure, so a taunt PLAYING on the captain is only observable by eye (covered in the real-play pass)");
+  // ?e2e hands the harness the live LockerPreview (window.__lockerPreview), so
+  // "the move plays ON the captain" stops being an eyeball-only claim.
+  const tauntName = await poll(page, () => {
+    const c = [...document.querySelectorAll('.locker-chip')].find((x) => x.textContent.trim().startsWith('THE POINT'));
+    if (!c) return null;
+    c.dispatchEvent(new Event('pointerdown'));
+    c.dispatchEvent(new Event('pointerup'));
+    const n = window.__lockerPreview?.char?.animator?.name;
+    return typeof n === 'string' && n.startsWith('taunt') ? n : null; // extras pack still streaming otherwise
+  }, 30000, 'taunt playing on the turntable');
+  ok(!!tauntName, `tapping THE POINT plays the taunt ON the captain (animator ${tauntName ?? 'never left idle'})`);
+
+  // ---- cleats: four alternating equips must not grow the GPU by one byte.
+  // Every rebuild clones the material, bakes a NEW 2048x2048 recoloured
+  // texture and clones the foot geometry — before the review fix the replaced
+  // captain was only unparented, so those stayed resident until the context
+  // died (the same starvation that used to kill #game-canvas).
+  ok(await tapTab('CLEATS'), 'the CLEATS tab is on the bar');
+  const swapCleat = async (name) => {
+    await page.evaluate(() => { window.__prevChar = window.__lockerPreview?.char ?? null; });
+    if (!(await tapChip(name))) return null;
+    const swapped = await poll(page, () => (window.__lockerPreview?.char && window.__lockerPreview.char !== window.__prevChar ? true : null),
+      25000, `cleat rebuild (${name})`);
+    if (!swapped) return null;
+    await page.waitForTimeout(350); // let the new captain UPLOAD and the old one's dispose land
+    return page.evaluate(() => {
+      const m = window.__lockerPreview.renderer.info.memory;
+      return { textures: m.textures, geometries: m.geometries };
+    });
+  };
+  const mem = [];
+  for (const name of ['ICE KICKS', 'FIRE REDS', 'ICE KICKS', 'FIRE REDS']) mem.push(await swapCleat(name));
+  if (ok(mem.every(Boolean), `four alternating cleat equips all rebuild the captain (${mem.filter(Boolean).length}/4)`)) {
+    const flatTex = mem.every((m) => m.textures === mem[0].textures);
+    const flatGeo = mem.every((m) => m.geometries === mem[0].geometries);
+    ok(flatTex, `the replaced captain's textures are DISPOSED — count flat across four equips (${mem.map((m) => m.textures).join(' -> ')})`);
+    ok(flatGeo, `...and so is his cloned foot geometry (${mem.map((m) => m.geometries).join(' -> ')})`);
+  }
+
+  // ---- and the cleats actually READ as the gear's colour. The old vertex-colour
+  // MULTIPLY could only subtract channels off a warm baked boot, so ICE came out
+  // swamp-green; the colorize-by-luminance patch paints it in the real hue.
+  const bootBand = () => page.evaluate(() => {
+    const c = document.querySelector('canvas.locker-preview');
+    const gl = c.getContext('webgl2') || c.getContext('webgl');
+    if (!gl || !c.width) return null;
+    const h = Math.max(1, Math.floor(c.height * 0.18)); // bottom ~18%: boots + ankles
+    const buf = new Uint8Array(4 * c.width * h);
+    gl.readPixels(0, 0, c.width, h, gl.RGBA, gl.UNSIGNED_BYTE, buf); // GL origin = bottom-left
+    const px = [];
+    for (let i = 0; i < buf.length; i += 4) if (buf[i + 3] > 200) px.push([buf[i], buf[i + 1], buf[i + 2]]);
+    return px;
+  });
+  await swapCleat('ICE KICKS');
+  const ice = await bootBand();
+  if (ok(!!ice && ice.length > 20, `the boot band is on screen with ICE KICKS equipped (${ice?.length ?? 0} opaque px)`)) {
+    // the MEDIAN hue of the most saturated slice, not a single pixel: one
+    // antialiased edge texel is not evidence that the boot is blue.
+    const sat = ([r, g, b]) => (Math.max(r, g, b) === 0 ? 0 : (Math.max(r, g, b) - Math.min(r, g, b)) / Math.max(r, g, b));
+    const ranked = [...ice].sort((a, b) => sat(b) - sat(a));
+    const slice = ranked.slice(0, Math.max(8, Math.floor(ranked.length * 0.05)));
+    const hues = slice.map((p) => hueOf(p[0], p[1], p[2])).sort((a, b) => a - b);
+    const hue = hues[Math.floor(hues.length / 2)];
+    const gap = hueGap(hue, hueOf(0x7f, 0xe7, 0xff));
+    ok(gap < 25, `ICE KICKS render ICY BLUE on the turntable — median hue ${hue.toFixed(1)}deg over the ${slice.length} most saturated boot px vs #7fe7ff 191.5deg, gap ${gap.toFixed(1)}deg (needs < 25); peak px rgb(${ranked[0].join(',')}) at ${hueOf(...ranked[0]).toFixed(1)}deg`);
+  }
+  await swapCleat('BLACKOUTS');
+  const black = await bootBand();
+  if (ok(!!black && black.length > 20, `the boot band is on screen with BLACKOUTS equipped (${black?.length ?? 0} opaque px)`)) {
+    const lum = ([r, g, b]) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    const dark = [...black].sort((a, b) => lum(a) - lum(b)).slice(0, Math.max(4, Math.floor(black.length * 0.05)));
+    const spread = Math.max(...dark.map(([r, g, b]) => Math.max(r, g, b) - Math.min(r, g, b)));
+    ok(spread < 24, `BLACKOUTS render NEUTRAL black, not rust — worst channel spread ${spread} across the darkest 5% of the boot band (needs < 24)`);
+  }
 }
 
 // ------------------------------------------------------------ 13. KICK CONTACT
@@ -656,10 +769,10 @@ async function walkupCamScenario(page) {
   await boot(page, 'match&nosplash&nointro');
   await page.evaluate(() => {
     const s = window.__skk;
-    window.__camLog = [];  // [walk-up phase, shot, cam x, y, z, kicker z]
+    window.__camLog = [];  // [walk-up phase, shot, cam x, y, z, kicker z, kicker x, elapsed]
     s.engine.onFrame(() => {
       const c = s.engine.camera.position;
-      window.__camLog.push([s.walkup?.phase ?? null, s.camDir.shot, c.x, c.y, c.z, s.kicker.group.position.z]);
+      window.__camLog.push([s.walkup?.phase ?? null, s.camDir.shot, c.x, c.y, c.z, s.kicker.group.position.z, s.kicker.group.position.x, s.elapsed]);
     });
   });
   if (!ok(!!(await poll(page, () => ['PITCH', 'PITCH_SELECT'].includes(window.__skk.phase) && !window.__skk.walkup, 30000, 'first pitch')),
@@ -671,6 +784,18 @@ async function walkupCamScenario(page) {
     `the walk owns the walkupDolly shot for all ${walk.length} frames (${[...new Set(walk.map((r) => r[1]))].join(',') || 'none'})`);
   const drift = walk.length ? Math.max(...walk.map((r) => Math.abs(r[4] - (r[5] + 2.8)))) : NaN;
   ok(drift < 0.6, `the dolly rides 2.8 m off the kicker down the whole walk (worst miss ${Number.isFinite(drift) ? drift.toFixed(3) : '?'} m)`);
+  // ...and it TRACKS: the kicker crosses ~2.5 m of x on the way in, so a shot
+  // that merely sat still would still pass the z-offset check above. The x
+  // offset must hold while he travels (samples >= 0.5 s apart, after the cut
+  // has settled).
+  const t0 = walk.length ? walk[0][7] : 0;
+  const settled = walk.filter((r) => r[7] - t0 > 0.35);
+  const a0 = settled[0];
+  const a1 = a0 ? [...settled].reverse().find((r) => r[7] - a0[7] >= 0.5) : null;
+  const dx = a0 && a1 ? Math.abs(a1[6] - a0[6]) : 0;
+  const dOff = a0 && a1 ? Math.abs((a1[2] - a1[6]) - (a0[2] - a0[6])) : NaN;
+  ok(dx >= 0.7 && dOff < 0.15,
+    `the dolly TRACKS the kicker in x — offset moved ${Number.isFinite(dOff) ? dOff.toFixed(3) : '?'} m (needs < 0.15) while he covered ${dx.toFixed(3)} m (needs >= 0.7) over ${a0 && a1 ? (a1[7] - a0[7]).toFixed(2) : '?'} s`);
   ok(taunt.length > 4 && taunt.every((r) => r[1] === 'walkupTaunt'),
     `the taunt owns the walkupTaunt push-in for all ${taunt.length} frames (${[...new Set(taunt.map((r) => r[1]))].join(',') || 'none'})`);
   const kickCam = await page.evaluate(() => {

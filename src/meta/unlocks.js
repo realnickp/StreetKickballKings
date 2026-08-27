@@ -97,8 +97,9 @@ export function equipGear(save, cat, id) {
 }
 
 /** Resolve the equip slots to catalog entries: {kick, cleats, uniform, taunt}.
- *  A category with a stock item (taunt) falls back to it when nothing's
- *  equipped or the equipped piece isn't owned; others fall back to null (bare). */
+ *  A category with a stock item (kick = THE FLAIR, cleats = FIRE REDS,
+ *  taunt = THE POINT) falls back to it when nothing's equipped or the equipped
+ *  piece isn't owned; the rest (uniform) fall back to null (bare). */
 export function equippedGear(save) {
   const eq = save.get('gear.equip', {}) ?? {};
   const pick = (cat) => {

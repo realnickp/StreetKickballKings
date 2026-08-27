@@ -304,3 +304,11 @@ scope here; the fix is a desaturate-then-replace step on the foot texels, not a 
 - **`LockerPreview.destroy()` bumps the show token first** (commit `b6133a4`): a
   `buildCaptainPreview()` still in flight would otherwise resolve after teardown, pass the race
   guard and add a fully-loaded character to a scene nobody renders.
+- **`walkupDolly`'s offset as shipped is `kicker + (-0.6, 1.1, +2.8)`, looking at
+  `kicker + (1.0, 1.2, 0)`** - not the `(-2.6, 1.1, +1.4)` side-dolly in the SS2 shot table
+  above. The plan's exact numbers (which the unit tests and the e2e harness both assert) won:
+  the wide third-base offset framed the kicker against empty pavement, while a 2.8 m trail on
+  the camera side keeps him large and reads as a follow. `walkupTaunt` shipped exactly as
+  specced. `camCtx()` also never needed `walkupPhase` or `walkDir` - the phase gate lives in
+  `matchScene.update()`, which picks the shot by name, and the dolly's look-ahead is a fixed
+  `+1.0 x` offset rather than a walk-direction vector.

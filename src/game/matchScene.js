@@ -632,7 +632,6 @@ export class MatchScene {
       pickleA: this.pickleCam ? this.bagPos(this.pickleCam.fromBase) : null,
       pickleB: this.pickleCam ? this.bagPos(this.pickleCam.targetBase) : null,
       pickleRunnerPos: this.pickleCam ? this.pickleCam.char.group.position : null,
-      walkupPhase: this.walkup?.phase ?? null,
       walkupT: this.walkup?.phase === 'taunt' ? Math.max(0, Math.min(1, 1 - (this.walkup.until - this.elapsed) / WALKUP.tauntS)) : 0,
     };
   }

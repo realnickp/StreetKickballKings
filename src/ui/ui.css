@@ -1359,12 +1359,13 @@ body { display: flex; align-items: center; justify-content: center; }
 .locker-chip.just { animation: crownPop .45s cubic-bezier(.2, 1.6, .4, 1); }
 .locker-chip .swatch { display: block; width: 100%; height: 14px; border-radius: 6px; margin-bottom: 4px; border: 1px solid rgba(255,255,255,.25); }
 .locker-career { color: var(--muted); font-size: 10px; letter-spacing: .6px; margin: 2px 0; text-align: center; }
-.locker-actions { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: auto; padding-bottom: env(safe-area-inset-bottom); }
+.locker-actions { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: auto; } /* .screen already pads for the home bar — doubling it eats a row */
 .locker-play { width: min(80vw, 320px); }
 /* GEAR UP is the last step before the whistle — lifetime stats are noise there,
    and the row they cost is the row PLAY needs on a short phone. */
 .locker-screen.gear-up .locker-career { display: none; }
-.locker-back { background: none; border: none; color: var(--muted); font-family: var(--sans); font-weight: 700; letter-spacing: 1px; text-decoration: underline; }
+/* 44px minimum: the underlined text alone was an ~18px tap target */
+.locker-back { background: none; border: none; color: var(--muted); font-family: var(--sans); font-weight: 700; letter-spacing: 1px; text-decoration: underline; padding: 10px 16px; min-height: 44px; }
 
 /* element teach card: full-screen "know your block" intro (Know It pillar) */
 /* starting-lineup walkout card — bottom third, slams in per player */

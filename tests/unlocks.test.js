@@ -39,6 +39,18 @@ it('checkUnlocks fires each item once at its threshold', () => {
   expect(isUnlocked(s, 'kick-hurricane')).toBe(true);
 });
 
+it('one checkUnlocks call can fire across TWO categories at once', () => {
+  // the crossing case: three home runs and a first win banked in the same
+  // match must hand back the kick AND the taunt on a single sweep, not one
+  // per call (regression — the sweep used to stop at the first category).
+  const s = mem();
+  careerAdd(s, { hr: 3, wins: 1 });
+  const fresh = checkUnlocks(s).map((g) => g.id);
+  expect(fresh).toContain('kick-hurricane');
+  expect(fresh).toContain('taunt-cry');
+  expect(checkUnlocks(s)).toEqual([]); // and both stay fired
+});
+
 it('equip requires ownership + matching category; null resets the slot', () => {
   const s = mem();
   expect(equipGear(s, 'kick', 'kick-hurricane')).toBe(false); // locked
