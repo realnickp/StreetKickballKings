@@ -11,7 +11,7 @@
 export const GEAR = [
   // ---- special kicks: the clip swaps in when the crown meter is armed, and
   //      the mods flavor the launch (powerMult replaces the stock 1.35)
-  { id: 'kick-flair', cat: 'kick', name: 'THE FLAIR', clip: 'kickFlair', mods: { powerMult: 1.45 }, unlock: { stat: 'hr', n: 1 }, hint: 'Kick your first home run', play: '2 power kicks a game · ×1.45 power' },
+  { id: 'kick-flair', cat: 'kick', name: 'THE FLAIR', clip: 'kickFlair', mods: { powerMult: 1.45 }, stock: true, unlock: null, hint: 'FREE · yours from day one', play: '2 power kicks a game · ×1.45 power' },
   { id: 'kick-hurricane', cat: 'kick', name: 'HURRICANE KICK', clip: 'kickHurricane', mods: { powerMult: 1.38, loftDeg: 10 }, unlock: { stat: 'hr', n: 3 }, hint: '3 career home runs', play: '2 power kicks a game · ×1.38 power, +10° loft' },
   { id: 'kick-spinflip', cat: 'kick', name: 'SPIN FLIP KICK', clip: 'kickSpinFlip', mods: { powerMult: 1.42, curl: 1.2 }, unlock: { stat: 'hr', n: 10 }, hint: '10 career home runs', play: '2 power kicks a game · ×1.42 power, curl ×1.2' },
   { id: 'kick-crescent', cat: 'kick', name: 'INSIDE CRESCENT', clip: 'kickCrescent', mods: { powerMult: 1.35, curl: 1.5 }, unlock: { stat: 'wins', n: 5 }, hint: '5 career wins', play: '2 power kicks a game · ×1.35 power, curl ×1.5' },
@@ -34,7 +34,7 @@ export const GEAR = [
   { id: 'taunt-gesture', cat: 'taunt', name: 'COME AT ME', clip: 'tauntGesture', unlock: { stat: 'games', n: 10 }, hint: 'Play 10 games', play: 'your walk-up taunt' },
   { id: 'taunt-loser', cat: 'taunt', name: 'THE L', clip: 'tauntLoser', unlock: { stat: 'crews', n: 3 }, hint: 'Beat 3 crews on their turf', play: 'your walk-up taunt' },
   // ---- cleats: foot-region tint on the kit texture + a real leg on the bases
-  { id: 'cleats-fire', cat: 'cleats', name: 'FIRE REDS', hex: '#ff3b1f', speedMult: 1.06, play: '+6% speed on the bases', unlock: { stat: 'wins', n: 1 }, hint: 'Win your first game' },
+  { id: 'cleats-fire', cat: 'cleats', name: 'FIRE REDS', hex: '#ff3b1f', speedMult: 1.06, play: '+6% speed on the bases', stock: true, unlock: null, hint: 'FREE · yours from day one' },
   { id: 'cleats-ice', cat: 'cleats', name: 'ICE KICKS', hex: '#7fe7ff', speedMult: 1.06, stealMult: 1.1, play: '+6% speed · +10% steal jump', unlock: { stat: 'wins', n: 2 }, hint: 'Win 2 games' },
   { id: 'cleats-volt', cat: 'cleats', name: 'NEON VOLTS', hex: '#c8ff1f', speedMult: 1.08, play: '+8% speed on the bases', unlock: { stat: 'crews', n: 3 }, hint: 'Beat 3 crews on their turf' },
   { id: 'cleats-royal', cat: 'cleats', name: 'ROYALS', hex: '#8a4dff', speedMult: 1.08, play: '+8% speed on the bases', unlock: { stat: 'crews', n: 5 }, hint: 'Beat 5 crews on their turf' },
