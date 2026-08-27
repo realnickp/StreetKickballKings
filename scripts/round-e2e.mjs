@@ -25,6 +25,16 @@
 //                    lands on both targets and the loop survives, ?msaa= wins.
 //  10. LOCKER      — the preview canvas renders a lit captain over a clear
 //                    background, and the caption names him and his kit.
+//  11. GEAR UP     — team select's START lands on GEAR UP, the first run opens
+//                    on CLEATS with the FREE callout, BACK returns to the
+//                    matchup, a second visit is quiet, PLAY runs the flow.
+//  12. LOCKER TABS — four tabs, and an equip re-renders on the SAME canvas
+//                    node (no remount): the caption and the chip follow.
+//  13. KICK CONTACT— an armed ARMADA launches at the clip's contact frame
+//                    (approach ≥ 95%) with the ball riding the LEFT foot.
+//  14. WALK-UP CAM — walkupDolly rides 2.8 m off the kicker through the walk,
+//                    walkupTaunt owns the taunt, and the cut lands the kick /
+//                    pitch-select cam EXACTLY on its mark. CPU side too.
 import { webkit } from 'playwright';
 
 const BASE = process.env.SKK_URL ?? 'http://localhost:5173';
@@ -447,6 +457,255 @@ async function lockerScenario(page) {
   ok(!!px, `the preview renders a lit captain over a clear stage (${px ? `${px.lit} lit / ${px.clear} clear of ${px.total}` : 'never lit'})`);
 }
 
+// ----------------------------------------------------------------- 11. GEAR UP
+// A save is written BEFORE the boot that reads it: SaveManager slurps
+// localStorage in its constructor, so `?go=teamSelect` must be a fresh
+// navigation. `tutorialPlayed` keeps the menu from hijacking us into the
+// drills; `gearSeen` is deliberately ABSENT — the first-run callout is the
+// thing under test.
+async function gearUpScenario(page) {
+  console.log('\n--- 11: GEAR UP ---');
+  await page.goto(`${BASE}/?nosplash&go=menu`, { waitUntil: 'domcontentloaded' });
+  await page.evaluate(() => localStorage.setItem('skk-save-v1', JSON.stringify({ tutorialPlayed: true })));
+  await page.goto(`${BASE}/?nosplash&go=teamSelect`, { waitUntil: 'domcontentloaded' });
+  if (!ok(!!(await poll(page, () => !!document.querySelector('.matchup-screen .m-start'), 20000, 'team select')), 'team select is up')) return;
+  await page.evaluate(() => document.querySelector('.m-start').dispatchEvent(new Event('pointerdown')));
+
+  const first = await poll(page, () => {
+    const s = document.querySelector('.locker-screen.gear-up');
+    if (!s) return null;
+    const on = [...s.querySelectorAll('.locker-tab')].find((b) => b.classList.contains('on'));
+    return {
+      play: !!s.querySelector('.locker-play'),
+      back: !!s.querySelector('.locker-back'),
+      menu: !!s.querySelector('[data-act="menu"]'),
+      onTab: on?.childNodes[0]?.textContent?.trim() ?? null,
+      free: !s.querySelector('.locker-free').classList.contains('hidden'),
+      justStock: !!s.querySelector('.locker-chip.stock.just'),
+    };
+  }, 15000, 'gear up');
+  ok(!!first, 'START MATCH lands on GEAR UP, not straight into the intro videos');
+  ok(first?.play === true && first?.back === true, 'GEAR UP offers PLAY and a way back to TEAMS');
+  ok(first?.menu === false, 'the pre-game screen has no MAIN MENU escape hatch');
+  ok(first?.onTab === 'CLEATS', `the first run opens ON the CLEATS tab (${first?.onTab})`);
+  ok(first?.free === true, 'the FREE — YOUR STARTER GEAR callout is up on the first run');
+  ok(first?.justStock === true, 'the free chip itself pulses so the eye lands on it');
+
+  await page.evaluate(() => document.querySelector('.locker-back').dispatchEvent(new Event('pointerdown')));
+  ok(!!(await poll(page, () => !!document.querySelector('.matchup-screen .m-start') && !document.querySelector('.locker-screen'), 8000, 'back to teams')),
+    '← TEAMS puts the matchup screen back');
+  await page.evaluate(() => document.querySelector('.m-start').dispatchEvent(new Event('pointerdown')));
+  const second = await poll(page, () => {
+    const s = document.querySelector('.locker-screen.gear-up');
+    if (!s) return null;
+    const on = [...s.querySelectorAll('.locker-tab')].find((b) => b.classList.contains('on'));
+    return { free: !s.querySelector('.locker-free').classList.contains('hidden'), onTab: on?.childNodes[0]?.textContent?.trim() ?? null };
+  }, 10000, 'gear up again');
+  ok(!!second, 'START MATCH lands on GEAR UP every game, not just the first');
+  ok(second?.free === false, 'the second visit does NOT re-run the callout (gearSeen stuck)');
+  ok(second?.onTab === 'KICKS', `a return visit opens on the default KICKS tab (${second?.onTab})`);
+
+  await page.evaluate(() => document.querySelector('.locker-play').dispatchEvent(new Event('pointerdown')));
+  ok(!!(await poll(page, () => !document.querySelector('.locker-screen'), 6000, 'locker torn down')),
+    'PLAY tears the Locker down before the hand-off (its WebGL context goes with it)');
+  // The intro videos are set pieces, not the thing under test — and headless
+  // WebKit may not decode the mp4s at all (playVideo resolves on `onerror`).
+  // Tap through whatever set piece is on screen until the real scene exists.
+  const live = await poll(page, () => {
+    document.querySelector('.skip-hint')?.parentElement?.dispatchEvent(new Event('pointerdown'));
+    document.querySelector('.intro-fx')?.dispatchEvent(new Event('pointerdown'));
+    return window.__skk ? true : null;
+  }, 60000, 'match scene after PLAY');
+  ok(!!live, 'PLAY runs the real match flow through to a live MatchScene');
+  ok(await page.evaluate(() => !document.querySelector('.locker-screen')), 'no Locker survives into the match flow');
+}
+
+// ------------------------------------------------------------- 12. LOCKER TABS
+// The dev ask this round: "make the changes to the player and be able to see
+// them immediately as you click the buttons". The proof is that the SAME
+// canvas node survives an equip — a remount would hand back a fresh element
+// (and a fresh GL context) and the change would arrive a beat late.
+async function lockerTabsScenario(page) {
+  console.log('\n--- 12: LOCKER TABS ---');
+  await page.goto(`${BASE}/?nosplash&go=menu`, { waitUntil: 'domcontentloaded' });
+  await page.evaluate(() => localStorage.setItem('skk-save-v1', JSON.stringify({
+    tutorialPlayed: true, gearSeen: true, 'gear.unlocked': ['kit-blackout'],
+  })));
+  await page.goto(`${BASE}/?nosplash&go=locker&e2e`, { waitUntil: 'domcontentloaded' });
+  const tabs = await poll(page, () => {
+    const bar = [...document.querySelectorAll('.locker-tab')];
+    return bar.length === 4 ? bar.map((b) => b.childNodes[0].textContent.trim()) : null;
+  }, 20000, 'locker tabs');
+  if (!ok(!!tabs, `the catalog is four tabs (${tabs?.join(' · ') ?? 'never rendered'})`)) return;
+  ok(tabs.join(',') === 'KICKS,TAUNTS,CLEATS,KITS', `the tab order is KICKS · TAUNTS · CLEATS · KITS (${tabs.join(',')})`);
+
+  const tapTab = (label) => page.evaluate((l) => {
+    const b = [...document.querySelectorAll('.locker-tab')].find((x) => x.childNodes[0].textContent.trim() === l);
+    b?.dispatchEvent(new Event('pointerdown'));
+    return !!b;
+  }, label);
+  const tapChip = (name) => page.evaluate((n) => {
+    const c = [...document.querySelectorAll('.locker-chip')].find((x) => x.textContent.trim().startsWith(n));
+    c?.dispatchEvent(new Event('pointerdown'));
+    return !!c;
+  }, name);
+  const chipState = (name) => page.evaluate((n) => {
+    const c = [...document.querySelectorAll('.locker-chip')].find((x) => x.textContent.trim().startsWith(n));
+    return c ? { on: c.classList.contains('on'), just: c.classList.contains('just'), dark: c.classList.contains('dark') } : null;
+  }, name);
+
+  // stamp the live canvas so a remount is detectable — a replaced node loses it
+  await page.evaluate(() => { document.querySelector('canvas.locker-preview').__e2eTag = 'pinned'; });
+  ok(await tapTab('KITS'), 'the KITS tab is on the bar');
+  ok(await tapChip('BLACKOUT KIT'), 'the unlocked BLACKOUT KIT chip is there and tappable');
+  const kitCap = await poll(page, () => {
+    const cap = document.querySelector('.locker-stage-cap')?.textContent ?? '';
+    return cap.includes('BLACKOUT KIT') ? cap : null;
+  }, 6000, 'kit caption');
+  ok(!!kitCap, `the caption names the equipped kit (${kitCap ?? 'unchanged'})`);
+  ok(await page.evaluate(() => document.querySelector('canvas.locker-preview')?.__e2eTag === 'pinned'),
+    'the turntable canvas is the SAME node across an equip — no remount, no context churn');
+  const kitChip = await chipState('BLACKOUT KIT');
+  ok(kitChip?.on === true, 'the tapped kit reads as equipped');
+  ok(kitChip?.just === true, 'the equipped chip pulses so the tap is felt');
+  ok(kitChip?.dark === true, 'near-black gear is flagged .dark so its equipped label stays readable');
+
+  const capBefore = await page.evaluate(() => document.querySelector('.locker-stage-cap').textContent);
+  ok(await tapTab('TAUNTS'), 'the TAUNTS tab is on the bar');
+  ok(await tapChip('THE POINT'), 'THE POINT is owned day one and tappable');
+  const tauntChip = await chipState('THE POINT');
+  ok(tauntChip?.on === true && tauntChip?.just === true, 'the tapped taunt reads as equipped and pulses');
+  const capAfter = await page.evaluate(() => document.querySelector('.locker-stage-cap').textContent);
+  ok(capAfter === capBefore, `equipping a taunt leaves the kick/cleats/kit loadout line alone (${capAfter})`);
+  ok(await page.evaluate(() => document.querySelector('canvas.locker-preview')?.__e2eTag === 'pinned'),
+    'the taunt plays on the SAME turntable too');
+  skip("the turntable's animator name — this round exposes nothing new and the LockerPreview lives inside the screen closure, so a taunt PLAYING on the captain is only observable by eye (covered in the real-play pass)");
+}
+
+// ------------------------------------------------------------ 13. KICK CONTACT
+// "the new kicks must be timed so the kick actually hits the ball". The ball's
+// approach glide is the measurable: it must be ~all the way into the foot when
+// the launch fires, and the foot it rides must be the one the clip swings.
+async function kickContactScenario(page) {
+  console.log('\n--- 13: KICK CONTACT ---');
+  await boot(page, 'match&nosplash&nointro');
+  if (!ok(!!(await poll(page, () => window.__skk.phase === 'PITCH' && !window.__skk.walkup, 30000, 'first pitch')),
+    'the first at-bat reaches a live pitch')) return;
+  const armed = await page.evaluate(() => {
+    const s = window.__skk;
+    // ARMADA: a LEFT-footed pack-k kick — the exact case the old hard-coded
+    // RightFoot lookup got wrong
+    s.power.gear = { id: 'kick-armada', name: 'ARMADA', clip: 'kickArmada', mods: { powerMult: 1.38, curl: 1.3 } };
+    s.power.charges = 1; s.power.armed = false; s.refreshHud();
+    document.querySelector('.special-btn').dispatchEvent(new Event('pointerdown'));
+    window.__lastFrac = null; window.__lastSwing = null; window.__footDist = null;
+    // PER-FRAME probe. onKickContact can't be wrapped for this: launchNow()
+    // nulls _kickApproach BEFORE calling it. matchScene.update() is frame
+    // callback #1 (registered in its constructor), so this runs after it and
+    // the LAST sample is the frame before the launch — the fraction the ball
+    // had actually travelled into the foot.
+    s.engine.onFrame(() => {
+      const a = s._kickApproach;
+      if (!a || !a.dur) return;
+      window.__lastFrac = a.t / a.dur;
+      window.__lastSwing = s.kicker.animator.name;
+      const foot = s.kickFootPos();
+      if (!foot) return;
+      let L = null, R = null;
+      s.kicker.group.traverse((o) => {
+        if (!o.isBone) return;
+        if (!L && /LeftFoot/i.test(o.name)) L = o;
+        if (!R && /RightFoot/i.test(o.name)) R = o;
+      });
+      if (L && R) window.__footDist = [foot.distanceTo(L.getWorldPosition(foot.clone())), foot.distanceTo(R.getWorldPosition(foot.clone()))];
+    });
+    return { armed: s.power.armed, hasClip: !!s.kicker.animator.hasClip('kickArmada') };
+  });
+  ok(armed.hasClip === true, 'the ARMADA clip is loaded on the kicker (extras pack k)');
+  if (!ok(armed.armed === true, 'the crown arms with ARMADA equipped')) return;
+  // Release AT the arrival stamp: attemptKick reads errMs = (tapTime -
+  // pitchArrival) * 1000, so handing it pitchArrival is a PERFECT release —
+  // and lining the kicker up under the ball zeroes the align term. A mistimed
+  // probe would whiff, and a whiff never builds an approach to measure.
+  const fired = await poll(page, () => {
+    const s = window.__skk;
+    if (s.phase !== 'PITCH' || s.kicked || !Number.isFinite(s.pitchArrival)) return null;
+    if (!(s.ball.pos.z > -3)) return null; // the pitch is close — the flick would be real
+    s.kicker.group.position.x = s.ball.pos.x;
+    s._kickerPrevX = s.ball.pos.x;
+    s.attemptKick({ align: true, flick: { risePx: 120, durMs: 140, driftPx: 0 } }, s.pitchArrival);
+    return s.phase;
+  }, 25000, 'kick fired');
+  ok(fired === 'KICK_ANIM', `the armed swing starts on a well-timed release (phase ${fired})`);
+  const away = await poll(page, () => (['LIVE', 'FOUL'].includes(window.__skk.phase)
+    ? { frac: window.__lastFrac, swing: window.__lastSwing, dist: window.__footDist, phase: window.__skk.phase }
+    : null), 25000, 'ball away');
+  ok(!!away, `the ball leaves the foot (phase ${away?.phase ?? 'stuck in KICK_ANIM'})`);
+  ok(away?.frac >= 0.95, `the launch fires AT the clip's contact frame — approach ${away?.frac?.toFixed(3) ?? 'never sampled'} (needs ≥ 0.95)`);
+  ok(away?.swing === 'kickArmada', `the swing on screen is the equipped move, not the stock kick (${away?.swing})`);
+  ok(!!away?.dist && away.dist[0] < away.dist[1],
+    `the ball rides ARMADA's LEFT foot (LeftFoot ${away?.dist?.[0]?.toFixed(3) ?? '?'} m vs RightFoot ${away?.dist?.[1]?.toFixed(3) ?? '?'} m)`);
+}
+
+// ------------------------------------------------------------ 14. WALK-UP CAM
+// Every frame of the walk-up is recorded, then read back — the camera is a
+// spring, so a single end-state sample would hide a shot that lagged or never
+// cut. The kick / pitch-select marks are exact (0.05 m) because endWalkup CUTS.
+async function walkupCamScenario(page) {
+  console.log('\n--- 14: WALK-UP CAM ---');
+  await boot(page, 'match&nosplash&nointro');
+  await page.evaluate(() => {
+    const s = window.__skk;
+    window.__camLog = [];  // [walk-up phase, shot, cam x, y, z, kicker z]
+    s.engine.onFrame(() => {
+      const c = s.engine.camera.position;
+      window.__camLog.push([s.walkup?.phase ?? null, s.camDir.shot, c.x, c.y, c.z, s.kicker.group.position.z]);
+    });
+  });
+  if (!ok(!!(await poll(page, () => ['PITCH', 'PITCH_SELECT'].includes(window.__skk.phase) && !window.__skk.walkup, 30000, 'first pitch')),
+    'the first walk-up runs out into the pitch')) return;
+  const log = await page.evaluate(() => window.__camLog);
+  const walk = log.filter((r) => r[0] === 'walk');
+  const taunt = log.filter((r) => r[0] === 'taunt');
+  ok(walk.length > 4 && walk.every((r) => r[1] === 'walkupDolly'),
+    `the walk owns the walkupDolly shot for all ${walk.length} frames (${[...new Set(walk.map((r) => r[1]))].join(',') || 'none'})`);
+  const drift = walk.length ? Math.max(...walk.map((r) => Math.abs(r[4] - (r[5] + 2.8)))) : NaN;
+  ok(drift < 0.6, `the dolly rides 2.8 m off the kicker down the whole walk (worst miss ${Number.isFinite(drift) ? drift.toFixed(3) : '?'} m)`);
+  ok(taunt.length > 4 && taunt.every((r) => r[1] === 'walkupTaunt'),
+    `the taunt owns the walkupTaunt push-in for all ${taunt.length} frames (${[...new Set(taunt.map((r) => r[1]))].join(',') || 'none'})`);
+  const kickCam = await page.evaluate(() => {
+    const c = window.__skk.engine.camera.position;
+    return { x: c.x, y: c.y, z: c.z, shot: window.__skk.camDir.shot };
+  });
+  ok(kickCam.shot === 'kick', `the walk-up hands the lens straight back to the kick shot (${kickCam.shot})`);
+  ok(near(kickCam.x, 0, 0.05) && near(kickCam.y, 3.4, 0.05) && near(kickCam.z, 8, 0.05),
+    `the input-critical kick cam is back EXACTLY on its mark (${kickCam.x.toFixed(3)}, ${kickCam.y.toFixed(3)}, ${kickCam.z.toFixed(3)})`);
+
+  // ---- the CPU kicker gets the same package, and lands on the PITCH picker cam
+  await page.evaluate(() => {
+    const s = window.__skk;
+    s.clearTimers();
+    s.playerSide = 'home';   // hand the bat to the CPU without playing three outs
+    window.__camLog.length = 0;
+    s.nextAtBat();
+  });
+  const reached = await poll(page, () => (window.__skk.phase === 'PITCH_SELECT' && !window.__skk.walkup ? true : null), 30000, 'cpu pitch select');
+  ok(!!reached, 'the CPU at-bat walks up and hands you the pitch picker');
+  const cpu = await page.evaluate(() => window.__camLog);
+  const cWalk = cpu.filter((r) => r[0] === 'walk');
+  const cTaunt = cpu.filter((r) => r[0] === 'taunt');
+  ok(cWalk.length > 4 && cWalk.every((r) => r[1] === 'walkupDolly'), `the CPU walk gets the dolly too (${cWalk.length} frames)`);
+  ok(cTaunt.length > 4 && cTaunt.every((r) => r[1] === 'walkupTaunt'), `the CPU taunt gets the push-in too (${cTaunt.length} frames)`);
+  const pitchCam = await page.evaluate(() => {
+    const c = window.__skk.engine.camera.position;
+    return { x: c.x, y: c.y, z: c.z, shot: window.__skk.camDir.shot };
+  });
+  ok(pitchCam.shot === 'pitchSelect', `the CPU walk-up cuts to the pitch-select shot (${pitchCam.shot})`);
+  ok(near(pitchCam.x, 0, 0.05) && near(pitchCam.y, 5, 0.05) && near(pitchCam.z, -19, 0.05),
+    `the pitch-select cam is back EXACTLY on its mark (${pitchCam.x.toFixed(3)}, ${pitchCam.y.toFixed(3)}, ${pitchCam.z.toFixed(3)})`);
+  await page.evaluate(() => { window.__skk.playerSide = 'away'; });
+}
+
 // fail FAST and legibly when the dev server isn't up, instead of ten scenarios
 // each grinding through a 30s boot timeout
 try {
@@ -473,8 +732,18 @@ const scenarios = [
   ['DANCE BAG', danceScenario],
   ['MSAA', msaaScenario],
   ['LOCKER', lockerScenario],
+  // 11-14 each own their page: 11/12 write a save BEFORE the boot that reads
+  // it, 13/14 need a match observed from its very first frame.
+  ['GEAR UP', gearUpScenario],
+  ['LOCKER TABS', lockerTabsScenario],
+  ['KICK CONTACT', kickContactScenario],
+  ['WALK-UP CAM', walkupCamScenario],
 ];
+// SKK_ONLY="KICK CONTACT,WALK-UP CAM" runs a subset while iterating on one
+// scenario (the full pass is ~8 min). CI/verification always runs them all.
+const only = (process.env.SKK_ONLY ?? '').split(',').map((s) => s.trim()).filter(Boolean);
 for (const [name, fn] of scenarios) {
+  if (only.length && !only.includes(name)) continue;
   try { await fn(page); }
   catch (e) { console.log(`FAIL  <${name}> threw: ${e.message}`); failures += 1; }
 }
