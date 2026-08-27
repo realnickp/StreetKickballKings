@@ -1331,9 +1331,14 @@ body { display: flex; align-items: center; justify-content: center; }
 .mode-card.locker-card { border-color: rgba(232,121,46,.55); color: var(--ink); cursor: pointer; }
 
 /* THE LOCKER / GEAR UP — turntable pinned, one tab at a time */
-.locker-screen { overflow: hidden; gap: 6px; }
+/* overflow-y auto is the SAFETY NET, not the plan: the stage below flexes so
+   the screen fits a short phone (375x667) without it. If a locale's longer
+   strings ever do overflow, the player can still reach PLAY. */
+.locker-screen { overflow-y: auto; gap: 6px; }
 .locker-stage { position: relative; display:flex; flex-direction:column; align-items:center; gap:4px; flex: 0 0 auto; }
-.locker-preview { width: min(58vw, 240px); height: min(40vh, 280px); border-radius: 14px; background: radial-gradient(ellipse at 50% 80%, rgba(245,179,18,.18), transparent 60%); }
+/* clamp, not min(): on a 667px-tall phone the turntable gives height back to
+   the tabs, chips and PLAY instead of holding a fixed 280px */
+.locker-preview { width: clamp(140px, 50vw, 240px); height: clamp(150px, 34vh, 280px); border-radius: 14px; background: radial-gradient(ellipse at 50% 80%, rgba(245,179,18,.18), transparent 60%); }
 .locker-stage-cap { font-family: var(--sans); font-weight: 900; font-size: 11px; letter-spacing: .6px; color: var(--gold); max-width: 92vw; text-align: center; }
 .locker-free { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); font-family: var(--sans); font-weight: 900; font-size: 12px; letter-spacing: .8px; color: #0b0d12; background: var(--gold); border-radius: 999px; padding: 6px 14px; animation: chipPulse 1s ease-in-out infinite; white-space: nowrap; }
 .locker-free.hidden { display: none; }
@@ -1356,6 +1361,9 @@ body { display: flex; align-items: center; justify-content: center; }
 .locker-career { color: var(--muted); font-size: 10px; letter-spacing: .6px; margin: 2px 0; text-align: center; }
 .locker-actions { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: auto; padding-bottom: env(safe-area-inset-bottom); }
 .locker-play { width: min(80vw, 320px); }
+/* GEAR UP is the last step before the whistle — lifetime stats are noise there,
+   and the row they cost is the row PLAY needs on a short phone. */
+.locker-screen.gear-up .locker-career { display: none; }
 .locker-back { background: none; border: none; color: var(--muted); font-family: var(--sans); font-weight: 700; letter-spacing: 1px; text-decoration: underline; }
 
 /* element teach card: full-screen "know your block" intro (Know It pillar) */

@@ -41,6 +41,7 @@ export class LockerPreview {
     const token = ++this.token;
     const next = await buildCaptainPreview(team, uniformHex, gear);
     if (token !== this.token) return; // a newer equip won the race
+    if (!this.running) return;        // ...or the screen unmounted while it loaded
     if (this.char) this.scene.remove(this.char.group);
     this.char = next;
     this.char.group.position.set(0, 0, 0);
@@ -56,6 +57,7 @@ export class LockerPreview {
    *  matchScene's `faceYaw = atan2(dir.x, dir.z)`) and the camera sits at
    *  +z 4.2 — so the move is performed INTO the lens, not away from it. */
   playMove(clip) {
+    if (!this.running) return false; // torn down — nothing to play on
     const a = this.char?.animator;
     if (!a?.hasClip?.(clip)) return false;
     this.spinning = false;
@@ -71,6 +73,10 @@ export class LockerPreview {
   // no longer remount (2026-08-27), but menu→Locker→menu round trips still would,
   // so forceContextLoss() hands this one back immediately.
   destroy() {
+    // bump the token FIRST: a buildCaptainPreview() still in flight resolves
+    // after this and would otherwise pass the race guard and add a fully-loaded
+    // character to a scene nobody renders — orphaning its GPU buffers.
+    this.token += 1;
     this.running = false;
     this.renderer.dispose();
     this.renderer.forceContextLoss?.();
