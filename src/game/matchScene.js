@@ -5,7 +5,7 @@
 // exact field outcome via applyOutcome().
 import * as THREE from 'three';
 import { MatchEngine } from './matchState.js';
-import { judgeKick, launchParams, powerFromError, isHrEligible, flickShape, flickSteerDeg, FLICK, aiSwingStartS, safetyLaunchDelayS, footBoneRegex } from './kickTiming.js';
+import { judgeKick, crownJudge, launchParams, powerFromError, isHrEligible, flickShape, flickSteerDeg, FLICK, aiSwingStartS, safetyLaunchDelayS, footBoneRegex } from './kickTiming.js';
 import { mashSpeed, humanRunSpeed, RunnerSim } from './baseRunning.js';
 import { resolveBaseThrow, resolvePeg } from './throwing.js';
 import { SpecialMeter } from './specialMoves.js';
@@ -18,6 +18,7 @@ import { PITCH_PATTERNS, PITCH_FAMILIES, pickVariant, scoreTrace } from './pitch
 import { igniteBall, douseBall, makeGlowTexture } from '../cinematics/fx.js';
 import { ReplayRecorder } from '../cinematics/replay.js';
 import { Ball } from './ball.js';
+import { isFoulLanding } from './foulRule.js';
 import { CityElements } from './cityElements.js';
 import { CrewHeat } from './crewHeat.js';
 import { CameraDirector, SHOTS } from './cameraDirector.js';
@@ -1122,7 +1123,7 @@ export class MatchScene {
       this.strike('WHIFF!');
       return;
     }
-    const judged = judgeKick(Math.sign(errMs || 1) * effErr, this.tuning);
+    let judged = judgeKick(Math.sign(errMs || 1) * effErr, this.tuning);
 
     let powerMult = 1;
     this.specialKickGear = null;
@@ -1137,6 +1138,12 @@ export class MatchScene {
           this.hud.call(`${sp.gear.name}!`, 'crowned');
         }
         this.bus.emit('cine:special', { label: sp.label, kicker: this.kicker });
+        // A CONSUMED CROWN IS NEVER A DRIBBLER (dev, 2026-08-27: "I just did a
+        // crowned kick and it was a normal kick"). `effErr` folds alignment into
+        // the timing error, so good timing while standing ~0.8 m off the ball
+        // judged FOUL — the weak-contact path then overrode the floored crown
+        // launch and burned the meter on a nothing kick. Floor the judge at OK.
+        judged = crownJudge(judged, this.tuning);
       }
     }
     // crew on fire: every kick is juiced while the bar burns
@@ -1341,26 +1348,34 @@ export class MatchScene {
   }
 
   onKickContact(judged, launch) {
-    if (judged.quality === 'FOUL') {
-      // weak mistimed contact dribbles foul (the contact beat began at tap)
-      this.ball.launch(launch.speed * 0.5, 70, (Math.random() - 0.5) * 90);
-      this.bus.emit('sfx', 'kick');
-      this.phase = 'FOUL';
-      this.ballCamUntil = this.elapsed + 1.0;
-      this.after(0.9, () => this.foulBall('FOUL!'));
-      return;
+    // SHORT KICKS ARE LIVE (dev rule, 2026-08-27): "foul balls should only be
+    // called foul if it goes outside the boundaries, short kicks should not be
+    // called fouls." Weak mistimed contact is no longer an automatic foul —
+    // it squirts off the foot as a slow grounder and falls through to the SAME
+    // landing test as every other kick, so it's foul only if it LANDS foul.
+    // (kickWasSpecial can't reach here — crownJudge floors a crown swing at OK —
+    // but a super kick must never dribble, so the guard is explicit.)
+    const weakContact = judged.quality === 'FOUL' && !this.kickWasSpecial;
+    if (weakContact) {
+      launch = {
+        speed: launch.speed * 0.45,
+        loftDeg: 14,
+        directionDeg: launch.directionDeg + (Math.random() - 0.5) * 50,
+      };
     }
 
     this.ball.launch(launch.speed, launch.loftDeg, launch.directionDeg);
     if (this.heat.onFire(this.match.kickingSide())) igniteBall(this.ball); // burning crew = burning ball
-    this.engine.shake(judged.quality === 'PERFECT' ? 0.55 : 0.25);
+    if (weakContact) this.engine.shake(0.15);
+    else this.engine.shake(judged.quality === 'PERFECT' ? 0.55 : 0.25);
     this.bus.emit('sfx', judged.quality === 'PERFECT' ? 'crush' : 'kick');
     this.field.crowdEnergy = judged.quality === 'PERFECT' ? 1 : 0.5;
 
     this.pred = Ball.predictLanding(this.ball.pos.clone(), launch.speed, launch.loftDeg, launch.directionDeg);
     const lp = this.pred.point;
-    // REAL foul: lands behind home, or outside the 45° foul lines (|x| > -z)
-    if (lp.z > -1.0 || Math.abs(lp.x) > -lp.z + 1.0) {
+    // The ONLY foul call: behind the plate line, or outside the 45° foul lines
+    // (see src/game/foulRule.js — a dribbler that dies fair stays in play).
+    if (isFoulLanding(lp)) {
       this.phase = 'FOUL';
       this.ballCamUntil = this.elapsed + 1.4;
       this.after(Math.min(1.4, Math.max(0.5, this.pred.t * 0.85)), () => this.foulBall('FOUL BALL!'));

@@ -145,3 +145,19 @@ export function safetyLaunchDelayS(holdS, timeScale) {
 export function footBoneRegex(foot) {
   return foot === 'L' ? /LeftFoot|LeftToe/i : /RightFoot|RightToe/i;
 }
+
+/**
+ * A CONSUMED CROWN IS NEVER A DRIBBLER (dev, 2026-08-27: "I just did a crowned
+ * kick and it was a normal kick"). The judge runs on an EFFECTIVE error —
+ * timing plus alignment (1 m off ≈ 175 ms) — so a well-timed super kick taken
+ * ~0.8 m off the ball judged 'FOUL' and the weak-contact path overrode the
+ * floored crown launch. Floor the judge at OK so `launchParams` still gets a
+ * real swing. A whiff (effective error past the FOUL band) never reaches here —
+ * it strikes and keeps the crown armed.
+ * @param {ReturnType<typeof judgeKick>} judged
+ * @returns {ReturnType<typeof judgeKick>} the promoted judge (same object when nothing to promote)
+ */
+export function crownJudge(judged, tuning) {
+  if (judged.quality !== 'FOUL') return judged;
+  return { ...judged, quality: 'OK', power: tuning.kick.power.OK };
+}
