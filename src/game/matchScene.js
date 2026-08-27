@@ -20,7 +20,7 @@ import { ReplayRecorder } from '../cinematics/replay.js';
 import { Ball } from './ball.js';
 import { CityElements } from './cityElements.js';
 import { CrewHeat } from './crewHeat.js';
-import { CameraDirector } from './cameraDirector.js';
+import { CameraDirector, SHOTS } from './cameraDirector.js';
 import { buildField, FIELD_LAYOUT } from './field.js';
 import { pickDance, pickDances } from './animExtras.js';
 import { WALKUP, walkS, pickTaunt, stealAllowed } from './walkup.js';
@@ -632,6 +632,8 @@ export class MatchScene {
       pickleA: this.pickleCam ? this.bagPos(this.pickleCam.fromBase) : null,
       pickleB: this.pickleCam ? this.bagPos(this.pickleCam.targetBase) : null,
       pickleRunnerPos: this.pickleCam ? this.pickleCam.char.group.position : null,
+      walkupPhase: this.walkup?.phase ?? null,
+      walkupT: this.walkup?.phase === 'taunt' ? Math.max(0, Math.min(1, 1 - (this.walkup.until - this.elapsed) / WALKUP.tauntS)) : 0,
     };
   }
 
@@ -813,7 +815,7 @@ export class MatchScene {
     this.faceTo(k, new THREE.Vector3(WALKUP.plateX, 0, WALKUP.z), true);
     k.animator.play('walk', { speedFactor: 1 });
     const taunt = pickTaunt({ isPlayer, equipped: this.playerGear?.taunt ?? null });
-    this.walkup = { char: k, phase: 'walk', until: this.elapsed + walkS(), taunt: k.animator.hasClip?.(taunt) ? taunt : null, isPlayer };
+    this.walkup = { char: k, phase: 'walk', until: this.elapsed + walkS(), taunt: k.animator.hasClip?.(taunt) ? taunt : null, isPlayer, cut: true };
     this.bus.emit('sfx', 'stomp');
     if (this.cleatRing && isPlayer) { this.cleatRing.visible = true; }
   }
@@ -840,7 +842,9 @@ export class MatchScene {
         if (!w.taunt) return this.endWalkup(false);
         w.phase = 'taunt';
         w.until = this.elapsed + WALKUP.tauntS;
-        this.faceCam(k);
+        w.cut = true;
+        const shot = SHOTS.walkupTaunt(this.camCtx());
+        k.faceYaw = this.yawTo(k.group.position, shot.pos);
         k.animator.play(w.taunt, { onDone: () => { if (this.walkup === w) this.endWalkup(false); } });
         this.bus.emit('sfx', w.isPlayer ? 'crowd-cheer' : 'boo');
         this.field.crowdEnergy = Math.max(this.field.crowdEnergy ?? 0, 0.7);
@@ -854,6 +858,7 @@ export class MatchScene {
     if (!this.walkup) return;
     this.walkup = null;
     this.placeKickerAtPlate();
+    this.camDir.request(this.camTarget === CAM.pitch ? 'pitchSelect' : 'kick', this.camCtx(), { cut: true });
     this.after(skipped ? WALKUP.serveDelayS : 0.2, () => this.serve());
   }
 
@@ -4250,6 +4255,9 @@ export class MatchScene {
           deepBall: dist > this.fenceM * 0.55,
           runnerHome: this.runners.some((r) => r.state === 'running' && r.targetBase === 3),
         }), this.camCtx());
+      } else if (this.walkup) {
+        this.camDir.request(this.walkup.phase === 'taunt' ? 'walkupTaunt' : 'walkupDolly', this.camCtx(), { cut: this.walkup.cut });
+        this.walkup.cut = false;
       } else if (this.camTarget === CAM.pitch) {
         this.camDir.request('pitchSelect', this.camCtx());
       } else {

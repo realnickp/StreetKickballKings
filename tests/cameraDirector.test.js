@@ -64,4 +64,23 @@ describe('CameraDirector', () => {
     d.request('nope', {});
     expect(() => d.update(0.016, {})).not.toThrow();
   });
+
+  it('walk-up dolly rides beside the kicker, low, leading the walk', () => {
+    const k = new THREE.Vector3(-2.0, 0, 0.4);
+    const s = SHOTS.walkupDolly(ctx({ kickerPos: k }));
+    // float noise: 0.4 + 2.8 = 3.1999999999999997 in JS, not 3.2 exactly —
+    // toBeCloseTo per component instead of toEqual on the array.
+    const [px, py, pz] = s.pos.toArray();
+    expect(px).toBeCloseTo(-2.6);
+    expect(py).toBeCloseTo(1.1);
+    expect(pz).toBeCloseTo(3.2);
+    expect(s.look.toArray()).toEqual([-1.0, 1.2, 0.4]);
+    expect(s.fovScale).toBe(0.8);
+  });
+  it('walk-up taunt pushes in from 3.2 m to 2.4 m over the taunt', () => {
+    const k = new THREE.Vector3(-0.9, 0, 0.4);
+    expect(SHOTS.walkupTaunt(ctx({ kickerPos: k, walkupT: 0 })).pos.toArray()).toEqual([0, 1.35, 3.6]);
+    expect(SHOTS.walkupTaunt(ctx({ kickerPos: k, walkupT: 1 })).pos.toArray()).toEqual([0, 1.35, 2.8]);
+    expect(SHOTS.walkupTaunt(ctx({ kickerPos: k, walkupT: 1 })).look.toArray()).toEqual([-0.9, 1.25, 0.4]);
+  });
 });

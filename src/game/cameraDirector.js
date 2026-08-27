@@ -14,6 +14,19 @@ export const SHOTS = {
   kick: () => ({ pos: V(0, 3.4, 8.0), look: V(0, 1.2, -12), fovScale: 1, stiffness: 30 }),
   pitchSelect: () => ({ pos: V(0, 5.0, -19.0), look: V(0, 1.1, -1.5), fovScale: 1, stiffness: 30 }),
 
+  // WALK-UP (dev, 2026-08-27: "more cinematic ... highlights the player as they
+  // walk to the plate"): a low side dolly beside the kicker leading the walk,
+  // then a front push-in for the taunt. Hard cuts between them and back to kick.
+  walkupDolly: (c) => {
+    const k = c.kickerPos ?? V(-3.4, 0, 0.4);
+    return { pos: V(k.x - 0.6, 1.1, k.z + 2.8), look: V(k.x + 1.0, 1.2, k.z), fovScale: 0.8, stiffness: 40 };
+  },
+  walkupTaunt: (c) => {
+    const k = c.kickerPos ?? V(-0.9, 0, 0.4);
+    const t = Math.max(0, Math.min(1, c.walkupT ?? 0));
+    return { pos: V(k.x + 0.9, 1.35, k.z + 3.2 - 0.8 * t), look: V(k.x, 1.25, k.z), fovScale: 0.7, stiffness: 20 };
+  },
+
   // hard CUT on contact: low hero cam beside the plate, looking up the lane
   contact: (c) => {
     const k = c.kickerPos ?? V(0, 0, 0.4);
