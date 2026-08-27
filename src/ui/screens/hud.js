@@ -11,7 +11,7 @@ export const ELEMENT_ICONS = {
 };
 
 export class Hud {
-  constructor(root, { homeAbbr, awayAbbr }) {
+  constructor(root, { homeAbbr, awayAbbr, homeColor = null, awayColor = null }) {
     this.el = document.createElement('div');
     this.el.className = 'hud';
     this.el.innerHTML = `
@@ -74,6 +74,10 @@ export class Hud {
 
     this.el.querySelector('[data-abbr-away]').textContent = awayAbbr;
     this.el.querySelector('[data-abbr-home]').textContent = homeAbbr;
+    // broadcast bug: each abbr sits on a rule in ITS OWN team colour
+    const teamCells = this.el.querySelectorAll('.score-bug .team');
+    if (awayColor) teamCells[0]?.style.setProperty('--tc', awayColor);
+    if (homeColor) teamCells[1]?.style.setProperty('--tc', homeColor);
 
     this.scoreEls = {
       away: this.el.querySelector('[data-away]'),
@@ -283,7 +287,7 @@ export class Hud {
     this.hideSkipChip();
     const b = document.createElement('button');
     b.className = 'skip-chip';
-    b.textContent = 'SKIP ⏭';
+    b.textContent = 'SKIP ›';
     b.addEventListener('pointerdown', (e) => { e.stopPropagation(); this._tap(); onTap?.(); });
     this.el.appendChild(b);
     this._skipChip = b;
@@ -541,7 +545,7 @@ export class Hud {
     // mini = the NOW KICKING lower-third PLATE: no box, no tag, no stat rows —
     // it sat over the players walking out (dev, 2026-08-27: "too big and
     // intrusive ... covers up the players as they're walking out")
-    card.className = mini ? 'walkout-card mini plate' : 'walkout-card';
+    card.className = mini ? 'walkout-card mini' : 'walkout-card';
     if (color) card.style.setProperty('--c1', color);
     const best = Object.entries(stats ?? {})
       .sort((a, b) => b[1] - a[1]).slice(0, 2);

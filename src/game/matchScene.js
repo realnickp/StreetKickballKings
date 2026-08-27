@@ -137,6 +137,8 @@ export class MatchScene {
     this.hud = new Hud(hudRoot, {
       homeAbbr: teams.home.name.split(' ').pop().slice(0, 4).toUpperCase(),
       awayAbbr: teams.away.name.split(' ').pop().slice(0, 4).toUpperCase(),
+      homeColor: teams.home.colors?.primary ?? null,
+      awayColor: teams.away.colors?.primary ?? null,
     });
 
     this.chars = chars;
