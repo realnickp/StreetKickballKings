@@ -23,11 +23,15 @@ export class LockerPreview {
     this.camera = new THREE.PerspectiveCamera(30, (canvas.clientWidth || 220) / (canvas.clientHeight || 260), 0.1, 50);
     this.camera.position.set(0, 1.15, 4.2); this.camera.lookAt(0, 1.0, 0);
     this.char = null; this.token = 0; this.clock = new THREE.Clock(); this.running = true;
+    this.spinning = true; // false while a tapped move plays, so it faces the lens
     const loop = () => {
       if (!this.running) return;
       requestAnimationFrame(loop);
       const dt = Math.min(this.clock.getDelta(), 0.05);
-      if (this.char) { this.char.group.rotation.y += dt * 0.6; this.char.animator?.update?.(dt); }
+      if (this.char) {
+        if (this.spinning) this.char.group.rotation.y += dt * 0.6;
+        this.char.animator?.update?.(dt);
+      }
       this.renderer.render(this.scene, this.camera);
     };
     loop();
@@ -41,14 +45,31 @@ export class LockerPreview {
     this.char = next;
     this.char.group.position.set(0, 0, 0);
     this.char.animator?.play?.('idle');
+    this.spinning = true; // a rebuild always goes back to the turntable
     this.scene.add(this.char.group);
   }
 
+  /** Play an owned kick/taunt on the turntable (one-shot → back to idle).
+   *  Returns false when the clip isn't loaded yet (the extras packs stream in
+   *  behind the model) so the caller can fall back to a plain rebuild.
+   *  Squares the captain up at yaw 0 — the character's forward is +z (see
+   *  matchScene's `faceYaw = atan2(dir.x, dir.z)`) and the camera sits at
+   *  +z 4.2 — so the move is performed INTO the lens, not away from it. */
+  playMove(clip) {
+    const a = this.char?.animator;
+    if (!a?.hasClip?.(clip)) return false;
+    this.spinning = false;
+    this.char.group.rotation.y = 0;
+    a.play(clip, { onDone: () => { if (this.char?.animator === a) { a.play('idle'); this.spinning = true; } } });
+    return true;
+  }
+
   // dispose() frees three's resources but leaves the GL context alive until GC.
-  // The Locker re-mounts on EVERY equip tap, so those pile up and Chrome evicts
-  // the oldest context to stay under its per-page cap — which is the MAIN game
-  // canvas. Verified 2026-08-25: ~15 equip taps and #game-canvas went dead.
-  // forceContextLoss() hands this one back immediately.
+  // Contexts pile up and Chrome evicts the oldest to stay under its per-page cap
+  // — which is the MAIN game canvas. Verified 2026-08-25, back when the Locker
+  // re-mounted on every equip tap: ~15 taps and #game-canvas went dead. Equips
+  // no longer remount (2026-08-27), but menu→Locker→menu round trips still would,
+  // so forceContextLoss() hands this one back immediately.
   destroy() {
     this.running = false;
     this.renderer.dispose();

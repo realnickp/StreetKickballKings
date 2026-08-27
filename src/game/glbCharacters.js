@@ -12,6 +12,8 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { MocapAnimator, loadMocapClips } from './mocapAnimator.js';
+// no cycle: animExtras imports mocapAnimator only, never this module
+import { loadExtrasFor } from './animExtras.js';
 
 const loader = new GLTFLoader();
 const gltfCache = new Map();
@@ -554,9 +556,15 @@ export async function buildTeamCharsGlb(team, uniformColor, gear = null) {
  *  what you field. */
 export async function buildCaptainPreview(team, uniformHex, gear = null) {
   const idx = archIdxFor(team, 0);
+  const archKey = ARCHETYPES[idx].match(/arch-(\w+)\.glb/)?.[1];
   let clips = null;
-  try { clips = await loadMocapClips(`/assets/anims/mocap-${ARCHETYPES[idx].match(/arch-(\w+)\.glb/)?.[1]}.glb`); } catch { clips = null; }
+  try { clips = await loadMocapClips(`/assets/anims/mocap-${archKey}.glb`); } catch { clips = null; }
   const char = await buildGlbCharacter({ model: ARCHETYPES[idx], teamColor: uniformHex ?? team.colors?.primary, cleatHex: gear?.cleats?.hex ?? null }, { heightM: 2.05, clips });
   char.data = team.roster?.[0] ?? null;
+  // The Locker plays the EQUIPPED kick/taunt on the turntable, and those clips
+  // live in the extras packs (x, k) — not the base bake. Fire-and-forget so the
+  // captain is on screen immediately; hasClip() gates playback until they land.
+  char.archKey = clips ? archKey : null;
+  if (char.archKey) loadExtrasFor([char]);
   return char;
 }
