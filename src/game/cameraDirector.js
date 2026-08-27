@@ -27,10 +27,14 @@ export const SHOTS = {
     return { pos: V(k.x + 0.9, 1.35, k.z + 3.2 - 0.8 * t), look: V(k.x, 1.25, k.z), fovScale: 0.7, stiffness: 20 };
   },
 
-  // hard CUT on contact: low hero cam beside the plate, looking up the lane
+  // hard CUT on contact: low hero cam beside the plate, looking up the lane.
+  // TIGHTER than it was (dev, 2026-08-27: the camera "films the kicker from
+  // behind the fence") — +2.2/+3.2 put the lens out past the side-fence panel,
+  // so every contact cut shot through chain-link. +1.9/+2.4 keeps it inside
+  // the V, and clampNearHome() below is the hard backstop for every shot.
   contact: (c) => {
     const k = c.kickerPos ?? V(0, 0, 0.4);
-    return { pos: V(k.x + 2.2, 0.9, k.z + 3.2), look: V(k.x, 1.3, k.z - 6), fovScale: 0.9, stiffness: 60 };
+    return { pos: V(k.x + 1.9, 0.95, k.z + 2.4), look: V(k.x, 1.3, k.z - 6), fovScale: 0.9, stiffness: 60 };
   },
 
   // telephoto ball tracker: far back + narrow lens = background compression
@@ -116,6 +120,21 @@ export const SHOTS = {
   },
 };
 
+/**
+ * NEVER FILM THROUGH THE BACKSTOP (dev, 2026-08-27). The two side-fence
+ * panels sit at (+-7, z 2.5) rotated +-56 deg, so their chain-link sweeps
+ * x 4.2..9.8 over z -1.7..6.7 on each side. Any camera that lands out there
+ * shoots the plate through a fence. This pulls the TARGET position back to
+ * the open gap (|x| <= 3.2) whenever it strays into that z band, and leaves
+ * everything else (deep, high, centred) untouched. Mutates + returns p so it
+ * can wrap a shot target inline. Continuous by construction inside the band
+ * (|x| just rides the 3.2 wall), so a dolly never jumps sideways.
+ */
+export function clampNearHome(p) {
+  if (Math.abs(p.x) > 3.2 && p.z > -1.7 && p.z < 6.7) p.x = Math.sign(p.x) * 3.2;
+  return p;
+}
+
 /** critically damped spring toward target (no overshoot wobble, real weight) */
 function spring(current, vel, target, stiffness, dt) {
   const c = 2 * Math.sqrt(stiffness);
@@ -147,6 +166,7 @@ export class CameraDirector {
     this.shot = name;
     if (cut) {
       const t = SHOTS[name](ctx);
+      clampNearHome(t.pos); // a broadcast CUT must never land behind the fence
       this.pos.copy(t.pos); this.look.copy(t.look);
       this.posVel.set(0, 0, 0); this.lookVel.set(0, 0, 0);
       this.fov = this.baseFov * (t.fovScale ?? 1); this.fovVel = 0;
@@ -157,6 +177,7 @@ export class CameraDirector {
     const def = SHOTS[this.shot];
     if (!def) return;
     const t = def(ctx);
+    clampNearHome(t.pos); // every shot, every frame — including the walk-up dolly
     const dt = Math.min(rawDt, 0.05);
     const k = t.stiffness ?? 10;
     spring(this.pos, this.posVel, t.pos, k, dt);

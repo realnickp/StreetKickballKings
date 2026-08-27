@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { CameraDirector, SHOTS } from '../src/game/cameraDirector.js';
+import { CameraDirector, SHOTS, clampNearHome } from '../src/game/cameraDirector.js';
 
 const mkCam = () => new THREE.PerspectiveCamera(58, 0.6, 0.1, 500);
 const ctx = (over = {}) => ({
@@ -82,5 +82,15 @@ describe('CameraDirector', () => {
     expect(SHOTS.walkupTaunt(ctx({ kickerPos: k, walkupT: 0 })).pos.toArray()).toEqual([0, 1.35, 3.6]);
     expect(SHOTS.walkupTaunt(ctx({ kickerPos: k, walkupT: 1 })).pos.toArray()).toEqual([0, 1.35, 2.8]);
     expect(SHOTS.walkupTaunt(ctx({ kickerPos: k, walkupT: 1 })).look.toArray()).toEqual([-0.9, 1.25, 0.4]);
+  });
+  it('clampNearHome pulls a camera out of the side-fence V and leaves the rest alone', () => {
+    expect(clampNearHome(new THREE.Vector3(-4.0, 1.1, 3.2)).x).toBeCloseTo(-3.2);
+    expect(clampNearHome(new THREE.Vector3(4.6, 0.9, 3.6)).x).toBeCloseTo(3.2);
+    expect(clampNearHome(new THREE.Vector3(-4.0, 1.1, 8.0)).x).toBeCloseTo(-4.0);   // past the V
+    expect(clampNearHome(new THREE.Vector3(2.0, 0.9, 3.6)).x).toBeCloseTo(2.0);     // inside the gap
+  });
+  it('contact shot sits inside the V', () => {
+    const s = SHOTS.contact(ctx({ kickerPos: new THREE.Vector3(0.6, 0, 0.4) }));
+    expect(s.pos.toArray().map((v) => +v.toFixed(2))).toEqual([2.5, 0.95, 2.8]);
   });
 });

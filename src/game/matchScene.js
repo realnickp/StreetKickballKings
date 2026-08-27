@@ -2359,10 +2359,16 @@ export class MatchScene {
         if (c.animator.name !== 'run') c.animator.play('run');
         // stride reads at actual chase speed — fast chases visibly sprint
         c.animator.ctx.speedFactor = 0.7 + Math.min(1.3, (step / dt) / this.tuning.running.maxSpeedMs);
-      } else if (c.animator.name === 'run' && c !== this.chaser) {
-        // arrived — settle (includes a stood-down thrower back at his spot)
-        c.animator.play(c.hasBall ? 'holdball' : 'crouch');
-        this.faceTo(c, this.ball.pos);
+      } else {
+        if (c.animator.name === 'run' && c !== this.chaser) {
+          // arrived — settle (includes a stood-down thrower back at his spot)
+          c.animator.play(c.hasBall ? 'holdball' : 'crouch');
+        }
+        // EVERY standing fielder KEEPS TRACKING THE BALL, not just on the
+        // frame he arrives (dev, 2026-08-27: "all fielders should always be
+        // facing the direction of the ball" — the bag man was taking a throw
+        // over his shoulder). Movers keep the travel facing set above.
+        this.faceAtBall(c);
       }
     }
 
@@ -2370,6 +2376,26 @@ export class MatchScene {
       this.fielderRing.position.copy(this.chaser.group.position).setY(0.05);
     }
     if (reacted) this.handleChaserBall();
+  }
+
+  /**
+   * A waiting fielder's eyes follow the BALL. Pure math (yawTo + one assign,
+   * no allocation) so it is safe for every fielder every frame. No-op for the
+   * carrier, the chaser / player-driven fielder (the chase code aims those at
+   * the ball already) and anyone mid-throw — a wind-up owns its own aim.
+   */
+  faceAtBall(c) {
+    if (!c || c.hasBall || c === this.chaser || c === this.activeFielder) return;
+    if (c.animator?.name === 'throw') return;
+    // PITCH IN FLIGHT: the catcher squares to the MOUND instead — the ball is
+    // coming straight at him and a raw look-at whips 180 deg as it crosses.
+    const to = (this.phase === 'PITCH' && c.spot?.id === 'C') ? FIELD_LAYOUT.pitcher : this.ball.pos;
+    c.faceYaw = this.yawTo(c.group.position, to);
+  }
+
+  /** Pre-kick pass: the defense watches the pitch too (updateDefense is LIVE-only). */
+  faceWaitingFielders() {
+    for (const c of this.fieldingChars()) this.faceAtBall(c);
   }
 
   catchRadius() {
@@ -4208,6 +4234,9 @@ export class MatchScene {
     } else if (this.stealing) {
       this.updateStealRunner(dt); // pre-kick steal keeps moving during the pitch
     }
+    // the defense watches the PITCH too — updateDefense only runs once the
+    // ball is in play, so nobody was tracking it before contact.
+    if (this.phase === 'PITCH') this.faceWaitingFielders();
     if (this.phase === 'LIVE') {
       this.updateDefense(dt);
 
