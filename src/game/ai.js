@@ -12,7 +12,9 @@ export function pickPitch(tuning, rng = Math.random) {
 /**
  * Timing error (ms) an AI kicker produces at a difficulty level. A faster /
  * sharper-breaking pitch inflates the error, so good pitching actually makes
- * the CPU foul and whiff more (pitch is optional → backward compatible).
+ * the CPU produce weak contact — a live infield roller since 2026-08-27, when
+ * a short kick stopped being an automatic foul call — and whiff more (pitch is
+ * optional → backward compatible).
  */
 export function aiKickError(difficulty, tuning, pitch, rng = Math.random) {
   const ai = tuning.ai[difficulty];
@@ -20,9 +22,9 @@ export function aiKickError(difficulty, tuning, pitch, rng = Math.random) {
   // makes the CPU flail; a wobbler meatball gets crushed. Falls back to 0.5 when
   // there's no quality info (e.g. the AI's own pitches), staying backward-compatible.
   const q = Math.max(0, Math.min(1, pitch?.q ?? 0.5));
-  // A nasty pitch should mostly produce WEAK contact (foul / soft grounder), not a
-  // whiff — the CPU still kicks it, just badly. Only a SMALL extra whiff chance on
-  // top pitches keeps the occasional swing-and-miss.
+  // A nasty pitch should mostly produce WEAK contact (a soft grounder the defense
+  // has to field), not a whiff — the CPU still kicks it, just badly. Only a SMALL
+  // extra whiff chance on top pitches keeps the occasional swing-and-miss.
   const whiff = (ai.whiffChance ?? 0) + q * 0.10;
   if (rng() < whiff) {
     return (rng() < 0.5 ? -1 : 1) * (tuning.kick.okWindowMs * 1.6 + 30 + rng() * 120);
@@ -30,8 +32,9 @@ export function aiKickError(difficulty, tuning, pitch, rng = Math.random) {
   const [lo, hi] = ai.kickTimingErrMs;
   let mag = lo + rng() * (hi - lo);
   // quality widens the timing error: q=0 → 0.55x (meatball, crushed), q=1 → 1.05x (nasty).
-  // Capped near 1x so a great pitch makes the CPU flail to WEAK/foul contact, not auto-foul
-  // every pitch — a nasty HEAT was pushing error past the foul line ~100% of the time.
+  // Capped near 1x so a great pitch makes the CPU flail to WEAK contact — a live
+  // infield roller since 2026-08-27 — instead of every single pitch landing in the
+  // weakest band (a nasty HEAT was pushing error past that line ~100% of the time).
   mag *= 0.55 + q * 0.5;
   if (pitch) {
     const speedF = 1 + Math.max(0, (pitch.speedMph - 72) / 150);

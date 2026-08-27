@@ -5,7 +5,7 @@
 // exact field outcome via applyOutcome().
 import * as THREE from 'three';
 import { MatchEngine } from './matchState.js';
-import { judgeKick, crownJudge, launchParams, powerFromError, isHrEligible, flickShape, flickSteerDeg, FLICK, aiSwingStartS, safetyLaunchDelayS, footBoneRegex } from './kickTiming.js';
+import { judgeKick, crownJudge, launchParams, weakContactLaunch, powerFromError, isHrEligible, flickShape, flickSteerDeg, FLICK, aiSwingStartS, safetyLaunchDelayS, footBoneRegex } from './kickTiming.js';
 import { mashSpeed, humanRunSpeed, RunnerSim } from './baseRunning.js';
 import { resolveBaseThrow, resolvePeg } from './throwing.js';
 import { SpecialMeter } from './specialMoves.js';
@@ -1356,13 +1356,7 @@ export class MatchScene {
     // (kickWasSpecial can't reach here — crownJudge floors a crown swing at OK —
     // but a super kick must never dribble, so the guard is explicit.)
     const weakContact = judged.quality === 'FOUL' && !this.kickWasSpecial;
-    if (weakContact) {
-      launch = {
-        speed: launch.speed * 0.45,
-        loftDeg: 14,
-        directionDeg: launch.directionDeg + (Math.random() - 0.5) * 50,
-      };
-    }
+    if (weakContact) launch = weakContactLaunch(launch, this.tuning);
 
     this.ball.launch(launch.speed, launch.loftDeg, launch.directionDeg);
     if (this.heat.onFire(this.match.kickingSide())) igniteBall(this.ball); // burning crew = burning ball

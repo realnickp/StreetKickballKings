@@ -71,6 +71,41 @@ export function flickShape(flick) {
 }
 
 /**
+ * Launch speed from a 0..1 power value — the single mapping every kick uses
+ * (0 = the base roller, 1 = the max screamer). Factored out of `launchParams`
+ * so weak contact can be priced off the FOUL power band instead of scaling a
+ * launch speed that was computed from a different error (see below).
+ * @param {number} power01
+ * @returns {number} metres per second
+ */
+export function speedFromPower(power01, tuning) {
+  const k = tuning.kick;
+  return k.baseBallSpeedMs + power01 * (k.maxBallSpeedMs - k.baseBallSpeedMs);
+}
+
+/**
+ * WEAK CONTACT IS ONE ROLLER FOR EVERYONE (dev rule, 2026-08-27: short kicks
+ * are live). A timing-FOUL kick squirts off the foot as a low infield roller.
+ * Its speed comes from the FOUL power band — NOT from a scale of the incoming
+ * launch, because the player's launch speed is built from the RAW timing meter
+ * while the FOUL judge is built from timing PLUS alignment: perfect timing 2 m
+ * off the ball produced a 6 m roller while the CPU's identical judge produced
+ * a 1.5 m dribbler. ~13.5 m/s at 14° is an 8-9 m roller — usually an out, and
+ * a fast kicker can beat it out.
+ * @param {{speed:number, loftDeg:number, directionDeg:number}} launch
+ * @param {() => number} [rand] injectable RNG (tests)
+ * @returns {{speed:number, loftDeg:number, directionDeg:number}}
+ */
+export function weakContactLaunch(launch, tuning, rand = Math.random) {
+  return {
+    ...launch,
+    speed: speedFromPower(tuning.kick.power.FOUL, tuning),
+    loftDeg: 14,
+    directionDeg: launch.directionDeg + (rand() - 0.5) * 50,
+  };
+}
+
+/**
  * @param {ReturnType<typeof judgeKick>} judged
  * @param {object} opts aim as a string (`'left'|'center'|'right'|'bunt'`, the AI
  *   path) OR a continuous swipe angle via `aimDeg` (+ optional `bunt:true`, the
@@ -103,7 +138,7 @@ export function launchParams(judged, opts, tuning) {
   // Player flick shape: loft from flick length, distance band from flick snap.
   const shape = opts.shape ?? null;
   return {
-    speed: (k.baseBallSpeedMs + power01 * (k.maxBallSpeedMs - k.baseBallSpeedMs)) * mult * (shape?.speedScale ?? 1),
+    speed: speedFromPower(power01, tuning) * mult * (shape?.speedScale ?? 1),
     loftDeg: shape ? shape.loftDeg : k.loftDeg[judged.quality],
     // windBiasDeg: city-element wind awareness (CPU kicks downwind on windy fields)
     directionDeg: base + timingBias + (opts.windBiasDeg ?? 0),
@@ -155,6 +190,7 @@ export function footBoneRegex(foot) {
  * real swing. A whiff (effective error past the FOUL band) never reaches here —
  * it strikes and keeps the crown armed.
  * @param {ReturnType<typeof judgeKick>} judged
+ * @param {object} tuning tuning.json — `kick.power` supplies the floored OK band
  * @returns {ReturnType<typeof judgeKick>} the promoted judge (same object when nothing to promote)
  */
 export function crownJudge(judged, tuning) {
