@@ -673,11 +673,13 @@ export class Hud {
     for (const [id, el] of this._arrowEls) if (!keep.has(id)) { el.remove(); this._arrowEls.delete(id); }
   }
 
-  setPowerKick({ name, charges, armed, meterFill }) {
-    this.specialBtn.style.setProperty('--fill', Math.round(meterFill));
-    this.specialBtn.classList.toggle('ready', charges > 0);
+  /** THE CROWN: one meter, one swing. Dark + filling reads 'CROWN'; a FULL
+   *  crown names the swing you're about to get. */
+  setCrown({ name, fill, ready, armed }) {
+    this.specialBtn.style.setProperty('--fill', Math.round(fill));
+    this.specialBtn.classList.toggle('ready', ready);
     this.specialBtn.classList.toggle('armed', armed);
-    this.specialBtn.querySelector('.pk-label').textContent = charges > 0 ? `${name} ×${charges}` : name;
+    this.specialBtn.querySelector('.pk-label').textContent = ready ? name : 'CROWN';
     this.specialBtn.title = name;
   }
 

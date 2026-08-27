@@ -1,0 +1,36 @@
+import { it, expect } from 'vitest';
+import { Crown, halfRuns } from '../src/game/crown.js';
+import { SpecialMeter } from '../src/game/specialMoves.js';
+import tuning from '../src/data/tuning.json';
+import teams from '../src/data/teams.json';
+const monarchs = teams.teams.find((t) => t.id === 'monarchs');
+const flair = { id: 'kick-flair', name: 'THE FLAIR', clip: 'kickFlair', mods: { powerMult: 1.45 } };
+const mk = (gear = null) => new Crown({ meter: new SpecialMeter(monarchs, tuning), gear });
+
+it('starts empty with no charges, whatever is equipped', () => {
+  expect(mk(flair).fill).toBe(0); expect(mk(flair).ready).toBe(false); expect(mk(flair).name).toBe('THE FLAIR'); expect(mk().name).toBe('CROWN KICK');
+});
+it('fills only from the offense table; defense events are ignored', () => {
+  const c = mk();
+  expect(c.feed('catch')).toBe(false); expect(c.fill).toBe(0);
+  expect(c.feed('peg')).toBe(false); expect(c.fill).toBe(0);
+  expect(c.feed('hit')).toBe(false); expect(c.fill).toBe(20);
+  expect(c.feed('shutout')).toBe(false); expect(c.fill).toBe(45);
+  expect(c.feed('PERFECT')).toBe(false); expect(c.fill).toBe(80);
+  expect(c.feed('run')).toBe(true); expect(c.fill).toBe(100); expect(c.ready).toBe(true);
+  expect(c.feed('hit')).toBe(false); expect(c.fill).toBe(100); // capped, no re-announce
+});
+it('arm needs a full crown; consume resets to zero and carries the equipped kick', () => {
+  const c = mk(flair);
+  expect(c.arm()).toBe(false);
+  c.feed('pickleEscape'); c.feed('homerun');
+  expect(c.arm()).toBe(true); c.disarm(); expect(c.fill).toBe(100);
+  c.arm(); const sp = c.consume();
+  expect(sp).toEqual({ gear: flair, powerMult: 1.45, label: 'THE FLAIR' });
+  expect(c.fill).toBe(0); expect(c.ready).toBe(false); expect(c.consume()).toBe(null);
+  expect(mk().hudState()).toEqual({ name: 'CROWN KICK', fill: 0, ready: false, armed: false });
+});
+it('halfRuns reads the runs the given side scored between two score snapshots', () => {
+  expect(halfRuns({ home: 2, away: 1 }, { home: 2, away: 4 }, 'away')).toBe(3);
+  expect(halfRuns({ home: 2, away: 1 }, { home: 2, away: 1 }, 'home')).toBe(0);
+});

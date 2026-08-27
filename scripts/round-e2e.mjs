@@ -11,8 +11,9 @@
 //                    1.6 m/s, taunts to camera with the crowd, lands on the
 //                    plate, then the pitch. A tap skips it. CPU kickers walk
 //                    up too — and get booed.
-//   4. POWER KICK  — dark with no charges, lit + named with one, tap arms it
-//                    with the crown-arm sting, hidden while you're fielding.
+//   4. CROWN       — dark and unnamed while it fills, offense feeds light it
+//                    and name the swing, tap arms it with the crown-arm sting,
+//                    the swing RESETS it to zero, hidden while you're fielding.
 //   5. SFX         — every alias resolves, every warm name is a real file,
 //                    every sfx URL is actually on disk, HUD presses are heard.
 //   6. ARROWS      — an off-frame runner gets ONE clamped edge chip naming his
@@ -230,38 +231,52 @@ async function walkupScenario(page) {
   ok(await page.evaluate(() => window.__skk.kickingIsPlayer()), 'the bat is back with the player');
 }
 
-// -------------------------------------------------------------- 4. POWER KICK
-async function powerKickScenario(page) {
-  console.log('\n--- 4: POWER KICK ---');
+// ------------------------------------------------------------------- 4. CROWN
+// ONE crown, offense-only, spent to zero on the swing (dev, 2026-08-27: "the
+// crown needs to reset to zero every time it's used").
+async function crownScenario(page) {
+  console.log('\n--- 4: CROWN ---');
   const res = await page.evaluate(() => {
     const s = window.__skk;
     const btn = document.querySelector('.special-btn');
     const label = () => btn.querySelector('.pk-label').textContent;
-    // no charges banked: dark, and a tap must do nothing
-    s.power.charges = 0; s.power.armed = false; s.refreshHud();
+    // empty crown: dark, unnamed, and a tap must do nothing
+    s.crown.disarm(); s.special.value = 0; s.refreshHud();
     window.__sfxLog.length = 0;
     btn.dispatchEvent(new Event('pointerdown'));
-    const dark = { ready: btn.classList.contains('ready'), armed: s.power.armed, label: label(), sfx: [...window.__sfxLog] };
-    // one banked charge: lit, named, and armable
-    s.power.charges = 1; s.refreshHud();
-    const lit = { ready: btn.classList.contains('ready'), hidden: btn.classList.contains('hidden'), label: label() };
+    const dark = { ready: btn.classList.contains('ready'), armed: s.crown.armed, label: label(), sfx: [...window.__sfxLog] };
+    // defense events feed NOTHING
+    s.crownFeed('peg'); s.crownFeed('catch');
+    const defense = { fill: s.special.value, ready: btn.classList.contains('ready') };
+    // offense feeds fill it: 60 + 40 = a full crown
+    s.crownFeed('pickleEscape');
+    const half = { fill: s.special.value, ready: btn.classList.contains('ready'), label: label() };
+    s.crownFeed('homerun');
+    const lit = { ready: btn.classList.contains('ready'), hidden: btn.classList.contains('hidden'), label: label(), fill: s.special.value };
     window.__sfxLog.length = 0;
     btn.dispatchEvent(new Event('pointerdown'));
-    const armed = { armed: s.power.armed, cls: btn.classList.contains('armed'), sfx: [...window.__sfxLog], label: label() };
+    const armed = { armed: s.crown.armed, cls: btn.classList.contains('armed'), sfx: [...window.__sfxLog], label: label() };
+    // the swing SPENDS it: back to zero, dark again
+    const sp = s.crown.consume(); s.refreshHud();
+    const spent = { got: !!sp, value: s.special.value, ready: btn.classList.contains('ready'), armed: s.crown.armed, label: label() };
     // fielding: the crown has no business on screen
-    s.power.disarm();
     s.playerSide = s.match.fieldingSide(); s.refreshHud();
     const fielding = { hidden: btn.classList.contains('hidden'), isPlayer: s.kickingIsPlayer() };
-    s.playerSide = 'away'; s.power.charges = 0; s.refreshHud();
-    return { dark, lit, armed, fielding, restored: s.kickingIsPlayer() };
+    s.playerSide = 'away'; s.special.value = 0; s.refreshHud();
+    return { dark, defense, half, lit, armed, spent, fielding, restored: s.kickingIsPlayer() };
   });
-  ok(res.dark.ready === false, 'no charge banked -> the crown stays dark');
+  ok(res.dark.ready === false, 'an empty crown stays dark');
   ok(res.dark.armed === false && !res.dark.sfx.includes('crown-arm'), `tapping a dark crown arms nothing (${res.dark.sfx.join(',') || 'silent'})`);
-  ok(res.dark.label === 'CROWN KICK', `the dark label is the bare name (${res.dark.label})`);
-  ok(res.lit.ready === true && res.lit.hidden === false, 'a banked charge lights the button');
-  ok(res.lit.label === 'CROWN KICK ×1', `the label carries name and count (${res.lit.label})`);
+  ok(res.dark.label === 'CROWN', `the dark label is the bare word CROWN (${res.dark.label})`);
+  ok(res.defense.fill === 0 && res.defense.ready === false, `pegs and catches feed the crown NOTHING (fill ${res.defense.fill})`);
+  ok(res.half.fill === 60 && res.half.ready === false, `a pickle escape banks 60 but does not arm it (fill ${res.half.fill})`);
+  ok(res.half.label === 'CROWN', `a partly-filled crown is still just CROWN (${res.half.label})`);
+  ok(res.lit.ready === true && res.lit.hidden === false && res.lit.fill === 100, `a full crown lights the button (fill ${res.lit.fill})`);
+  ok(res.lit.label === 'CROWN KICK', `a FULL crown names the swing (${res.lit.label})`);
   ok(res.armed.armed === true && res.armed.cls === true, 'the tap ARMS the kick');
   ok(res.armed.sfx.includes('crown-arm'), `the arm plays the crown-arm sting (${res.armed.sfx.join(',')})`);
+  ok(res.spent.got === true && res.spent.value === 0 && res.spent.armed === false, `the swing RESETS the crown to zero (value ${res.spent.value})`);
+  ok(res.spent.ready === false && res.spent.label === 'CROWN', `a spent crown goes dark and unnamed again (${res.spent.label})`);
   ok(res.fielding.hidden === true && res.fielding.isPlayer === false, 'the crown hides while you are in the field');
   ok(res.restored === true, 'the kicking role is restored for the rest of the run');
 }
@@ -708,8 +723,8 @@ async function kickContactScenario(page) {
     const s = window.__skk;
     // ARMADA: a LEFT-footed pack-k kick — the exact case the old hard-coded
     // RightFoot lookup got wrong
-    s.power.gear = { id: 'kick-armada', name: 'ARMADA', clip: 'kickArmada', mods: { powerMult: 1.38, curl: 1.3 } };
-    s.power.charges = 1; s.power.armed = false; s.refreshHud();
+    s.crown.gear = { id: 'kick-armada', name: 'ARMADA', clip: 'kickArmada', mods: { powerMult: 1.38, curl: 1.3 } };
+    s.crown.disarm(); s.special.value = 100; s.refreshHud(); // a FULL crown is the one swing
     document.querySelector('.special-btn').dispatchEvent(new Event('pointerdown'));
     window.__lastFrac = null; window.__lastSwing = null; window.__footDist = null;
     // PER-FRAME probe. onKickContact can't be wrapped for this: launchNow()
@@ -732,7 +747,7 @@ async function kickContactScenario(page) {
       });
       if (L && R) window.__footDist = [foot.distanceTo(L.getWorldPosition(foot.clone())), foot.distanceTo(R.getWorldPosition(foot.clone()))];
     });
-    return { armed: s.power.armed, hasClip: !!s.kicker.animator.hasClip('kickArmada') };
+    return { armed: s.crown.armed, hasClip: !!s.kicker.animator.hasClip('kickArmada') };
   });
   ok(armed.hasClip === true, 'the ARMADA clip is loaded on the kicker (extras pack k)');
   if (!ok(armed.armed === true, 'the crown arms with ARMADA equipped')) return;
@@ -850,7 +865,7 @@ const scenarios = [
   ['SKIP CHIP', skipChipScenario],
   // 3-8 share ONE ?nosplash&nointro match page: walkupScenario boots it
   ['WALK-UP', walkupScenario],
-  ['POWER KICK', powerKickScenario],
+  ['CROWN', crownScenario],
   ['SFX', sfxScenario],
   ['ARROWS', arrowsScenario],
   ['DIAMOND', diamondScenario],

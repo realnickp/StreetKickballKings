@@ -9,7 +9,7 @@ import { judgeKick, launchParams, powerFromError, isHrEligible, flickShape, flic
 import { mashSpeed, humanRunSpeed, RunnerSim } from './baseRunning.js';
 import { resolveBaseThrow, resolvePeg } from './throwing.js';
 import { SpecialMeter } from './specialMoves.js';
-import { PowerKicks } from './powerKicks.js';
+import { Crown, halfRuns, CROWN_EVENTS } from './crown.js';
 import { pickPitch, aiKickError, aiAim, aiWantsPeg, aiMashRate, aiJukes, aiThrowsFire } from './ai.js';
 import { PickleDuel, shuttleDir } from './pickleDuel.js';
 import { RunnerWatchdog } from './runnerWatchdog.js';
@@ -153,7 +153,7 @@ export class MatchScene {
     this.replayRecorder.track(this.replayChars, this.ball);
 
     this.special = new SpecialMeter(teams[playerSide], tuning);
-    this.power = new PowerKicks({ meter: this.special, gear: gear?.kick ?? null });
+    this.crown = new Crown({ meter: this.special, gear: gear?.kick ?? null });
 
     this.aim = 'center';
     this.phase = 'IDLE';
@@ -261,9 +261,9 @@ export class MatchScene {
     this.robbing = null;  // fence-rob climb state: {fielder, phase, t, topY}
     this.stealHot = false;
     this.hud.onSpecial = () => {
-      if (!this.kickingIsPlayer() || !this.power.arm()) return;
+      if (!this.kickingIsPlayer() || !this.crown.arm()) return;
       this.bus.emit('sfx', 'crown-arm');
-      this.hud.hint(`${this.power.name} ARMED — LET IT RIP`);
+      this.hud.hint('CROWN ARMED — LET IT RIP');
       this.refreshHud();
     };
 
@@ -289,6 +289,21 @@ export class MatchScene {
     this.match.bus.on('score', ({ side, runs }) => {
       if (side !== this.playerSide || runs <= 0) return;
       for (let i = 0; i < runs; i++) this.crownFeed('run');
+    });
+    // THE SHUTOUT BONUS (+25): the ONE way defense touches the crown. Hold them
+    // scoreless for a whole half you spent in the field and the crown pays out.
+    // halfEnd fires BEFORE state.half advances, so kickingSide() here still
+    // names the side that was up — the opponent whose runs must be zero.
+    this.match.bus.on('halfEnd', () => {
+      const before = this._halfScore;
+      const fielded = this._halfFielding;
+      this._halfScore = null; this._halfFielding = false; // one payout per half
+      if (!fielded || !before) return;
+      if (halfRuns(before, this.match.state.score, this.match.kickingSide()) !== 0) return;
+      this.crownFeed('shutout');
+      this.hud.callout('SHUTOUT! +25 CROWN', {
+        x: window.innerWidth / 2, y: window.innerHeight * 0.3, ttl: 1600, key: 'shutout',
+      });
     });
     // originalBases = "the bases when this pitch left" — restoreRunners plays
     // (strikeout / foul-out / 3rd-out catch) put runners BACK there. It must
@@ -318,7 +333,8 @@ export class MatchScene {
       }
     });
     this.special.value = 0;
-    this.power = new PowerKicks({ meter: this.special, gear: this.playerGear?.kick ?? null }); // fresh charges every match (rematch reuses the scene)
+    this.crown = new Crown({ meter: this.special, gear: this.playerGear?.kick ?? null }); // an empty crown every match (rematch reuses the scene)
+    this._halfKey = null; this._halfFielding = false; this._halfScore = null;
     this._gearToasted = false; // the YOUR GEAR strip shows again at the first at-bat of a rematch
     const begin = () => {
       this.bus.emit('vo', 'playball');
@@ -654,7 +670,7 @@ export class MatchScene {
     this.hud.setBases(s.bases);
     this.hud.setCount(s.balls);
     this.hud.showSpecial(this.kickingIsPlayer()); // crown super-kick is ONLY for when you're kicking
-    this.hud.setPowerKick(this.power.hudState());
+    this.hud.setCrown(this.crown.hudState());
   }
   // (worldToScreen lives near the tap-picking helpers below — this class used
   // to define it TWICE; the later, null-returning version always won)
@@ -682,7 +698,7 @@ export class MatchScene {
     this.fouls = 0;
     this.runners = [];
     for (const t of this.trailPool) { t.hide(); t.busy = false; }
-    this.power.disarm(); // an armed-but-unkicked charge is refunded
+    this.crown.disarm(); // an armed-but-unkicked crown stays banked, full
     if (this.kickingIsPlayer() && this.playerGear && !this._gearToasted) {
       this._gearToasted = true;
       this.after(0.8, () => this.hud.gearToast(gearLine(this.playerGear)));
@@ -692,6 +708,7 @@ export class MatchScene {
     // heat-wave moment (Play It): tell the offense ONCE per half that the
     // defense is gassed — then the pulsing steal chips carry the message
     const halfKey = `${this.match.state.inning}-${this.match.state.half}`;
+    if (this._halfKey !== halfKey) { this._halfKey = halfKey; this.beginHalfTracking(); }
     if (this.elements.id === 'heat-wave' && this.match.state.inning >= 3
         && this.kickingIsPlayer() && this._gassedHalf !== halfKey) {
       this._gassedHalf = halfKey;
@@ -1085,8 +1102,8 @@ export class MatchScene {
 
     let powerMult = 1;
     this.specialKickGear = null;
-    if (this.kickingIsPlayer() && this.power.armed) {
-      const sp = this.power.consume();
+    if (this.kickingIsPlayer() && this.crown.armed) {
+      const sp = this.crown.consume();
       if (sp) {
         powerMult = sp.powerMult;
         this.kickWasSpecial = true;
@@ -3511,17 +3528,24 @@ export class MatchScene {
     return foot ? foot.getWorldPosition(new THREE.Vector3()) : null;
   }
 
+  /** Snapshot the half at its FIRST at-bat: which role the player is in and the
+   *  score going in. The halfEnd listener diffs against this for the SHUTOUT. */
+  beginHalfTracking() {
+    this._halfFielding = !this.kickingIsPlayer();
+    this._halfScore = { ...this.match.state.score };
+  }
+
   /** Crown feed: every meter gain pulses the crown button so the buildup is
    *  SEEN (dev: the meter must engage the player). */
   crownFeed(event) {
-    const minted = this.power.feed(event);
+    const full = this.crown.feed(event);
     this.hud.crownPulse?.();
-    if (minted) {
-      this.hud.stamp('CROWN CHARGED! +1', 'crowned');
-      this.hud.hint(`TAP THE 👑 — ${this.power.name} READY`);
+    if (full) {
+      this.hud.stamp('CROWN READY!', 'crowned');
+      this.hud.hint(`TAP THE 👑 — ${this.crown.name}`);
       this.bus.emit('sfx', 'bassdrop');
-    } else {
-      this.bus.emit('sfx', 'crown-tick');
+    } else if (CROWN_EVENTS.has(event)) {
+      this.bus.emit('sfx', 'crown-tick'); // a defense event feeds nothing — stay silent
     }
     this.refreshHud();
   }
@@ -3557,8 +3581,7 @@ export class MatchScene {
     this.lastOutReason = reason;
     if (reason === 'pegged') {
       this.bus.emit('cine:pegged', { runner: runner.char }); // director fires the 'pegged' call
-      if (!this.kickingIsPlayer()) this.crownFeed('peg');
-      this.noteHeat(this.match.fieldingSide(), 'peg');
+      this.noteHeat(this.match.fieldingSide(), 'peg'); // (no crown feed — the crown is OFFENSE-only)
     } else {
       this.bus.emit('sfx', reason === 'tag' ? 'tag' : 'catchpop');
       this.bus.emit('sfx', 'out');
@@ -3601,7 +3624,6 @@ export class MatchScene {
     }
     this.playOuts = (this.playOuts ?? 0) + 1;
     this.lastOutReason = 'catch';
-    if (!this.kickingIsPlayer()) this.crownFeed('catch');
     // heat: a deep or homer-eligible ball snagged = a ROBBERY, else a plain catch
     // (live catches count HERE, once — the finalizePlay 'catch' label is skipped)
     const heatRobbed = this.kickHrEligible || this.landDist > this.fenceM * 0.7;

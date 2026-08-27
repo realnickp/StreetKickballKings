@@ -15,14 +15,14 @@ it('meter starts empty and charges from plays', () => {
 
 it('meter caps at max and becomes ready', () => {
   const m = new SpecialMeter(monarchs, tuning);
-  m.add('PERFECT'); m.add('homerun'); m.add('peg'); m.add('catch');
+  m.add('PERFECT'); m.add('homerun'); m.add('hit'); m.add('run'); // 120 -> capped
   expect(m.value).toBe(tuning.special.meterMax);
   expect(m.ready).toBe(true);
 });
 
 it('consume resets the meter and returns the team special', () => {
   const m = new SpecialMeter(monarchs, tuning);
-  m.add('PERFECT'); m.add('homerun'); m.add('peg');
+  m.add('PERFECT'); m.add('homerun'); m.add('run');
   const special = m.consume();
   expect(special.id).toBe('crown-crusher');
   expect(special.label).toBe('CROWN CRUSHER');

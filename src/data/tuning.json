@@ -64,7 +64,7 @@
   },
   "special": {
     "meterMax": 100,
-    "gain": { "PERFECT": 35, "catch": 25, "peg": 30, "homerun": 40, "pickleEscape": 60, "hit": 20, "run": 25, "steal": 15 },
+    "gain": { "PERFECT": 35, "homerun": 40, "pickleEscape": 60, "hit": 20, "run": 25, "steal": 15, "shutout": 25 },
     "powerMult": 1.35
   },
   "ai": {

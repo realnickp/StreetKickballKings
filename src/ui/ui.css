@@ -515,6 +515,7 @@ body { display: flex; align-items: center; justify-content: center; }
 }
 .special-btn.ready .pk-label { color: var(--gold); }
 .special-btn.armed { border-color: #fff; box-shadow: 0 0 28px rgba(245,179,18,1); }
+.special-btn.armed .pk-label { color: #fff; } /* armed: the named swing goes white-hot */
 
 /* big-moment stamp (side switch, PICKLE!, STARTING LINEUPS): a full-bleed
    angled color band sweeping through mid-screen — same broadcast language as
