@@ -26,5 +26,6 @@ export class Crown {
 }
 /** Runs `side` scored between two score snapshots ({home, away}). */
 export const halfRuns = (before, after, side) => Math.max(0, (after?.[side] ?? 0) - (before?.[side] ?? 0));
-/** The offense events that feed the crown — the scene reuses this for its sfx gate. */
-export const CROWN_EVENTS = OFFENSE;
+/** The offense events that feed the crown — the scene reuses this for its sfx
+ *  gate. Frozen copy: the live Set stays private so no caller can widen it. */
+export const CROWN_EVENTS = Object.freeze([...OFFENSE]);

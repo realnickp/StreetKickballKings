@@ -154,6 +154,7 @@ export class MatchScene {
 
     this.special = new SpecialMeter(teams[playerSide], tuning);
     this.crown = new Crown({ meter: this.special, gear: gear?.kick ?? null });
+    this._crownHinted = false; // "TAP THE 👑" fires once per fill, on offense only
 
     this.aim = 'center';
     this.phase = 'IDLE';
@@ -300,9 +301,16 @@ export class MatchScene {
       this._halfScore = null; this._halfFielding = false; // one payout per half
       if (!fielded || !before) return;
       if (halfRuns(before, this.match.state.score, this.match.kickingSide()) !== 0) return;
-      this.crownFeed('shutout');
-      this.hud.callout('SHUTOUT! +25 CROWN', {
-        x: window.innerWidth / 2, y: window.innerHeight * 0.3, ttl: 1600, key: 'shutout',
+      // The LAST half is a shutout too — but a '+25 CROWN' stamp over GAME OVER
+      // is noise for a crown nobody will ever swing. MatchState.endHalf() emits
+      // halfEnd BEFORE it sets state.phase = 'GAME_END', so the phase can only
+      // be read AFTER this listener returns: pay out on the microtask.
+      queueMicrotask(() => {
+        if (this.match.state.phase === 'GAME_END') return;
+        this.crownFeed('shutout');
+        this.hud.callout('SHUTOUT! +25 CROWN', {
+          x: window.innerWidth / 2, y: window.innerHeight * 0.3, ttl: 1600, key: 'shutout',
+        });
       });
     });
     // originalBases = "the bases when this pitch left" — restoreRunners plays
@@ -335,6 +343,7 @@ export class MatchScene {
     this.special.value = 0;
     this.crown = new Crown({ meter: this.special, gear: this.playerGear?.kick ?? null }); // an empty crown every match (rematch reuses the scene)
     this._halfKey = null; this._halfFielding = false; this._halfScore = null;
+    this._crownHinted = false;
     this._gearToasted = false; // the YOUR GEAR strip shows again at the first at-bat of a rematch
     const begin = () => {
       this.bus.emit('vo', 'playball');
@@ -670,6 +679,7 @@ export class MatchScene {
     this.hud.setBases(s.bases);
     this.hud.setCount(s.balls);
     this.hud.showSpecial(this.kickingIsPlayer()); // crown super-kick is ONLY for when you're kicking
+    if (!this.crown.ready) this._crownHinted = false; // spent (or not yet full) — the next fill hints again
     this.hud.setCrown(this.crown.hudState());
   }
   // (worldToScreen lives near the tap-picking helpers below — this class used
@@ -810,7 +820,14 @@ export class MatchScene {
 
     if (this.kickingIsPlayer()) {
       this.camTarget = CAM.kick;
-      this.hud.hint('GET READY…');
+      // a crown banked on DEFENSE (the shutout bonus) becomes actionable only
+      // here, when the button comes back on screen — tell them once per fill
+      if (this.crown.ready && !this.crown.armed && !this._crownHinted) {
+        this._crownHinted = true;
+        this.hud.hint(`TAP THE 👑 — ${this.crown.name}`);
+      } else {
+        this.hud.hint('GET READY…');
+      }
     } else {
       this.camTarget = CAM.pitch;
       this.hud.hint('YOUR ARM — PICK A PITCH');
@@ -3542,9 +3559,12 @@ export class MatchScene {
     this.hud.crownPulse?.();
     if (full) {
       this.hud.stamp('CROWN READY!', 'crowned');
-      this.hud.hint(`TAP THE 👑 — ${this.crown.name}`);
+      // "TAP THE 👑" only makes sense while the button is ON SCREEN. A shutout
+      // tops the meter while you are FIELDING, where showSpecial() has it
+      // hidden — that hint waits for your half (see nextAtBat's handoff).
+      if (this.kickingIsPlayer()) { this._crownHinted = true; this.hud.hint(`TAP THE 👑 — ${this.crown.name}`); }
       this.bus.emit('sfx', 'bassdrop');
-    } else if (CROWN_EVENTS.has(event)) {
+    } else if (CROWN_EVENTS.includes(event)) {
       this.bus.emit('sfx', 'crown-tick'); // a defense event feeds nothing — stay silent
     }
     this.refreshHud();

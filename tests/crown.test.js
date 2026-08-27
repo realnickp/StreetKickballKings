@@ -34,3 +34,15 @@ it('halfRuns reads the runs the given side scored between two score snapshots', 
   expect(halfRuns({ home: 2, away: 1 }, { home: 2, away: 4 }, 'away')).toBe(3);
   expect(halfRuns({ home: 2, away: 1 }, { home: 2, away: 1 }, 'home')).toBe(0);
 });
+it('with NO kick equipped the swing falls back to the team special', () => {
+  const meter = new SpecialMeter(monarchs, tuning);
+  const c = new Crown({ meter });
+  expect(c.name).toBe('CROWN KICK');
+  c.feed('pickleEscape'); c.feed('homerun');
+  expect(c.arm()).toBe(true);
+  const sp = c.consume();
+  expect(sp.gear).toBe(null);
+  expect(sp.powerMult).toBe(meter.tuning.special.powerMult);
+  expect(sp.label).toBe(meter.team.special.label);
+  expect(c.fill).toBe(0);
+});
