@@ -120,3 +120,75 @@ One token system in `ui.css`, applied everywhere:
 
 New art assets beyond the existing splat/burst, new fonts, 3D backdrop work, kick power
 tuning beyond the crown rules.
+
+## As-shipped amendments (2026-08-27)
+
+What the build actually does where it diverged from, or went past, the sections above. The
+sections stay as written; these are the corrections.
+
+**§3 — the backstop clamp is a fence LINE, not a box.** The flat `|x| > 3.2` box was wrong in
+both directions: it over-clamped shots down at the plate and under-clamped them out toward the
+panels. Shipped: `fenceMaxX(z)` (exported from `src/game/cameraDirector.js`) returns the
+backstop's own line, `|x| = 4.22 + 0.668·(z + 1.66)`, less a 0.35 m lens margin inside
+`-1.7 < z < 6.7`, ramped open at 8 m per metre of z outside that band so the ceiling is
+continuous everywhere and a dolly crossing an edge never jumps sideways (`FENCE_V`, `RAMP`).
+`clampNearHome(p)` pulls a target back to that line. It is applied to every `CameraDirector`
+shot target **and** to the camera-locked `contactKick` / `perfectKick` / `robbed` beats, which
+sit outside the director's spring. The two kick beats do more than clamp: clamping alone froze
+the push-in whenever the ceiling bit for the whole beat, so each solves a per-shot reach
+against `fenceMaxX` first (`reach = min(5.0, fenceMaxX(z) - side·x)`) and dollies from there,
+with `clampNearHome` left in as the safety net; `robbed` is clamped only (its shallow-catch
+offset is the case that lands inside the V). Both pull directions are covered — the beat
+mirrors its shot around the kicker, so a single kick would hide a one-sided bug.
+
+**§4 — SAFE insets.** Shipped as `SAFE = { top: 96, bottom: 216, left: 12, right: 20 }`
+(`src/ui/runnerArrows.js`), on top of the 56 px glyph inset. The spec's 150/12 cleared neither
+the crown button nor the power-meter glow at the bottom of the frame; 216 does. The NOW KICKING
+plate also hides **immediately on a tap-skip**, not only when the kicker reaches the plate.
+
+**§1 — crown rules as built.**
+- The `TAP THE 👑` hint fires **on offense only, once per fill**. A crown banked while you were
+  fielding hints at the at-bat handoff instead of firing behind a hidden button; `_crownHinted`
+  resets whenever the meter is not ready, so the next fill hints again.
+- The **final half's shutout feeds nothing.** A `+25 CROWN` stamp over GAME OVER is noise for a
+  crown nobody will ever swing. The same bottom half one inning earlier still pays.
+- **A crowned swing is never a dribbler.** `attemptKick` judges on `effErr = |errMs| +
+  alignErrM·175`, so good timing while standing ~0.8 m off the ball judged FOUL and the weak-
+  contact path then overrode the floored CROWN GUARANTEE — a consumed meter producing nothing.
+  `crownJudge()` promotes a FOUL-quality judge to OK right after the consume (keeping
+  `errorMs`), and the weak branch is guarded on `!kickWasSpecial`. The guarantee still keys off
+  RAW timing, so the promotion buys the swing a live ball, not a free homer.
+- **A whiff keeps the crown.** It still strikes; the meter stays armed.
+
+**§5 — premium pass as built.** The graffiti splat accent is `.screen::before` at **8 %**
+opacity, top-right, and is switched **off on the title and post-game screens** — the two
+darkest backgrounds, where it read as a stain rather than a texture. `.pk-label` idles at
+near-white (`rgba(255,255,255,.82)`), goes gold at ready and white-hot when armed. The city
+element chip and the pitch readout **share the top strip** rather than each owning a band.
+
+**NEW — a short kick is LIVE (Task 7 dev rule).** "Foul balls should only be called foul if it
+goes outside the boundaries; short kicks should not be called fouls." A timing-FOUL contact is
+no longer an automatic foul call: it squirts off the foot as a weak live kick and falls through
+to the same landing prediction and geometric test as every other kick. Weak contact has **one
+speed for everyone**, priced off the FOUL power band and independent of the incoming launch
+(the player's speed came from raw `power01` while the judge came from `effErr`, so the same
+ruling produced a 6 m roller for you and a 1.5 m dribbler for the CPU): ≈**13.5 m/s at 14°,
+direction jittered ±25°**, which measures through `Ball.predictLanding` as **~7.9 m out**, apex
+0.81 m (under the 2.8 m fly threshold, so never a catch-out), hang 0.61 s — an infield roller
+that is usually an out and can be beaten out. The foul test itself is the pure helper
+`src/game/foulRule.js`: foul only if the ball **first lands** behind the plate line (`z > 0`,
+was `z > -1.0`, which called a ball dying 50 cm in front of home foul) or outside the 45° lines,
+with the existing 1 m plate tolerance. **No roll modelling** — the call is made at first
+landing.
+
+**Harnesses run silent (`?mute`).** The E2E harnesses drive the real game, and the dev shares
+this machine with the agent browsers. `isMuted()` (`src/engine/audio.js`) reads the `?mute` URL
+flag **lazily** (audio.js is imported by node-environment vitest suites, where `location` does
+not exist) and pins `userVol.master` at 0 for the session; `setVolume('master', …)` cannot lift
+it. `src/cinematics/videoPlayer.js` mutes every set piece it creates. Both harnesses open every
+page through `url(q)` = `${BASE}/?${q}&mute` and assert the run is provably silent before the
+show starts. That assertion runs off a media **census** installed before page scripts, not off
+`querySelectorAll`: the field's two backdrop `<video>` elements (`src/game/field.js`) are never
+appended to the document, and a detached element plays sound just fine — so every video/audio
+the page creates is recorded, and any that reaches `play()` un-muted by the app is logged
+before the harness's belt-and-braces net forces it quiet.
