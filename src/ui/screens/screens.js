@@ -1,7 +1,6 @@
 // All pre/post-game screens: Title, Menu, TeamSelect, CoinToss, PostGame.
 // Mockup style: dark slate, orange/teal, graffiti marker accents.
 import { playVideo } from '../../cinematics/videoPlayer.js';
-import { LockerPreview } from '../lockerPreview.js';
 
 function el(html) {
   const t = document.createElement('template');
@@ -183,87 +182,25 @@ export function MapScreen(ctx) {
   };
 }
 
-// ---------- THE LOCKER: earnable gear (special kicks, cleats, uniforms).
-//            Milestones are the price tag — no currency. Silhouetted until
-//            earned, tap an owned piece to rock it. ----------
-export function LockerScreen(ctx) {
-  return {
-    mount(root) {
-      const save = ctx.save;
-      const { GEAR, isUnlocked, equipGear, equippedGear, careerGet } = ctx.unlocks;
-      const eq = equippedGear(save);
-      const career = careerGet(save);
-      const CATS = [
-        ['kick', 'SPECIAL KICKS — 2 POWER KICKS A GAME · THE CROWN METER MINTS MORE'],
-        ['taunt', 'TAUNTS — YOUR WALK-UP MOVE'],
-        ['cleats', 'CLEATS — REAL SPEED ON THE BASES'],
-        ['uniform', 'UNIFORMS'],
-      ];
-      const BARE_LABEL = { kick: 'STOCK KICK', taunt: null, cleats: 'CLASSIC', uniform: 'CLASSIC' };
-      const s = el(`
-        <div class="screen locker-screen">
-          <h1 class="screen-title gold">THE LOCKER</h1>
-          <p class="map-sub">Earn it on the block. Tap it to rock it.</p>
-          <div class="locker-stage"><canvas class="locker-preview" width="440" height="520"></canvas><p class="locker-stage-cap"></p></div>
-          <div class="locker-rows"></div>
-          <p class="locker-career">W ${career.wins} · HR ${career.hr} · STEALS ${career.steals} · GLOVE ${career.defOuts} · ESCAPES ${career.pickleEscapes} · CREWS ${career.crews}/9</p>
-          <div class="coin-buttons"><button data-act="menu">MAIN MENU</button></div>
-        </div>`);
-      const rows = s.querySelector('.locker-rows');
-      for (const [cat, label] of CATS) {
-        rows.appendChild(el(`<p class="map-equip-label">${label}</p>`));
-        const row = el('<div class="map-equip locker-row"></div>');
-        const bareLabel = BARE_LABEL[cat];
-        if (bareLabel) {
-          const bare = el(`<div class="equip-chip ${eq[cat] ? '' : 'on'}" style="--c:#7a7a85">${bareLabel}</div>`);
-          bare.addEventListener('pointerdown', () => { ctx.bus.emit('sfx', 'juke'); equipGear(save, cat, null); ctx.router.go('locker'); });
-          row.appendChild(bare);
-        }
-        for (const g of GEAR.filter((x) => x.cat === cat)) {
-          const own = isUnlocked(save, g.id);
-          const swatch = cat === 'cleats' || cat === 'uniform' ? `<i class="swatch" style="background:${g.hex}"></i>` : '';
-          const chip = el(`
-            <div class="equip-chip locker-chip ${own ? '' : 'locked'} ${eq[cat]?.id === g.id ? 'on' : ''}" style="--c:${g.hex ?? '#e8792e'}">
-              ${swatch}${own ? g.name : '🔒 ' + g.name}<small>${own ? (g.play ?? '') : g.hint.toUpperCase()}</small>
-            </div>`);
-          if (own) {
-            chip.addEventListener('pointerdown', () => { ctx.bus.emit('sfx', 'scratch'); equipGear(save, cat, g.id); ctx.router.go('locker'); });
-          }
-          row.appendChild(chip);
-        }
-        rows.appendChild(row);
-      }
-      s.querySelector('[data-act="menu"]').addEventListener('pointerdown', () => ctx.router.go('menu'));
-      root.appendChild(s);
-      // Live turntable of YOUR captain in what you just equipped — the whole
-      // point of the Locker is SEEING the kit and the cleats change.
-      const team = ctx.playerTeam ?? ctx.data.teams[0];
-      const cap = s.querySelector('.locker-stage-cap');
-      cap.textContent = `${(team.roster?.[0]?.nick ?? 'YOUR CAPTAIN').toUpperCase()} — ${eq.uniform?.name ?? 'STOCK KIT'} · ${eq.cleats?.name ?? 'STOCK CLEATS'}`;
-      try {
-        this.preview = new LockerPreview(s.querySelector('.locker-preview'));
-        // .catch too: the GLB fetch is async, so a missing model would escape
-        // the try/catch as an unhandled rejection instead of this warn
-        this.preview.show({ team, uniformHex: eq.uniform?.hex ?? null, gear: eq })
-          .catch((e) => console.warn('[skk] locker preview failed to build:', e));
-      } catch (e) { console.warn('[skk] locker preview unavailable:', e); }
-    },
-    // the router calls unmount() on the outgoing screen — kill the RAF loop and
-    // the WebGL context so re-mounting on every equip can't leak contexts
-    unmount() { this.preview?.destroy(); this.preview = null; },
-  };
-}
-
 // ---------- TEAM SELECT (Madden-style matchup: AWAY on the left, HOME on the
 //            right, each a full standing player; cycle each side, then play.
 //            You control the AWAY team; the match is played at the HOME team's
 //            home field — so picking the HOME side chooses the stadium.) ----------
 export function TeamSelectScreen(ctx) {
   return {
-    mount(root) {
+    mount(root, params = {}) {
       const ready = ctx.data.teams.filter(t => t.status === 'ready');
       const sel = { away: 0, home: Math.min(1, ready.length - 1) }; // away = you, home = their field
       const kit = { away: 'dark', home: 'light' }; // default contrasting kits (one dark, one light)
+      // ← TEAMS from GEAR UP hands the cursor back: cycling to the matchup you
+      // want and then checking your gear must not throw the matchup away.
+      if (params.pick) {
+        const p = params.pick;
+        if (Number.isInteger(p.sel?.away) && p.sel.away < ready.length) sel.away = p.sel.away;
+        if (Number.isInteger(p.sel?.home) && p.sel.home < ready.length) sel.home = p.sel.home;
+        if (p.kit?.away) kit.away = p.kit.away;
+        if (p.kit?.home) kit.home = p.kit.home;
+      }
       // Run the Map challenge: the HOME side is the crew you called out — locked.
       const mapLock = ctx.mapTarget && ready.some((t) => t.id === ctx.mapTarget);
       if (mapLock) {
@@ -375,7 +312,9 @@ export function TeamSelectScreen(ctx) {
           away: kitFor(ready[sel.away], kit.away).hex,
           home: kitFor(ready[sel.home], kit.home).hex,
         };
-        ctx.startMatchFlow(ready[sel.away], ready[sel.home], kits); // away = you, home = opponent (their field)
+        // `pick` is the cursor, not a match arg (gearUpArgs ignores it): GEAR
+        // UP carries it so ← TEAMS can put this exact matchup back on screen.
+        ctx.router.go('gearUp', { away: ready[sel.away], home: ready[sel.home], kits, pick: { sel: { ...sel }, kit: { ...kit } } }); // away = you, home = opponent (their field)
       });
 
       render('away');

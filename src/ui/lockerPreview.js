@@ -3,7 +3,7 @@
 // (dev, 2026-08-25). Own tiny renderer: screens sit on an opaque background,
 // so the main engine canvas can't show through.
 import * as THREE from 'three';
-import { buildCaptainPreview } from '../game/glbCharacters.js';
+import { buildCaptainPreview, disposeCharacter } from '../game/glbCharacters.js';
 
 export class LockerPreview {
   constructor(canvas) {
@@ -23,11 +23,37 @@ export class LockerPreview {
     this.camera = new THREE.PerspectiveCamera(30, (canvas.clientWidth || 220) / (canvas.clientHeight || 260), 0.1, 50);
     this.camera.position.set(0, 1.15, 4.2); this.camera.lookAt(0, 1.0, 0);
     this.char = null; this.token = 0; this.clock = new THREE.Clock(); this.running = true;
+    this.spinning = true; // false while a tapped move plays, so it faces the lens
+    this._w = 0; this._h = 0;
+    // A phone can drop this canvas's GL context at any time (backgrounded tab,
+    // memory pressure, another context taking the last slot). Without a guard
+    // the rAF loop keeps rendering into a dead context and the captain is a
+    // black hole for the rest of the visit — onLost lets the screen rebuild.
+    canvas.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault();
+      this.running = false;
+      this.onLost?.();
+    });
     const loop = () => {
       if (!this.running) return;
       requestAnimationFrame(loop);
+      // The canvas is measured HERE, not in the constructor: buildLocker builds
+      // the preview while its root is still detached, where clientWidth reads 0
+      // and the old `|| 220` fallback baked a 220x260 frame into a canvas the
+      // CSS sizes to clamp(140px, 50vw, 240px) x clamp(150px, 34vh, 280px) —
+      // a stretched captain that also span on the wrong aspect.
+      const w = canvas.clientWidth, h = canvas.clientHeight;
+      if (w && h && (w !== this._w || h !== this._h)) {
+        this._w = w; this._h = h;
+        this.renderer.setSize(w, h, false);
+        this.camera.aspect = w / h;
+        this.camera.updateProjectionMatrix();
+      }
       const dt = Math.min(this.clock.getDelta(), 0.05);
-      if (this.char) { this.char.group.rotation.y += dt * 0.6; this.char.animator?.update?.(dt); }
+      if (this.char) {
+        if (this.spinning) this.char.group.rotation.y += dt * 0.6;
+        this.char.animator?.update?.(dt);
+      }
       this.renderer.render(this.scene, this.camera);
     };
     loop();
@@ -36,21 +62,48 @@ export class LockerPreview {
   async show({ team, uniformHex, gear }) {
     const token = ++this.token;
     const next = await buildCaptainPreview(team, uniformHex, gear);
-    if (token !== this.token) return; // a newer equip won the race
-    if (this.char) this.scene.remove(this.char.group);
+    // a newer equip won the race, or the screen unmounted while this loaded —
+    // either way THIS captain is never shown, and every one of them owns a
+    // 2048² recoloured texture + cloned material/geometry. Dropping the
+    // reference alone leaves those on the GPU until the context dies.
+    if (token !== this.token || !this.running) { disposeCharacter(next); return; }
+    if (this.char) { this.scene.remove(this.char.group); disposeCharacter(this.char); }
     this.char = next;
     this.char.group.position.set(0, 0, 0);
     this.char.animator?.play?.('idle');
+    this.spinning = true; // a rebuild always goes back to the turntable
     this.scene.add(this.char.group);
   }
 
+  /** Play an owned kick/taunt on the turntable (one-shot → back to idle).
+   *  Returns false when the clip isn't loaded yet (the extras packs stream in
+   *  behind the model) so the caller can fall back to a plain rebuild.
+   *  Squares the captain up at yaw 0 — the character's forward is +z (see
+   *  matchScene's `faceYaw = atan2(dir.x, dir.z)`) and the camera sits at
+   *  +z 4.2 — so the move is performed INTO the lens, not away from it. */
+  playMove(clip) {
+    if (!this.running) return false; // torn down — nothing to play on
+    const a = this.char?.animator;
+    if (!a?.hasClip?.(clip)) return false;
+    this.spinning = false;
+    this.char.group.rotation.y = 0;
+    a.play(clip, { onDone: () => { if (this.char?.animator === a) { a.play('idle'); this.spinning = true; } } });
+    return true;
+  }
+
   // dispose() frees three's resources but leaves the GL context alive until GC.
-  // The Locker re-mounts on EVERY equip tap, so those pile up and Chrome evicts
-  // the oldest context to stay under its per-page cap — which is the MAIN game
-  // canvas. Verified 2026-08-25: ~15 equip taps and #game-canvas went dead.
-  // forceContextLoss() hands this one back immediately.
+  // Contexts pile up and Chrome evicts the oldest to stay under its per-page cap
+  // — which is the MAIN game canvas. Verified 2026-08-25, back when the Locker
+  // re-mounted on every equip tap: ~15 taps and #game-canvas went dead. Equips
+  // no longer remount (2026-08-27), but menu→Locker→menu round trips still would,
+  // so forceContextLoss() hands this one back immediately.
   destroy() {
+    // bump the token FIRST: a buildCaptainPreview() still in flight resolves
+    // after this and would otherwise pass the race guard and add a fully-loaded
+    // character to a scene nobody renders — orphaning its GPU buffers.
+    this.token += 1;
     this.running = false;
+    if (this.char) { this.scene.remove(this.char.group); disposeCharacter(this.char); this.char = null; }
     this.renderer.dispose();
     this.renderer.forceContextLoss?.();
   }

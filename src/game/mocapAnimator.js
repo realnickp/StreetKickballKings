@@ -72,6 +72,9 @@ export class MocapAnimator {
 
   hasClip(name) { return this.clips.has(name); }
 
+  /** Manifest entry for a clip (contactAt, foot, trim…) — undefined if unknown. */
+  meta(name) { return META.get(name); }
+
   play(name, { onContact = null, onDone = null, speedFactor = 1, speed = 1 } = {}) {
     if (!this.clips.has(name)) name = 'idle';
     const clip = this.clips.get(name);

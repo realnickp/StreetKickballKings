@@ -29,28 +29,39 @@ it('crews/king derive from the trophy save keys', () => {
 it('checkUnlocks fires each item once at its threshold', () => {
   const s = mem();
   expect(checkUnlocks(s)).toEqual([]);
-  careerAdd(s, { hr: 1, wins: 1 });
+  careerAdd(s, { hr: 2, wins: 1 });
   const fresh = checkUnlocks(s).map((g) => g.id);
-  expect(fresh).toContain('kick-flair');   // first HR
-  expect(fresh).toContain('cleats-fire');  // first win
+  expect(fresh).toContain('taunt-cry');          // first win
   expect(fresh).not.toContain('kick-hurricane'); // needs 3 HR
   expect(checkUnlocks(s)).toEqual([]); // no re-fire
-  careerAdd(s, { hr: 2 });
+  careerAdd(s, { hr: 1 });
   expect(checkUnlocks(s).map((g) => g.id)).toContain('kick-hurricane');
-  expect(isUnlocked(s, 'kick-flair')).toBe(true);
+  expect(isUnlocked(s, 'kick-hurricane')).toBe(true);
+});
+
+it('one checkUnlocks call can fire across TWO categories at once', () => {
+  // the crossing case: three home runs and a first win banked in the same
+  // match must hand back the kick AND the taunt on a single sweep, not one
+  // per call (regression — the sweep used to stop at the first category).
+  const s = mem();
+  careerAdd(s, { hr: 3, wins: 1 });
+  const fresh = checkUnlocks(s).map((g) => g.id);
+  expect(fresh).toContain('kick-hurricane');
+  expect(fresh).toContain('taunt-cry');
+  expect(checkUnlocks(s)).toEqual([]); // and both stay fired
 });
 
 it('equip requires ownership + matching category; null resets the slot', () => {
   const s = mem();
-  expect(equipGear(s, 'kick', 'kick-flair')).toBe(false); // locked
-  careerAdd(s, { hr: 1 });
+  expect(equipGear(s, 'kick', 'kick-hurricane')).toBe(false); // locked
+  careerAdd(s, { hr: 3 });
   checkUnlocks(s);
-  expect(equipGear(s, 'cleats', 'kick-flair')).toBe(false); // wrong slot
-  expect(equipGear(s, 'kick', 'kick-flair')).toBe(true);
-  expect(equippedGear(s).kick.id).toBe('kick-flair');
-  expect(equippedGear(s).cleats).toBe(null);
+  expect(equipGear(s, 'cleats', 'kick-hurricane')).toBe(false); // wrong slot
+  expect(equipGear(s, 'kick', 'kick-hurricane')).toBe(true);
+  expect(equippedGear(s).kick.id).toBe('kick-hurricane');
+  expect(equippedGear(s).cleats.id).toBe('cleats-fire');
   expect(equipGear(s, 'kick', null)).toBe(true);
-  expect(equippedGear(s).kick).toBe(null);
+  expect(equippedGear(s).kick.id).toBe('kick-flair'); // stock fallback
 });
 
 it('no gear rides the road-win counter (every game is played away — roadWins ≡ wins)', () => {
@@ -114,4 +125,14 @@ it('the new kicks and taunts unlock on realistic career marks', () => {
   // its trigger (runs >= 50) is still reached here, but no such GEAR entry exists.
   for (const id of ['kick-punt', 'kick-kipup', 'kick-flip', 'kick-scissor', 'taunt-gesture', 'taunt-chest', 'taunt-cry']) expect(ids).toContain(id);
   expect(careerGet(s).games).toBe(10);
+});
+
+it('THE FLAIR and FIRE REDS are free from day one and fielded by default', () => {
+  const s = mem();
+  expect(isUnlocked(s, 'kick-flair')).toBe(true);
+  expect(isUnlocked(s, 'cleats-fire')).toBe(true);
+  expect(equippedGear(s).kick.id).toBe('kick-flair');
+  expect(equippedGear(s).cleats.id).toBe('cleats-fire');
+  expect(checkUnlocks(s).map((g) => g.id)).not.toContain('kick-flair');
+  expect(GEAR.filter((g) => g.stock).map((g) => g.id).sort()).toEqual(['cleats-fire', 'kick-flair', 'taunt-point']);
 });
