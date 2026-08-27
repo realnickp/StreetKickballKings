@@ -27,7 +27,7 @@ import { WALKUP, walkS, pickTaunt, stealAllowed } from './walkup.js';
 import { revertStealBooks } from './stealBooks.js';
 import { SpeedTrail } from './fx/speedTrail.js';
 import { Hud } from '../ui/screens/hud.js';
-import { edgeClamp } from '../ui/runnerArrows.js';
+import { markerClamp } from '../ui/runnerArrows.js';
 import { gearLine } from '../meta/gearLine.js';
 import { pregameTimeline } from './pregame.js';
 
@@ -756,8 +756,8 @@ export class MatchScene {
     this.kicker = off[kickerIdx % off.length];
     this.kicker.group.visible = true;
     this.startWalkup();
-    // broadcast lower-third: every new kicker gets the NOW KICKING card
-    // (name + best stats, ~2s, non-blocking — the full walkout is match-start only)
+    // broadcast lower-third: every new kicker gets the NOW KICKING plate
+    // (name + #/pos, non-blocking — the full walkout is match-start only)
     const kp = this.kicker.data;
     if (kp?.nick && !this.walkoutActive) {
       this.hud.walkoutShow({
@@ -766,7 +766,9 @@ export class MatchScene {
         label: 'NOW KICKING', mini: true,
         gear: this.kickingIsPlayer() ? gearLine(this.playerGear) : null,
       });
-      this.after(walkS() + WALKUP.tauntS + 0.4, () => this.hud.walkoutHide());
+      // gone the moment he reaches the plate: the taunt close-up and the swing
+      // are his, not the graphic's (dev, 2026-08-27)
+      this.after(walkS() + 0.1, () => this.hud.walkoutHide());
     }
 
     this.baseChars = [null, null, null];
@@ -3477,10 +3479,12 @@ export class MatchScene {
     for (const r of live.slice(0, 3)) {
       const pos = r.state === 'held' ? this.basePos(r.heldAt ?? r.fromBase) : this.runnerWorldPos(r).p;
       const pr = this.projectPoint(pos, rect);
-      const c = edgeClamp({ x: pr.x, y: pr.y, w: pr.w, h: pr.h, behind: pr.behind });
+      // markerClamp, not edgeClamp: the 56px inset + the HUD safe box keep the
+      // whole 40px icon on screen instead of half of it hanging off the edge
+      const c = markerClamp({ x: pr.x, y: pr.y, w: pr.w, h: pr.h, behind: pr.behind });
       if (c.visible) continue;
-      out.push({ id: r.idx, x: c.x, y: c.y, angle: c.angle, number: r.char.number, color,
-        label: r.state === 'held' ? `ON ${BASE[r.heldAt ?? r.fromBase]}` : `→${BASE[r.targetBase]}`,
+      out.push({ id: r.idx, x: c.x, y: c.y, angle: c.angle, color,
+        base: r.state === 'held' ? BASE[r.heldAt ?? r.fromBase] : BASE[r.targetBase],
         urgent: r.targetBase === 3 || r === this.stealing });
     }
     this.hud.setRunnerArrows(out);

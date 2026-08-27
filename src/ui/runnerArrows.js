@@ -11,3 +11,16 @@ export function edgeClamp({ x, y, w, h, inset = 24, behind = false }) {
   const s = Math.min(hw / Math.max(1e-6, Math.abs(dx)), hh / Math.max(1e-6, Math.abs(dy)));
   return { visible: false, x: cx + dx * s, y: cy + dy * s, angle: Math.atan2(dy, dx) };
 }
+
+// The markers are 40 px icons, not text chips, and the HUD owns the top strip
+// (score bug) and the bottom strip (throw pad / GO). A 56 px inset keeps the
+// whole glyph on screen; SAFE then pushes it out of those two strips so nothing
+// is ever cut off or buried (dev, 2026-08-27: "not off screen because it's
+// getting cut off").
+export const SAFE = { top: 96, bottom: 150, left: 12, right: 12 };
+export function markerClamp({ x, y, w, h, behind = false }) {
+  const r = edgeClamp({ x, y, w, h, inset: 56, behind });
+  r.x = Math.min(Math.max(r.x, 56 + SAFE.left), w - 56 - SAFE.right);
+  r.y = Math.min(Math.max(r.y, SAFE.top), h - SAFE.bottom);
+  return r;
+}

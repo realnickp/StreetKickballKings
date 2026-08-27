@@ -645,16 +645,23 @@ body { display: flex; align-items: center; justify-content: center; }
 .runner-alert.urgent { background: rgba(215, 38, 61, .92); animation: alertPulse .6s ease-in-out infinite; }
 @keyframes alertPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
 
-/* screen-edge chips pointing at runners the camera can't currently see */
+/* screen-edge ICON markers pointing at runners the camera can't currently see.
+   The bob rides margin-top, NOT transform — the transform is the marker's
+   clamped screen position, written every frame by setRunnerArrows. */
 .runner-arrows { position: absolute; inset: 0; pointer-events: none; z-index: 7; }
 .runner-arrow {
-  position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 4px;
-  font-family: var(--sans); font-weight: 900; font-size: 11px; letter-spacing: .4px; color: #fff;
-  background: rgba(8,9,13,.9); border: 2.5px solid var(--c, var(--teal)); border-radius: 999px; padding: 5px 9px;
-  box-shadow: 0 0 12px var(--c, var(--teal)); white-space: nowrap; will-change: transform;
+  position: absolute; left: 0; top: 0; width: 40px; height: 40px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(8,9,13,.85), rgba(8,9,13,.4));
+  box-shadow: 0 0 14px var(--c, var(--teal)); display: grid; place-items: center;
+  will-change: transform; animation: markerBob .7s ease-in-out infinite alternate;
 }
-.runner-arrow .ra-arrow { font-style: normal; color: var(--c, var(--teal)); font-size: 14px; line-height: 1; display: inline-block; }
-.runner-arrow.urgent { animation: chipPulse .6s ease-in-out infinite; border-color: #ffb300; }
+.runner-arrow .ra-icon { width: 24px; height: 24px; fill: var(--c, var(--teal)); }
+.runner-arrow .ra-chev {
+  position: absolute; font-style: normal; line-height: 1;
+  color: var(--c, var(--teal)); font-size: 18px; transform-origin: center;
+}
+.runner-arrow.urgent { --c: var(--gold); animation-duration: .35s; }
+@keyframes markerBob { to { margin-top: -3px; } }
 .hud.cine .runner-arrows { display: none; }
 
 .skip-hint {
@@ -1410,16 +1417,17 @@ body { display: flex; align-items: center; justify-content: center; }
   max-width: calc(100% - 24px); overflow: hidden;
 }
 .gear-toast.show { opacity: 1; transform: translate(-50%, 0); }
-/* NOW KICKING lower-third: compact, tucked left, clear of the kicker + hint */
+/* NOW KICKING PLATE: a broadcast lower-third, not a card. Bottom-left wash with
+   no box at all, so it never sits on the players walking out (dev, 2026-08-27:
+   "too big and intrusive ... covers up the players as they're walking out"). */
 .walkout-card.mini {
-  left: 8px; top: calc(146px + env(safe-area-inset-top)); bottom: auto; transform: none;
-  width: min(44%, 178px); padding: 6px 10px 8px; text-align: left;
-  animation: woSlideIn .28s cubic-bezier(.2, 1.4, .4, 1) both;
+  left: 0; bottom: calc(96px + env(safe-area-inset-bottom)); top: auto; transform: none;
+  width: min(58%, 250px); padding: 10px 16px 10px 14px;
+  background: linear-gradient(90deg, rgba(8,9,13,.78), rgba(8,9,13,0));
+  border: 0; border-radius: 0; box-shadow: none; text-align: left;
+  animation: plateIn .35s cubic-bezier(.2, 1, .3, 1) both;
 }
-@keyframes woSlideIn {
-  0% { transform: translateX(-110%); opacity: 0; }
-  100% { transform: translateX(0); opacity: 1; }
-}
+@keyframes plateIn { from { transform: translateX(-40px); opacity: 0 } }
 /* team splash: full-screen crest slam between walkout sides */
 .team-splash {
   position: absolute; inset: 0; z-index: 70; pointer-events: none;
@@ -1474,10 +1482,15 @@ body { display: flex; align-items: center; justify-content: center; }
   0% { transform: translateY(26px); opacity: 0; }
   100% { transform: translateY(0); opacity: 1; }
 }
-.walkout-card.mini .wo-nick { font-size: 21px; }
-.walkout-card.mini .wo-tag { font-size: 9px; letter-spacing: 1.5px; }
-.walkout-card.mini .wo-sub { font-size: 9.5px; margin: 2px 0 4px; }
-.walkout-card.mini .stat-bar { height: 6px; }
+.walkout-card.mini .wo-nick {
+  font-family: var(--marker); font-size: 26px; line-height: 1;
+  padding-bottom: 4px; border-bottom: 2px solid var(--c1, var(--gold)); display: inline-block;
+}
+.walkout-card.mini .wo-sub {
+  display: block; font-family: var(--sans); font-weight: 900; font-size: 10px;
+  letter-spacing: 1.6px; color: var(--ink); margin: 5px 0 0;
+}
+.walkout-card.mini .wo-gear { margin-top: 4px; font-size: 9px; letter-spacing: .6px; line-height: 1.35; }
 
 .element-intro {
   position: absolute; inset: 0; z-index: 40;

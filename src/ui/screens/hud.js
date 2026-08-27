@@ -538,15 +538,19 @@ export class Hud {
   walkoutShow({ nick, number, pos, stats, color, label, mini = false, gear = null }) {
     this.walkoutHide();
     const card = document.createElement('div');
-    card.className = mini ? 'walkout-card mini' : 'walkout-card';
+    // mini = the NOW KICKING lower-third PLATE: no box, no tag, no stat rows —
+    // it sat over the players walking out (dev, 2026-08-27: "too big and
+    // intrusive ... covers up the players as they're walking out")
+    card.className = mini ? 'walkout-card mini plate' : 'walkout-card';
     if (color) card.style.setProperty('--c1', color);
     const best = Object.entries(stats ?? {})
       .sort((a, b) => b[1] - a[1]).slice(0, 2);
     const STAT_LABEL = { power: 'PWR', speed: 'SPD', arm: 'ARM', glove: 'GLV' };
-    card.innerHTML =
-      `<span class="wo-tag">${label ?? ''}</span>` +
-      `<h2 class="wo-nick"></h2>` +
-      `<span class="wo-sub">${number != null ? `#${number} · ` : ''}${(pos ?? '').toUpperCase()}</span>` +
+    const sub = `<span class="wo-sub">${number != null ? `#${number} · ` : ''}${(pos ?? '').toUpperCase()}</span>`;
+    card.innerHTML = mini
+      ? `<h2 class="wo-nick"></h2>` + sub + (gear ? `<div class="wo-gear">YOUR GEAR — ${gear}</div>` : '')
+      : `<span class="wo-tag">${label ?? ''}</span>` +
+      `<h2 class="wo-nick"></h2>` + sub +
       best.map(([k, v]) =>
         `<div class="stat-row"><span>${STAT_LABEL[k] ?? k}</span>` +
         `<div class="stat-bar"><i style="width:${v * 10}%"></i></div></div>`).join('') +
@@ -651,6 +655,9 @@ export class Hud {
     }));
   }
 
+  /** Off-screen runner markers: an icon, never a text chip (dev, 2026-08-27:
+   *  "an icon or something that just moves"). The bag lives on `data-base` for
+   *  tests only — the player reads the colour, the bob and the chevron. */
   setRunnerArrows(list) {
     let box = this.runnerArrows;
     if (!box) { box = this.runnerArrows = document.createElement('div'); box.className = 'runner-arrows'; this.el.appendChild(box); this._arrowEls = new Map(); }
@@ -660,15 +667,17 @@ export class Hud {
       let el = this._arrowEls.get(a.id);
       if (!el) {
         el = document.createElement('div'); el.className = 'runner-arrow';
-        el.innerHTML = '<i class="ra-arrow">➤</i><b></b><span></span>';
+        el.innerHTML = '<i class="ra-chev">‹</i><svg class="ra-icon" viewBox="0 0 24 24"><path d="M13 3a2 2 0 1 1 0 4 2 2 0 0 1 0-4zm-2 5 3 1 2 3 3 1-1 2-3-1-2 1 1 3 3 4-2 1-4-5-1 3-4 1-1-2 4-1 1-3-2-2-2 3-2-1 3-5 4-2z"/></svg>';
         box.appendChild(el); this._arrowEls.set(a.id, el);
       }
-      el.style.setProperty('--c', a.color);
+      // urgent drops the inline colour so the .urgent rule's GOLD wins
+      if (a.urgent) el.style.removeProperty('--c'); else el.style.setProperty('--c', a.color);
       el.classList.toggle('urgent', !!a.urgent);
-      el.querySelector('b').textContent = `#${a.number}`;
-      el.querySelector('span').textContent = a.label;
+      el.dataset.base = a.base ?? '';
       el.style.transform = `translate(${Math.round(a.x)}px, ${Math.round(a.y)}px) translate(-50%, -50%)`;
-      el.querySelector('.ra-arrow').style.transform = `rotate(${a.angle}rad)`;
+      // ride the chevron out to the marker's rim on the side the runner is on,
+      // then spin the glyph (it points -x) so it points AT him
+      el.querySelector('.ra-chev').style.transform = `rotate(${a.angle}rad) translate(18px) rotate(180deg)`;
     }
     for (const [id, el] of this._arrowEls) if (!keep.has(id)) { el.remove(); this._arrowEls.delete(id); }
   }

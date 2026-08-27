@@ -16,8 +16,10 @@
 //                    the swing RESETS it to zero, hidden while you're fielding.
 //   5. SFX         — every alias resolves, every warm name is a real file,
 //                    every sfx URL is actually on disk, HUD presses are heard.
-//   6. ARROWS      — an off-frame runner gets ONE clamped edge chip naming his
-//                    bag; in frame he gets none; the walk-up gate clears them.
+//   6. ARROWS      — an off-frame runner gets ONE icon-only edge marker whose
+//                    data-base names his bag, clamped fully on screen inside
+//                    the HUD safe box; in frame he gets none; the walk-up gate
+//                    clears them.
 //   7. DIAMOND     — score-bug dots ride the basepath at the right fraction
 //                    and flash home on a score.
 //   8. DANCE BAG   — a full bag cycle is all-distinct, and no draw ever
@@ -320,14 +322,21 @@ async function arrowsScenario(page) {
     const r = s.makeRunner(0, runner, 0); // on 1st, running for 2nd
     r.sim.progressM = 4;
     s.runners.push(r);
+    // markers are ICONS now (dev, 2026-08-27: "an icon or something that just
+    // moves ... not off screen because it's getting cut off"): the bag rides
+    // data-base for the probe, and the whole 40px box must land on screen
+    const SAFE = { top: 96, bottom: 150, left: 12, right: 12 };
     const read = () => {
       const els = [...document.querySelectorAll('.runner-arrow')];
       const first = els[0];
       const m = /translate\(\s*(-?[\d.]+)px,\s*(-?[\d.]+)px\)/.exec(first?.style.transform ?? '');
       return {
         n: els.length,
-        label: first?.querySelector('span')?.textContent,
-        number: first?.querySelector('b')?.textContent,
+        base: first?.dataset.base,
+        // the chevron glyph is the only text allowed — no number, no label
+        words: (first?.textContent ?? '').replace(/[^\w#]/g, ''),
+        chev: !!first?.querySelector('.ra-chev'), icon: !!first?.querySelector('.ra-icon'),
+        rects: els.map((e) => { const b = e.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom }; }),
         x: m ? Number(m[1]) : NaN, y: m ? Number(m[2]) : NaN,
       };
     };
@@ -341,12 +350,17 @@ async function arrowsScenario(page) {
     s.engine.camera.position.set(p.x, p.y + 4, p.z + 14); s.engine.camera.lookAt(p.x, p.y + 1, p.z);
     s.updateRunnerArrows();
     const inFrame = read();
+    // camera below him looking DOWN: he projects off the TOP, straight into the
+    // score bug's strip — the safe box has to push the marker back down
+    s.engine.camera.position.set(p.x, p.y - 7, p.z + 9); s.engine.camera.lookAt(p.x, p.y - 10, p.z);
+    s.updateRunnerArrows();
+    const above = read();
     // held on the bag reads the bag, not a target
     s.engine.camera.position.set(0, 3, 30); s.engine.camera.lookAt(0, 1, 60);
     r.state = 'held'; r.heldAt = 1;
     s.updateRunnerArrows();
     const held = read();
-    // a live walk-up owns the screen: no chips
+    // a live walk-up owns the screen: no markers
     r.state = 'running';
     s.walkup = { char: s.kicker, phase: 'walk', until: s.elapsed + 1, taunt: null, isPlayer: true };
     s.updateRunnerArrows();
@@ -356,17 +370,27 @@ async function arrowsScenario(page) {
     s.runners.length = 0;
     s.updateRunnerArrows(); s.updateRunnerDots();
     s.engine.cameraLock = false;
-    return { off, inFrame, held, gated, cleared: document.querySelectorAll('.runner-arrow').length, number: runner.number, w: rect.width, h: rect.height };
+    return { off, inFrame, above, held, gated, SAFE,
+      cleared: document.querySelectorAll('.runner-arrow').length,
+      w: rect.width, h: rect.height, vw: window.innerWidth, vh: window.innerHeight };
   });
-  ok(res.off.n === 1, `one edge chip for the off-frame runner (${res.off.n})`);
-  ok(res.off.label === '→2ND', `the chip names the bag he is running for (${res.off.label})`);
-  ok(res.off.number === `#${res.number}`, `the chip carries his number (${res.off.number})`);
-  ok(res.off.x >= 0 && res.off.x <= res.w && res.off.y >= 0 && res.off.y <= res.h,
-    `the chip is CLAMPED on screen, not projected off it (${res.off.x?.toFixed(0)},${res.off.y?.toFixed(0)} in ${res.w}x${res.h})`);
-  ok(res.inFrame.n === 0, `no chip when the camera can already see him (${res.inFrame.n})`);
-  ok(res.held.n === 1 && res.held.label === 'ON 2ND', `a held runner reads his bag (${res.held.label})`);
-  ok(res.gated.n === 0, `a live walk-up clears the chips (${res.gated.n})`);
-  ok(res.cleared === 0, 'chips clear with the runners');
+  const S = res.SAFE;
+  // the whole marker BOX on screen, and its centre out of the top/bottom strips
+  const onScreen = (r) => r.l >= 0 && r.t >= 0 && r.r <= res.vw && r.b <= res.vh;
+  const safeCentre = (m) => m.x >= 56 + S.left && m.x <= res.w - 56 - S.right
+    && m.y >= S.top && m.y <= res.h - S.bottom;
+  ok(res.off.n === 1, `one edge marker for the off-frame runner (${res.off.n})`);
+  ok(res.off.base === '2ND', `the marker carries the bag he is running for (data-base=${res.off.base})`);
+  ok(res.off.words === '', `the marker is icon-only — no number, no label (text "${res.off.words}")`);
+  ok(res.off.icon && res.off.chev, `it is a runner glyph plus a chevron (icon ${res.off.icon}, chev ${res.off.chev})`);
+  ok(res.off.rects.every(onScreen) && safeCentre(res.off),
+    `the marker is CLAMPED fully on screen (${res.off.x?.toFixed(0)},${res.off.y?.toFixed(0)} box ${JSON.stringify(res.off.rects[0])} in ${res.vw}x${res.vh})`);
+  ok(res.inFrame.n === 0, `no marker when the camera can already see him (${res.inFrame.n})`);
+  ok(res.above.n === 1 && res.above.rects.every(onScreen) && safeCentre(res.above),
+    `a runner off the TOP still lands inside the safe box, not under the bug (y ${res.above.y?.toFixed(0)}, top ${res.above.rects[0]?.t?.toFixed(0)})`);
+  ok(res.held.n === 1 && res.held.base === '2ND', `a held runner reads his bag (data-base=${res.held.base})`);
+  ok(res.gated.n === 0, `a live walk-up clears the markers (${res.gated.n})`);
+  ok(res.cleared === 0, 'markers clear with the runners');
 }
 
 // ----------------------------------------------------------------- 7. DIAMOND
