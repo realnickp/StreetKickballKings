@@ -192,3 +192,26 @@ show starts. That assertion runs off a media **census** installed before page sc
 appended to the document, and a detached element plays sound just fine — so every video/audio
 the page creates is recorded, and any that reaches `play()` un-muted by the app is logged
 before the harness's belt-and-braces net forces it quiet.
+
+## Real-play pass results (2026-08-27)
+
+Controller's pass, headless chromium (muted, `?mute` proven: `muted true / master 0`),
+390×844, fresh save, `?match&nosplash&nointro` — screenshots in the SDD workspace
+`realplay/`. Two things the dev reported mid-round, played end to end:
+
+- **A mistimed short kick is live.** 330 ms late, lined up: judge `FOUL` → weak-contact
+  roller, landed at z −8.7 m in fair ground, `fouls 0`, no call, `RUNNER TO 1ST` +
+  `TAP TAP TAP TO RUN!` — a real play, not a foul horn.
+- **A crowned kick is never a normal kick.** Crown filled to 100, armed through the
+  on-screen 👑 (label `CROWN KICK`), swung 120 ms late AND 0.9 m off the ball (the exact
+  case that used to judge `FOUL` and dribble): promoted to `OK`, `kickWasSpecial`,
+  HR-eligible, landed 46 m out, crown reset to 0, then refilled to 65 from the homer + run
+  (offense-only feeds). Camera at contact at x −4.69 — inside the fence line (4.71).
+- NOW KICKING plate: on screen during the walk-out, gone before the taunt close-up.
+- Harness (WebKit, muted): round-e2e 177/177, booth 31/31; verify-anims ALL GOOD; vitest 274.
+
+Observed, not fixed (for the phone check): the `EL TRAIN RUMBLE` element chip wraps to
+two lines in the top strip; the side-on contact framing puts the far backstop panel
+behind the kicker (background, not across the lens); headless swiftshader runs the game
+clock ~2–3× slow, so long plays were not waited out here. Not verifiable locally: real
+60 fps, thumb feel of the new disc throw pad, the crown-swing balance over a full game.
