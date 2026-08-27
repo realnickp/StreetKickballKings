@@ -56,4 +56,7 @@ describe('anims manifest', () => {
       expect(m.trim[1] - m.trim[0]).toBeLessThanOrEqual(1.8);
     }
   });
+  it('acrobatic kicks release the ball when the move lands, not mid-flip', () => {
+    for (const [n, v] of [['kickFlair', 0.94], ['kickKipUp', 0.93], ['kickSpinFlip', 0.90], ['kickMeia', 0.86], ['kickMeiaBack', 0.86]]) expect(manifest.find((m) => m.name === n).contactAt, n).toBe(v);
+  });
 });
