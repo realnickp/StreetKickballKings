@@ -11,6 +11,7 @@ import * as THREE from 'three';
 import { BallFx } from './fx.js';
 import { pickDance } from '../game/animExtras.js';
 import { FIELD_LAYOUT } from '../game/field.js';
+import { clampNearHome } from '../game/cameraDirector.js';
 
 // caught-out one-liners — the whole "robbed screen" is now this one sweep
 const CAUGHT_LINES = [
@@ -130,8 +131,13 @@ export class CinematicDirector {
           this.engine.timeScale = 0.3;
           if (this.engine.fx.gradePass) this.engine.fx.gradePass.uniforms.caAmount.value = 0.0012;
         },
+        // clampNearHome: with side = +1 and the kicker right of the plate this
+        // shot sat OUT PAST the first-base panel and filmed the swing through
+        // chain-link (dev, 2026-08-27). The clamp gives back the side distance
+        // the fence line allows (~4.4 m instead of 5.0) and is a no-op when the
+        // chosen side is already clear. Side selection and timing are untouched.
         onUpdate: (k) => this.cam(
-          new THREE.Vector3(p.x + side * (5.0 - k * 0.5), 0.72 + k * 0.08, p.z - 0.8),
+          clampNearHome(new THREE.Vector3(p.x + side * (5.0 - k * 0.5), 0.72 + k * 0.08, p.z - 0.8)),
           look,
         ),
       },
@@ -177,8 +183,9 @@ export class CinematicDirector {
           this.engine.timeScale = 0.3;
           if (this.engine.fx.gradePass) this.engine.fx.gradePass.uniforms.caAmount.value = 0.0012;
         },
+        // same fence line as contactKick — never shoot the swing through wire
         onUpdate: (k) => this.cam(
-          new THREE.Vector3(p.x + side * 5.0, 0.72, p.z - 0.8),
+          clampNearHome(new THREE.Vector3(p.x + side * 5.0, 0.72, p.z - 0.8)),
           look,
         ),
       },
@@ -192,7 +199,7 @@ export class CinematicDirector {
           if (this.engine.fx.gradePass) this.engine.fx.gradePass.uniforms.caAmount.value = 0.002;
         },
         onUpdate: (k) => this.cam(
-          new THREE.Vector3(p.x + side * (5.0 - k * 0.6), 0.72 + k * 0.1, p.z - 0.8),
+          clampNearHome(new THREE.Vector3(p.x + side * (5.0 - k * 0.6), 0.72 + k * 0.1, p.z - 0.8)),
           look,
         ),
       },
@@ -295,8 +302,12 @@ export class CinematicDirector {
       { // brief slow-mo hold on the fielder finishing the catch clip
         dur: 0.6,
         onStart: () => { this.engine.timeScale = 0.35; },
+        // a SHALLOW catch puts this +3.0/+4.4 offset inside the V band with
+        // real x on it (a fielder at x 5, z -6 lands the lens at x 8, z -1.6,
+        // well past the line) — clamp it; deep catches are outside the band
+        // and untouched.
         onUpdate: () => this.cam(
-          new THREE.Vector3(p.x + 3.0, 1.7, p.z + 4.4),
+          clampNearHome(new THREE.Vector3(p.x + 3.0, 1.7, p.z + 4.4)),
           new THREE.Vector3(p.x, 1.05, p.z),
         ),
       },

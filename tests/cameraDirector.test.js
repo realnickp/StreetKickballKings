@@ -83,11 +83,14 @@ describe('CameraDirector', () => {
     expect(SHOTS.walkupTaunt(ctx({ kickerPos: k, walkupT: 1 })).pos.toArray()).toEqual([0, 1.35, 2.8]);
     expect(SHOTS.walkupTaunt(ctx({ kickerPos: k, walkupT: 1 })).look.toArray()).toEqual([-0.9, 1.25, 0.4]);
   });
-  it('clampNearHome pulls a camera out of the side-fence V and leaves the rest alone', () => {
-    expect(clampNearHome(new THREE.Vector3(-4.0, 1.1, 3.2)).x).toBeCloseTo(-3.2);
-    expect(clampNearHome(new THREE.Vector3(4.6, 0.9, 3.6)).x).toBeCloseTo(3.2);
-    expect(clampNearHome(new THREE.Vector3(-4.0, 1.1, 8.0)).x).toBeCloseTo(-4.0);   // past the V
-    expect(clampNearHome(new THREE.Vector3(2.0, 0.9, 3.6)).x).toBeCloseTo(2.0);     // inside the gap
+  it('clampNearHome follows the fence LINE, not a box', () => {
+    // the V opens toward the outfield: 4.2 m of gap at the plate, ~9 m by the
+    // time the panels end. A flat box would wrongly pin all four of these.
+    expect(clampNearHome(new THREE.Vector3(-4.0, 1.1, 3.2)).x).toBeCloseTo(-4.0);   // line is ~7.1 out here
+    expect(clampNearHome(new THREE.Vector3(5.3, 0.73, -0.41)).x).toBeCloseTo(4.71, 1); // the cinematic side shot
+    expect(clampNearHome(new THREE.Vector3(-6, 1, 8.0)).x).toBeCloseTo(-6);         // past the V
+    expect(clampNearHome(new THREE.Vector3(2.0, 0.9, 3.6)).x).toBeCloseTo(2.0);     // deep in the gap
+    expect(clampNearHome(new THREE.Vector3(-7.5, 1, 3.2)).x).toBeCloseTo(-7.12);    // out past the wire
   });
   it('contact shot sits inside the V', () => {
     const s = SHOTS.contact(ctx({ kickerPos: new THREE.Vector3(0.6, 0, 0.4) }));

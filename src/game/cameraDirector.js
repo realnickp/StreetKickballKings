@@ -120,18 +120,36 @@ export const SHOTS = {
   },
 };
 
+// z of the panel ends nearest home — the anchor the fence line is measured
+// from. FENCE_V.z0 is the same edge rounded a hair wide, so the band test
+// never straddles the anchor.
+const PANEL_Z = -1.66;
+
 /**
- * NEVER FILM THROUGH THE BACKSTOP (dev, 2026-08-27). The two side-fence
- * panels sit at (+-7, z 2.5) rotated +-56 deg, so their chain-link sweeps
- * x 4.2..9.8 over z -1.7..6.7 on each side. Any camera that lands out there
- * shoots the plate through a fence. This pulls the TARGET position back to
- * the open gap (|x| <= 3.2) whenever it strays into that z band, and leaves
- * everything else (deep, high, centred) untouched. Mutates + returns p so it
- * can wrap a shot target inline. Continuous by construction inside the band
- * (|x| just rides the 3.2 wall), so a dolly never jumps sideways.
+ * The V behind home, as geometry. The two backstop panels sit at (+-7, z 2.5)
+ * rotated +-56.25 deg, so each sweeps from (+-4.22, z -1.66) out to
+ * (+-9.78, z 6.66): the gap between them WIDENS toward the outfield. The inner
+ * face is therefore the line |x| = x0 + slope * (z - PANEL_Z), not a box —
+ * a camera 4 m off the plate at z 3 is in open air, while the same 4 m at
+ * z -1 is out past the chain-link.
+ */
+export const FENCE_V = { z0: -1.7, z1: 6.7, x0: 4.22, slope: 0.668, margin: 0.35 };
+
+/**
+ * NEVER FILM THROUGH THE BACKSTOP (dev, 2026-08-27: the camera "films the
+ * kicker from behind the fence"). Pulls a camera TARGET back inside the fence
+ * line whenever it sits in the V's z band, with a 0.35 m lens margin so the
+ * near plane never clips the wire. Outside the band (deep field, up the lane,
+ * behind the mound) it is a no-op, and inside the band it only bites out past
+ * the line — the open gap is 4.2 m wide at the plate and ~9 m by the time the
+ * panels end, so ordinary plate-side shots are untouched. Mutates + returns p
+ * so it can wrap a shot target inline. Continuous by construction (|x| rides
+ * the line, which itself moves smoothly with z), so a dolly never jumps.
  */
 export function clampNearHome(p) {
-  if (Math.abs(p.x) > 3.2 && p.z > -1.7 && p.z < 6.7) p.x = Math.sign(p.x) * 3.2;
+  if (p.z <= FENCE_V.z0 || p.z >= FENCE_V.z1) return p;
+  const maxX = FENCE_V.x0 + FENCE_V.slope * (p.z - PANEL_Z) - FENCE_V.margin;
+  if (Math.abs(p.x) > maxX) p.x = Math.sign(p.x) * maxX;
   return p;
 }
 

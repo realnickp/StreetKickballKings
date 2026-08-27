@@ -800,23 +800,17 @@ async function walkupCamScenario(page) {
   const drift = walk.length ? Math.max(...walk.map((r) => Math.abs(r[4] - (r[5] + 2.8)))) : NaN;
   ok(drift < 0.6, `the dolly rides 2.8 m off the kicker down the whole walk (worst miss ${Number.isFinite(drift) ? drift.toFixed(3) : '?'} m)`);
   // ...and it TRACKS: the kicker crosses ~2.5 m of x on the way in, so a shot
-  // that merely sat still would still pass the z-offset check above.
-  // The far mark is BEHIND the side-fence V, so clampNearHome() deliberately
-  // PINS the dolly at x -3.2 for the opening stretch of the walk (dev,
-  // 2026-08-27: the camera must never film the plate through chain-link) —
-  // the LOOK still swings with him there. Tracking is therefore asserted over
-  // the FREE stretch, once the raw shot (kicker x - 0.6) clears the gap wall:
-  // from there the camera has to close on the kicker and ride him in.
-  const free = walk.filter((r) => Math.abs(r[6] - 0.6) <= 3.2);
-  const f0 = free[0], f1 = free[free.length - 1];
-  const kickDx = f0 && f1 ? Math.abs(f1[6] - f0[6]) : 0;
-  const camDx = f0 && f1 ? Math.abs(f1[2] - f0[2]) : 0;
-  ok(kickDx >= 0.7 && camDx / kickDx > 0.6,
-    `the dolly TRACKS the kicker in x once the fence clamp lets go (cam ${camDx.toFixed(2)} m vs kicker ${kickDx.toFixed(2)} m, needs >= 0.7 m of walk)`);
-  // ...and the pin itself is SMOOTH: the clamp is continuous (x rides the 3.2
-  // wall), so no frame of the walk may snap the camera sideways.
-  const jump = walk.length > 1 ? Math.max(...walk.slice(1).map((r, i) => Math.abs(r[2] - walk[i][2]))) : 0;
-  ok(jump < 0.25, `the fence clamp never JUMPS the dolly (worst frame step ${jump.toFixed(3)} m)`);
+  // that merely sat still would still pass the z-offset check above. The x
+  // offset must hold while he travels (samples >= 0.5 s apart, after the cut
+  // has settled).
+  const t0 = walk.length ? walk[0][7] : 0;
+  const settled = walk.filter((r) => r[7] - t0 > 0.35);
+  const a0 = settled[0];
+  const a1 = a0 ? [...settled].reverse().find((r) => r[7] - a0[7] >= 0.5) : null;
+  const dx = a0 && a1 ? Math.abs(a1[6] - a0[6]) : 0;
+  const dOff = a0 && a1 ? Math.abs((a1[2] - a1[6]) - (a0[2] - a0[6])) : NaN;
+  ok(dx >= 0.7 && dOff < 0.15,
+    `the dolly TRACKS the kicker in x — offset moved ${Number.isFinite(dOff) ? dOff.toFixed(3) : '?'} m (needs < 0.15) while he covered ${dx.toFixed(3)} m (needs >= 0.7) over ${a0 && a1 ? (a1[7] - a0[7]).toFixed(2) : '?'} s`);
   ok(taunt.length > 4 && taunt.every((r) => r[1] === 'walkupTaunt'),
     `the taunt owns the walkupTaunt push-in for all ${taunt.length} frames (${[...new Set(taunt.map((r) => r[1]))].join(',') || 'none'})`);
   const kickCam = await page.evaluate(() => {
