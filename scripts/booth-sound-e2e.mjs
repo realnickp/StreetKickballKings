@@ -49,10 +49,17 @@ async function breakScenario(page) {
     master: window.__audio.userVol.master,
     gain: window.__audio.master ? window.__audio.master.gain.value : null,
     loud: [...document.querySelectorAll('video,audio')].filter((m) => !m.muted).length,
+    made: window.__mediaEls.length,
+    loudMade: window.__mediaEls.filter((m) => !m.muted).map((m) => (m.currentSrc || m.src || '?').split('/').pop()),
+    loudPlays: window.__loudPlays.slice(),
   }));
   ok(silent.muted === true && silent.master === 0 && (silent.gain === null || silent.gain === 0),
     `?mute runs the whole harness SILENT (muted ${silent.muted}, userVol.master ${silent.master}, master gain ${silent.gain ?? 'no AudioContext in WebKit'})`);
-  ok(silent.loud === 0, `no unmuted media element on the page (${silent.loud})`);
+  // the CENSUS, not the DOM: the field's backdrop <video> is never appended, so
+  // querySelectorAll on its own would call an unmuted one silent.
+  ok(silent.made > 0, `the media census is live — the boot made ${silent.made} media element(s) to check`);
+  ok(silent.loudMade.length === 0 && silent.loudPlays.length === 0 && silent.loud === 0,
+    `every media element the page made is muted BY THE APP (${silent.made} made, ${silent.loud} unmuted in the DOM${silent.loudMade.length ? `, LOUD: ${silent.loudMade.join(',')}` : ''}${silent.loudPlays.length ? `, played loud: ${silent.loudPlays.join(',')}` : ''})`);
   await page.evaluate(() => {
     window.__musicLog = [];
     window.__sfxLog = [];
@@ -254,11 +261,29 @@ async function pegPadScenario(page) {
 const browser = await webkit.launch();
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
 // belt-and-braces on top of ?mute: nothing this browser plays can make noise,
-// even a media element some future code path forgets to mute.
+// even a media element some future code path forgets to mute. The CENSUS this
+// keeps is what makes the SILENT assertion mean anything: querySelectorAll only
+// sees ATTACHED media, and the field's backdrop <video> (field.js) is never
+// appended to the document — a detached element plays sound just fine. So every
+// video/audio the page ever creates is recorded, and any that reaches play()
+// un-muted BY THE APP is logged before this net forces it quiet.
 await page.addInitScript(() => {
+  window.__mediaEls = [];   // every media element ever created, attached or not
+  window.__loudPlays = [];  // ...that hit play() while the app had it un-muted
+  const ce = Document.prototype.createElement;
+  Document.prototype.createElement = function (tag, ...rest) {
+    const el = ce.call(this, tag, ...rest);
+    if (/^(video|audio)$/i.test(String(tag))) window.__mediaEls.push(el);
+    return el;
+  };
   const m = HTMLMediaElement.prototype;
   const p = m.play;
-  m.play = function () { this.muted = true; return p.call(this); };
+  m.play = function () {
+    if (!window.__mediaEls.includes(this)) window.__mediaEls.push(this); // new Audio()
+    if (!this.muted) window.__loudPlays.push((this.currentSrc || this.src || '?').split('/').pop());
+    this.muted = true;
+    return p.call(this);
+  };
 });
 page.on('pageerror', (e) => { console.log('PAGEERROR', e.message); failures += 1; });
 try {
