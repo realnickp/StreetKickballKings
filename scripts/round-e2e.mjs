@@ -200,17 +200,45 @@ async function walkupScenario(page) {
   ok(plated?.anim === 'plate', `he settles into the plate stance (${plated?.anim})`);
   ok(!!(await poll(page, () => ['PITCH', 'PITCH_SELECT'].includes(window.__skk.phase), 6000, 'serve')), 'the pitch follows the walk-up');
 
+  // ---- the NOW KICKING plate: up while he walks, gone by its own timer on
+  // the normal (unskipped) path (fix round, 2026-08-27). Driven with a
+  // virtual clock (s.update(1/60,1/60) in a loop) instead of real polling —
+  // deterministic and exact against walkS().
+  const plateLifecycle = await page.evaluate(async () => {
+    const s = window.__skk;
+    const { walkS } = await import('/src/game/walkup.js');
+    const STEP = 1 / 60;
+    s.clearTimers();
+    s.nextAtBat();
+    const duringWalk = !!document.querySelector('.walkout-card');
+    const frames = Math.ceil((walkS() + 0.3) / STEP);
+    for (let i = 0; i < frames; i++) s.update(STEP, STEP);
+    const afterNormal = !!document.querySelector('.walkout-card');
+    return { duringWalk, afterNormal };
+  });
+  ok(plateLifecycle.duringWalk === true, 'the NOW KICKING plate is up while he walks out');
+  ok(plateLifecycle.afterNormal === false,
+    `the plate is gone by walkS()+0.3s on the normal path (still up: ${plateLifecycle.afterNormal})`);
+
   // ---- a tap skips the next one, and the walk starts with a stomp
   await page.evaluate(() => { const s = window.__skk; s.clearTimers(); window.__sfxLog.length = 0; s.nextAtBat(); });
   ok(!!(await poll(page, () => window.__skk.walkup?.phase === 'walk', 5000, 'second walk-up')), 'every at-bat gets a walk-up, not just the first');
   ok(await page.evaluate(() => window.__sfxLog.includes('stomp')), 'a stomp lands under the first step');
   const snapped = await page.evaluate(() => {
     const s = window.__skk;
+    const beforeTap = !!document.querySelector('.walkout-card');
     s.onTap({ x: 200, y: 500 });
-    return { walkup: !!s.walkup, x: s.kicker.group.position.x, anim: s.kicker.animator.name };
+    // "hidden within 2 frames": step the virtual clock twice and re-check —
+    // the fix hides it synchronously in endWalkup(true), so this is a
+    // deliberately loose bound on top of that.
+    s.update(1 / 60, 1 / 60); s.update(1 / 60, 1 / 60);
+    const afterTap = !!document.querySelector('.walkout-card');
+    return { walkup: !!s.walkup, x: s.kicker.group.position.x, anim: s.kicker.animator.name, beforeTap, afterTap };
   });
   ok(snapped.walkup === false && snapped.x === -0.9 && snapped.anim === 'plate',
     `a tap snaps him straight to the plate (x ${snapped.x}, ${snapped.anim})`);
+  ok(snapped.beforeTap === true && snapped.afterTap === false,
+    `a tap-skip hides the NOW KICKING plate within 2 frames (before ${snapped.beforeTap}, after ${snapped.afterTap})`);
   ok(!!(await poll(page, () => ['PITCH', 'PITCH_SELECT'].includes(window.__skk.phase), 3000, 'serve after skip')), 'the serve follows the skip');
 
   // ---- the CPU side walks up too (and gets booed, not cheered)
@@ -325,7 +353,7 @@ async function arrowsScenario(page) {
     // markers are ICONS now (dev, 2026-08-27: "an icon or something that just
     // moves ... not off screen because it's getting cut off"): the bag rides
     // data-base for the probe, and the whole 40px box must land on screen
-    const SAFE = { top: 96, bottom: 150, left: 12, right: 12 };
+    const SAFE = { top: 96, bottom: 216, left: 12, right: 20 };
     const read = () => {
       const els = [...document.querySelectorAll('.runner-arrow')];
       const first = els[0];

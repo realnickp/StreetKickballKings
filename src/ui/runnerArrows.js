@@ -17,9 +17,10 @@ export function edgeClamp({ x, y, w, h, inset = 24, behind = false }) {
 // whole glyph on screen; SAFE then pushes it out of those two strips so nothing
 // is ever cut off or buried (dev, 2026-08-27: "not off screen because it's
 // getting cut off").
-export const SAFE = { top: 96, bottom: 150, left: 12, right: 12 };
+export const SAFE = { top: 96, bottom: 216, left: 12, right: 20 };
 export function markerClamp({ x, y, w, h, behind = false }) {
   const r = edgeClamp({ x, y, w, h, inset: 56, behind });
+  if (r.visible) return r; // never move an on-screen point
   r.x = Math.min(Math.max(r.x, 56 + SAFE.left), w - 56 - SAFE.right);
   r.y = Math.min(Math.max(r.y, SAFE.top), h - SAFE.bottom);
   return r;

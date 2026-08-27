@@ -891,6 +891,11 @@ export class MatchScene {
     if (!this.walkup) return;
     this.walkup = null;
     this.placeKickerAtPlate();
+    // a tap-skip snaps the kicker to the plate NOW — the NOW KICKING card
+    // must leave with him, not linger through the wind-up to the
+    // pitch-launch hide (fix round, 2026-08-27); the normal (unskipped)
+    // path still leaves the hide to its walkS()+0.1 timer.
+    if (skipped && !this.walkoutActive) this.hud.walkoutHide();
     this.camDir.request(this.camTarget === CAM.pitch ? 'pitchSelect' : 'kick', this.camCtx(), { cut: true });
     this.after(skipped ? WALKUP.serveDelayS : 0.2, () => this.serve());
   }
