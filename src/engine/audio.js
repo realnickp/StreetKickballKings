@@ -49,6 +49,18 @@ const FILES = {
 
 const pick = (v) => (Array.isArray(v) ? v[Math.floor(Math.random() * v.length)] : v);
 
+/** SILENT RUN (?mute). The E2E harnesses drive the REAL game — real music, real
+ *  booth, real set-piece videos — and a machine full of agent browsers playing
+ *  the soundtrack is not something a human sitting at that machine can work
+ *  through. `?mute` pins the master gain at 0 for the whole session (the sound
+ *  editor cannot lift it) and every <video> the game creates comes up muted.
+ *  Read LAZILY, never at module scope: audio.js is imported by node-environment
+ *  vitest suites where `location` does not exist. */
+export const isMuted = () => {
+  try { return new URLSearchParams(globalThis.location?.search ?? '').has('mute'); }
+  catch { return false; }
+};
+
 // gameplay sfx → file or synth recipe
 const SFX_ALIAS = {
   crush: { file: 'kick', gain: 1.35 },
@@ -101,7 +113,8 @@ export class AudioBus {
     this.buffers = new Map();
     this.musicSrc = null;
     this.ambienceSrc = null;
-    this.userVol = { master: 1, music: 1, sfx: 1 }; // sound-editor volumes (0..1)
+    this.muted = isMuted();                        // ?mute: the whole bus stays silent
+    this.userVol = { master: this.muted ? 0 : 1, music: 1, sfx: 1 }; // sound-editor volumes (0..1)
     this.announcer = null;   // pre-rendered ElevenLabs pack manifest
     this.annVoice = null;    // the booth voice chosen for the current match
     this._lastVo = {};       // per-pool memory for non-repeating lines
@@ -226,6 +239,7 @@ export class AudioBus {
   /** Sound editor: set a channel's user volume (0..1). ch = 'master' | 'music' | 'sfx'. */
   setVolume(ch, v) {
     v = Math.max(0, Math.min(1, v));
+    if (this.muted && ch === 'master') v = 0; // ?mute outranks the sound editor
     this.userVol[ch] = v;
     if (!this.ctx) return; // applied on the next ensureCtx()
     if (ch === 'master') this.master.gain.value = v;

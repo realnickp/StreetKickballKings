@@ -16,6 +16,10 @@
 import { webkit } from 'playwright';
 
 const BASE = process.env.SKK_URL ?? 'http://localhost:5173';
+// SILENT RUNS: every page this harness opens carries ?mute (audio.js pins the
+// master gain at 0 and every set-piece <video> comes up muted). The dev can
+// HEAR this machine — a harness that plays the soundtrack is not runnable.
+const url = (q) => `${BASE}/?${q}&mute`;
 let failures = 0;
 const ok = (cond, label) => {
   console.log(`${cond ? 'PASS' : 'FAIL'}  ${label}`);
@@ -36,9 +40,19 @@ async function poll(page, fn, timeoutMs, label) {
 
 async function breakScenario(page) {
   console.log('\n--- scenario 1: the dance -> game BREAK ---');
-  await page.goto(`${BASE}/?match&nosplash`, { waitUntil: 'domcontentloaded' });
+  await page.goto(url('match&nosplash'), { waitUntil: 'domcontentloaded' });
   const booted = await poll(page, () => !!window.__skk, 20000, 'scene boot');
   if (!booted) throw new Error('scene never booted');
+  // prove the silence before a single frame of the show runs
+  const silent = await page.evaluate(() => ({
+    muted: window.__audio.muted,
+    master: window.__audio.userVol.master,
+    gain: window.__audio.master ? window.__audio.master.gain.value : null,
+    loud: [...document.querySelectorAll('video,audio')].filter((m) => !m.muted).length,
+  }));
+  ok(silent.muted === true && silent.master === 0 && (silent.gain === null || silent.gain === 0),
+    `?mute runs the whole harness SILENT (muted ${silent.muted}, userVol.master ${silent.master}, master gain ${silent.gain ?? 'no AudioContext in WebKit'})`);
+  ok(silent.loud === 0, `no unmuted media element on the page (${silent.loud})`);
   await page.evaluate(() => {
     window.__musicLog = [];
     window.__sfxLog = [];
@@ -239,6 +253,13 @@ async function pegPadScenario(page) {
 
 const browser = await webkit.launch();
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+// belt-and-braces on top of ?mute: nothing this browser plays can make noise,
+// even a media element some future code path forgets to mute.
+await page.addInitScript(() => {
+  const m = HTMLMediaElement.prototype;
+  const p = m.play;
+  m.play = function () { this.muted = true; return p.call(this); };
+});
 page.on('pageerror', (e) => { console.log('PAGEERROR', e.message); failures += 1; });
 try {
   await breakScenario(page);

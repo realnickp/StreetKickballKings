@@ -1,4 +1,6 @@
 // Fullscreen mp4 set-piece player (splash, team intros). Tap to skip.
+import { isMuted } from '../engine/audio.js';
+
 export function playVideo(url, { muted = false, skippable = true } = {}) {
   return new Promise((resolve) => {
     const wrap = document.createElement('div');
@@ -6,7 +8,7 @@ export function playVideo(url, { muted = false, skippable = true } = {}) {
     const video = document.createElement('video');
     video.src = url;
     video.playsInline = true;
-    video.muted = muted;
+    video.muted = muted || isMuted(); // ?mute: the team-intro set pieces stay silent too
     video.autoplay = true;
     video.style.cssText = 'width:100%;height:100%;object-fit:cover;';
     const skip = document.createElement('div');
