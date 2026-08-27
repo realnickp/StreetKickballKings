@@ -1,5 +1,5 @@
 import { it, expect } from 'vitest';
-import { judgeKick, launchParams, flickShape, flickSteerDeg, FLICK } from '../src/game/kickTiming.js';
+import { judgeKick, launchParams, flickShape, flickSteerDeg, FLICK, safetyLaunchDelayS } from '../src/game/kickTiming.js';
 import tuning from '../src/data/tuning.json';
 
 it('classifies timing error into quality bands', () => {
@@ -124,4 +124,11 @@ it('launchParams never emits a NaN heading, even with a bare aimSpec', () => {
   expect(Number.isFinite(launch.directionDeg)).toBe(true);
   expect(Number.isFinite(launch.speed)).toBe(true);
   expect(Number.isFinite(launch.loftDeg)).toBe(true);
+});
+
+it('the launch fallback waits out the clip in REAL time, whatever timeScale the kick beat runs at', () => {
+  expect(safetyLaunchDelayS(0.185, 1)).toBeCloseTo(0.535);
+  expect(safetyLaunchDelayS(0.665, 0.3)).toBeCloseTo(0.665 / 0.3 + 0.35);   // 2.567 — after the clip's own contact
+  expect(safetyLaunchDelayS(0.5, 0)).toBeCloseTo(0.5 / 0.05 + 0.35);        // never divide by zero
+  for (const hold of [0.185, 0.54, 0.665]) expect(safetyLaunchDelayS(hold, 0.3)).toBeGreaterThan(hold / 0.3);
 });

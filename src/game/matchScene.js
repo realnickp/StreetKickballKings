@@ -5,7 +5,7 @@
 // exact field outcome via applyOutcome().
 import * as THREE from 'three';
 import { MatchEngine } from './matchState.js';
-import { judgeKick, launchParams, powerFromError, isHrEligible, flickShape, flickSteerDeg, FLICK, aiSwingStartS } from './kickTiming.js';
+import { judgeKick, launchParams, powerFromError, isHrEligible, flickShape, flickSteerDeg, FLICK, aiSwingStartS, safetyLaunchDelayS, footBoneRegex } from './kickTiming.js';
 import { mashSpeed, humanRunSpeed, RunnerSim } from './baseRunning.js';
 import { resolveBaseThrow, resolvePeg } from './throwing.js';
 import { SpecialMeter } from './specialMoves.js';
@@ -1210,8 +1210,9 @@ export class MatchScene {
         }
       },
     });
-    // safety: a clip without a contact mark must never stall the play
-    this.after(holdS + 0.35, launchNow);
+    // safety: a clip without a contact mark must never stall the play — measured
+    // in REAL seconds (the kick beat runs slow-mo; timers don't)
+    this.after(safetyLaunchDelayS(holdS, this.engine.timeScale), launchNow);
   }
 
   /** The kicker laid off a sloppy pitch — a BALL. Four of them walk him. */
@@ -3498,8 +3499,10 @@ export class MatchScene {
    *  so contact reads true on every clip, flips and spins included. */
   kickFootPos() {
     if (!this.kicker) return null;
+    const clip = this._gearSwing ?? 'kick';
+    const re = footBoneRegex(this.kicker.animator.meta?.(clip)?.foot);
     let foot = null;
-    this.kicker.group.traverse((o) => { if (!foot && o.isBone && /RightFoot|RightToe/i.test(o.name)) foot = o; });
+    this.kicker.group.traverse((o) => { if (!foot && o.isBone && re.test(o.name)) foot = o; });
     if (!foot) this.kicker.group.traverse((o) => { if (!foot && o.isBone && /Foot/i.test(o.name)) foot = o; });
     return foot ? foot.getWorldPosition(new THREE.Vector3()) : null;
   }

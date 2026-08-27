@@ -134,3 +134,14 @@ export function aiSwingStartS({ pitchFlightS, errMs, windupS }) {
   const contactAt = pitchFlightS + Math.max(-0.25, Math.min(0.45, err / 1000));
   return Math.max(0.05, contactAt - (windupS || 0));
 }
+
+/** The kick beat runs at engine.timeScale (0.3 on the cinematic hit) but scene
+ *  timers tick on REAL time — a fallback measured in scene seconds fired at
+ *  ~half the wind-up on every special kick (dev, 2026-08-27). Convert. */
+export function safetyLaunchDelayS(holdS, timeScale) {
+  return holdS / Math.max(0.05, timeScale ?? 1) + 0.35;
+}
+/** Bone-name matcher for the striking foot ('L'|'R', default R). */
+export function footBoneRegex(foot) {
+  return foot === 'L' ? /LeftFoot|LeftToe/i : /RightFoot|RightToe/i;
+}

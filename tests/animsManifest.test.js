@@ -30,6 +30,7 @@ describe('anims manifest', () => {
       if (m.contactAt != null) { expect(m.contactAt).toBeGreaterThan(0); expect(m.contactAt).toBeLessThan(1); }
       if (m.trim != null) { expect(m.trim.length).toBe(2); expect(m.trim[0]).toBeLessThan(m.trim[1]); }
       if (m.rate != null) expect(m.rate).toBeGreaterThan(0);
+      if (m.foot != null) expect(['L', 'R']).toContain(m.foot);
     }
   });
   it('one-shots that drive gameplay have contact marks', () => {

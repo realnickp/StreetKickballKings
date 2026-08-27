@@ -43,6 +43,7 @@
   "name": "kick",
   "loop": false,
   "contactAt": 0.258,
+  "foot": "R",
   "trim": [
    0.22,
    1.15
@@ -277,6 +278,7 @@
   "name": "kickFlair",
   "loop": false,
   "contactAt": 0.43,
+  "foot": "R",
   "inPlace": true,
   "pack": "x"
  },
@@ -285,6 +287,7 @@
   "name": "kickHurricane",
   "loop": false,
   "contactAt": 0.527,
+  "foot": "L",
   "inPlace": true,
   "pack": "x",
   "trim": [
@@ -298,6 +301,7 @@
   "name": "kickSpinFlip",
   "loop": false,
   "contactAt": 0.458,
+  "foot": "R",
   "inPlace": true,
   "pack": "x",
   "trim": [
@@ -311,6 +315,7 @@
   "name": "kickCrescent",
   "loop": false,
   "contactAt": 0.465,
+  "foot": "R",
   "inPlace": true,
   "pack": "x",
   "trim": [
@@ -324,6 +329,7 @@
   "name": "kickBlast",
   "loop": false,
   "contactAt": 0.5,
+  "foot": "R",
   "inPlace": true,
   "pack": "x",
   "trim": [
@@ -337,6 +343,7 @@
   "name": "kickMeia",
   "loop": false,
   "contactAt": 0.699,
+  "foot": "R",
   "inPlace": true,
   "pack": "x",
   "trim": [
@@ -350,6 +357,7 @@
   "name": "kickMeiaBack",
   "loop": false,
   "contactAt": 0.55,
+  "foot": "L",
   "inPlace": true,
   "pack": "x",
   "trim": [
@@ -363,6 +371,7 @@
   "name": "kickSweep",
   "loop": false,
   "contactAt": 0.45,
+  "foot": "R",
   "inPlace": true,
   "pack": "x",
   "trim": [
@@ -376,6 +385,7 @@
   "name": "kickMartelo",
   "loop": false,
   "contactAt": 0.583,
+  "foot": "R",
   "inPlace": true,
   "pack": "k",
   "rate": 1.1,
@@ -389,6 +399,7 @@
   "name": "kickArmada",
   "loop": false,
   "contactAt": 0.72,
+  "foot": "L",
   "inPlace": true,
   "pack": "k",
   "rate": 1.1,
@@ -402,6 +413,7 @@
   "name": "kickScissor",
   "loop": false,
   "contactAt": 0.35,
+  "foot": "R",
   "inPlace": true,
   "pack": "k",
   "rate": 1.1,
@@ -415,6 +427,7 @@
   "name": "kickPunt",
   "loop": false,
   "contactAt": 0.576,
+  "foot": "R",
   "inPlace": true,
   "pack": "k",
   "rate": 1.1,
@@ -428,6 +441,7 @@
   "name": "kickFlip",
   "loop": false,
   "contactAt": 0.421,
+  "foot": "L",
   "inPlace": true,
   "pack": "k",
   "rate": 1.1,
@@ -441,6 +455,7 @@
   "name": "kickBicycle",
   "loop": false,
   "contactAt": 0.879,
+  "foot": "L",
   "inPlace": true,
   "pack": "k",
   "rate": 1.1,
@@ -454,6 +469,7 @@
   "name": "kickKipUp",
   "loop": false,
   "contactAt": 0.372,
+  "foot": "R",
   "inPlace": true,
   "pack": "k",
   "rate": 1.1,

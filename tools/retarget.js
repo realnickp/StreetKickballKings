@@ -346,15 +346,23 @@ function analyzeContact(rig, clip) {
     prev = cur;
   }
   mixer.uncacheClip(clip);
-  return peaks.map((p, i) => `${toes[i].name} peak ${p.v.toFixed(1)}u/s @ ${p.t.toFixed(2)}s (${(p.t / clip.duration).toFixed(3)} frac)`).join('  ');
+  // striking foot: the toe whose speed peaks hardest is the one that meets the
+  // ball (several capoeira/spin clips boot with the LEFT). Manifest `foot`.
+  const lead = peaks.reduce((a, p, i) => (p.v > peaks[a].v ? i : a), 0);
+  const foot = /Left/i.test(toes[lead]?.name ?? '') ? 'L' : 'R';
+  const detail = peaks.map((p, i) => `${toes[i].name} peak ${p.v.toFixed(1)}u/s @ ${p.t.toFixed(2)}s (${(p.t / clip.duration).toFixed(3)} frac)`).join('  ');
+  return { detail, foot };
 }
 {
   const first = rigs.values().next().value;
   if (first) {
+    // the base `kick` has no pack — analyze it too, it needs a `foot` like the rest
     for (const m of manifest) {
-      if (!m.contactAt || !m.pack) continue;
+      if (!m.contactAt || !(m.pack || m.name === 'kick')) continue;
       const clip = first.clips.find((c) => c.name === m.name);
-      if (clip) log(`CONTACT ${m.name} (${clip.duration.toFixed(2)}s): ${analyzeContact(first, clip)}`);
+      if (!clip) continue;
+      const a = analyzeContact(first, clip);
+      log(`CONTACT ${m.name} (${clip.duration.toFixed(2)}s): ${a.detail} | FOOT ${a.foot}`);
     }
   }
 }
