@@ -24,6 +24,17 @@ export class Crown {
   }
   hudState() { return { name: this.name, fill: this.fill, ready: this.ready, armed: this.armed }; }
 }
+/** Does the match END after this half? Mirrors MatchState.endHalf(): the game
+ *  is over once the BOTTOM of the last inning is done and somebody is ahead —
+ *  a tie sends it to extra innings. halfEnd is emitted BEFORE endHalf flips
+ *  state.phase to 'GAME_END', so a listener has to decide this for itself
+ *  rather than read the phase (which is still the pre-game-over value).
+ *  @param {{inning: number, half: 'top'|'bottom'}} e the halfEnd event
+ *  @param {{home: number, away: number}} score the FINAL score for that half
+ *  @param {number} innings cfg.innings — the same field endHalf reads */
+export const isFinalHalf = ({ inning, half } = {}, score = {}, innings = Infinity) =>
+  half === 'bottom' && inning >= innings && (score.home ?? 0) !== (score.away ?? 0);
+
 /** Runs `side` scored between two score snapshots ({home, away}). */
 export const halfRuns = (before, after, side) => Math.max(0, (after?.[side] ?? 0) - (before?.[side] ?? 0));
 /** The offense events that feed the crown — the scene reuses this for its sfx

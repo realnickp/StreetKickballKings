@@ -9,7 +9,7 @@ import { judgeKick, launchParams, powerFromError, isHrEligible, flickShape, flic
 import { mashSpeed, humanRunSpeed, RunnerSim } from './baseRunning.js';
 import { resolveBaseThrow, resolvePeg } from './throwing.js';
 import { SpecialMeter } from './specialMoves.js';
-import { Crown, halfRuns, CROWN_EVENTS } from './crown.js';
+import { Crown, halfRuns, isFinalHalf, CROWN_EVENTS } from './crown.js';
 import { pickPitch, aiKickError, aiAim, aiWantsPeg, aiMashRate, aiJukes, aiThrowsFire } from './ai.js';
 import { PickleDuel, shuttleDir } from './pickleDuel.js';
 import { RunnerWatchdog } from './runnerWatchdog.js';
@@ -295,22 +295,20 @@ export class MatchScene {
     // scoreless for a whole half you spent in the field and the crown pays out.
     // halfEnd fires BEFORE state.half advances, so kickingSide() here still
     // names the side that was up — the opponent whose runs must be zero.
-    this.match.bus.on('halfEnd', () => {
+    this.match.bus.on('halfEnd', (e) => {
       const before = this._halfScore;
       const fielded = this._halfFielding;
       this._halfScore = null; this._halfFielding = false; // one payout per half
       if (!fielded || !before) return;
       if (halfRuns(before, this.match.state.score, this.match.kickingSide()) !== 0) return;
       // The LAST half is a shutout too — but a '+25 CROWN' stamp over GAME OVER
-      // is noise for a crown nobody will ever swing. MatchState.endHalf() emits
-      // halfEnd BEFORE it sets state.phase = 'GAME_END', so the phase can only
-      // be read AFTER this listener returns: pay out on the microtask.
-      queueMicrotask(() => {
-        if (this.match.state.phase === 'GAME_END') return;
-        this.crownFeed('shutout');
-        this.hud.callout('SHUTOUT! +25 CROWN', {
-          x: window.innerWidth / 2, y: window.innerHeight * 0.3, ttl: 1600, key: 'shutout',
-        });
+      // is noise for a crown nobody will ever swing. The score is FINAL at emit
+      // time, so decide it right here from the event (state.phase has not
+      // flipped yet, and deferring the read would bind us to endHalf's timing).
+      if (isFinalHalf(e, this.match.state.score, this.match.cfg.innings)) return;
+      this.crownFeed('shutout');
+      this.hud.callout('SHUTOUT! +25 CROWN', {
+        x: window.innerWidth / 2, y: window.innerHeight * 0.3, ttl: 1600, key: 'shutout',
       });
     });
     // originalBases = "the bases when this pitch left" — restoreRunners plays
