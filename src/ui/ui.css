@@ -518,27 +518,42 @@ body { display: flex; align-items: center; justify-content: center; }
   overflow: visible;
 }
 .pattern-pad.show { opacity: 1; }
-/* thin gold reference line, teal live trace — lines, never a lit-up box */
-.pattern-pad .pat-ref {
+/* white line on a dark halo — reads on every field, even Phoenix's orange sunset
+   and the bright winter field, where the old gold/teal lines vanished. */
+.pattern-pad .pat-ref-halo {
   fill: none;
-  stroke: var(--gold);
-  stroke-width: 1.6;
+  stroke: rgba(8,9,13,.85);
+  stroke-width: 4.2;
   stroke-dasharray: 4 5;
   stroke-linecap: round;
   stroke-linejoin: round;
-  opacity: .8;
-  filter: drop-shadow(0 0 6px rgba(245,179,18,.55));
+}
+.pattern-pad .pat-ref {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.8;
+  stroke-dasharray: 4 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: .95;
+}
+.pattern-pad .pat-trace-halo {
+  fill: none;
+  stroke: rgba(8,9,13,.8);
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .pattern-pad .pat-trace {
   fill: none;
-  stroke: var(--teal);
+  stroke: #fff;
   stroke-width: 2.6;
   stroke-linecap: round;
   stroke-linejoin: round;
-  filter: drop-shadow(0 0 7px rgba(62,198,181,.8));
+  filter: drop-shadow(0 0 6px rgba(255,255,255,.6));
 }
-.pattern-pad .pat-start { fill: #43e06a; filter: drop-shadow(0 0 6px rgba(67,224,106,.9)); }
-.pattern-pad .pat-end { fill: var(--gold); filter: drop-shadow(0 0 6px rgba(245,179,18,.9)); }
+.pattern-pad .pat-start { fill: #43e06a; stroke: rgba(8,9,13,.85); stroke-width: 1.2; filter: drop-shadow(0 0 6px rgba(67,224,106,.9)); }
+.pattern-pad .pat-end { fill: var(--gold); stroke: rgba(8,9,13,.85); stroke-width: 1.2; filter: drop-shadow(0 0 6px rgba(245,179,18,.9)); }
 
 /* PITCH role: trace countdown bar (sits just below the pattern pad) */
 .trace-timer {
