@@ -39,8 +39,22 @@ export const WRISTBAND = { radius: 0.045, height: 0.05, seg: 12 };
 export const HEAD_FRAC = { headband: 0.62, shades: 0.44 };
 /** How far under the temple line the eyes sit, metres. */
 export const EYE_DROP_M = 0.030;
-/** How far OVER the temple line the brow band rides, metres. */
-export const BROW_LIFT_M = 0.022;
+/** How far OVER the temple line the brow band rides, metres.
+ *  MEASURED, fix round 1: the temple hunt below almost never fires — on 4 of
+ *  the 5 rigs probed (puff, stache, fro, vet) the head is still WIDENING at the
+ *  top of the face window, so the scan runs to the FACE_HEIGHT_M cap and the
+ *  band's height is really "the chin plus 0.128 plus this lift"
+ *  (casts/probe-temple.mjs). At 0.022 that landed the band ON THE EYEBROWS on
+ *  both the rigs it was shot on — arch-puff in casts/locker-kestrals.png and
+ *  arch-stache in casts/locker-marauders.png, one band-width low on each. 0.050
+ *  puts it on the forehead under the hairline, and the head is no wider there
+ *  (arch-puff 0.096 -> 0.098 m half-width, arch-stache 0.095 -> 0.091), so the
+ *  band still sits on the skull rather than hovering off it. (0.040 was shot
+ *  too: identical on both rigs to the eye, so the extra centimetre costs
+ *  nothing — casts/locker-marauders.png, casts/locker-kestrals.png. On arch-puff
+ *  the band's front arc still disappears under the hairline whatever the height,
+ *  because that rig's hair starts ON the forehead.) */
+export const BROW_LIFT_M = 0.050;
 /** Slice spacing when hunting for the temple line, metres. */
 export const TEMPLE_STEP_M = 0.012;
 /** How far above the chin the face stops on these rigs, metres. */

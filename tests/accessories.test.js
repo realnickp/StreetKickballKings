@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import {
-  ACCESSORY_KINDS, HEADBAND, SHADES, WRISTBAND, HEAD_FRAC, WRIST_UP_M,
+  ACCESSORY_KINDS, HEADBAND, SHADES, WRISTBAND, HEAD_FRAC, WRIST_UP_M, BROW_LIFT_M,
   attachAccessory, findNode, boneRig, headAxes, measureHead,
 } from '../src/game/accessories.js';
 
@@ -286,7 +286,7 @@ describe('measureHead — the skull the rig actually has', () => {
     const r = boneRig(char.group, head, 'probe2');
     const M = measureHead(char.group, head, r, headAxes(char.group, r).up);
     const local = m.parent.worldToLocal(worldPos(m));
-    expect(local.y).toBeCloseTo(M.widestY + 0.022, 2);   // brow, not crown
+    expect(local.y).toBeCloseTo(M.widestY + BROW_LIFT_M, 2); // brow, not crown
     expect(local.y).toBeLessThan(0.16);                  // and nowhere near the hair
     // sized off the head's WIDTH — a depth-sized band would be 25 % bigger
     expect(m.geometry.parameters.radius).toBeLessThan(M.ringRadius(local.y, 0.02) * 1.1);

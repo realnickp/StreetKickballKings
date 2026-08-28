@@ -5,8 +5,9 @@
 // cheekbone ends up gold.
 import { describe, it, expect } from 'vitest';
 import {
-  SKIN_TONES, KIT_SAT_MAX, KIT_VAL_MIN, SKIN_MIX, KIT_LIFT,
+  SKIN_TONES, KIT_SAT_MAX, KIT_VAL_MIN, SKIN_MIX, KIT_LIFT, SKIN_BLEND_SAT,
   hsv, luminance, isSkinPixel, isKitPixel, toneRgb, skinTintPixel, kitTintPixel, recolorPixels, skinMeanLuminance, inkKitPanels,
+  dilateMask, rasterizeUvMask,
 } from '../src/game/skinTint.js';
 
 const hex2rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
@@ -247,11 +248,18 @@ describe('recolorPixels — the fast atlas pass', () => {
     expect(skinMeanLuminance(px)).toBeLessThan(skinMeanLuminance(new Uint8ClampedArray(before)) * 0.7);
   });
 
-  it('is a no-op when nothing is asked for', () => {
+  it('is a no-op when nothing is asked for — but it still hands back the labels', () => {
     const px = cube(51);
     const before = new Uint8ClampedArray(px);
-    expect(recolorPixels(px, {})).toEqual({ kit: 0, skin: 0, refL: 0 });
+    const got = recolorPixels(px, {});
+    expect({ kit: got.kit, skin: got.skin, blend: got.blend, refL: got.refL })
+      .toEqual({ kit: 0, skin: 0, blend: 0, refL: 0 });
     expect(px).toEqual(before);
+    // the label bitmap is measured before anything is written, so it is there
+    // whether or not there was a colour to paint — the panel pass reads it.
+    expect(got.mask.length).toBe(px.length / 4);
+    expect(got.mask.some((m) => m === 1)).toBe(true);   // the cube has neutral lights
+    expect(got.mask.some((m) => m === 2)).toBe(true);   // ...and warm mid-tones
   });
 });
 
@@ -397,5 +405,215 @@ describe('skinTintPixel', () => {
     expect(skinTintPixel(SKIN_MID, SKIN_TONES.tan)).toEqual(a);
     expect(skinTintPixel(SKIN_MID, toneRgb('tan'))).toEqual(a);
     expect(skinTintPixel(SKIN_MID, 'nonsense')).toEqual(SKIN_MID); // unknown tone: leave it be
+  });
+});
+
+describe('dilateMask', () => {
+  it('grows a dot by exactly r in both axes and copies at r = 0', () => {
+    const px = new Uint8Array(11 * 11);
+    px[5 * 11 + 5] = 1;
+    const d2 = dilateMask(px, 11, 11, 2);
+    expect(d2[5 * 11 + 7]).toBe(1);
+    expect(d2[5 * 11 + 8]).toBe(0);
+    expect(d2[7 * 11 + 5]).toBe(1);
+    expect(d2[8 * 11 + 5]).toBe(0);
+    expect(d2[7 * 11 + 7]).toBe(1);            // the two sweeps compose into a box
+    expect([...dilateMask(px, 11, 11, 0)]).toEqual([...px]);
+  });
+
+  it('hands back an empty bitmap rather than throwing on a bad size', () => {
+    expect([...dilateMask(new Uint8Array(4), 0, 4, 1)]).toEqual([]);
+    expect([...dilateMask(new Uint8Array(2), 4, 4, 1)]).toEqual(new Array(16).fill(0));
+  });
+});
+
+describe('rasterizeUvMask — the mesh drawing on the atlas', () => {
+  // one square island out of two triangles, in the top-left quarter of a 16x16
+  const uv = new Float32Array([0.125, 0.875, 0.375, 0.875, 0.375, 0.625, 0.125, 0.625]);
+  const index = new Uint16Array([0, 1, 2, 0, 2, 3]);
+
+  it('fills the triangles whose corners are kept, and nothing else', () => {
+    const m = rasterizeUvMask({ uv, index, keep: new Uint8Array([1, 1, 1, 1]), count: 4, width: 16, height: 16 });
+    expect(m[3 * 16 + 4]).toBe(1);            // inside the island
+    expect(m[10 * 16 + 10]).toBe(0);          // the other side of the sheet
+    const none = rasterizeUvMask({ uv, index, keep: new Uint8Array(4), count: 4, width: 16, height: 16 });
+    expect(none.every((v) => v === 0)).toBe(true);
+  });
+
+  it('takes a triangle when ANY corner is kept — a fence covers its boundary', () => {
+    const one = new Uint8Array([0, 0, 1, 0]);  // only the third vertex
+    const m = rasterizeUvMask({ uv, index, keep: one, count: 4, width: 16, height: 16 });
+    expect(m.reduce((a, b) => a + b, 0)).toBeGreaterThan(4);
+  });
+
+  it('ignores a UV that spans the sheet — a degenerate face is not an island', () => {
+    const huge = new Float32Array([0, 1, 1, 1, 1, 0]);
+    const m = rasterizeUvMask({
+      uv: huge, index: new Uint16Array([0, 1, 2]), keep: new Uint8Array([1, 1, 1]),
+      count: 3, width: 16, height: 16,
+    });
+    expect(m.every((v) => v === 0)).toBe(true);
+  });
+
+  it('survives being handed nothing', () => {
+    expect(rasterizeUvMask().length).toBe(0);
+    expect(rasterizeUvMask({ width: 4, height: 4 }).length).toBe(16);
+  });
+});
+
+describe('the kit passes IN PRODUCTION ORDER — recolour, then panels', () => {
+  // The shipped bug this suite exists for: inkKitPanels rebuilt its own kit mask
+  // and it ran AFTER the recolour — by which point no team hex satisfies
+  // `s < 0.17 && v > 0.52`, so the mask collapsed to nothing on 8 of the 10 kits
+  // and, on WHITEOUT #f2f2f4 (whose hex DOES satisfy it), re-inked the HAIR
+  // white instead: 71 892 texels on arch-locs, a white wig.
+  //
+  // So this atlas is built the way the real ones are (casts/probe-atlasmap.mjs):
+  // the hair island sits 4 texels from the vest with OPAQUE padding between, so
+  // adjacency alone cannot tell them apart — only the mesh can, and the fence it
+  // draws is what the `forbid` argument carries.
+  const W = 48, H = 32;
+  const VEST = [180, 180, 182];         // v 0.71 — well over the kit rule cliff
+  const PLATE = [26, 26, 30];           // the number plate: v 0.118, genuinely dark
+  const SHORTS_LIT = [150, 152, 153];   // v 0.60 — shorts the kit rule DOES take
+  const SHORTS_SHADE = [122, 124, 125]; // v 0.49 — the grey wedge under the cliff
+  const HAIR = [30, 30, 34];            // dark, unsaturated: the panel band twin
+  const SKIN = [196, 148, 118];         // a warm mid arm
+  const SEAM = [226, 208, 198];         // the anti-aliased kit/skin border texel
+  const TEAM = { DARK: '#16161a', GOLD: '#f5b312', WHITEOUT: '#f2f2f4' };
+
+  const at = (px, x, y) => [px[(y * W + x) * 4], px[(y * W + x) * 4 + 1], px[(y * W + x) * 4 + 2]];
+  const box = (px, x0, y0, x1, y1, c) => {
+    for (let y = y0; y < y1; y++) {
+      for (let x = x0; x < x1; x++) {
+        const p = (y * W + x) * 4;
+        px[p] = c[0]; px[p + 1] = c[1]; px[p + 2] = c[2]; px[p + 3] = 255;
+      }
+    }
+  };
+  const atlas = () => {
+    const px = new Uint8ClampedArray(W * H * 4);
+    box(px, 0, 0, W, H, [64, 64, 64]);          // OPAQUE padding, like the real sheets
+    box(px, 2, 2, 18, 16, VEST);                // the vest island
+    box(px, 7, 6, 13, 11, PLATE);               // its number plate
+    box(px, 2, 18, 18, 28, SHORTS_LIT);         // the shorts, touching nothing else
+    box(px, 6, 21, 14, 26, SHORTS_SHADE);       // the shaded wedge inside them
+    box(px, 22, 2, 34, 16, HAIR);               // the HAIR — 4 texels off the vest
+    box(px, 22, 18, 34, 28, SKIN);              // an arm
+    box(px, 18, 18, 22, 28, SEAM);              // its border against the shorts
+    return px;
+  };
+  /** what the mesh knows: these texels are sampled by HEAD triangles */
+  const fence = () => {
+    const f = new Uint8Array(W * H);
+    for (let y = 1; y < 17; y++) for (let x = 21; x < 35; x++) f[y * W + x] = 1;
+    return f;
+  };
+  /** the whole production pipeline, in order */
+  const run = (kit, { forbid = fence(), tone = 'brown' } = {}) => {
+    const px = atlas();
+    const { mask } = recolorPixels(px, { kit, tone, width: W, height: H });
+    const inked = inkKitPanels(px, { width: W, height: H, kit, mask, forbid });
+    return { px, mask, inked };
+  };
+
+  it('inks the plate and the shaded shorts, on every real team hex', () => {
+    for (const [name, kit] of Object.entries(TEAM)) {
+      const { px, inked } = run(kit);
+      expect(inked, name).toBeGreaterThan(100);
+      const k = hex2rgb(kit);
+      for (const [x, y, src, what] of [[9, 8, PLATE, 'the number plate'], [9, 23, SHORTS_SHADE, 'the shaded shorts']]) {
+        const got = at(px, x, y);
+        expect(got, `${name} ${what}`).not.toEqual(src);
+        // painted in the crew colour, on the crew brightness curve
+        const lift = Math.min(1, hsv(src).v * KIT_LIFT);
+        expect(got, `${name} ${what}`).toEqual(k.map((c) => Math.round(c * lift)));
+      }
+    }
+  });
+
+  it('meets the kit rule at the cliff with NO seam — the grey wedge just goes', () => {
+    // the wedge and the shorts around it are 18 % apart in brightness and must
+    // come out 18 % apart in the SAME hue; a pass on a different curve would
+    // have swapped a grey wedge for a hard-edged darker-gold one.
+    const { px } = run(TEAM.GOLD);
+    const lit = at(px, 3, 19), shade = at(px, 9, 23);
+    expect(hsv(lit).h).toBeCloseTo(hsv(shade).h, 0);
+    const ratio = luminance(shade) / luminance(lit);
+    expect(ratio).toBeCloseTo(hsv(SHORTS_SHADE).v / hsv(SHORTS_LIT).v, 2);
+  });
+
+  it('leaves the HAIR alone — including on WHITEOUT, which is the white-wig bug', () => {
+    for (const [name, kit] of Object.entries(TEAM)) {
+      const { px } = run(kit);
+      for (const [x, y] of [[23, 3], [28, 9], [33, 15]]) {
+        expect(at(px, x, y), `${name} hair at ${x},${y}`).toEqual(HAIR);
+      }
+    }
+  });
+
+  it('...and the FENCE is what does it — without one the pass walks into the hair', () => {
+    // the reach is what makes this a real risk: the padding between the vest
+    // and the hair is OPAQUE, so a dilation crosses it as if it were shirt.
+    const moved = (px) => {
+      let n = 0;
+      for (let y = 2; y < 16; y++) {
+        for (let x = 22; x < 34; x++) {
+          const c = at(px, x, y);
+          if (c[0] !== HAIR[0] || c[1] !== HAIR[1] || c[2] !== HAIR[2]) n += 1;
+        }
+      }
+      return n;
+    };
+    for (const kit of Object.values(TEAM)) {
+      expect(moved(run(kit, { forbid: null }).px), kit).toBeGreaterThan(0); // reproduced
+      expect(moved(run(kit).px), kit).toBe(0);                             // fenced off
+    }
+  });
+
+  it('never touches skin: the panel pass moves nothing the tone pass claimed', () => {
+    const px = atlas();
+    const { mask } = recolorPixels(px, { kit: TEAM.GOLD, tone: 'deep', width: W, height: H });
+    const beforePanels = [...px];
+    inkKitPanels(px, { width: W, height: H, kit: TEAM.GOLD, mask, forbid: fence() });
+    for (let y = 19; y < 27; y++) {
+      for (let x = 23; x < 33; x++) {
+        const p = (y * W + x) * 4;
+        expect([px[p], px[p + 1], px[p + 2]], `skin at ${x},${y}`)
+          .toEqual([beforePanels[p], beforePanels[p + 1], beforePanels[p + 2]]);
+      }
+    }
+    // and the arm really did re-tone — this is not a test of an inert buffer
+    expect(at(px, 28, 22)).not.toEqual(SKIN);
+  });
+
+  it('gives the anti-aliased kit/skin seam to the KIT, not to the skin rule', () => {
+    // SEAM is a blend of white cloth and a warm arm: warm, barely saturated, and
+    // the skin rule used to claim it and re-light it to near-white — a speckled
+    // outline round every neckline and hem on a dark kit.
+    expect(hsv(SEAM).s).toBeLessThan(SKIN_BLEND_SAT);
+    expect(isSkinPixel(SEAM)).toBe(true);                  // the pure rule still claims it
+    const px = atlas();
+    const { mask, blend } = recolorPixels(px, { kit: TEAM.DARK, tone: 'deep', width: W, height: H });
+    expect(blend).toBeGreaterThan(0);
+    const i = 22 * W + 18;                                 // a seam texel beside the shorts
+    expect(mask[i]).toBe(3);                               // taken off the skin border
+    expect(luminance(at(px, 18, 22))).toBeLessThan(luminance(SEAM) * 0.5); // it went kit-dark
+    // ...and only ever the BORDER: the middle of the arm is still skin
+    expect(mask[22 * W + 28]).toBe(2);
+  });
+
+  it('without the mask the pass is blind to the plate — the shipped bug, pinned', () => {
+    // Rebuilding the kit mask off the recoloured buffer finds no kit at all
+    // (no team hex is a bright neutral), so nothing can prove it is ADJACENT to
+    // the kit and the number plate stays black — which is what shipped.
+    for (const kit of [TEAM.DARK, TEAM.GOLD]) {
+      const px = atlas();
+      recolorPixels(px, { kit, tone: 'brown', width: W, height: H });
+      inkKitPanels(px, { width: W, height: H, kit, forbid: fence() });
+      expect(at(px, 9, 8), kit).toEqual(PLATE);
+    }
+    // ...and with the mask the same atlas gives the plate up
+    expect(at(run(TEAM.GOLD).px, 9, 8)).not.toEqual(PLATE);
   });
 });

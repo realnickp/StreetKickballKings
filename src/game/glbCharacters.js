@@ -18,7 +18,7 @@ import { loadExtrasFor } from './animExtras.js';
 import { attachJerseyDecals } from './jerseyDecals.js';
 import { inkFor, logoFor } from './kits.js';
 // leaf modules: skinTint is pure maths, accessories imports three and nothing else
-import { recolorPixels, kitTintPixel, inkKitPanels } from './skinTint.js';
+import { recolorPixels, kitTintPixel, inkKitPanels, rasterizeUvMask, dilateMask } from './skinTint.js';
 import { attachAccessory } from './accessories.js';
 import castsData from '../data/casts.json';
 
@@ -40,29 +40,134 @@ const gltfCache = new Map();
  * texel-space painting bled across shared UV islands.
  * @returns {THREE.CanvasTexture} a NEW texture (caller owns it)
  */
-function recolorKitTexture(srcTex, primaryHex, { skinTone = null } = {}) {
+function recolorKitTexture(srcTex, primaryHex, { skinTone = null, mesh = null } = {}) {
   const img = srcTex.image;
   if (!img || !img.width) return srcTex;
+  const key = `${srcTex.uuid}|${primaryHex}|${skinTone ?? ''}`;
+  const hit = recolorCache.get(key);
+  if (hit) { recolorCache.delete(key); recolorCache.set(key, hit); return hit; } // LRU touch
   const c = document.createElement('canvas');
   c.width = img.width; c.height = img.height;
   const ctx = c.getContext('2d');
   ctx.drawImage(img, 0, 0);
   const data = ctx.getImageData(0, 0, c.width, c.height);
-  recolorPixels(data.data, { kit: primaryHex, tone: skinTone });
-  // the dark number plate baked onto the back of the vest: it is printed ON
-  // the kit, so it is re-inked by ADJACENCY to it (see inkKitPanels). Left
-  // black it showed as a slab behind the jersey number on every light kit.
-  inkKitPanels(data.data, { width: c.width, height: c.height, kit: primaryHex });
+  // width/height let the pass hand the anti-aliased kit/skin seam back to the
+  // kit — without them it left a warm speckled outline round every neckline.
+  const { mask } = recolorPixels(data.data, {
+    kit: primaryHex, tone: skinTone, width: c.width, height: c.height,
+  });
+  // Carry the colour past the kit rule's brightness cliff: the dark plate baked
+  // behind the number, and the shaded middle of the shorts. It runs on the mask
+  // the recolour measured on the ORIGINAL atlas (rebuilding it here reads a
+  // buffer with no neutral kit left in it), fenced off the hair and the shoes
+  // by the MESH — see inkKitPanels and hairShoeFence.
+  inkKitPanels(data.data, {
+    width: c.width, height: c.height, kit: primaryHex, mask,
+    forbid: hairShoeFence(mesh, c.width, c.height),
+  });
   ctx.putImageData(data, 0, 0);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = srcTex.colorSpace;
   tex.flipY = srcTex.flipY;
   tex.wrapS = srcTex.wrapS; tex.wrapT = srcTex.wrapT;
-  // owned = allocated FOR THIS CHARACTER, so disposeCharacter() may free it.
-  // The early-out above hands back the SHARED gltf texture — never tagged.
-  tex.userData.owned = true;
   tex.needsUpdate = true;
+  // NOT userData.owned: the cache SHARES this texture with every character in
+  // the same kit and tone, so disposeCharacter() must leave it alone. (The
+  // early-out above hands back the shared gltf texture, also never tagged.)
+  recolorCache.set(key, tex);
+  while (recolorCache.size > RECOLOR_CACHE_MAX) {
+    const oldest = recolorCache.keys().next().value;
+    const dead = recolorCache.get(oldest);
+    recolorCache.delete(oldest);
+    try { dead?.dispose?.(); } catch { /* already gone */ }
+  }
   return tex;
+}
+
+// ---- the recolour cache ---------------------------------------------------
+// A 2048² atlas costs 130-400 ms to walk (recolour + seam sweep + panel pass),
+// and the LOCKER rebuilds the captain on EVERY equip — a tap used to buy a
+// second of pixel work on the phone for a texture identical to the one just
+// thrown away. Keyed on what the result depends on and nothing else: the source
+// texture, the crew hex and the skin tone. Bounded, LRU, disposed on eviction.
+//
+// WHY FOUR AND NOT MORE: an entry is a live 2048² canvas — 16 MB of CPU pixels
+// plus its GPU copy — and six of the nineteen archetypes are that size, so the
+// bound is retained memory on a phone, and this project's iOS rules do not have
+// 100 MB spare. Four is more than the only pattern that actually repeats: the
+// Locker asks for the SAME key on every cleat/taunt/kick equip and one more per
+// kit toggle. A MATCH is the opposite — sixteen players, sixteen different
+// archetypes, sixteen keys, nothing reused — so a bigger bound would buy that
+// path nothing and cost it a fortune.
+const RECOLOR_CACHE_MAX = 4;
+const recolorCache = new Map();
+
+// ---- the hair/shoe fence --------------------------------------------------
+// The panel pass claims dark texels NEXT TO the kit. On these atlases nothing
+// in texel space separates the vest island from the hair: triangles cover only
+// 55-69 % of the sheet and every gap is OPAQUE padding, so a dilation walks
+// straight across it (casts/probe-atlasmap.mjs). Only the mesh knows which
+// texels the hair and the shoes sample, so the mesh draws the fence — the same
+// move applyCleatVertexTint makes for the boots, one dimension down.
+//
+// Cached per (archetype geometry, atlas size): SkeletonUtils.clone SHARES the
+// geometry, so this is measured once per archetype, not once per character.
+const fenceCache = new Map();
+// The fence is grown by ONE texel so an island's own colour bleed goes with it,
+// and no further: it is subtracted again wherever the body samples (dilated to
+// match), because on these atlases a shorts triangle and a shoe triangle can
+// land on the SAME texels, and a fence that wins those ties leaves a grey patch
+// on the front of the shorts (casts/dump-waves-final.png).
+const FENCE_DILATE_PX = 1;
+// ...and the body's claim is grown by three, because a triangle smaller than a
+// texel still SAMPLES the atlas while covering no texel centre, so a body claim
+// rasterized 1:1 has pinholes in it. The fence loses every tie.
+const BODY_REACH_PX = 3;
+function hairShoeFence(mesh, width, height) {
+  if (!mesh?.isSkinnedMesh || !mesh.geometry || !mesh.skeleton) return null;
+  const key = `${mesh.geometry.uuid}|${width}x${height}`;
+  if (fenceCache.has(key)) return fenceCache.get(key);
+  let fence = null;
+  try {
+    const geo = mesh.geometry;
+    const uvAttr = geo.getAttribute('uv');
+    const ji = geo.getAttribute('skinIndex');
+    const sw = geo.getAttribute('skinWeight');
+    if (uvAttr && ji && sw) {
+      const bones = mesh.skeleton.bones;
+      const off = new Set(bones.map((b, i) => (/Head|Neck/i.test(b.name) ? i : -1)).filter((i) => i >= 0));
+      if (off.size) {
+        const keep = new Uint8Array(uvAttr.count);
+        const rest = new Uint8Array(uvAttr.count);
+        for (let v = 0; v < uvAttr.count; v++) {
+          let best = -1, bw = -1;
+          for (let k = 0; k < 4; k++) {
+            const w = sw.getComponent(v, k);
+            if (w > bw) { bw = w; best = ji.getComponent(v, k); }
+          }
+          keep[v] = off.has(best) ? 1 : 0;   // the bone that OWNS the vertex
+          rest[v] = keep[v] ? 0 : 1;
+        }
+        // PACK the UVs: these attributes are interleaved on most archetypes,
+        // so `uvAttr.array` is the whole vertex buffer, not a u,v list.
+        const uv = new Float32Array(uvAttr.count * 2);
+        for (let v = 0; v < uvAttr.count; v++) { uv[v * 2] = uvAttr.getX(v); uv[v * 2 + 1] = uvAttr.getY(v); }
+        const index = geo.index?.array ?? null;
+        const raw = rasterizeUvMask({ uv, index, keep, count: uvAttr.count, width, height });
+        // ...and what the REST of the body samples. The fence must never cover
+        // one of those: these atlases re-use texels across UV islands (3-14 %
+        // of the hair/shoe mask is also body), and the 3-texel bleed reaches
+        // further still, so an unsubtracted fence left a white patch on the
+        // front of every monarchs captain's shorts.
+        const bodyMask = rasterizeUvMask({ uv, index, keep: rest, count: uvAttr.count, width, height });
+        const bodyNear = dilateMask(bodyMask, width, height, BODY_REACH_PX);
+        fence = dilateMask(raw, width, height, FENCE_DILATE_PX);
+        for (let i = 0; i < fence.length; i++) if (bodyNear[i]) fence[i] = 0;
+      }
+    }
+  } catch { fence = null; /* no fence is better than no character */ }
+  fenceCache.set(key, fence);
+  return fence;
 }
 
 // ---- LOCKER cleats: tint the FOOT GEOMETRY --------------------------------
@@ -124,10 +229,12 @@ function applyCleatVertexTint(mesh, cleatHex) {
 
 /**
  * Free everything a character build ALLOCATED — and nothing it borrowed.
- * buildGlbCharacter clones the material per character, may hand it a fresh
- * 2048² recoloured CanvasTexture, and clones the geometry for cleats; the
- * GLTF's own geometry/textures are SHARED by every clone and must survive.
- * `userData.owned` is the tag the builder leaves on what it made.
+ * buildGlbCharacter clones the material per character and clones the geometry
+ * for cleats; the GLTF's own geometry/textures are SHARED by every clone and
+ * must survive, and so is the recoloured atlas, which now lives in
+ * `recolorCache` and is handed to every character in the same kit and tone.
+ * `userData.owned` is the tag the builder leaves on what it made — the
+ * recoloured texture deliberately does NOT carry it.
  */
 export function disposeCharacter(char) {
   // The jersey decals own two plane geometries + two materials per character
@@ -468,7 +575,7 @@ export async function buildGlbCharacter(def, { heightM = 2.05, clips = null } = 
         o.material.roughness = 0.7;
         const skinTone = def.cast?.skin ?? null;
         if (def.teamColor && o.material.map) {
-          const recol = recolorKitTexture(o.material.map, def.teamColor, { skinTone });
+          const recol = recolorKitTexture(o.material.map, def.teamColor, { skinTone, mesh: o });
           o.material.map = recol;
           if (o.material.emissiveMap) o.material.emissiveMap = recol;
           o.material.emissiveIntensity = 0.4;

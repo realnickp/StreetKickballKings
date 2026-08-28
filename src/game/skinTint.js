@@ -29,6 +29,21 @@ export const SKIN_TONES = {
 };
 
 // --- the bands -------------------------------------------------------------
+/**
+ * ...AND WHY THE BORDER TEXELS ARE HANDED BACK (fix round 1).
+ * A floor at 0.09 also catches the 1-2 texel ANTI-ALIASED SEAM between the kit
+ * and the skin — a blend of white cloth and a warm arm is warm and barely
+ * saturated, so the skin rule claimed it and re-lit it by L/refL. On a dark kit
+ * those seam texels came out near-white and ran as a speckled outline round
+ * every neckline, armhole, hem and shoe line (review 2026-08-28). Raising the
+ * floor to 0.12 would sweep them up, but it ALSO repaints 500-1710 INTERIOR
+ * face texels per rig (casts/probe-fringe.mjs) — the exact pale-cheek bug the
+ * 0.09 measurement exists to prevent. So the floor stays, and the seam is taken
+ * by ADJACENCY instead: a barely-saturated skin texel that TOUCHES a kit texel
+ * is a blend of the two, and the kit takes it. Every texel that rule moves is
+ * on the border by construction; nothing in the middle of a face can qualify.
+ */
+export const SKIN_BLEND_SAT = 0.13;
 /** Skin hue window, degrees. Everything human on these atlases is orange-warm. */
 export const SKIN_HUE = [10, 40];
 /** Saturation window. The floor is the lit-cheek measurement above; the ceiling
@@ -126,82 +141,215 @@ export function kitTintPixel(rgb, kit) {
 
 /** How far a dark panel may sit from the kit it is printed ON, in texels. */
 export const PANEL_DILATE_PX = 6;
-/** The band a baked panel lives in: unsaturated, and darker than the kit. */
+/** The band a baked panel lives in: unsaturated, and darker than the kit.
+ *  The floor is where the pass stops being able to help: it paints a claimed
+ *  texel at its OWN brightness in the crew's colour, so a PURE BLACK texel comes
+ *  back pure black whatever the kit is. Measured, with the floor dropped to 0.0
+ *  as an experiment: arch-locs' baked number plate is exactly that, and the slab
+ *  behind his 38 does not move (casts/whiteout-locs-gold-back.png). The floor
+ *  stays at 0.08 because claiming those texels buys nothing and only widens what
+ *  the flood can walk through. */
 export const PANEL_SAT_MAX = 0.2;
 export const PANEL_VAL = [0.08, 0.52];
 
 /**
- * Re-ink the DARK panels printed on the kit — the rounded number plate baked
- * into the back of every archetype's vest.
+ * Grow a 0/1 bitmap by `r` texels, in two O(n) sliding-window sweeps rather
+ * than an (2r+1)² box per texel. Used twice on the character build path — once
+ * to find what is NEXT TO the kit, once to fence off the hair and the shoes —
+ * so it is worth the running-sum.
+ * @param {Uint8Array} src @returns {Uint8Array} a NEW bitmap
+ */
+export function dilateMask(src, width, height, r = 1) {
+  const n = width * height;
+  const out = new Uint8Array(n);
+  if (!(n > 0) || src.length < n) return out;
+  if (r <= 0) { out.set(src.subarray(0, n)); return out; }
+  const row = new Uint8Array(n);
+  for (let y = 0; y < height; y++) {
+    const o = y * width;
+    let sum = 0;
+    for (let x = 0; x <= r && x < width; x++) sum += src[o + x];
+    for (let x = 0; x < width; x++) {
+      row[o + x] = sum > 0 ? 1 : 0;
+      const add = x + r + 1, drop = x - r;
+      if (add < width) sum += src[o + add];
+      if (drop >= 0) sum -= src[o + drop];
+    }
+  }
+  for (let x = 0; x < width; x++) {
+    let sum = 0;
+    for (let y = 0; y <= r && y < height; y++) sum += row[y * width + x];
+    for (let y = 0; y < height; y++) {
+      out[y * width + x] = sum > 0 ? 1 : 0;
+      const add = y + r + 1, drop = y - r;
+      if (add < height) sum += row[add * width + x];
+      if (drop >= 0) sum -= row[drop * width + x];
+    }
+  }
+  return out;
+}
+
+/**
+ * Paint the atlas texels a chosen SET OF TRIANGLES samples — the mesh's own
+ * answer to "which part of the body is this texel?".
  *
- * The kit rule only claims BRIGHT low-saturation texels, so that plate stayed
- * black and showed through as a slab behind the jersey number on every light
- * kit. It can't simply be added to the kit rule: the shorts and most of the
- * hair are dark and unsaturated too, and painting those the crew colour would
- * put a team-coloured wig on the field.
+ * These atlases are a Meshy patchwork: triangles cover only 55-69 % of the
+ * sheet and the rest is OPAQUE padding, so nothing in texel space separates the
+ * hair island from the vest island (casts/probe-atlasmap.mjs — the picture of
+ * it). Only the geometry knows. Same principle as the cleat tint, which picks
+ * foot-weighted VERTICES because a texel-space shoe mask splattered.
  *
- * ADJACENCY is what tells them apart — the panel is printed on the vest and
- * touches kit texels; the shorts and the hair live in their own UV islands
- * with nothing but background around them. So: dilate the kit mask by a few
- * texels and re-ink only the dark texels that fall inside it, keeping their own
- * brightness so the panel stays a shade under the shirt it sits on.
+ * A triangle is rasterized when ANY of its three corners is kept, so a mask
+ * built to FENCE SOMETHING OFF covers the boundary ring too.
  *
- * Runs in two O(n) sliding-window sweeps rather than a 13×13 box per texel —
- * this is on the character build path, behind the walk-out.
+ * @param {{uv:ArrayLike<number>, index:ArrayLike<number>|null, keep:ArrayLike<number>,
+ *          count:number, width:number, height:number}} o `uv` is TIGHTLY PACKED
+ *   u,v pairs — three.js hands out INTERLEAVED attributes on most of these
+ *   rigs, where `attribute.array` is the whole vertex buffer and reading it two
+ *   floats at a time gives nonsense (measured: it made the median head triangle
+ *   cover 12 % of arch-waves' atlas, and the fence swallowed 86-99 % of the
+ *   sheet). Copy through getX/getY.
+ * @returns {Uint8Array} width*height, 1 where a kept triangle lands
+ */
+export function rasterizeUvMask({ uv, index, keep, count, width, height } = {}) {
+  const n = width * height;
+  const out = new Uint8Array(n > 0 ? n : 0);
+  if (!(n > 0) || !uv || !keep) return out;
+  const tris = index ? index.length / 3 : count / 3;
+  const px = (i) => uv[i * 2] * width;
+  const py = (i) => (1 - uv[i * 2 + 1]) * height;
+  for (let t = 0; t < tris; t++) {
+    const a = index ? index[t * 3] : t * 3;
+    const b = index ? index[t * 3 + 1] : t * 3 + 1;
+    const c = index ? index[t * 3 + 2] : t * 3 + 2;
+    if (!keep[a] && !keep[b] && !keep[c]) continue;
+    const ax = px(a), ay = py(a), bx = px(b), by = py(b), cx = px(c), cy = py(c);
+    const x0 = Math.max(0, Math.floor(Math.min(ax, bx, cx)) - 1);
+    const x1 = Math.min(width - 1, Math.ceil(Math.max(ax, bx, cx)) + 1);
+    const y0 = Math.max(0, Math.floor(Math.min(ay, by, cy)) - 1);
+    const y1 = Math.min(height - 1, Math.ceil(Math.max(ay, by, cy)) + 1);
+    if (x1 < x0 || y1 < y0) continue;
+    // a triangle spanning almost the whole sheet in BOTH axes is a degenerate
+    // or unwrapped face, not an island — rasterizing it would fence off the
+    // entire atlas. (Anything smaller is honest: the barycentric test below
+    // only fills the triangle itself, never its bounding box.)
+    if ((x1 - x0 + 1) >= width * 0.9 && (y1 - y0 + 1) >= height * 0.9) continue;
+    const d = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy);
+    if (!(Math.abs(d) > 1e-9)) continue;
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        const l1 = ((by - cy) * (x + 0.5 - cx) + (cx - bx) * (y + 0.5 - cy)) / d;
+        const l2 = ((cy - ay) * (x + 0.5 - cx) + (ax - cx) * (y + 0.5 - cy)) / d;
+        if (l1 < -0.02 || l2 < -0.02 || 1 - l1 - l2 < -0.02) continue;
+        out[y * width + x] = 1;
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Carry the crew's colour DOWN past the kit rule's brightness cliff — the dark
+ * number plate printed on the back of the vest, and the shaded parts of the
+ * shorts that fall just under it.
+ *
+ * The kit rule only claims texels above v = 0.52. Two things fall off that
+ * cliff, and both are the kit: the rounded plate baked behind the number
+ * (arch-locs' is a real black square, v = 0.22, 20 216 texels — it is the black
+ * slab behind the 38 in casts/whiteout-locs-back.png), and the shaded middle of
+ * the shorts at v = 0.49-0.52, which stayed grey while the texels a shade
+ * brighter went gold — the jagged wedge on the back of every monarchs captain
+ * in casts/back-monarchs-light.png.
+ *
+ * It cannot simply be added to the kit rule: the hair is dark and unsaturated
+ * too, and painting that the crew colour is a team-coloured wig.
+ *
+ * THREE things separate them, and it takes all three:
+ *
+ * 1. `mask` — the kit/skin bitmap `recolorPixels` BUILT ON THE ORIGINAL atlas.
+ *    Rebuilding it here from the recoloured buffer is what broke this pass in
+ *    the first place: after the recolour no team hex satisfies `s < 0.17 &&
+ *    v > 0.52`, so the mask collapsed to 0 texels on 8 of the 10 kits and to
+ *    stray highlights on the other two (measured, casts/probe-panelfix.mjs).
+ *
+ * 2. A FLOOD, not a radius. Both targets are one CONNECTED BLOB whose rim
+ *    touches the kit and whose middle is nowhere near it — arch-locs' plate is
+ *    140 texels across, so a 6-texel reach nibbled its edge and left the slab
+ *    (1 035 of 20 216 texels). So the pass seeds on the candidates within
+ *    `dilate` of the kit and then spreads through touching candidates as far as
+ *    they go. Skin and the kit itself are walls, which is what stops it walking
+ *    off the shirt and onto a face.
+ *
+ * 3. `forbid` — a bitmap of the texels the HAIR triangles sample, which only the
+ *    mesh can draw, and which the flood treats as a WALL as well as a no-paint
+ *    zone. Adjacency alone cannot do this job: triangles cover just 55-69 % of
+ *    these atlases and every gap is OPAQUE padding, so a dilation — never mind a
+ *    flood — walks straight from the vest island onto the hair (with the mask
+ *    fixed but no fence, arch-puff inks 424 hair vertices; with it, none).
+ *
+ * A claimed texel is painted on the SAME brightness curve the kit rule uses
+ * (`v · KIT_LIFT`), so the two passes meet with no seam at the cliff — the
+ * shorts wedge disappears instead of turning into a hard edge in the right
+ * colour — and anything genuinely dark stays a shade under the shirt it is on.
  *
  * @param {Uint8ClampedArray|Uint8Array} px RGBA, modified in place
- * @param {{width:number, height:number, kit:string|number[], dilate?:number}} o
+ * @param {{width:number, height:number, kit:string|number[], dilate?:number,
+ *          mask?:Uint8Array|null, forbid?:Uint8Array|null}} o `mask` is
+ *   `recolorPixels`'s return (1/3 = kit, 2 = skin); without it the bands are
+ *   re-measured off `px`, which is only correct on an UN-recoloured buffer.
  * @returns {number} texels re-inked
  */
-export function inkKitPanels(px, { width, height, kit, dilate = PANEL_DILATE_PX } = {}) {
+export function inkKitPanels(px, { width, height, kit, dilate = PANEL_DILATE_PX, mask = null, forbid = null } = {}) {
   const k = toneRgb(kit);
   if (!k || !(width > 0) || !(height > 0) || px.length < width * height * 4) return 0;
   const n = width * height;
+  const usable = mask && mask.length >= n ? mask : null;
+  const fence = forbid && forbid.length >= n ? forbid : null;
   const isKit = new Uint8Array(n);
   const dark = new Uint8Array(n);
   for (let i = 0, p = 0; i < n; i++, p += 4) {
     if (px[p + 3] === 0) continue;
+    if (usable) {
+      const m = usable[i];
+      if (m === 1 || m === 3) { isKit[i] = 1; continue; }
+      if (m === 2) continue;                      // skin is never a panel
+    }
     const r = px[p], g = px[p + 1], b = px[p + 2];
     const mx = r > g ? (r > b ? r : b) : (g > b ? g : b);
     const mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
     const v = mx / 255;
     const s = mx === 0 ? 0 : (mx - mn) / mx;
-    if (s < KIT_SAT_MAX && v > KIT_VAL_MIN) isKit[i] = 1;
+    if (!usable && s < KIT_SAT_MAX && v > KIT_VAL_MIN) isKit[i] = 1;
     else if (s < PANEL_SAT_MAX && v > PANEL_VAL[0] && v < PANEL_VAL[1]) dark[i] = 1;
   }
-  // dilate the kit mask: a running count across each row, then down each column
-  const rowHit = new Uint8Array(n);
-  for (let y = 0; y < height; y++) {
-    const o = y * width;
-    let sum = 0;
-    for (let x = 0; x <= dilate && x < width; x++) sum += isKit[o + x];
-    for (let x = 0; x < width; x++) {
-      rowHit[o + x] = sum > 0 ? 1 : 0;
-      const add = x + dilate + 1;
-      const drop = x - dilate;
-      if (add < width) sum += isKit[o + add];
-      if (drop >= 0) sum -= isKit[o + drop];
-    }
+  // seed on what touches the kit, then FLOOD through the blob it belongs to.
+  // The stack never holds more than the candidate set, and every texel is
+  // pushed once, so this stays O(n) like the rest of the pass.
+  const near = dilateMask(isKit, width, height, dilate);
+  const claim = new Uint8Array(n);
+  const stack = new Int32Array(n);
+  let top = 0;
+  for (let i = 0; i < n; i++) {
+    if (!dark[i] || claim[i] || !near[i] || (fence && fence[i])) continue;
+    claim[i] = 1;
+    stack[top++] = i;
   }
-  const near = new Uint8Array(n);
-  for (let x = 0; x < width; x++) {
-    let sum = 0;
-    for (let y = 0; y <= dilate && y < height; y++) sum += rowHit[y * width + x];
-    for (let y = 0; y < height; y++) {
-      near[y * width + x] = sum > 0 ? 1 : 0;
-      const add = y + dilate + 1;
-      const drop = y - dilate;
-      if (add < height) sum += rowHit[add * width + x];
-      if (drop >= 0) sum -= rowHit[drop * width + x];
-    }
+  while (top > 0) {
+    const i = stack[--top];
+    const x = i % width;
+    if (x > 0) { const j = i - 1; if (dark[j] && !claim[j] && !(fence && fence[j])) { claim[j] = 1; stack[top++] = j; } }
+    if (x < width - 1) { const j = i + 1; if (dark[j] && !claim[j] && !(fence && fence[j])) { claim[j] = 1; stack[top++] = j; } }
+    if (i >= width) { const j = i - width; if (dark[j] && !claim[j] && !(fence && fence[j])) { claim[j] = 1; stack[top++] = j; } }
+    if (i < n - width) { const j = i + width; if (dark[j] && !claim[j] && !(fence && fence[j])) { claim[j] = 1; stack[top++] = j; } }
   }
   let inked = 0;
   for (let i = 0, p = 0; i < n; i++, p += 4) {
-    if (!dark[i] || !near[i]) continue;
+    if (!claim[i]) continue;
     const mx = Math.max(px[p], px[p + 1], px[p + 2]) / 255;
-    px[p] = Math.round(k[0] * mx);
-    px[p + 1] = Math.round(k[1] * mx);
-    px[p + 2] = Math.round(k[2] * mx);
+    const lift = mx * KIT_LIFT > 1 ? 1 : mx * KIT_LIFT;   // the kit rule's own curve
+    px[p] = Math.round(k[0] * lift);
+    px[p + 1] = Math.round(k[1] * lift);
+    px[p + 2] = Math.round(k[2] * lift);
     inked += 1;
   }
   return inked;
@@ -290,26 +438,35 @@ export function skinTintPixel(rgb, tone, { mix = SKIN_MIX, refL = null } = {}) {
  * luminance, the second moves every skin texel relative to it. That reference
  * is the difference between a tone and a hue rotation (see skinTintPixel).
  *
+ * The pass runs in TWO sweeps over the classification and one over the pixels:
+ * the first labels every texel (and adds up the skin luminance the re-tone
+ * needs), the second hands the kit back its ANTI-ALIASED BORDER (see
+ * SKIN_BLEND_SAT — it needs a texel's neighbours, so it can only happen once
+ * every texel has a label), and the third writes. The label bitmap comes back
+ * with the counts because the panel pass needs the mask THIS pass measured on
+ * the original atlas — rebuilding it afterwards reads a buffer that no longer
+ * has a neutral kit in it (see inkKitPanels).
+ *
  * @param {Uint8ClampedArray|Uint8Array} px RGBA, modified in place
- * @param {{kit?:string|number[]|null, tone?:string|number[]|null, refL?:number|null}} what
- * @returns {{kit:number, skin:number, refL:number}} texels moved by each rule,
- *   and the reference the re-tone used
+ * @param {{kit?:string|number[]|null, tone?:string|number[]|null, refL?:number|null,
+ *          width?:number, height?:number}} what `width`/`height` enable the
+ *   border sweep; without them the pass is exactly the two pure rules.
+ * @returns {{kit:number, skin:number, blend:number, refL:number, mask:Uint8Array}}
+ *   texels moved by each rule, the reference the re-tone used, and the label
+ *   bitmap (0 none · 1 kit · 2 skin · 3 kit, taken off the skin border).
  */
-export function recolorPixels(px, { kit = null, tone = null, refL = null } = {}) {
+export function recolorPixels(px, { kit = null, tone = null, refL = null, width = 0, height = 0 } = {}) {
   const k = toneRgb(kit);
   const t = toneRgb(tone);
-  const ref = t ? (refL != null && refL > 0 ? refL : skinMeanLuminance(px)) : 0;
-  const counts = { kit: 0, skin: 0, refL: ref };
-  if (!k && !t) return counts;
-  const kr = k ? k[0] : 0, kg = k ? k[1] : 0, kb = k ? k[2] : 0;
-  const tr = t ? t[0] : 0, tg = t ? t[1] : 0, tb = t ? t[2] : 0;
-  const Lt = t ? 0.2126 * tr + 0.7152 * tg + 0.0722 * tb : 0;
-  const canTone = !!t && Lt > 0;
-  const refL0 = ref > 0 ? ref : Lt;
-  const keep = 1 - SKIN_MIX;
-  for (let i = 0; i < px.length; i += 4) {
-    if (px[i + 3] === 0) continue;
-    const r = px[i], g = px[i + 1], b = px[i + 2];
+  const n = px.length >> 2;
+  const mask = new Uint8Array(n);
+  const counts = { kit: 0, skin: 0, blend: 0, refL: 0, mask };
+
+  // --- sweep 1: label every texel, and measure the atlas's own mean skin
+  let skinN = 0, skinSum = 0;
+  for (let i = 0, p = 0; i < n; i++, p += 4) {
+    if (px[p + 3] === 0) continue;
+    const r = px[p], g = px[p + 1], b = px[p + 2];
     const mx = r > g ? (r > b ? r : b) : (g > b ? g : b);
     const mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
     const d = mx - mn;
@@ -325,7 +482,53 @@ export function recolorPixels(px, { kit = null, tone = null, refL = null } = {})
       if (h < 0) h += 360;
       skin = h >= SKIN_HUE[0] && h <= SKIN_HUE[1];
     }
-    if (skin) {
+    if (skin) { mask[i] = 2; skinN += 1; skinSum += 0.2126 * r + 0.7152 * g + 0.0722 * b; }
+    else if (s < KIT_SAT_MAX && v > KIT_VAL_MIN) mask[i] = 1;
+  }
+  const ref = t ? (refL != null && refL > 0 ? refL : (skinN ? skinSum / skinN : 0)) : 0;
+  counts.refL = ref;
+  if (!k && !t) return counts;
+
+  // --- sweep 2: the anti-aliased kit/skin seam belongs to the KIT. Marked as a
+  // separate label (3) so one border texel turning kit can't cascade into the
+  // face behind it — every flip is measured against the ORIGINAL labels.
+  if (width > 0 && height > 0 && width * height === n) {
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const i = y * width + x;
+        if (mask[i] !== 2) continue;
+        const p = i * 4;
+        const r = px[p], g = px[p + 1], b = px[p + 2];
+        const mx = r > g ? (r > b ? r : b) : (g > b ? g : b);
+        const mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
+        if (mx === 0 || (mx - mn) / mx >= SKIN_BLEND_SAT) continue;
+        let touches = false;
+        for (let dy = -1; dy <= 1 && !touches; dy++) {
+          const yy = y + dy;
+          if (yy < 0 || yy >= height) continue;
+          for (let dx = -1; dx <= 1; dx++) {
+            const xx = x + dx;
+            if (xx < 0 || xx >= width || (dx === 0 && dy === 0)) continue;
+            if (mask[yy * width + xx] === 1) { touches = true; break; }
+          }
+        }
+        if (touches) { mask[i] = 3; counts.blend += 1; }
+      }
+    }
+  }
+
+  // --- sweep 3: write
+  const kr = k ? k[0] : 0, kg = k ? k[1] : 0, kb = k ? k[2] : 0;
+  const tr = t ? t[0] : 0, tg = t ? t[1] : 0, tb = t ? t[2] : 0;
+  const Lt = t ? 0.2126 * tr + 0.7152 * tg + 0.0722 * tb : 0;
+  const canTone = !!t && Lt > 0;
+  const refL0 = ref > 0 ? ref : Lt;
+  const keep = 1 - SKIN_MIX;
+  for (let i = 0, m = 0; i < px.length; i += 4, m += 1) {
+    const label = mask[m];
+    if (!label) continue;
+    const r = px[i], g = px[i + 1], b = px[i + 2];
+    if (label === 2) {
       if (!canTone) continue;
       const L = 0.2126 * r + 0.7152 * g + 0.0722 * b;
       const kk = L / refL0;
@@ -350,7 +553,9 @@ export function recolorPixels(px, { kit = null, tone = null, refL = null } = {})
       px[i + 1] = Math.round(og < 0 ? 0 : og > 255 ? 255 : og);
       px[i + 2] = Math.round(ob < 0 ? 0 : ob > 255 ? 255 : ob);
       counts.skin += 1;
-    } else if (k && s < KIT_SAT_MAX && v > KIT_VAL_MIN) {
+    } else if (k) {
+      const mx = r > g ? (r > b ? r : b) : (g > b ? g : b);
+      const v = mx / 255;
       const lift = v * KIT_LIFT > 1 ? 1 : v * KIT_LIFT;
       px[i] = Math.round(kr * lift);
       px[i + 1] = Math.round(kg * lift);
