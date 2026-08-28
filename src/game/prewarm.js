@@ -47,14 +47,29 @@
 //     material would compile a second time on the first real frame, which is
 //     exactly the bug we came to kill.
 //
-// LIGHTS ARE PART OF THE KEY. three's own note on `compile()`: "the (target)
-// scene's lighting and environment must be configured before calling this
-// method" — the program is keyed on the light counts. A warm run before the
-// field exists would link 0-light programs and every one of them would be
-// thrown away. That is why the call that GATES the show is the one MatchScene
-// makes (field built, sun + hemi + ambient in the scene); the earlier call
-// behind the intro videos runs `{ compile: false }` and does the part that is
-// light-independent and expensive in bytes: the decal paint and the uploads.
+// LIGHTS ARE PART OF THE KEY, AND SO IS THE ENVIRONMENT MAP. three's own note on
+// `compile()`: "the (target) scene's lighting and environment must be configured
+// before calling this method." Two ways that bites:
+//
+//   * LIGHT COUNTS. A warm run before the field exists links 0-light programs
+//     and every one of them is thrown away. That is why the call that GATES the
+//     show is the one MatchScene makes (field built, sun + hemi + ambient in the
+//     scene); the earlier call behind the intro videos runs `{ compile: false }`
+//     and does the part that is light-independent and expensive in bytes: the
+//     decal paint and the uploads.
+//   * `envMapCubeUVHeight`. It is in the program key too, and the engine swaps
+//     `scene.environment` ASYNCHRONOUSLY — `setSceneEnvironment` builds an IBL
+//     out of the field's backdrop jpg once it downloads. Warm before that swap
+//     and every body re-links on its next draw; because the sixteen are hidden
+//     until the walk-out, that re-link waits and lands ON the show. So the warm
+//     awaits `engine.envReady` as well as the print. (The two IBLs are also
+//     pinned to the same PMREM cube size in renderer.js, so even a swap this
+//     wait somehow missed can no longer move the key — belt and braces.)
+//
+// THE PROMISE IS THE GATE. `engine.prewarmed` is TELEMETRY — a flag the harness
+// reads to say "a lit warm has completed at least once". Callers must await the
+// promise (`engine.prewarmPromise`, or the one MatchScene keeps as `this.prewarm`);
+// polling the flag would race a rematch's second warm.
 
 export const PREWARM = {
   /** A logo that never loads (or a font that never lands) must not hold the
@@ -71,18 +86,6 @@ export function charList(chars) {
   return flat.filter((c) => c && c.group);
 }
 
-/** Every material texture slot three can sample. Explicit rather than a blind
- *  key sweep so a deprecated accessor can never be touched — the sweep below
- *  still catches anything custom on top of this list. */
-const TEX_SLOTS = [
-  'map', 'emissiveMap', 'normalMap', 'bumpMap', 'roughnessMap', 'metalnessMap',
-  'aoMap', 'alphaMap', 'lightMap', 'displacementMap', 'envMap', 'specularMap',
-  'specularIntensityMap', 'specularColorMap', 'clearcoatMap', 'clearcoatNormalMap',
-  'clearcoatRoughnessMap', 'iridescenceMap', 'iridescenceThicknessMap',
-  'sheenColorMap', 'sheenRoughnessMap', 'transmissionMap', 'thicknessMap',
-  'anisotropyMap', 'gradientMap', 'matcap',
-];
-
 const materialsOf = (o) => (Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []));
 
 /**
@@ -98,9 +101,11 @@ export function charTextures(chars, out = new Map()) {
     c.group.traverse?.((o) => {
       for (const m of materialsOf(o)) {
         if (!m) continue;
-        for (const k of TEX_SLOTS) { const t = m[k]; if (t && t.isTexture) out.set(t.uuid, t); }
-        // anything a custom material hangs on itself (never re-reads a slot
-        // above — the Map dedupes by uuid)
+        // OWN KEYS, not a hand-written slot list: three's materials assign every
+        // sampler (`this.map = null`, `this.emissiveMap = null`, ...) in their
+        // constructors, so they are all own enumerable properties — and this
+        // also catches whatever a custom material hangs on itself. No accessor
+        // is touched, so no deprecated getter can fire.
         for (const k of Object.keys(m)) { const t = m[k]; if (t && t.isTexture) out.set(t.uuid, t); }
       }
       const bone = o.isSkinnedMesh ? o.skeleton?.boneTexture : null;
@@ -123,6 +128,17 @@ export function decalsReady(chars, timeoutMs = PREWARM.decalTimeoutMs) {
     all,
     new Promise((res) => setTimeout(res, timeoutMs)),
   ]).then(() => waits.length);
+}
+
+/** Resolve when the engine's FINAL environment map is in place — or when the
+ *  wait times out, on the same terms as the print: a backdrop that never lands
+ *  keeps the neutral IBL and the match still starts. */
+export function envReady(engine, timeoutMs = PREWARM.decalTimeoutMs) {
+  const p = engine?.envReady;
+  if (!p || typeof p.then !== 'function') return Promise.resolve(false);
+  const settled = Promise.resolve(p).then(() => true, () => true);
+  if (!(timeoutMs > 0)) return settled;
+  return Promise.race([settled, new Promise((res) => setTimeout(() => res(false), timeoutMs))]);
 }
 
 /** Is `obj` already hanging under `root`? */
@@ -171,13 +187,22 @@ function warmNow(engine, list, opts = {}) {
   let prevTarget = null;
   try { prevTarget = renderer.getRenderTarget?.() ?? null; } catch { prevTarget = null; }
   const target = opts.target !== undefined ? opts.target : (engine.composer?.renderTarget1 ?? null);
+  let drew = false;
   try {
     renderer.setRenderTarget?.(target);
     try { renderer.compile?.(scene, camera); } catch (e) { console.warn('[skk] prewarm compile:', e); }
-    // the draw is what CREATES the bone textures and links the shadow-depth
-    // variants; character meshes are built `frustumCulled = false`, so the
-    // live camera draws every one of them wherever they happen to stand
-    try { renderer.render?.(scene, camera); } catch (e) { console.warn('[skk] prewarm draw:', e); }
+    // The draw is what CREATES the bone textures and links the shadow-depth
+    // variants; character meshes are built `frustumCulled = false`, so the live
+    // camera draws every one of them wherever they happen to stand.
+    //
+    // NO TARGET, NO DRAW. Without one this would go to the visible framebuffer:
+    // sixteen staged bodies flashed on screen, and — since three only applies
+    // tone mapping when the target is null — the WRONG program variant linked
+    // for a game that renders through a composer. Compiling alone is the safe
+    // half; an engine with no composer is a test harness, not the game.
+    if (target) {
+      try { renderer.render?.(scene, camera); drew = true; } catch (e) { console.warn('[skk] prewarm draw:', e); }
+    }
   } finally {
     try { renderer.setRenderTarget?.(prevTarget); } catch { /* nothing to restore to */ }
   }
@@ -198,6 +223,7 @@ function warmNow(engine, list, opts = {}) {
 
   return {
     players: list.length,
+    drew,
     textures: { before: before.textures, after: info.memory?.textures ?? 0, warmed: uploaded },
     programs: { before: before.programs, after: info.programs?.length ?? 0 },
     warmMs: +(now() - t0).toFixed(1),
@@ -213,17 +239,27 @@ function warmNow(engine, list, opts = {}) {
  *
  * @param {Object} engine the renderer wrapper (`renderer`, `scene`, `camera`, `composer`)
  * @param {Array|{home:Array,away:Array}} chars
- * @param {{compile?:boolean, decalTimeoutMs?:number, target?:*}} [opts]
+ * @param {{compile?:boolean, decalTimeoutMs?:number, target?:*, cancelled?:Function}} [opts]
  *   `compile:false` does the PAINT + the uploads only — for the pass that runs
- *   before the field (and therefore the lights) exists.
+ *   before the field (and therefore the lights) exists. `cancelled()` is polled
+ *   after the awaits: a scene torn down mid-warm must not stage sixteen bodies
+ *   into a graph that is being dismantled.
  * @returns {Promise<Object|null>} the stats, also on `engine.prewarmStats`
  */
 export function prewarmCharacters(engine, chars, opts = {}) {
   const list = charList(chars);
   const t0 = now();
+  const timeoutMs = opts.decalTimeoutMs ?? PREWARM.decalTimeoutMs;
   const run = (async () => {
-    const printed = await decalsReady(list, opts.decalTimeoutMs ?? PREWARM.decalTimeoutMs);
+    // The PRINT and the LIGHT, together: both have to be final before a body is
+    // linked or drawn, and both are capped by the same timeout so neither can
+    // hold the match (see the header).
+    const [printed, lit] = await Promise.all([
+      decalsReady(list, timeoutMs),
+      envReady(engine, timeoutMs),
+    ]);
     const decalMs = +(now() - t0).toFixed(1);
+    if (opts.cancelled?.()) return null;
     let stats = null;
     if (opts.compile === false) {
       // paint + uploads only: no scene render, because the program key needs
@@ -247,6 +283,7 @@ export function prewarmCharacters(engine, chars, opts = {}) {
     const out = {
       ...(stats ?? { players: list.length }),
       printed,
+      lit,
       decalMs,
       compiled: opts.compile !== false,
       totalMs: +(now() - t0).toFixed(1),

@@ -95,7 +95,12 @@ async function poll(page, fn, timeoutMs, label) {
  *  which is what makes the walk-up travel samples start at the far mark. */
 async function boot(page, q) {
   await page.goto(url(q), { waitUntil: 'domcontentloaded' });
-  if (!(await poll(page, () => !!window.__skk, 30000, 'scene boot'))) throw new Error('scene never booted');
+  // 150 s, not 30: booting this page is two full crews of GLB characters
+  // (load + skeleton clone + atlas recolour + decal cut) through a SOFTWARE
+  // renderer, and `poll` blocks whenever the page's main thread does — measured
+  // at ~36 s on a box with other agents' harnesses running. This is a timeout,
+  // not an assertion: nothing here passes because we waited longer.
+  if (!(await poll(page, () => !!window.__skk, 150000, 'scene boot'))) throw new Error('scene never booted');
   return page.evaluate(() => {
     const s = window.__skk;
     window.__sfxLog = []; window.__bus.on('sfx', (n) => window.__sfxLog.push(n));
@@ -112,8 +117,11 @@ async function boot(page, q) {
     // time, which is the "they render one by one" the dev sees on his phone.
     window.__gpu = [];
     // and the PRINT: how many vests were painted (decals.ready) by the time the
-    // show opened. A blank vest becoming printed mid-walk is the same bug.
-    window.__print = { crew: 0, done: 0, atOpen: null };
+    // first crew stepped through the gate. A blank vest becoming printed
+    // mid-walk is the same bug. `atOpen` is the (earlier) reading at the moment
+    // the stage closed — reported, not asserted: the pre-warm gate sits between
+    // the two, which is exactly its job.
+    window.__print = { crew: 0, done: 0, atOpen: null, atShow: null };
     {
       const crew = [...s.chars.home, ...s.chars.away].filter((c) => c.decals?.ready);
       window.__print.crew = crew.length;
@@ -185,10 +193,21 @@ async function boot(page, q) {
         if (inf) window.__gpu.push([w.side, +dt.toFixed(2), inf.memory.textures, inf.programs.length]);
         const key = `${w.side}@${dt >= 2 ? '2s' : '0s'}`;
         if (!window.__cold[key]) window.__cold[key] = coldOf(w.chars);
+        if (window.__print.atShow == null) window.__print.atShow = window.__print.done;
       }
       if (s.walkoutActive && window.__print.atOpen == null) window.__print.atOpen = window.__print.done;
       if (s.walkoutActive && window.__pg.t0 == null) { window.__pg.t0 = performance.now(); window.__pg.e0 = s.elapsed; }
       if (!s.walkoutActive && window.__pg.t0 != null && window.__pg.t1 == null) { window.__pg.t1 = performance.now(); window.__pg.e1 = s.elapsed; }
+      // THE GATE MUST NEVER EAT A TAP. onTap's cinematicLock branch only routes
+      // to the SKIP chip while `walkoutActive` is true; a pre-game frame with the
+      // lens locked and that flag false is a frame whose taps vanish, with no
+      // chip on screen to catch them. Counted rather than polled for, so a
+      // regression cannot hide in a window too short to catch from Node. Read
+      // AFTER the __pg bookkeeping above: the break holds cinematicLock for 1.6 s
+      // after the show ends, and that is a lens the player is meant to sit out.
+      if (window.__pg.t1 == null && s.cinematicLock && !s.walkoutActive) {
+        window.__deaf = (window.__deaf ?? 0) + 1;
+      }
     });
     const snap = {
       phase: s.phase,
@@ -339,21 +358,47 @@ async function pregameScenario(page) {
   const texPeak = Math.max(...gpu.map((r) => r[2]));
   ok(gpu.length > 0 && texPeak === gpu[0][2],
     `and the whole show never uploads one (textures start ${gpu[0]?.[2]}, peak ${texPeak}, end ${gpu[gpu.length - 1]?.[2]} over ${gpu.length} frames, both crews)`);
-  // PROGRAMS. The crew's are covered above, exactly — this line is the rest of
-  // the scene, and it is reported rather than pinned: field.js streams the CITY
-  // WORLD's glb in asynchronously (`import('./world/blacktop.js')`), so on a
-  // slow load its material can link after the pre-warm and inside the show.
-  // Nothing in prewarm.js can compile a mesh that is not in the scene yet.
-  const progRise = Math.max(...gpu.map((r) => r[3])) - gpu[0][3];
-  console.log(`NOTE  programs over the show: ${gpu[0]?.[3]} -> ${Math.max(...gpu.map((r) => r[3]))}` +
-    `${progRise ? ' (the late city-world glb — the crew ledger above is empty)' : ''}`);
+  // PROGRAMS, FLAT. Not one shader may link while the show runs. The one that
+  // used to was the BODY re-keying itself: `envMapCubeUVHeight` is in three's
+  // program key and `setSceneEnvironment` swaps `scene.environment`
+  // asynchronously, so a body linked against the boot IBL re-linked on its next
+  // draw — and since the sixteen are hidden until the walk-out, that re-link
+  // waited and landed ON the show. Fixed at both ends: the warm awaits
+  // `engine.envReady`, and both IBLs are pinned to the same PMREM cube size.
+  const progSeen = [...new Set(gpu.map((r) => r[3]))];
+  ok(gpu.length > 0 && progSeen.length === 1,
+    `no shader is linked during the show (programs ${progSeen.join(' -> ')} over ${gpu.length} frames, both crews)`);
+  console.log(`NOTE  programs over the show: ${gpu[0]?.[3]} -> ${Math.max(...gpu.map((r) => r[3]))}`);
   const print = await page.evaluate(() => window.__print);
-  ok(print.crew > 0 && print.atOpen === print.crew,
-    `every vest is PRINTED before the show opens (${print.atOpen}/${print.crew} crests + numbers painted when walkoutActive flipped)`);
+  ok(print.crew > 0 && print.atShow === print.crew,
+    `every vest is PRINTED before a single body is on screen (${print.atShow}/${print.crew} crests + numbers painted when the first crew stepped off; ${print.atOpen}/${print.crew} when the stage closed)`);
+  // ---- AND THE GATE NEVER ATE A TAP. The show waits on the warm, so the stage
+  // is closed for a beat before anything walks out; `walkoutActive` and the chip
+  // are set synchronously so the player always has his way out.
+  const deaf = await page.evaluate(() => window.__deaf ?? 0);
+  ok(deaf === 0, `no pre-game frame swallows a tap (${deaf} locked frames with the show's tap route closed)`);
   const warm = await page.evaluate(() => window.__skk.engine.prewarmStats ?? null);
   ok(!!warm && warm.compiled === true && warm.players === 16,
     `the pre-warm ran first (${warm ? `${warm.players} players, ${warm.textures.warmed} textures uploaded, ${warm.programs.before}->${warm.programs.after} programs, ${warm.decalMs} ms print + ${warm.warmMs} ms warm` : 'never ran'})`);
   ok(await page.evaluate(() => window.__skk.engine.prewarmed === true), 'the engine is flagged pre-warmed for the show');
+  ok(!!warm && warm.lit === true && warm.drew === true,
+    `the warm waited for the field's own light and drew a real frame (lit ${warm?.lit}, drew ${warm?.drew})`);
+  // The warm rides the coin toss, so it must be BOUNDED — but split the two
+  // halves, because only one of them can hang. The WAITS (the print, the
+  // field's IBL) are capped by prewarm's own 8 s timeout and are the half that
+  // could in principle never return; the link/upload half is pure CPU and this
+  // is a software renderer on a box running other agents' harnesses, so it only
+  // gets a runaway ceiling.
+  ok(!!warm && warm.decalMs <= 9000,
+    `the warm's WAITS are capped — a print or a backdrop that never lands can't hold the match (${warm?.decalMs} ms, ceiling 9000)`);
+  ok(!!warm && warm.totalMs <= 30000,
+    `and the warm as a whole is bounded (${warm?.totalMs} ms in headless WebKit: ${warm?.decalMs} ms waiting, ${warm?.warmMs} ms linking + uploading)`);
+  // and the swap can no longer move the program key even if the wait missed it
+  const ibl = await page.evaluate(() => {
+    const env = window.__skk.engine.scene.environment;
+    return env ? { h: env.image?.height ?? null, w: env.image?.width ?? null } : null;
+  });
+  ok(ibl?.h === 256, `both IBLs are pinned to one cubeUV size, so a late swap can't re-key a body (${ibl?.w}x${ibl?.h})`);
   const stamps = await page.evaluate(() => window.__stamps);
   ok(/GAME TIME/i.test(stamps[stamps.length - 1] ?? ''), `GAME TIME! is the break stamp (${stamps.join(' | ')})`);
   const sfx = await page.evaluate(() => window.__sfxLog.slice());
@@ -1533,6 +1578,11 @@ try {
 
 const browser = await webkit.launch();
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+// Playwright's 30 s navigation default is not enough for this page on a box that
+// is also running other agents' harnesses: the boot is two crews of GLB
+// characters through a software renderer, and a blocked main thread blocks the
+// navigation promise with it. Plumbing, not an assertion.
+page.setDefaultNavigationTimeout(150000);
 // belt-and-braces on top of ?mute: nothing this browser plays can make noise,
 // even a media element some future code path forgets to mute. The CENSUS this
 // keeps is what makes the SILENT assertion mean anything: querySelectorAll only

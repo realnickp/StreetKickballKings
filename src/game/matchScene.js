@@ -174,7 +174,7 @@ export class MatchScene {
     // on the frame he is first drawn (dev, on his phone, 2026-08-28: "all
     // characters should render before we see them"). lineupIntro waits on this
     // promise before the show opens; see src/game/prewarm.js.
-    this.prewarm = prewarmCharacters(engine, this.chars);
+    this.prewarm = prewarmCharacters(engine, this.chars, { cancelled: () => this.dead });
 
     // instant-replay capture: the last ~6s of every character's skeleton + ball
     this.replayChars = [...this.chars.home, ...this.chars.away];
@@ -392,9 +392,12 @@ export class MatchScene {
     const url = new URLSearchParams(location.search);
     if (url.has('nointro') || url.has('drill')) return done();
 
-    // The stage closes NOW — the lens and the taps belong to the show from the
-    // instant the coin toss hands over, even though the show itself waits for
-    // the pre-warm below.
+    // THE STAGE CLOSES NOW, AND SO DOES THE SHOW'S TAP ROUTE. Both flags are
+    // synchronous on purpose: onTap's cinematicLock branch only reaches the SKIP
+    // chip while `walkoutActive` is true, so a locked frame with it false is a
+    // frame whose taps go nowhere and no chip on screen to catch them. The
+    // pre-warm below gates the TIMELINE, never the player's way out.
+    this.walkoutActive = true;
     this.cinematicLock = true;
     // The walk-out is DIRECTED, not hand-flown: cameraLock stays OFF so every
     // shot goes through CameraDirector and clampNearHome keeps the lens out of
@@ -404,6 +407,9 @@ export class MatchScene {
     this.walkoutRun = null;
     this.hud.setLetterbox(true);
     this.hud.hint('');
+    // skipping the lineup is a DELIBERATE act — the chip, not any stray tap
+    // coming off the coin toss (dev: "I don't always see the starting lineup")
+    this.hud.showSkipChip(() => this.bus.emit('cine:skip'));
     // empty stage: everyone hides, each crew appears for its own segment only
     for (const c of [...this.chars.home, ...this.chars.away]) c.group.visible = false;
 
@@ -532,11 +538,11 @@ export class MatchScene {
     // a warm that failed must not cost the player his match).
     const gen = this.introGen = (this.introGen ?? 0) + 1;
     const open = () => {
-      if (this.introGen !== gen) return;   // a rematch/teardown overtook this warm
-      this.walkoutActive = true;
-      // skipping the lineup is a DELIBERATE act — the chip, not any stray tap
-      // coming off the coin toss (dev: "I don't always see the starting lineup")
-      this.hud.showSkipChip(() => this.bus.emit('cine:skip'));
+      // a rematch or a teardown overtook this warm...
+      if (this.introGen !== gen) return;
+      // ...or the player pressed SKIP while it ran, and cleanup has already run
+      // the break and handed the game back. Either way there is no show to open.
+      if (!this.walkoutActive) return;
       // both crews have bodies -> the walk-out; otherwise the splash-only open
       // (the lineup must ALWAYS show, even for a squad we can't walk)
       const canWalk = this.walkoutSquad('away').length >= 1 && this.walkoutSquad('home').length >= 1;
@@ -549,10 +555,12 @@ export class MatchScene {
         }
       }
     };
-    // the ctor's warm normally landed long ago (it rides the coin toss); the
-    // `??` is for a scene built some other way — the gate is the promise, not
-    // where it was started
-    (this.prewarm ?? prewarmCharacters(this.engine, this.chars)).then(open, open);
+    // THE PROMISE IS THE GATE (never the `engine.prewarmed` flag, which is
+    // telemetry and would race a rematch's second warm). The ctor's warm
+    // normally landed long ago — it rides the coin toss; the `??` is for a scene
+    // built some other way.
+    (this.prewarm ?? prewarmCharacters(this.engine, this.chars, { cancelled: () => this.dead }))
+      .then(open, open);
   }
 
   /** The crew that walks out, CAPTAIN FIRST — he leads the file and takes the
@@ -4626,7 +4634,9 @@ export class MatchScene {
   }
 
   destroy() {
-    // a pre-warm still in flight must never open a show on a dead scene
+    // a pre-warm still in flight must never stage sixteen bodies into a graph
+    // being dismantled, nor open a show on a scene that is gone
+    this.dead = true;
     this.introGen = (this.introGen ?? 0) + 1;
     this.offTap?.();
     this.offSwipe?.();

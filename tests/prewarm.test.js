@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import {
-  PREWARM, charList, charTextures, decalsReady, prewarmCharacters, warmNow,
+  PREWARM, charList, charTextures, decalsReady, envReady, prewarmCharacters, warmNow,
 } from '../src/game/prewarm.js';
 
 // ---------------------------------------------------------------- fixtures
@@ -59,7 +59,7 @@ function fakeEngine({ throwOnCompile = false } = {}) {
       });
     },
   };
-  return { engine: { renderer, scene, camera, composer: { renderTarget1: target } }, log, target };
+  return { engine: { renderer, scene, camera, composer: { renderTarget1: target }, envReady: Promise.resolve() }, log, target };
 }
 
 const names = (log, op) => log.filter((r) => r[0] === op).map((r) => r[1]);
@@ -234,5 +234,78 @@ describe('prewarmCharacters', () => {
   it('a renderer-less engine is a no-op, not a crash', async () => {
     await expect(prewarmCharacters({}, [fakeChar('c')])).resolves.toBeTruthy();
     expect(warmNow({}, [fakeChar('c')])).toBe(null);
+  });
+
+  // ---- THE LIGHT. `envMapCubeUVHeight` is in three's program key and the
+  // engine swaps scene.environment asynchronously, so a warm that runs before
+  // the swap links programs the swap immediately invalidates — and because the
+  // bodies are hidden until the walk-out, the re-link lands ON the show.
+  it('waits for the scene environment before it links anything', async () => {
+    const { engine, log } = fakeEngine();
+    let lightUp;
+    engine.envReady = new Promise((r) => { lightUp = r; });
+    const p = prewarmCharacters(engine, [fakeChar('c')]);
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    expect(log.some((r) => r[0] === 'compile')).toBe(false);
+    lightUp();
+    const stats = await p;
+    expect(log.some((r) => r[0] === 'compile')).toBe(true);
+    expect(stats.lit).toBe(true);
+  });
+
+  it('an environment that never lands times out instead of holding the match', async () => {
+    vi.useFakeTimers();
+    try {
+      const { engine } = fakeEngine();
+      engine.envReady = new Promise(() => {});
+      const p = prewarmCharacters(engine, [fakeChar('c')], { decalTimeoutMs: 50 });
+      await vi.advanceTimersByTimeAsync(60);
+      const stats = await p;
+      expect(stats.lit).toBe(false);
+      expect(engine.prewarmed).toBe(true);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('an engine with no envReady at all is simply ready', async () => {
+    await expect(envReady({})).resolves.toBe(false);
+    await expect(envReady({ envReady: Promise.resolve() })).resolves.toBe(true);
+    await expect(envReady({ envReady: Promise.reject(new Error('x')) })).resolves.toBe(true);
+  });
+
+  // ---- TEARDOWN. A scene torn down mid-warm must not have sixteen bodies
+  // staged into a graph that is being dismantled.
+  it('a cancelled warm stages nothing', async () => {
+    const { engine, log } = fakeEngine();
+    const cast = [fakeChar('c0'), fakeChar('c1')];
+    for (const c of cast) { engine.scene.add(c.group); c.group.visible = false; }
+    let dead = false;
+    let paint;
+    cast[0].decals.ready = new Promise((r) => { paint = r; });
+    const p = prewarmCharacters(engine, cast, { cancelled: () => dead });
+    dead = true;              // destroy() lands while the print is still wet
+    paint();
+    await expect(p).resolves.toBe(null);
+    expect(log.some((r) => r[0] === 'compile' || r[0] === 'render')).toBe(false);
+    expect(cast.every((c) => c.group.visible === false)).toBe(true);
+    expect(engine.prewarmed).toBeUndefined();
+  });
+
+  // ---- NO TARGET, NO DRAW. Drawing to the visible framebuffer would flash the
+  // staged bodies AND link the tone-mapped variant, which is not the one a
+  // composer-rendered game uses.
+  it('never draws to the screen when there is no render target', async () => {
+    const { engine, log } = fakeEngine();
+    delete engine.composer;
+    const stats = await prewarmCharacters(engine, [fakeChar('c')]);
+    expect(log.some((r) => r[0] === 'compile')).toBe(true);
+    expect(log.some((r) => r[0] === 'render')).toBe(false);
+    expect(stats.drew).toBe(false);
+    expect(stats.compiled).toBe(true);
+  });
+
+  it('draws when it HAS a target', async () => {
+    const { engine } = fakeEngine();
+    const stats = await prewarmCharacters(engine, [fakeChar('c')]);
+    expect(stats.drew).toBe(true);
   });
 });

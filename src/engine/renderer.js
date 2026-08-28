@@ -61,6 +61,14 @@ const GradeShader = {
   `,
 };
 
+// PMREM cube size for EVERY environment map this engine builds. The scene-matched
+// IBL is generated from a 256-wide equirect canvas, and `fromEquirectangular`
+// takes cube size = width / 4 — so the neutral boot map is pinned to the same 64
+// and the two maps share a cubeUV height. See the pmrem block below for why the
+// program cache makes that load-bearing.
+const PMREM_CUBE = 64;
+const PMREM_EQUIRECT_W = PMREM_CUBE * 4;
+
 export function createEngine(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -80,7 +88,17 @@ export function createEngine(canvas) {
   let pmrem = null;
   try {
     pmrem = new THREE.PMREMGenerator(renderer);
-    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    // SIZE PINNED, and it is not cosmetic. `envMapCubeUVHeight` is part of the
+    // PROGRAM KEY three links a material against, and `setSceneEnvironment`
+    // below swaps this neutral room for a map built out of the field's own
+    // backdrop — `fromEquirectangular` of a 256x128 canvas, i.e. cube size
+    // 256/4 = 64. `fromScene` defaults to 256, so the boot map and the field
+    // map had DIFFERENT cubeUV heights and EVERY body re-linked its shader on
+    // its first visible draw after the swap. Since the sixteen are hidden until
+    // the walk-out, that re-link was deferred all the way to the show — the
+    // 940 ms first frame, and the "they render one by one" the dev saw. Same
+    // size on both paths = same key = the swap can never move it.
+    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04, 0.1, 100, { size: PMREM_CUBE }).texture;
     // Hold the IBL well back: full-strength RoomEnvironment + the bright per-sky
     // lights blew every surface past the bloom threshold (everything glowed). This
     // keeps the material reflectance cue without lifting overall scene brightness.
@@ -148,6 +166,12 @@ export function createEngine(canvas) {
     paused: false, // when true the frame callbacks (gameplay) freeze but we keep rendering
     fx: { bloomPass, gradePass },
     baseBloom: 0.18,
+    /** Resolves when the scene's FINAL environment map is in place. Nothing may
+     *  pre-compile a body before this settles: the env map's cubeUV height is in
+     *  three's program key, so a shader linked against the boot IBL and then met
+     *  by a swap re-links on its next draw. `prewarmCharacters` awaits it.
+     *  Starts resolved — an engine nobody has handed a backdrop to is ready. */
+    envReady: Promise.resolve(),
     onFrame(cb) {
       frameCbs.add(cb);
       return () => frameCbs.delete(cb);
@@ -170,14 +194,20 @@ export function createEngine(canvas) {
      *  instead of a neutral white room. Also nudges the grade tint toward the
      *  scene palette. Fire-and-forget; any failure keeps the neutral IBL. */
     setSceneEnvironment(url) {
-      if (!url || !pmrem) return;
+      // The swap re-keys every MeshStandard program in the scene, so it has to
+      // be WAITABLE: `envReady` re-arms here and settles on the swap, on a
+      // failure, or immediately when there is nothing to load. It never
+      // rejects — a missing backdrop keeps the neutral IBL and the match runs.
+      let settle = () => {};
+      engine.envReady = new Promise((res) => { settle = res; });
+      if (!url || !pmrem) { settle(); return; }
       new THREE.ImageLoader().load(url, (img) => {
         try {
           // Equirect approximation of standing inside the scene: the backdrop
           // fills a horizon band, its top rows smear up to the zenith and its
           // bottom rows smear down to the nadir. Coarse on purpose — PMREM
           // blurs it into diffuse ambience; only the color distribution matters.
-          const W = 256, H = 128;
+          const W = PMREM_EQUIRECT_W, H = PMREM_EQUIRECT_W / 2;
           const c = document.createElement('canvas');
           c.width = W; c.height = H;
           const ctx = c.getContext('2d');
@@ -205,7 +235,12 @@ export function createEngine(canvas) {
           );
         } catch (e) {
           console.warn('[skk] scene environment failed, keeping neutral IBL:', e);
+        } finally {
+          settle(); // swapped or not, the light is now whatever it is going to be
         }
+      }, undefined, (e) => {
+        console.warn('[skk] scene backdrop unavailable, keeping neutral IBL:', e);
+        settle();
       });
     },
     shakeAmt: 0,
