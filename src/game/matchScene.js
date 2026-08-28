@@ -482,6 +482,8 @@ export class MatchScene {
           // (lineups at 0.2 s, walkout-captain at ~3.0 s, and GAME TIME's
           // 'gametime' is a CALL that queues behind whatever is playing)
           this.bus.emit('vo', { event: 'nowkicking', team: this.teams[side].id });
+          // the crest sting IS this crew's "now kicking" — don't let the first at-bat repeat it 3 s later
+          if (side === this.match.kickingSide()) this._lastKickSide = side;
         });
       });
     };
