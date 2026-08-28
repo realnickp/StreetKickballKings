@@ -474,7 +474,10 @@ describe('the kit passes IN PRODUCTION ORDER — recolour, then panels', () => {
   // draws is what the `forbid` argument carries.
   const W = 48, H = 32;
   const VEST = [180, 180, 182];         // v 0.71 — well over the kit rule cliff
-  const PLATE = [26, 26, 30];           // the number plate: v 0.118, genuinely dark
+  const PLATE = [58, 58, 64];           // the number plate as it MEASURES on the rigs: v 0.251
+  const PLATE_BLACK = [4, 4, 5];        // ...and arch-locs' is nearer this: v 0.016, s 0.2
+  const HAIR_DEEP = [6, 6, 7];          // a black patch inside the hair island
+  const SHOE = [10, 10, 12];            // a black island with no shirt anywhere near it
   const SHORTS_LIT = [150, 152, 153];   // v 0.60 — shorts the kit rule DOES take
   const SHORTS_SHADE = [122, 124, 125]; // v 0.49 — the grey wedge under the cliff
   const HAIR = [30, 30, 34];            // dark, unsaturated: the panel band twin
@@ -496,17 +499,22 @@ describe('the kit passes IN PRODUCTION ORDER — recolour, then panels', () => {
     box(px, 0, 0, W, H, [64, 64, 64]);          // OPAQUE padding, like the real sheets
     box(px, 2, 2, 18, 16, VEST);                // the vest island
     box(px, 7, 6, 13, 11, PLATE);               // its number plate
+    box(px, 3, 3, 6, 6, PLATE_BLACK);           // ...and the near-black print beside it
     box(px, 2, 18, 18, 28, SHORTS_LIT);         // the shorts, touching nothing else
     box(px, 6, 21, 14, 26, SHORTS_SHADE);       // the shaded wedge inside them
     box(px, 22, 2, 34, 16, HAIR);               // the HAIR — 4 texels off the vest
     box(px, 22, 18, 34, 28, SKIN);              // an arm
     box(px, 18, 18, 22, 28, SEAM);              // its border against the shorts
+    box(px, 38, 3, 45, 10, SHOE);               // a black island off the shirt entirely
+    box(px, 36, 16, 46, 27, HAIR);              // a second hair island, also fenced...
+    box(px, 39, 19, 43, 24, HAIR_DEEP);         // ...with a black patch inside it
     return px;
   };
-  /** what the mesh knows: these texels are sampled by HEAD triangles */
+  /** what the mesh knows: these texels are sampled by HEAD (or FOOT) triangles */
   const fence = () => {
     const f = new Uint8Array(W * H);
     for (let y = 1; y < 17; y++) for (let x = 21; x < 35; x++) f[y * W + x] = 1;
+    for (let y = 15; y < 28; y++) for (let x = 35; x < 47; x++) f[y * W + x] = 1;
     return f;
   };
   /** the whole production pipeline, in order */
@@ -517,19 +525,64 @@ describe('the kit passes IN PRODUCTION ORDER — recolour, then panels', () => {
     return { px, mask, inked };
   };
 
-  it('inks the plate and the shaded shorts, on every real team hex', () => {
+  it('inks the shaded shorts on the crew curve, on every real team hex', () => {
     for (const [name, kit] of Object.entries(TEAM)) {
       const { px, inked } = run(kit);
       expect(inked, name).toBeGreaterThan(100);
       const k = hex2rgb(kit);
-      for (const [x, y, src, what] of [[9, 8, PLATE, 'the number plate'], [9, 23, SHORTS_SHADE, 'the shaded shorts']]) {
+      const got = at(px, 9, 23);
+      expect(got, `${name} the shaded shorts`).not.toEqual(SHORTS_SHADE);
+      // painted in the crew colour, on the crew brightness curve
+      const lift = Math.min(1, hsv(SHORTS_SHADE).v * KIT_LIFT);
+      expect(got, `${name} the shaded shorts`).toEqual(k.map((c) => Math.round(c * lift)));
+    }
+  });
+
+  it('gives the baked plate the KIT\'s brightness — it comes out the shirt colour', () => {
+    // The fix-round-2 bug: the flood paints a claimed texel at its OWN
+    // brightness, so a plate baked at v 0.25 came back at v 0.28 of the crew
+    // colour — still a black slab on WHITEOUT — and a plate baked at v 0.016
+    // came back black on every kit. A print the shirt closes round takes the
+    // shirt's own brightness instead, so it disappears into the vest.
+    for (const [name, kit] of Object.entries(TEAM)) {
+      const { px } = run(kit);
+      const shirt = at(px, 3, 14);                    // a lit vest texel, painted by the kit rule
+      for (const [x, y, src, what] of [[9, 8, PLATE, 'the number plate'], [4, 4, PLATE_BLACK, 'the black print']]) {
         const got = at(px, x, y);
         expect(got, `${name} ${what}`).not.toEqual(src);
-        // painted in the crew colour, on the crew brightness curve
-        const lift = Math.min(1, hsv(src).v * KIT_LIFT);
-        expect(got, `${name} ${what}`).toEqual(k.map((c) => Math.round(c * lift)));
+        expect(got, `${name} ${what}`).toEqual(shirt);
       }
     }
+  });
+
+  it('leaves black that is NOT a print on the shirt alone — the shoe and the hair', () => {
+    // Both are as black as the plate. The shoe island has padding and the atlas
+    // edge round it, the hair patch has nothing but hair: neither is enclosed by
+    // shirt, so neither may take the shirt's colour.
+    for (const [name, kit] of Object.entries(TEAM)) {
+      const { px } = run(kit);
+      expect(at(px, 41, 6), `${name} the shoe`).toEqual(SHOE);
+      expect(at(px, 41, 21), `${name} the hair patch`).toEqual(HAIR_DEEP);
+    }
+  });
+
+  it('...and the fence does not cut a plate in half — a loc unwrapped over the number', () => {
+    // On arch-locs a loc is unwrapped across the number: 10 400 texels OF THE
+    // PLATE ITSELF sit inside the hair fence, and 561 of the 1 196 texels round
+    // it are fence too (casts/probe-plate5 / probe-plate6.mjs). A fence-blind
+    // plate scan left the top bar of the slab standing. The fence is a wall to
+    // the FLOOD; a print the shirt closes round is not hair whatever the mesh
+    // says, so the plate scan reads through it — and anything that really does
+    // reach into hair fails the boundary census and is dropped whole.
+    const px = atlas();
+    const f = fence();
+    for (let y = 6; y < 9; y++) for (let x = 7; x < 13; x++) f[y * W + x] = 1;
+    const { mask } = recolorPixels(px, { kit: TEAM.WHITEOUT, tone: 'brown', width: W, height: H });
+    inkKitPanels(px, { width: W, height: H, kit: TEAM.WHITEOUT, mask, forbid: f });
+    const shirt = at(px, 3, 14);
+    expect(at(px, 9, 7), 'the fenced half of the plate').toEqual(shirt);
+    expect(at(px, 9, 10), 'the rest of it').toEqual(shirt);
+    expect(at(px, 41, 21), 'the hair patch').toEqual(HAIR_DEEP);
   });
 
   it('meets the kit rule at the cliff with NO seam — the grey wedge just goes', () => {

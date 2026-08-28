@@ -142,15 +142,33 @@ export function kitTintPixel(rgb, kit) {
 /** How far a dark panel may sit from the kit it is printed ON, in texels. */
 export const PANEL_DILATE_PX = 6;
 /** The band a baked panel lives in: unsaturated, and darker than the kit.
- *  The floor is where the pass stops being able to help: it paints a claimed
- *  texel at its OWN brightness in the crew's colour, so a PURE BLACK texel comes
- *  back pure black whatever the kit is. Measured, with the floor dropped to 0.0
- *  as an experiment: arch-locs' baked number plate is exactly that, and the slab
- *  behind his 38 does not move (casts/whiteout-locs-gold-back.png). The floor
- *  stays at 0.08 because claiming those texels buys nothing and only widens what
- *  the flood can walk through. */
+ *  The floor stays at 0.08: below it the flood's own paint rule (a texel at its
+ *  OWN brightness in the crew's colour) can do nothing anyway, and dropping it
+ *  lets the flood walk through every black seam on the sheet and bridge onto the
+ *  next island. What lives under the floor is taken by the PLATE pass instead. */
 export const PANEL_SAT_MAX = 0.2;
 export const PANEL_VAL = [0.08, 0.52];
+
+// --- the baked plate -------------------------------------------------------
+/**
+ * Ratio saturation is QUANTIZATION NOISE at the bottom of the range, so the
+ * plate window measures neutrality by ABSOLUTE channel spread as well.
+ * arch-locs' baked number plate comes out mean v 0.016 with mean **s 0.146** —
+ * at mx = 4 a single step of quantization *is* s = 0.25 — so a plain `s < 0.12`
+ * band catches only 4 505 of its 14 636 texels (casts/probe-plateband.mjs).
+ */
+export const PANEL_SPREAD = 10;
+/** How dark a component has to be to read as a PRINT rather than as shading.
+ *  The shorts wedge this pass already fixes sits at v 0.49-0.52, so the gap is
+ *  clean and the wedge keeps its own brightness curve. */
+export const PLATE_VAL_MAX = 0.30;
+/** ...and how closed the shirt has to be round it. A print on the vest is ringed
+ *  by kit and by the hair fence (which is a WALL, not a stranger: 561 of the
+ *  1 196 boundary texels of arch-locs' plate are fence — his locs are unwrapped
+ *  right beside the number, casts/probe-plate5.mjs). Anything else on the
+ *  boundary — skin, padding, the atlas edge — means the region is not a print. */
+export const PLATE_KIT_MIN = 0.25;
+export const PLATE_STRANGER_MAX = 0.02;
 
 /**
  * Grow a 0/1 bitmap by `r` texels, in two O(n) sliding-window sweeps rather
@@ -280,7 +298,9 @@ export function rasterizeUvMask({ uv, index, keep, count, width, height } = {}) 
  *    they go. Skin and the kit itself are walls, which is what stops it walking
  *    off the shirt and onto a face.
  *
- * 3. `forbid` — a bitmap of the texels the HAIR triangles sample, which only the
+ * 3. `forbid` — a bitmap of the texels the HAIR and SHOE triangles sample (the
+ *    boots carry the Locker's cleat colour and must not be flooded either),
+ *    which only the
  *    mesh can draw, and which the flood treats as a WALL as well as a no-paint
  *    zone. Adjacency alone cannot do this job: triangles cover just 55-69 % of
  *    these atlases and every gap is OPAQUE padding, so a dilation — never mind a
@@ -291,6 +311,26 @@ export function rasterizeUvMask({ uv, index, keep, count, width, height } = {}) 
  * (`v · KIT_LIFT`), so the two passes meet with no seam at the cliff — the
  * shorts wedge disappears instead of turning into a hard edge in the right
  * colour — and anything genuinely dark stays a shade under the shirt it is on.
+ *
+ * ...WITH ONE EXCEPTION, and it is the reason for fix round 2: painting a texel
+ * at its own brightness cannot rescue a texel that has none. The rounded NUMBER
+ * PLATE baked into arch-locs' vest is 12 791 texels of near-pure black (mean
+ * v 0.016), so `v · KIT_LIFT` painted it black again and the slab behind his 38
+ * survived every previous round (casts/whiteout-locs-back.png). Those texels
+ * take the KIT'S OWN brightness instead — the median lift of the kit island, so
+ * the plate comes out the same shade as the shirt it is printed on and simply
+ * disappears.
+ *
+ * That paint is far too strong to hand out on darkness alone: the same band
+ * covers a black afro, the seams between UV islands and the atlas padding
+ * (measured on all 19 atlases, casts/probe-plateband / plateshow / plate5.mjs —
+ * a plain black band claims 179k texels on arch-puff and 197k on arch-bald,
+ * across feet, hands and thighs). So it is decided per CONNECTED COMPONENT, and
+ * only for a component the shirt closes round: ≥ PLATE_KIT_MIN of its boundary
+ * is kit (or kit the flood is about to paint), ≤ PLATE_STRANGER_MAX is anything
+ * that is neither kit nor fence, and the whole component is darker than
+ * PLATE_VAL_MAX. Padding fails it on the atlas edge, hair fails it for want of
+ * kit, and the shorts wedge is not dark enough to be asked.
  *
  * @param {Uint8ClampedArray|Uint8Array} px RGBA, modified in place
  * @param {{width:number, height:number, kit:string|number[], dilate?:number,
@@ -306,47 +346,107 @@ export function inkKitPanels(px, { width, height, kit, dilate = PANEL_DILATE_PX,
   const usable = mask && mask.length >= n ? mask : null;
   const fence = forbid && forbid.length >= n ? forbid : null;
   const isKit = new Uint8Array(n);
+  // bit 1 = flood candidate · bit 2 = plate window · bit 4 = seen by the
+  // component scan. Three bitmaps in one, because at 2048² each one is 4 MB.
   const dark = new Uint8Array(n);
+  const kitHist = new Uint32Array(256);           // max-channel over the kit island
+  let kitN = 0;
   for (let i = 0, p = 0; i < n; i++, p += 4) {
     if (px[p + 3] === 0) continue;
-    if (usable) {
-      const m = usable[i];
-      if (m === 1 || m === 3) { isKit[i] = 1; continue; }
-      if (m === 2) continue;                      // skin is never a panel
-    }
     const r = px[p], g = px[p + 1], b = px[p + 2];
     const mx = r > g ? (r > b ? r : b) : (g > b ? g : b);
+    if (usable) {
+      const m = usable[i];
+      if (m === 1 || m === 3) { isKit[i] = 1; kitHist[mx] += 1; kitN += 1; continue; }
+      if (m === 2) continue;                      // skin is never a panel
+    }
     const mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
     const v = mx / 255;
     const s = mx === 0 ? 0 : (mx - mn) / mx;
-    if (!usable && s < KIT_SAT_MAX && v > KIT_VAL_MIN) isKit[i] = 1;
-    else if (s < PANEL_SAT_MAX && v > PANEL_VAL[0] && v < PANEL_VAL[1]) dark[i] = 1;
+    if (!usable && s < KIT_SAT_MAX && v > KIT_VAL_MIN) { isKit[i] = 1; kitHist[mx] += 1; kitN += 1; continue; }
+    // The FLOOD may not enter the fence — that is the white wig. The PLATE scan
+    // may, because a print the shirt closes round cannot be hair whatever the
+    // mesh says: on arch-locs a loc is unwrapped across the number and the fence
+    // covers 10 400 texels of the plate itself, so a fence-blind scan leaves the
+    // top bar of the slab standing (casts/probe-plate6.mjs, whiteout-locs-back).
+    // Nothing is painted off that: a component that actually reaches into hair
+    // fails the boundary census and is dropped whole.
+    if (!(fence && fence[i]) && s < PANEL_SAT_MAX && v > PANEL_VAL[0] && v < PANEL_VAL[1]) dark[i] |= 1;
+    if (v <= PLATE_VAL_MAX && (s < PANEL_SAT_MAX || mx - mn <= PANEL_SPREAD)) dark[i] |= 2;
   }
   // seed on what touches the kit, then FLOOD through the blob it belongs to.
   // The stack never holds more than the candidate set, and every texel is
   // pushed once, so this stays O(n) like the rest of the pass.
   const near = dilateMask(isKit, width, height, dilate);
-  const claim = new Uint8Array(n);
+  const claim = new Uint8Array(n);                // 0 none · 1 flood · 2 plate
   const stack = new Int32Array(n);
   let top = 0;
   for (let i = 0; i < n; i++) {
-    if (!dark[i] || claim[i] || !near[i] || (fence && fence[i])) continue;
+    if (!(dark[i] & 1) || claim[i] || !near[i]) continue;
     claim[i] = 1;
     stack[top++] = i;
   }
   while (top > 0) {
     const i = stack[--top];
     const x = i % width;
-    if (x > 0) { const j = i - 1; if (dark[j] && !claim[j] && !(fence && fence[j])) { claim[j] = 1; stack[top++] = j; } }
-    if (x < width - 1) { const j = i + 1; if (dark[j] && !claim[j] && !(fence && fence[j])) { claim[j] = 1; stack[top++] = j; } }
-    if (i >= width) { const j = i - width; if (dark[j] && !claim[j] && !(fence && fence[j])) { claim[j] = 1; stack[top++] = j; } }
-    if (i < n - width) { const j = i + width; if (dark[j] && !claim[j] && !(fence && fence[j])) { claim[j] = 1; stack[top++] = j; } }
+    if (x > 0) { const j = i - 1; if ((dark[j] & 1) && !claim[j]) { claim[j] = 1; stack[top++] = j; } }
+    if (x < width - 1) { const j = i + 1; if ((dark[j] & 1) && !claim[j]) { claim[j] = 1; stack[top++] = j; } }
+    if (i >= width) { const j = i - width; if ((dark[j] & 1) && !claim[j]) { claim[j] = 1; stack[top++] = j; } }
+    if (i < n - width) { const j = i + width; if ((dark[j] & 1) && !claim[j]) { claim[j] = 1; stack[top++] = j; } }
   }
+
+  // --- the PLATE: dark components the shirt closes round --------------------
+  // The scan is a QUEUE in the same `stack` buffer, so the members are still
+  // sitting in stack[0..tail) when the boundary census is done and the verdict
+  // can be written back over them without a second allocation.
+  for (let start = 0; start < n; start++) {
+    if (!(dark[start] & 2) || (dark[start] & 4)) continue;
+    let head = 0, tail = 0;
+    stack[tail++] = start;
+    dark[start] |= 4;
+    let kitB = 0, wallB = 0, strangerB = 0;
+    while (head < tail) {
+      const i = stack[head++];
+      const x = i % width;
+      for (let d = 0; d < 4; d++) {
+        const j = d === 0 ? (x > 0 ? i - 1 : -1)
+          : d === 1 ? (x < width - 1 ? i + 1 : -1)
+            : d === 2 ? (i >= width ? i - width : -1)
+              : (i < n - width ? i + width : -1);
+        if (j < 0) { strangerB += 1; continue; }   // the atlas edge is not a shirt
+        if (dark[j] & 2) { if (!(dark[j] & 4)) { dark[j] |= 4; stack[tail++] = j; } continue; }
+        if (isKit[j] || claim[j]) kitB += 1;       // kit, or kit-to-be: the shirt
+        else if (fence && fence[j]) wallB += 1;    // hair/shoes: a wall, not a stranger
+        else strangerB += 1;
+      }
+    }
+    const bound = kitB + wallB + strangerB;
+    if (!bound || strangerB > PLATE_STRANGER_MAX * bound || kitB < PLATE_KIT_MIN * bound) continue;
+    for (let m = 0; m < tail; m++) claim[stack[m]] = 2;
+  }
+
+  // the kit island's own brightness, as the MEDIAN lift of its texels. With a
+  // `mask` the buffer is already recoloured, so a kit texel holds `k · lift` and
+  // the lift reads straight back off the max channel; without one the buffer is
+  // still the original grey and the kit rule's curve applies.
+  const kmax = k[0] > k[1] ? (k[0] > k[2] ? k[0] : k[2]) : (k[1] > k[2] ? k[1] : k[2]);
+  let plateLift = 0;
+  if (kitN > 0) {
+    let acc = 0, med = 0;
+    for (let b = 0; b < 256; b++) { acc += kitHist[b]; if (acc * 2 >= kitN) { med = b; break; } }
+    plateLift = usable
+      ? (kmax > 0 ? Math.min(1, med / kmax) : 0)
+      : Math.min(1, (med / 255) * KIT_LIFT);
+  }
+
   let inked = 0;
   for (let i = 0, p = 0; i < n; i++, p += 4) {
     if (!claim[i]) continue;
-    const mx = Math.max(px[p], px[p + 1], px[p + 2]) / 255;
-    const lift = mx * KIT_LIFT > 1 ? 1 : mx * KIT_LIFT;   // the kit rule's own curve
+    let lift = plateLift;
+    if (claim[i] === 1) {
+      const mx = Math.max(px[p], px[p + 1], px[p + 2]) / 255;
+      lift = mx * KIT_LIFT > 1 ? 1 : mx * KIT_LIFT;        // the kit rule's own curve
+    }
     px[p] = Math.round(k[0] * lift);
     px[p + 1] = Math.round(k[1] * lift);
     px[p + 2] = Math.round(k[2] * lift);

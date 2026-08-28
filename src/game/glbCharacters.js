@@ -61,10 +61,17 @@ function recolorKitTexture(srcTex, primaryHex, { skinTone = null, mesh = null } 
   // the recolour measured on the ORIGINAL atlas (rebuilding it here reads a
   // buffer with no neutral kit left in it), fenced off the hair and the shoes
   // by the MESH — see inkKitPanels and hairShoeFence.
-  inkKitPanels(data.data, {
-    width: c.width, height: c.height, kit: primaryHex, mask,
-    forbid: hairShoeFence(mesh, c.width, c.height),
-  });
+  //
+  // NO FENCE, NO PASS. Without the mesh's fence the flood walks straight off the
+  // vest onto the hair — that is the white wig, measured at 71 892 texels on
+  // arch-locs — so a rig the fence cannot be drawn for (an unskinned mesh, or a
+  // geometry that throws) gets the recolour alone rather than a coloured scalp.
+  const fence = hairShoeFence(mesh, c.width, c.height);
+  if (fence) {
+    inkKitPanels(data.data, {
+      width: c.width, height: c.height, kit: primaryHex, mask, forbid: fence,
+    });
+  }
   ctx.putImageData(data, 0, 0);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = srcTex.colorSpace;
@@ -110,9 +117,30 @@ const recolorCache = new Map();
 // texels the hair and the shoes sample, so the mesh draws the fence — the same
 // move applyCleatVertexTint makes for the boots, one dimension down.
 //
+// THE BOOTS ARE IN THE SET, and until fix round 2 they were not: the bone test
+// read `/Head|Neck/` while three comments claimed it fenced the shoes too, and
+// the flood re-inked 63 077 shoe texels on arch-bald (the monarchs captain's
+// sneakers came out gold, casts/back-monarchs-light.png). The cleats carry the
+// LOCKER's own colour through applyCleatVertexTint, so the flood must leave
+// them alone.
+//
 // Cached per (archetype geometry, atlas size): SkeletonUtils.clone SHARES the
 // geometry, so this is measured once per archetype, not once per character.
+// Held as a BITSET — a 2048² mask is 4 MB as bytes and a match fields sixteen
+// archetypes, so the byte form would retain 16-30 MB for nothing. LRU-bounded
+// like the recolour cache.
 const fenceCache = new Map();
+const FENCE_CACHE_MAX = 8;
+const packBits = (m) => {
+  const out = new Uint8Array((m.length + 7) >> 3);
+  for (let i = 0; i < m.length; i++) if (m[i]) out[i >> 3] |= 1 << (i & 7);
+  return out;
+};
+const unpackBits = (bits, n) => {
+  const out = new Uint8Array(n);
+  for (let i = 0; i < n; i++) out[i] = (bits[i >> 3] >> (i & 7)) & 1;
+  return out;
+};
 // The fence is grown by ONE texel so an island's own colour bleed goes with it,
 // and no further: it is subtracted again wherever the body samples (dilated to
 // match), because on these atlases a shorts triangle and a shoe triangle can
@@ -126,7 +154,8 @@ const BODY_REACH_PX = 3;
 function hairShoeFence(mesh, width, height) {
   if (!mesh?.isSkinnedMesh || !mesh.geometry || !mesh.skeleton) return null;
   const key = `${mesh.geometry.uuid}|${width}x${height}`;
-  if (fenceCache.has(key)) return fenceCache.get(key);
+  const hit = fenceCache.get(key);
+  if (hit) { fenceCache.delete(key); fenceCache.set(key, hit); return unpackBits(hit, width * height); }
   let fence = null;
   try {
     const geo = mesh.geometry;
@@ -135,7 +164,7 @@ function hairShoeFence(mesh, width, height) {
     const sw = geo.getAttribute('skinWeight');
     if (uvAttr && ji && sw) {
       const bones = mesh.skeleton.bones;
-      const off = new Set(bones.map((b, i) => (/Head|Neck/i.test(b.name) ? i : -1)).filter((i) => i >= 0));
+      const off = new Set(bones.map((b, i) => (/Head|Neck|Foot|ToeBase/i.test(b.name) ? i : -1)).filter((i) => i >= 0));
       if (off.size) {
         const keep = new Uint8Array(uvAttr.count);
         const rest = new Uint8Array(uvAttr.count);
@@ -165,8 +194,11 @@ function hairShoeFence(mesh, width, height) {
         for (let i = 0; i < fence.length; i++) if (bodyNear[i]) fence[i] = 0;
       }
     }
-  } catch { fence = null; /* no fence is better than no character */ }
-  fenceCache.set(key, fence);
+  } catch { return null; /* NOT cached: a throw is a one-off, and a cached null
+                            would disable the fence for this rig for good */ }
+  if (!fence) return null;
+  fenceCache.set(key, packBits(fence));
+  while (fenceCache.size > FENCE_CACHE_MAX) fenceCache.delete(fenceCache.keys().next().value);
   return fence;
 }
 
