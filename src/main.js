@@ -277,6 +277,10 @@ async function bootFlow() {
     const dressed = dressTeams({
       home: opponentTeam, away: playerTeam, playerSide: 'away',
       gearKit: gear.uniform, tones: kits?.tone ?? null,
+      // ...and the GROUND gets a vote: the court you're about to play on is as
+      // much a thing to stand out from as the other crew (Winter Classic's snow
+      // ate a white kit whole). `groundL` is that field's measured lightness.
+      groundL: (fieldsData.fields.find(f => f.id === opponentTeam.homeField) ?? blacktop)?.groundL ?? null,
     });
     const awayKit = dressed.away;
     const homeKit = dressed.home;

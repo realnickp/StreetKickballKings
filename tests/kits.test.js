@@ -4,8 +4,9 @@
 // chips and the jersey numbers ride the same data.
 import { describe, it, expect } from 'vitest';
 import teams from '../src/data/teams.json';
+import fields from '../src/data/fields.json';
 import fs from 'node:fs';
-import { contrastDeltaL, dressTeams, inkFor, kitFor, logoFor, markFor, resolveGearKit, CLASH_DELTA_L, LIGHT_LOGOS } from '../src/game/kits.js';
+import { contrastDeltaL, groundDeltaL, dressTeams, inkFor, kitFor, logoFor, markFor, resolveGearKit, CLASH_DELTA_L, LIGHT_LOGOS } from '../src/game/kits.js';
 import { kitFor as kitForScreens } from '../src/ui/screens/screens.js';
 import { lockerTabs } from '../src/ui/lockerModel.js';
 import { GEAR, isUnlocked, equipGear, equippedGear } from '../src/meta/unlocks.js';
@@ -299,5 +300,123 @@ describe('the Locker KITS tab', () => {
   it('the team kits never become the silent default for an empty slot', () => {
     const s = mem();
     expect(equippedGear(s).uniform).toBe(null); // bare stays bare — dressing picks the tone
+  });
+});
+
+// ---------------------------------------------------------------------------
+// THE GROUND GETS A VOTE (dev, on his phone, 2026-08-28, on Winter Classic:
+// "the white in Chicago makes it hard to see"). Two crews can clear ΔL* 25 from
+// each other and still both vanish into the court, so `dressTeams` now takes
+// the field's own measured `groundL` and prefers the pairing whose WORSE kit
+// stands furthest off it. Designed kits only — nothing is fabricated for the
+// ground, and a field with no `groundL` dresses exactly as it always did.
+describe('dressTeams sees the ground', () => {
+  const groundOf = (id) => fields.fields.find((f) => f.id === id).groundL;
+  const legalPairs = (h, a) => [['dark', 'light'], ['light', 'dark']]
+    .map(([ht, at]) => ({ ht, at, hh: h.kits[ht].hex, ah: a.kits[at].hex }))
+    .filter((p) => contrastDeltaL(p.hh, p.ah) >= CLASH_DELTA_L);
+
+  it('no ground means no change — every matchup dresses as it always did', () => {
+    for (const h of teams.teams) {
+      for (const a of teams.teams) {
+        if (h.id === a.id) continue;
+        const label = `${h.id} v ${a.id}`;
+        expect(dressTeams({ home: h, away: a, groundL: null }), label)
+          .toEqual(dressTeams({ home: h, away: a }));
+      }
+    }
+  });
+
+  it('grey asphalt sends Brooklyn out of its red', () => {
+    // The Blacktop renders at L* 56 and bullies' #d7263d sits at 47 — nine
+    // points of separation between a crew and the court they stand on. The
+    // pairing rule used to take home-dark/away-light and never look down; with
+    // the ground in the room Brooklyn wears the white and Baltimore the black,
+    // and the worse-off crew goes from 9 clear of the asphalt to 39.
+    const h = byId('bullies'), a = byId('monarchs');
+    const ground = groundOf('blacktop');
+    const blind = dressTeams({ home: h, away: a });
+    expect(blind.home.hex).toBe(h.kits.dark.hex);
+    expect(groundDeltaL(blind.home.hex, ground)).toBeLessThan(15);   // red on grey
+    const seeing = dressTeams({ home: h, away: a, groundL: ground });
+    expect(seeing.home.hex).toBe(h.kits.light.hex);
+    expect(seeing.away.hex).toBe(a.kits.dark.hex);
+    expect(Math.min(groundDeltaL(seeing.home.hex, ground), groundDeltaL(seeing.away.hex, ground)))
+      .toBeGreaterThan(Math.min(groundDeltaL(blind.home.hex, ground), groundDeltaL(blind.away.hex, ground)));
+    expect(contrastDeltaL(seeing.home.hex, seeing.away.hex)).toBeGreaterThanOrEqual(CLASH_DELTA_L);
+  });
+
+  it('the SNOW keeps Chicago out of its pale blue — the dev\'s Winter Classic', () => {
+    // kestrals host, hustlers visit. Chicago's light kit (#a8d8ea, L* 84) is
+    // 1.5 off the lit snow (L* 82) — a crew you cannot see at all. The ground
+    // rule holds Chicago in the charcoal, which stands 62 clear of it.
+    const snow = groundOf('winter-classic');
+    expect(snow).toBe(82);
+    const kits = dressTeams({ home: byId('kestrals'), away: byId('hustlers'), playerSide: 'away', groundL: snow });
+    expect(kits.home.hex).toBe(byId('kestrals').kits.dark.hex);
+    expect(groundDeltaL(kits.home.hex, snow)).toBeGreaterThan(CLASH_DELTA_L);
+    // and the alternative really was worse for the worse-off crew
+    const flipped = { home: byId('kestrals').kits.light.hex, away: byId('hustlers').kits.dark.hex };
+    expect(Math.min(groundDeltaL(flipped.home, snow), groundDeltaL(flipped.away, snow)))
+      .toBeLessThan(Math.min(groundDeltaL(kits.home.hex, snow), groundDeltaL(kits.away.hex, snow)));
+  });
+
+  it('never trades crew separation away for the ground', () => {
+    // a court exactly on one crew's dark kit: the ground would love the light
+    // one, but the two crews have to read apart first
+    const h = { id: 'h', colors: { primary: '#2c3035' }, kits: { dark: { hex: '#2c3035', ink: '#f4f4f6', logo: 'h', img: '' }, light: { hex: '#f2f2f2', ink: '#0b0c10', logo: 'h', img: '' } } };
+    const a = { id: 'a', colors: { primary: '#efefef' }, kits: { dark: { hex: '#33373c', ink: '#f4f4f6', logo: 'a', img: '' }, light: { hex: '#efefef', ink: '#0b0c10', logo: 'a', img: '' } } };
+    const kits = dressTeams({ home: h, away: a, groundL: 20 });
+    expect(contrastDeltaL(kits.home.hex, kits.away.hex)).toBeGreaterThanOrEqual(CLASH_DELTA_L);
+  });
+
+  it('10 fields x 90 matchups: the ground never leaves contrast on the table', () => {
+    // The honest sweep. The league's ten palettes cannot clear ΔL* 15 of every
+    // court — `the-underpass` renders at L* 90 and eight of the ten LIGHT kits
+    // live between 77 and 96, so on that slab somebody is always pale — and the
+    // cure (a fabricated hex) is worse than the disease: it costs the crew its
+    // colours and its mark. So what is held here is that the dressing takes the
+    // BEST ground contrast any legal pairing offers, on every field, in every
+    // matchup — plus the two invariants that were already true.
+    let n = 0;
+    let worst = Infinity;
+    for (const f of fields.fields) {
+      const g = f.groundL;
+      expect(Number.isFinite(g), f.id).toBe(true);
+      for (const h of teams.teams) {
+        for (const a of teams.teams) {
+          if (h.id === a.id) continue;
+          n++;
+          const label = `${f.id}: ${h.id} v ${a.id}`;
+          const kits = dressTeams({ home: h, away: a, groundL: g });
+          // the two crews still read apart, on kits somebody designed
+          expect(contrastDeltaL(kits.home.hex, kits.away.hex), label).toBeGreaterThanOrEqual(CLASH_DELTA_L);
+          expect([h.kits.dark.hex, h.kits.light.hex], label).toContain(kits.home.hex);
+          expect([a.kits.dark.hex, a.kits.light.hex], label).toContain(kits.away.hex);
+          // ...and nobody could have stood further off this court
+          const got = Math.min(groundDeltaL(kits.home.hex, g), groundDeltaL(kits.away.hex, g));
+          const best = Math.max(...legalPairs(h, a)
+            .map((p) => Math.min(groundDeltaL(p.hh, g), groundDeltaL(p.ah, g))));
+          expect(got, label).toBeCloseTo(best, 6);
+          worst = Math.min(worst, got);
+        }
+      }
+    }
+    expect(n).toBe(900);
+    // the floor across the whole league: it is not 15, and pretending it is
+    // would only mean fabricating a kit somewhere
+    expect(worst).toBeGreaterThan(0);
+  });
+
+  it('a pinned Locker kit still lets the opponent off the court', () => {
+    // BLACKOUT on the neon court (L* 10): both of Akron's kits clear the pinned
+    // #1b1b22 by a mile, so the tie goes to the one that also stands off the
+    // near-black asphalt — the orange, not the #1c1c1c.
+    const gearKit = { id: 'kit-blackout', name: 'BLACKOUT KIT', hex: '#1b1b22' };
+    const opp = byId('marauders');
+    const kits = dressTeams({ home: opp, away: byId('hustlers'), playerSide: 'away', gearKit, groundL: groundOf('neon-night-court') });
+    expect(kits.away.hex).toBe('#1b1b22');           // your pick is still pinned
+    expect(kits.home.hex).toBe(opp.kits.light.hex);  // ...and they take the orange
+    expect(contrastDeltaL(kits.home.hex, kits.away.hex)).toBeGreaterThanOrEqual(CLASH_DELTA_L);
   });
 });

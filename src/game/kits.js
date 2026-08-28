@@ -1,10 +1,19 @@
-// KITS — who wears what, and why you can tell the two crews apart (spec §3).
+// KITS — who wears what, and why you can tell the two crews apart (spec §3),
+// AND why you can tell them from the ground they're standing on.
 //
 // Every crew carries a DARK and a LIGHT kit in `teams.json` (`kits.dark` /
 // `kits.light`, each `{ hex, ink, logo, img }`). The match dresses them:
 // HOME wears dark, AWAY wears light; if that pair doesn't separate on a phone
 // (ΔL* < 25) both sides flip. An equipped Locker kit PINS your side — you wear
 // what you picked — and the opponent picks the tone that reads against it.
+//
+// THE GROUND GETS A VOTE. Dev, on his phone, 2026-08-28, on Winter Classic:
+// "the white in Chicago makes it hard to see" — Memphis in their white kit, on
+// a white player, on white snow. Two crews can clear ΔL* 25 from each other and
+// still both vanish, because the pairing rule had never heard of the court.
+// `dressTeams` now takes the field's own `groundL` (the L* the lit court
+// actually renders at — measured headless, `src/data/fields.json`) and PREFERS
+// the pairing whose worse kit stands furthest off it.
 //
 // Pure + data-driven on purpose: the screens (team select swatches, the Locker
 // chips, GEAR UP's "what you're wearing" line) and the 3D recolour all read the
@@ -13,7 +22,10 @@
 // bright kit asks for the light cut, and gets it only where the crew actually
 // ships one (see LIGHT_LOGOS/markFor); otherwise it wears the base mark.
 
-/** Two crews closer than this in Lab lightness read as one team at phone size. */
+/** Two crews closer than this in Lab lightness read as one team at phone size.
+ *  The same number is what a kit has to clear against the GROUND to count as
+ *  standing off it — a player is a figure on a court exactly the way one crew
+ *  is a figure next to the other, and the eye has the same amount of trouble. */
 export const CLASH_DELTA_L = 25;
 
 const INK_DARK = '#0b0c10';
@@ -128,11 +140,46 @@ const shiftKit = (kit, team, vsHex) => {
   return { ...kit, hex, ink: inkFor(hex), logo: logoFor(team, hex) };
 };
 
+/** How far a kit stands off the ground it's played on, in L*. `groundL` is the
+ *  field's own measured number (`fields.json`); a field that doesn't carry one
+ *  answers Infinity, which is the "the ground has no opinion" case and leaves
+ *  every pairing decision exactly where it was. */
+export function groundDeltaL(hex, groundL) {
+  return Number.isFinite(groundL) ? Math.abs(labL(hex) - groundL) : Infinity;
+}
+
+/** Rank one dressed pair. Bigger is better, compared left to right:
+ *   1. the two CREWS separate (ΔL* 25) — the hard one, and unchanged: a rule
+ *      about the floor must never make the two teams look like one team;
+ *   2. the WORSE of the two kits' ground gaps. MAXIMISE THE MINIMUM, not the
+ *      count of kits that clear 25 and not the average: the complaint is
+ *      always about the one player you cannot see, and a pairing that puts one
+ *      crew 60 clear and the other 5 clear is a pairing with an invisible team
+ *      in it.
+ *  No kit is ever fabricated for the ground: every option scored here is a kit
+ *  somebody designed, and on a court no designed kit can beat (`the-underpass`
+ *  renders at L* 90 and eight of the ten light kits live between 77 and 96) the
+ *  best of a bad set is still the crew's own colours. Fabricating a hex to
+ *  clear the floor would cost the crew its identity on every field it visits,
+ *  which is a worse trade than a pale kit on one. */
+function groundScore(pair, groundL) {
+  return [
+    contrastDeltaL(pair.home.hex, pair.away.hex) >= CLASH_DELTA_L ? 1 : 0,
+    Math.min(groundDeltaL(pair.home.hex, groundL), groundDeltaL(pair.away.hex, groundL)),
+  ];
+}
+const better = (a, b) => {
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] > b[i];
+  return false; // a tie keeps the earlier (higher-seeded) option
+};
+
 /** Dress both crews for one match.
  *  @param {{home: object, away: object, playerSide?: 'home'|'away',
- *           gearKit?: object|null, tones?: {home: string, away: string}|null}} o
+ *           gearKit?: object|null, tones?: {home: string, away: string}|null,
+ *           groundL?: number|null}} o `groundL` is the L* of the field's ground
+ *   (`fields.json`); omit it and the ground has no say, exactly as before.
  *  @returns {{home: object, away: object}} each `{ hex, ink, logo, img, tone }` */
-export function dressTeams({ home, away, playerSide = 'away', gearKit = null, tones = null }) {
+export function dressTeams({ home, away, playerSide = 'away', gearKit = null, tones = null, groundL = null }) {
   const mineSide = playerSide === 'home' ? 'home' : 'away';
   const theirSide = mineSide === 'home' ? 'away' : 'home';
   const crew = { home, away };
@@ -144,9 +191,18 @@ export function dressTeams({ home, away, playerSide = 'away', gearKit = null, to
   // Locker kits, so the shift below is stub-crew insurance, not a normal path.)
   if (gearKit) {
     const mine = resolveGearKit(gearKit, crew[mineSide]);
+    // widest gap from YOUR pinned kit first; where two of their kits both clear
+    // it, the one that also stands off the COURT wins the tie (a Locker kit
+    // can pin you into white, but it can't pin your opponent into the snow)
     const byGap = ['dark', 'light']
       .map((t) => dress(crew[theirSide], t))
-      .sort((a, b) => contrastDeltaL(b.hex, mine.hex) - contrastDeltaL(a.hex, mine.hex));
+      .sort((a, b) => {
+        const da = contrastDeltaL(a.hex, mine.hex);
+        const db = contrastDeltaL(b.hex, mine.hex);
+        const bothClear = Math.min(da, db) >= CLASH_DELTA_L;
+        if (bothClear) return groundDeltaL(b.hex, groundL) - groundDeltaL(a.hex, groundL);
+        return db - da;
+      });
     let theirs = byGap[0];
     if (contrastDeltaL(theirs.hex, mine.hex) < CLASH_DELTA_L) theirs = shiftKit(theirs, crew[theirSide], mine.hex);
     return mineSide === 'home' ? { home: mine, away: theirs } : { home: theirs, away: mine };
@@ -159,12 +215,24 @@ export function dressTeams({ home, away, playerSide = 'away', gearKit = null, to
   // does, keep the widest gap and shift the NON-player side to finish it.
   const options = [seed, ...PAIRINGS.filter((p) => !same(p, seed))];
   let out = null;
-  let bestD = -1;
-  for (const o of options) {
-    const pair = { home: dress(home, o.home), away: dress(away, o.away) };
-    const d = contrastDeltaL(pair.home.hex, pair.away.hex);
-    if (d >= CLASH_DELTA_L) { out = pair; break; }
-    if (d > bestD) { bestD = d; out = pair; }
+  if (Number.isFinite(groundL)) {
+    // THE GROUND IS IN THE ROOM: score every option rather than taking the
+    // first that separates the crews. Seed order still wins ties, so a field
+    // whose court has no opinion about either kit dresses exactly as before.
+    let bestScore = null;
+    for (const o of options) {
+      const pair = { home: dress(home, o.home), away: dress(away, o.away) };
+      const score = groundScore(pair, groundL);
+      if (!out || better(score, bestScore)) { out = pair; bestScore = score; }
+    }
+  } else {
+    let bestD = -1;
+    for (const o of options) {
+      const pair = { home: dress(home, o.home), away: dress(away, o.away) };
+      const d = contrastDeltaL(pair.home.hex, pair.away.hex);
+      if (d >= CLASH_DELTA_L) { out = pair; break; }
+      if (d > bestD) { bestD = d; out = pair; }
+    }
   }
   if (contrastDeltaL(out.home.hex, out.away.hex) < CLASH_DELTA_L) {
     out[theirSide] = shiftKit(out[theirSide], crew[theirSide], out[mineSide].hex);
