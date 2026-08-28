@@ -31,7 +31,7 @@ import { Hud } from '../ui/screens/hud.js';
 import { markerClamp } from '../ui/runnerArrows.js';
 import { gearLine } from '../meta/gearLine.js';
 import { PREGAME, pregameTimeline, walkoutPregame } from './pregame.js';
-import { WALKOUT_SHOW, walkoutTimeline, walkoutShotAt, craneT } from './walkoutShow.js';
+import { WALKOUT_SHOW, walkoutTimeline, walkoutShotAt, walkoutPosAt, craneT } from './walkoutShow.js';
 import { disposeCharacter } from './glbCharacters.js';
 
 // fallback facing for a trail update on a runner who never got a live `dir`
@@ -452,9 +452,14 @@ export class MatchScene {
         const tl = walkoutTimeline(side);
         squad.forEach((c, i) => {
           const ln = tl.lines[i % tl.lines.length];
-          c.group.visible = false; // each man appears as he steps off, not stacked at the gate
+          // THE WHOLE CREW IS ON SCREEN FROM FRAME ONE (dev, 2026-08-28: "every
+          // character just appears randomly ... the whole team at the same
+          // time"). Every man stands in the file on the approach lane, already
+          // dressed, and the file steps off together — nothing pops in later.
+          c.group.visible = true;
           c.group.position.set(ln.from.x, 0, ln.from.z);
-          this.faceTo(c, new THREE.Vector3(ln.to.x, 0, ln.to.z), true);
+          const p0 = walkoutPosAt(ln, 0);
+          this.faceTo(c, new THREE.Vector3(ln.from.x + p0.hx, 0, ln.from.z + p0.hz), true);
           // feet match ground speed — a time-scaled walk, never a slide
           c.animator.play('walk', { speedFactor: WALKOUT_SHOW.mps / WALKOUT_SHOW.walkClipMps });
         });
@@ -519,23 +524,27 @@ export class MatchScene {
     return roster.slice(0, WALKOUT_SHOW.slots.length);
   }
 
-  /** Per-frame walk-out mover: every player rides his own straight line from
-   *  the gate to his wedge slot at his own pace. Arrival plants him facing the
-   *  plate; the captain's arrival is the booth's cue. */
+  /** Per-frame walk-out mover: the whole file rides ONE lane at one speed —
+   *  out of the gate, down the wedge's outer flank, in along its own row — so
+   *  nobody ever crosses anybody (dev, 2026-08-28: "they walk through each
+   *  other ... like ghosts"). Heading follows the leg he is on; arrival plants
+   *  him facing the plate. The captain's arrival is the booth's cue. */
   squadWalk() {
     const w = this.walkoutRun;
     if (!w) return;
     const t = this.elapsed - w.t0;
     w.chars.forEach((c, i) => {
       const ln = w.tl.lines[i % w.tl.lines.length];
-      if (t < ln.start) { c.group.visible = false; return; }
-      c.group.visible = true;
-      const k = Math.min(1, (t - ln.start) / Math.max(0.001, ln.arriveAt - ln.start));
-      c.group.position.set(
-        ln.from.x + (ln.to.x - ln.from.x) * k, 0,
-        ln.from.z + (ln.to.z - ln.from.z) * k,
-      );
-      if (k < 1 || w.arrived.has(i)) return;
+      c.group.visible = true;   // on screen the whole show, never gated on a start time
+      const p = walkoutPosAt(ln, t);
+      c.group.position.set(p.x, 0, p.z);
+      if (!p.arrived) {
+        // face the way he is WALKING (the lane turns twice) — a body sliding
+        // sideways down the flank is the other half of the ghost look
+        this.faceTo(c, new THREE.Vector3(p.x + p.hx, 0, p.z + p.hz));
+        return;
+      }
+      if (w.arrived.has(i)) return;
       w.arrived.add(i);
       this.faceTo(c, FIELD_LAYOUT.home); // planted: square up to the plate (and the crane)
       const flex = i === 0 && c.animator.hasClip?.('tauntChest');
@@ -786,7 +795,21 @@ export class MatchScene {
       lead: this.walkoutRun?.chars[0]?.group.position ?? null,
       side: this.walkoutRun ? this.walkoutRun.tl.sign : -1,
       walkoutT: this.walkoutRun ? craneT(this.elapsed - this.walkoutRun.t0) : 0,
+      // the gate dolly opens on the WHOLE FILE, so it needs the file's own
+      // centre of mass and its clock to hand off from the file to the captain
+      fileMid: this.walkoutFileMid(),
+      walkoutGateT: this.walkoutRun ? this.elapsed - this.walkoutRun.t0 : 0,
     };
+  }
+
+  /** Centre of mass of the walking file — what the gate dolly frames while the
+   *  crew is still one line (so the opening shot IS "all of them"). */
+  walkoutFileMid() {
+    const squad = this.walkoutRun?.chars;
+    if (!squad?.length) return null;
+    const mid = new THREE.Vector3();
+    for (const c of squad) mid.add(c.group.position);
+    return mid.multiplyScalar(1 / squad.length);
   }
 
   yawTo(from, to) {
@@ -1365,11 +1388,24 @@ export class MatchScene {
       // the body and the ball close the gap together instead of a magnet ball
       stepX: Math.max(-0.45, Math.min(0.45, this.ball.pos.x - this.kicker.group.position.x)),
     };
-    this.bus.emit('sfx', 'swing'); // the leg cutting air, before the thump lands
+    // THE SWING IS HEARD, and a LOCKER move is heard as BIGGER. A stock kick is
+    // the leg cutting air; an equipped special is a martial-arts sweep, so it
+    // opens on the heavy whoosh and the lighter swish arrives later, 60% into
+    // the wind-up — the move sounds special before the ball is even struck.
+    const specialSwing = kickClip !== 'kick';
+    this.bus.emit('sfx', specialSwing ? 'bigwhoosh' : 'swing');
     if (judged.quality === 'PERFECT' || this.kickHrEligible) {
       this.bus.emit('cine:perfect', { kicker: this.kicker, ball: this.ball, holdS });
     } else {
       this.bus.emit('cine:contact', { kicker: this.kicker, ball: this.ball, quality: judged.quality, holdS });
+    }
+    // ...scheduled AFTER the cine call, which is what puts the beat in slow-mo:
+    // timers tick in REAL seconds, so the wind-up's clip-seconds are converted
+    // against the timeScale the beat is actually running at (same basis as the
+    // safety launch below).
+    if (specialSwing) {
+      this.after(0.6 * holdS / Math.max(0.05, this.engine.timeScale ?? 1),
+        () => this.bus.emit('sfx', 'swing'));
     }
     let launched = false;
     const launchNow = () => {
@@ -1494,6 +1530,14 @@ export class MatchScene {
     if (weakContact) this.engine.shake(0.15);
     else this.engine.shake(judged.quality === 'PERFECT' ? 0.55 : 0.25);
     this.bus.emit('sfx', judged.quality === 'PERFECT' ? 'crush' : 'kick');
+    // ...and THE ONE YOU HEAR. kick.mp3 peaks at −23.5 dBFS — 23 dB under every
+    // other cue in the game and 32 dB under the beat — so the contact above was
+    // played and inaudible for the whole life of the game (dev, 2026-08-28:
+    // "there's no sound effect when the kick meets the ball"). 'strike' is the
+    // transient that carries it, and it ducks the music −6 dB for a quarter
+    // second so it lands in a hole instead of inside the beat. PERFECT/crown
+    // still adds 'fireball' from the cinematics director.
+    this.bus.emit('sfx', 'strike');
     this.field.crowdEnergy = judged.quality === 'PERFECT' ? 1 : 0.5;
 
     this.pred = Ball.predictLanding(this.ball.pos.clone(), launch.speed, launch.loftDeg, launch.directionDeg);

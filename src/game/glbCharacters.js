@@ -17,9 +17,10 @@ import { loadExtrasFor } from './animExtras.js';
 // leaf modules: jerseyDecals imports three + kits, kits imports nothing
 import { attachJerseyDecals } from './jerseyDecals.js';
 import { inkFor, logoFor, markFor } from './kits.js';
-// leaf modules: skinTint is pure maths, accessories imports three and nothing else
+// leaf modules: skinTint is pure maths; accessories imports three + jerseyDecals
+// (it cuts its bands with the SAME patch machinery the shirt print uses)
 import { recolorPixels, kitTintPixel, inkKitPanels, rasterizeUvMask, dilateMask } from './skinTint.js';
-import { attachAccessory } from './accessories.js';
+import { attachAccessory, bandHexFor } from './accessories.js';
 import castsData from '../data/casts.json';
 
 const loader = new GLTFLoader();
@@ -293,8 +294,8 @@ export function disposeCharacter(char) {
   // traverse below would free the same geometry/material, but it would also
   // dispose a patch's skeleton, which is the player's.
   try { char?.decals?.dispose?.(); } catch { /* cosmetic */ }
-  // the headband / wristbands / shades own their geometry + material and hang
-  // off a rig group on a bone — same deal, let them let go first
+  // the headband / wristbands are skinned rings that own their geometry +
+  // material (the build-time rig group is already unhooked) — let them go first
   try { char?.accessories?.dispose?.(); } catch { /* cosmetic */ }
   char?.group?.traverse((o) => {
     if (!o.isMesh || !o.material) return;
@@ -845,8 +846,8 @@ export async function buildTeamCharsGlb(team, uniformColor, gear = null, opts = 
       char = await buildGlbCharacter({ model: FALLBACK_MODEL }, { heightM: 2.05, clips: null });
     }
     char.cast = cast;
-    // headband / wristbands / shades in the crew's accent, scaled with the body
-    char.accessories = attachAccessory(char, cast?.accessory, team.colors?.accent, { scale: cast?.height ?? 1 });
+    // the headband / wristbands, PRINTED on this body in the crew's accent
+    char.accessories = attachAccessory(char, cast?.accessory, bandHexFor(team), { scale: cast?.height ?? 1 });
     char.data = p;
     char.number = p.number ?? JERSEY_NUMBERS[i % JERSEY_NUMBERS.length];
     char.gender = FEMALE_ARCHETYPES.has(archIdx) ? 'she' : 'he'; // for the announcer's he/she calls
@@ -873,7 +874,7 @@ export async function buildCaptainPreview(team, uniformHex, gear = null) {
   char.cast = cast;
   // the turntable is where the dev SEES the crew — so the captain wears the
   // frame, the tone and the gear he takes onto the field
-  char.accessories = attachAccessory(char, cast?.accessory, team.colors?.accent, { scale: cast?.height ?? 1 });
+  char.accessories = attachAccessory(char, cast?.accessory, bandHexFor(team), { scale: cast?.height ?? 1 });
   char.data = team.roster?.[0] ?? null;
   char.number = char.data?.number ?? JERSEY_NUMBERS[0];
   // The turntable is where the dev SEES the kit, so the captain wears the same

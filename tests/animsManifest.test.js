@@ -57,6 +57,29 @@ describe('anims manifest', () => {
     }
   });
   it('acrobatic kicks release the ball when the move lands, not mid-flip', () => {
-    for (const [n, v] of [['kickFlair', 0.94], ['kickKipUp', 0.93], ['kickSpinFlip', 0.90], ['kickMeia', 0.86], ['kickMeiaBack', 0.86]]) expect(manifest.find((m) => m.name === n).contactAt, n).toBe(v);
+    for (const [n, v] of [['kickFlair', 0.94], ['kickKipUp', 0.93], ['kickSpinFlip', 0.90]]) expect(manifest.find((m) => m.name === n).contactAt, n).toBe(v);
+  });
+  // Meia Lua is NOT a flip that lands on the ball — it is a crescent whose heel
+  // sweeps THROUGH the strike and then follows through for another ~0.4 s. Held
+  // at the old landing mark (0.86) the ball left the foot after the kick was
+  // already over (dev, 2026-08-28). Both marks come from the frame-by-frame FK
+  // probe (docs: task-C report): the frame of the striking foot's MAXIMUM
+  // FORWARD REACH (max +z) inside the window where it rides above hip height —
+  // the apex of the sweep, where the ball is met. Identical on arch-locs and
+  // arch-sprint: kickMeia frame 53 of 87 (t 0.8833 / 1.43), kickMeiaBack frame
+  // 73 of 97 (t 1.2167 / 1.60). One frame later the heel is already travelling
+  // BACKWARD (vz goes negative), and it is 21+ frames clear of the plant.
+  it('Meia Lua releases at the sweep apex, not at the plant', () => {
+    for (const [n, v] of [['kickMeia', 0.618], ['kickMeiaBack', 0.76]]) {
+      const m = manifest.find((x) => x.name === n);
+      expect(m.contactAt, n).toBe(v);
+      // still inside the swing, never at the very end of the clip
+      expect(m.contactAt, `${n} must not fire at the tail`).toBeLessThan(0.8);
+      expect(m.contactAt, `${n} must not fire during the wind-up`).toBeGreaterThan(0.5);
+    }
+  });
+  it('Meia keeps the striking foot the ball rides', () => {
+    expect(manifest.find((m) => m.name === 'kickMeia').foot).toBe('R');
+    expect(manifest.find((m) => m.name === 'kickMeiaBack').foot).toBe('L');
   });
 });

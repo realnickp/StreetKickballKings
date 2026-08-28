@@ -1,6 +1,8 @@
 // Generate realistic gameplay SFX via ElevenLabs sound-generation, server-side.
 // Run: node scripts/gen-sfx.mjs   (resumable — skips files that already exist)
 import fs from 'fs';
+import { execFileSync } from 'child_process';
+import { fileURLToPath } from 'url';
 const ROOT = new URL('..', import.meta.url);
 const key = fs.readFileSync(new URL('.env.local', ROOT), 'utf8').match(/ELEVENLABS_API_KEY=(.+)/)?.[1]?.trim();
 if (!key) { console.error('no ELEVENLABS_API_KEY'); process.exit(1); }
@@ -41,6 +43,22 @@ const SFX = [
   { file: 'stomp.mp3',      text: 'A single person walking with a confident swagger on asphalt, heavy sneaker footsteps, steady rhythm, two seconds, dry, no music', dur: 2.0, infl: 0.7 },
   { file: 'cheer-big.mp3',  text: 'A huge street crowd erupting in a massive roaring cheer with whistles and shouts, explosive and wide, no music', dur: 3.0, infl: 0.6 },
   { file: 'boo.mp3',        text: 'A street crowd booing loudly together, deep disapproving BOOO, one collective wave, no music', dur: 1.6, infl: 0.7 },
+  // The kick is HEARD (dev, 2026-08-28: "there's no sound effect when the kick
+  // meets the ball"). ROOT CAUSE, found by measuring: kick.mp3 came back from
+  // THIS generator peaking at −23.5 dBFS — 23 dB under every other cue in this
+  // table — so the contact thump was emitted, warmed and played, and simply
+  // could not be heard under the beat. It is not a code bug.
+  //
+  // !! This generator renders short single-hit impacts VERY quiet, and does it
+  // repeatably: four takes of 'strike' came back at −50.1, −43.2, −38.5 and
+  // −16.2 dBFS peak. NEVER trust a fresh impact file — measure it, and if it
+  // peaks below about −6 dBFS, peak-normalise before shipping:
+  //   ffmpeg -i in.mp3 -af volumedetect -f null -      # read max_volume
+  //   ffmpeg -i in.mp3 -af 'volume=<-1.5 - max>dB' -b:a 128k out.mp3
+  // The shipped strike.mp3 is the 4th take (this prompt) lifted +14.7 dB that
+  // way: 0.52 s, mean −17.7 dB, peak −1.9 dB — in family with peg and swish.
+  { file: 'strike.mp3',    text: 'A powerful sneaker kick smashing a rubber ball, loud percussive thump and snap, one single hit, dry, close-up, no music', dur: 0.5, infl: 0.7 },
+  { file: 'bigwhoosh.mp3', text: 'A fast martial-arts leg whoosh cutting the air, powerful sweeping air whip, one single swing, close, dry, no music', dur: 0.6, infl: 0.7 },
 ];
 
 async function gen({ file, text, dur, infl }) {
@@ -53,8 +71,33 @@ async function gen({ file, text, dur, infl }) {
   });
   if (!r.ok) { console.error('FAIL', file, r.status, (await r.text()).slice(0, 160)); return 'fail'; }
   fs.writeFileSync(out, Buffer.from(await r.arrayBuffer()));
-  console.log('ok  ', file);
+  console.log('ok  ', file, loudnessGate(out));
   return 'ok';
+}
+
+// LOUDNESS GATE (2026-08-28): this generator renders single-hit impacts at
+// -23…-51 dBFS (kick, ui-tap, scratch all shipped inaudible). Every new take is
+// measured; anything peaking under -6 dBFS is peak-normalised to -1.9 dBFS in
+// place. Needs ffmpeg on PATH; if it is missing the take is kept and flagged.
+function loudnessGate(outUrl) {
+  const path = fileURLToPath(outUrl);
+  const peak = () => {
+    const log = execFileSync('ffmpeg', ['-hide_banner', '-i', path, '-af', 'volumedetect', '-f', 'null', '-'], { stdio: ['ignore', 'pipe', 'pipe'] }).toString()
+      + '';
+    const m = /max_volume:\s*(-?[\d.]+) dB/.exec(log);
+    return m ? parseFloat(m[1]) : null;
+  };
+  try {
+    const before = peak();
+    if (before == null) return '(peak unknown)';
+    if (before >= -6) return `(peak ${before} dBFS ok)`;
+    const tmp = path.replace(/\.mp3$/, '.norm.mp3');
+    execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-i', path, '-af', `volume=${(-1.9 - before).toFixed(2)}dB`, '-codec:a', 'libmp3lame', '-q:a', '2', tmp], { stdio: 'ignore' });
+    fs.renameSync(tmp, path);
+    return `(peak ${before} dBFS → normalised to ${peak()} dBFS)`;
+  } catch (e) {
+    return `(loudness gate skipped: ${String(e.message).slice(0, 80)})`;
+  }
 }
 
 let ok = 0, fail = 0;

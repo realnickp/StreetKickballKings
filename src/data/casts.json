@@ -55,7 +55,7 @@
         "skin": "brown",
         "height": 0.96,
         "build": 1.04,
-        "accessory": "shades"
+        "accessory": "headband"
       }
     ],
     "snappers": [
@@ -85,7 +85,7 @@
         "skin": "light",
         "height": 1.06,
         "build": 0.96,
-        "accessory": "shades"
+        "accessory": "headband"
       },
       {
         "archetype": 10,
@@ -157,7 +157,7 @@
         "skin": "deep",
         "height": 1,
         "build": 1.06,
-        "accessory": "shades"
+        "accessory": "headband"
       },
       {
         "archetype": 5,
@@ -208,7 +208,7 @@
         "skin": "deep",
         "height": 1.03,
         "build": 1.05,
-        "accessory": "shades"
+        "accessory": "headband"
       },
       {
         "archetype": 5,
@@ -280,7 +280,7 @@
         "skin": "tan",
         "height": 1.01,
         "build": 1.03,
-        "accessory": "shades"
+        "accessory": "headband"
       },
       {
         "archetype": 12,
@@ -310,7 +310,7 @@
         "skin": "tan",
         "height": 1.04,
         "build": 0.96,
-        "accessory": "shades"
+        "accessory": "headband"
       },
       {
         "archetype": 4,
@@ -396,7 +396,7 @@
         "skin": "light",
         "height": 0.99,
         "build": 1,
-        "accessory": "shades"
+        "accessory": "headband"
       },
       {
         "archetype": 14,
@@ -447,7 +447,7 @@
         "skin": "tan",
         "height": 1.01,
         "build": 0.97,
-        "accessory": "shades"
+        "accessory": "headband"
       },
       {
         "archetype": 4,
@@ -498,7 +498,7 @@
         "skin": "brown",
         "height": 1.03,
         "build": 1,
-        "accessory": "shades"
+        "accessory": "headband"
       },
       {
         "archetype": 10,
@@ -577,7 +577,7 @@
         "skin": "tan",
         "height": 1.01,
         "build": 0.98,
-        "accessory": "shades"
+        "accessory": "headband"
       }
     ]
   }
