@@ -12,6 +12,7 @@
 import { describe, it, expect } from 'vitest';
 import fields from '../src/data/fields.json';
 import teams from '../src/data/teams.json';
+import { SKY_PRESETS, LIGHT_LIFT, SUN_LIFT, liftFor } from '../src/game/field.js';
 import { dressTeams, groundDeltaL, contrastDeltaL, CLASH_DELTA_L } from '../src/game/kits.js';
 
 describe('fields carry the lightness of their own court', () => {
@@ -36,6 +37,32 @@ describe('fields carry the lightness of their own court', () => {
     // and the snow is no longer the ceiling it was: shot at L* 90.2 before this
     // round's `winter` lift override, 82.1 after
     expect(byId['winter-classic']).toBeLessThan(90);
+  });
+});
+
+describe('the winter lift override', () => {
+  it('is the ONLY preset that opts out of the global lift', () => {
+    const withLift = Object.entries(SKY_PRESETS).filter(([, p]) => p.lift);
+    expect(withLift.map(([name]) => name)).toEqual(['winter']);
+  });
+
+  it('leaves every other sky — the night courts included — exactly as it was', () => {
+    for (const [name, p] of Object.entries(SKY_PRESETS)) {
+      if (name === 'winter') continue;
+      expect(liftFor(p), name).toEqual({ ...LIGHT_LIFT, sun: SUN_LIFT });
+    }
+    // `neon-night` is the one the dev's own crew plays on: untouched
+    expect(liftFor(SKY_PRESETS['neon-night']).hemi).toBe(LIGHT_LIFT.hemi);
+    expect(liftFor(SKY_PRESETS['neon-night']).sun).toBe(SUN_LIFT);
+  });
+
+  it('cuts the snow to the measured intensities and nothing else', () => {
+    const w = SKY_PRESETS.winter;
+    const lift = liftFor(w);
+    expect(w.hemiI * lift.hemi).toBeCloseTo(1.0, 2);   // was 1.7 * 1.4 = 2.38
+    expect(w.sunI * lift.sun).toBeCloseTo(1.35, 2);    // was 2.10
+    expect(w.ambI * lift.amb).toBeCloseTo(0.35, 2);    // was 0.35 * 1.65 = 0.58
+    expect(lift.rim).toBe(LIGHT_LIFT.rim);             // the rim separation stays
   });
 });
 

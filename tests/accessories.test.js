@@ -8,8 +8,10 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import {
-  ACCESSORY_KINDS, BAND_LIFT_M, WRIST_BAND, HEAD_BAND_M, SKULL_PAD_M, BROW_LIFT_M,
+  ACCESSORY_KINDS, BAND_LIFT_M, WRIST_BAND, HEAD_BAND_M, SKULL_PAD_M,
+  BROW_OVER_EYE_M, EYE_OVER_FALL_M, EYE_OVER_NOSE_M, EYE_DROP_M, PROFILE_STEP_M,
   MIN_BAND_TRIS, BAND_ATTR, BAND_FEATHER_M, attachAccessory, findNode, boneRig, headAxes, measureHead,
+  eyeLine, browHeight,
   bandVertices, bandTriangles, cullHairShell, jointSide, isHeadJoint,
   isForeArmJoint, isHandJoint, bandHexFor } from '../src/game/accessories.js';
 import { boneFrames } from '../src/game/jerseyDecals.js';
@@ -18,6 +20,13 @@ const SEG = 8;          // faces round a limb / round the skull
 const ARM_R = 0.045;    // forearm radius, metres
 const HAIR_R = 0.14;    // the puff's shell — far outside a 0.10 m skull
 const BROW_TOL = 0.012;   // one ring of the synthetic skull
+// THE FACE. The head below is not just an egg: it carries a NOSE, a 3 cm bulge
+// on the front of the skull that STOPS at `EYE_AT` — which is exactly the
+// landmark `eyeLine` hunts for, the slice where the face's front profile falls
+// off the nose into the sockets. Without it there is nothing in this file that
+// exercises the rule the band's height is built on.
+const NOSE_OUT = 0.03;  // how far the nose stands off the skull, metres
+const EYE_AT = 0.04;    // the height the nose ends at — the modelled eye line
 
 /** The skeleton: armature at 1/100 (what the GLBs ship with), a head that can
  *  be tilted out of axis, and arms straight out to the sides. */
@@ -50,9 +59,10 @@ function rig({ headTilt = 0 } = {}) {
 }
 
 /**
- * ONE skinned body on that skeleton: a head (deeper than it is wide), an
- * optional hair shell round it, and a forearm/hand tube on each arm running
- * from 5 cm past the fingers to 6 cm past the elbow, ringed every centimetre.
+ * ONE skinned body on that skeleton: a head (deeper than it is wide, with a
+ * nose that ends at the eye line), an optional hair shell round it, and a
+ * forearm/hand tube on each arm running from 5 cm past the fingers to 6 cm
+ * past the elbow, ringed every centimetre.
  *
  * A Skeleton's boneInverses come from the bones' BIND WORLD matrices, so with
  * an identity bindMatrix the vertices are authored in WORLD space.
@@ -62,11 +72,11 @@ function body(char, { hair = 0 } = {}) {
   char.group.traverse((o) => { if (o.isBone) bones.push(o); });
   const slot = (name) => bones.findIndex((b) => b.name === name);
   const P = []; const SI = []; const SW = []; const IX = [];
-  const ring = (c, u, v, ru, rv, w) => {
+  const ring = (c, u, v, ru, rv, w, nose = 0) => {
     const base = P.length / 3;
     for (let a = 0; a < SEG; a++) {
       const th = (a / SEG) * Math.PI * 2;
-      const ct = Math.cos(th) * ru; const st = Math.sin(th) * rv;
+      const ct = Math.cos(th) * ru; const st = Math.sin(th) * rv + (Math.sin(th) > 0.9 ? nose : 0);
       P.push(c.x + u.x * ct + v.x * st, c.y + u.y * ct + v.y * st, c.z + u.z * ct + v.z * st);
       SI.push(w[0][0], w[1] ? w[1][0] : 0, 0, 0);
       SW.push(w[0][1], w[1] ? w[1][1] : 0, 0, 0);
@@ -90,11 +100,13 @@ function body(char, { hair = 0 } = {}) {
   const skullAt = (y) => headBone.getWorldPosition(new THREE.Vector3()).addScaledVector(HY, y);
   const headSlot = slot('Head');
   let prev = null;
-  for (let i = 0; i <= 26; i++) {
-    const y = -0.06 + (i / 26) * 0.26;
+  for (let i = 0; i <= 52; i++) {
+    const y = -0.06 + (i / 52) * 0.26;
     const t = (y + 0.06) / 0.26;
     const r = 0.055 + 0.045 * Math.sin(Math.PI * Math.min(1, t * 1.15));
-    const base = ring(skullAt(y), HX, HZ, r, r * 1.25, [[headSlot, 1]]);
+    // the nose: full height from the lip to the eye line, gone above it
+    const nose = y > -0.03 && y < EYE_AT ? NOSE_OUT : 0;
+    const base = ring(skullAt(y), HX, HZ, r, r * 1.25, [[headSlot, 1]], nose);
     if (prev !== null) stitch(prev, base);
     prev = base;
   }
@@ -239,28 +251,102 @@ describe('headAxes', () => {
   });
 });
 
-describe('measureHead — the skull the rig actually has', () => {
+describe('measureHead — the head the rig actually has', () => {
   const M = ({ char }) => {
     const head = findNode(char.group, /^head$/i);
     const r = boneRig(char.group, head, 'probe');
-    const out = measureHead(char.group, head, r, headAxes(char.group, r).up);
+    const ax = headAxes(char.group, r);
+    const out = measureHead(char.group, head, r, ax.up, ax.front);
     r.removeFromParent();
     return out;
   };
-  it('reads the skull off the mesh: chin, crown, and the width at a height', () => {
+  it('reads the head off the mesh: chin and crown', () => {
     const m = M(player());
     expect(m).not.toBe(null);
     expect(m.low).toBeCloseTo(-0.06, 2);
     expect(m.rise).toBeCloseTo(0.20, 2);
-    expect(m.ringRadius(0.05, 0.02)).toBeGreaterThan(m.ringRadius(0.19, 0.02));
   });
-  it('finds the TEMPLE line, and big hair cannot drag it up', () => {
+
+  it('finds the EYE LINE where the nose ends — within a slice of the modelled dip', () => {
+    // the head's nose stops at EYE_AT; the eye line is that slice plus the
+    // measured EYE_OVER_FALL_M, and the hunt can only be one slice out
+    const m = M(player());
+    expect(m.eyeY).toBeCloseTo(EYE_AT + EYE_OVER_FALL_M, 2);
+    expect(Math.abs(m.eyeY - (EYE_AT + EYE_OVER_FALL_M))).toBeLessThanOrEqual(PROFILE_STEP_M);
+  });
+
+  it('BIG HAIR cannot drag the eye line up — the walk has already stopped', () => {
     const bald = M(player());
     const puffy = M(player({ hair: 14 }));
-    expect(puffy.rise).toBeGreaterThan(bald.rise + 0.08);
-    expect(puffy.widestY).toBeCloseTo(bald.widestY, 2);
-    expect(bald.widestY).toBeGreaterThan(-0.03);
-    expect(bald.widestY).toBeLessThan(0.11);
+    expect(puffy.rise).toBeGreaterThan(bald.rise + 0.08);   // 24 cm of shell on top
+    expect(puffy.eyeY).toBeCloseTo(bald.eyeY, 3);
+  });
+
+  it('answers null rather than guessing when there is no front axis to read', () => {
+    const { char } = player();
+    const head = findNode(char.group, /^head$/i);
+    const r = boneRig(char.group, head, 'probe');
+    const out = measureHead(char.group, head, r, headAxes(char.group, r).up);
+    r.removeFromParent();
+    expect(out.eyeY).toBe(null);
+  });
+});
+
+describe('eyeLine — the rule, on a profile with nothing else in it', () => {
+  /** A face `dip` metres up whose front reaches `f(y)`, sampled every 2 mm. */
+  const face = (f, { low = -0.06, high = 0.20 } = {}) => {
+    const ys = []; const fs = []; const ss = [];
+    for (let y = low; y <= high; y += 0.002) {
+      for (const x of [-0.02, 0, 0.02, 0.05]) { ys.push(y); fs.push(f(y)); ss.push(x); }
+    }
+    return { ys, fs, ss, low, high };
+  };
+  it('is the slice the profile falls off the nose at, plus the measured offset', () => {
+    const dip = 0.03;
+    const { ys, fs, ss, low, high } = face((y) => 0.09 + (y < dip ? 0.03 : 0));
+    expect(eyeLine(ys, fs, ss, low, high)).toBeCloseTo(dip + EYE_OVER_FALL_M, 2);
+  });
+  it('ignores anything OFF the mid-sagittal strip — ears and hair at the temples', () => {
+    const dip = 0.03;
+    const ys = []; const fs = []; const ss = [];
+    for (let y = -0.06; y <= 0.20; y += 0.002) {
+      ys.push(y); fs.push(0.09 + (y < dip ? 0.03 : 0)); ss.push(0);
+      ys.push(y); fs.push(0.30); ss.push(0.09);          // a slab out at the ear
+    }
+    expect(eyeLine(ys, fs, ss, -0.06, 0.20)).toBeCloseTo(dip + EYE_OVER_FALL_M, 2);
+  });
+  // a 4 mm nose on a 26 cm head: its peak is a PLATEAU two or three slices
+  // wide, so the answer is only ever accurate to the slices it is read in
+  const nearly = (got, want) => expect(Math.abs(got - want)).toBeLessThanOrEqual(2 * PROFILE_STEP_M);
+  it('falls back to the NOSE TIP on a face too shallow to fall off', () => {
+    const nose = 0.02;
+    const { ys, fs, ss, low, high } = face((y) => 0.09 + 0.004 * Math.exp(-(((y - nose) / 0.02) ** 2)));
+    nearly(eyeLine(ys, fs, ss, low, high), nose + EYE_OVER_NOSE_M);
+  });
+  it('will not take a fall a long way over the nose — that is the hairline', () => {
+    // the nose peaks at 0.00 and the profile only leaves the HAIR at 0.13
+    const nose = 0.0;
+    const { ys, fs, ss, low, high } = face((y) => (y < 0.13 ? 0.09 + 0.004 * Math.exp(-(((y - nose) / 0.02) ** 2)) : 0.05));
+    nearly(eyeLine(ys, fs, ss, low, high), nose + EYE_OVER_NOSE_M);
+  });
+  it('has nothing to say about a bare handful of samples', () => {
+    expect(eyeLine([0, 1], [0, 1], [0, 0], 0, 1)).toBe(null);
+  });
+});
+
+describe('browHeight — where the band lands', () => {
+  it('is the eye line plus the measured clearance', () => {
+    expect(browHeight({ eyeY: 0.07 }, new THREE.Vector3(0, 0.23, 0)))
+      .toBeCloseTo(0.07 + BROW_OVER_EYE_M, 6);
+  });
+  it('falls back to a fraction of the head height when the face was unreadable', () => {
+    expect(browHeight({ eyeY: null }, new THREE.Vector3(0, 0.20, 0))).toBeCloseTo(0.20 * 0.55, 6);
+    expect(browHeight(null, new THREE.Vector3(0, 0.20, 0))).toBeCloseTo(0.20 * 0.55, 6);
+  });
+  it('clears the eyebrow: the band\'s LOWER edge is 3.5 cm over the eyes', () => {
+    // the brow ridge sits ~3 cm over the eye line on these rigs — this is the
+    // number the dev\'s "the headband on the face" screenshot was missing
+    expect(BROW_OVER_EYE_M - HEAD_BAND_M / 2).toBeGreaterThan(0.03);
   });
 });
 
@@ -332,9 +418,9 @@ describe('the wristband is the ring of forearm above the wrist', () => {
 function headSelection(char, mesh, { cull = true } = {}) {
   const head = findNode(char.group, /^head$/i);
   const r = boneRig(char.group, head, 'probe');
-  const up = headAxes(char.group, r).up;
-  const M = measureHead(char.group, head, r, up);
-  const at = M.widestY + BROW_LIFT_M;
+  const { up, front } = headAxes(char.group, r);
+  const M = measureHead(char.group, head, r, up, front);
+  const at = browHeight(M, up);
   const frames = boneFrames(mesh, new THREE.Matrix4().copy(r.matrixWorld).invert());
   const joints = new Set();
   frames.forEach((f, i) => { if (isHeadJoint(f.name)) joints.add(i); });

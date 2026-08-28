@@ -29,9 +29,8 @@
 //    by the distance test, and the cloth right at the wrist is skinned partly to
 //    the hand on every one of these rigs.
 //  - a HEADBAND is the 2.5 cm ring of skull at the BROW LINE — `measureHead`'s
-//    temple line lifted by BROW_LIFT_M, the same measurement the torus era
-//    tuned on real screenshots — round the full circumference, with the HAIR
-//    struck off it (see `cullHairShell`).
+//    EYE LINE lifted by BROW_OVER_EYE_M — round the full circumference, with
+//    the HAIR struck off it (see `cullHairShell`).
 //
 // SHADES ARE GONE. There is no convincing skinned form for a visor: it is not
 // on the surface of the head, it stands off it, and standing off the head is
@@ -107,24 +106,57 @@ export const BAND_FEATHER_M = 0.004;
  *  every wrinkle in a wrist. */
 export const BAND_GRAZE = { from: 0.03, to: 0.16 };
 
-/** Fallback brow height when the skull can't be measured, as a fraction of the
- *  head's height above the `Head` joint. */
-export const HEAD_FRAC = { headband: 0.62 };
-/** How far OVER the temple line the brow band rides, metres.
- *  MEASURED, and inherited unchanged from the torus era because the measurement
- *  is about the HEAD, not about what is drawn on it: the temple hunt below
- *  almost never fires — on 4 of the 5 rigs probed (puff, stache, fro, vet) the
- *  head is still WIDENING at the top of the face window, so the scan runs to the
- *  FACE_HEIGHT_M cap and the band's height is really "the chin plus 0.128 plus
- *  this lift" (casts/probe-temple.mjs). At 0.022 that landed the band ON THE
- *  EYEBROWS on both the rigs it was shot on — arch-puff in
- *  casts/locker-kestrals.png and arch-stache in casts/locker-marauders.png, one
- *  band-width low on each. 0.050 puts it on the forehead under the hairline. */
-export const BROW_LIFT_M = 0.050;
-/** Slice spacing when hunting for the temple line, metres. */
-export const TEMPLE_STEP_M = 0.012;
-/** How far above the chin the face stops on these rigs, metres. */
-export const FACE_HEIGHT_M = 0.13;
+/** LAST-RESORT brow height, as a fraction of the head's height above the `Head`
+ *  joint — only for a rig whose face can't be found at all (see `eyeLine`).
+ *  0.55 is the mean of the 20 archetypes' measured brow / `head_end` height,
+ *  and it is a poor rule on purpose-built hair: on arch-puff `head_end` is up
+ *  in the afro and this lands the band 8 cm high. It exists so an unknown rig
+ *  gets a band somewhere sane, not so any shipped rig uses it. */
+export const HEAD_FRAC = { headband: 0.55 };
+/** How far OVER the measured eye line the band's CENTRE rides, metres.
+ *
+ *  Dev, on his phone, 2026-08-28, with Memphis #36 on Winter Classic: "the
+ *  headband on the face" — a band ACROSS THE EYES. What put it there was the
+ *  rule this replaces: the band rode `widestY`, the first local maximum of the
+ *  head's WIDTH scanning up from the chin, plus a hand-tuned 5 cm. That hunt
+ *  fires on only 4 of the 20 rigs and runs to its cap on the other 16, so for
+ *  most of the league the band's height was really "the lowest head vertex plus
+ *  17.8 cm" — and the Head joint sits anywhere from 2.3 cm to 8.6 cm above the
+ *  chin depending on the rig, a 6 cm spread for a 2.5 cm band to absorb.
+ *
+ *  4.8 cm is measured, and it is bigger than "just over the eyebrow" for a
+ *  reason: on these rigs the brow ridge sits ~3 cm over the eye line and the
+ *  hairline ~6 cm over it, so this parks the band's lower edge on the FOREHEAD
+ *  — over every rig's brow, under most rigs' hair. */
+export const BROW_OVER_EYE_M = 0.048;
+/** Where the eye line sits above the slice at which the face's front profile
+ *  FALLS OFF THE NOSE, metres. These heads are low-poly with painted features:
+ *  the profile leaves the nose at the middle of the bridge, and the eyes the
+ *  texture paints sit about this much higher. Measured across the 20 rigs
+ *  (`heads/probe-brow.mjs` + the ruler shots). */
+export const EYE_OVER_FALL_M = 0.022;
+/** Where the eye line sits above the NOSE TIP, metres — the answer for a face
+ *  whose profile is too shallow to fall off its own nose (arch-shaggy's is:
+ *  6 mm of nose over 8 cm of face). */
+export const EYE_OVER_NOSE_M = 0.043;
+/** How far above the nose tip a fall can be and still be the eye socket,
+ *  metres. Further up than this and the walk has climbed something else — the
+ *  hairline on arch-braids — and the nose tip answers instead. */
+export const FALL_SPAN_M = 0.045;
+/** Slice spacing when reading the face's front profile, metres. Fine enough to
+ *  separate a nose from a brow, coarse enough that every slice of a 1000-vertex
+ *  low-poly head has samples in it. */
+export const PROFILE_STEP_M = 0.006;
+/** Half-width of the face's CENTRE COLUMN, metres: the profile is read down the
+ *  mid-sagittal strip, where the nose and the brow are and the ears are not. */
+export const FACE_COLUMN_M = 0.03;
+/** How far the face's front profile has to FALL off its own running maximum for
+ *  the nose to be behind us. 1.5 cm: bigger than any wobble in a low-poly
+ *  cheek, smaller than every one of the 20 rigs' nose-to-eye drop (2.6–4.2 cm
+ *  measured). It is also what keeps HAIR out of the hunt — a braid or a puff
+ *  hanging over the forehead reaches further forward than the nose does, but it
+ *  is above the drop, and the walk has already stopped. */
+export const EYE_DROP_M = 0.015;
 /** Fallbacks in metres for a rig with no `head_end` / `headfront` helper. */
 export const HEAD_FALLBACK = { up: 0.23, front: 0.10 };
 
@@ -203,17 +235,91 @@ export function headAxes(root, rig) {
 }
 
 /**
+ * WHERE THE EYES ARE, read off the face's own front profile.
+ *
+ * A head is not a shape a fraction can find. `head_end` is at the top of the
+ * AFRO on arch-puff and at the top of the skull on arch-bald; the `Head` joint
+ * sits 2.3 cm above the chin on one rig and 8.6 cm on another. The one thing
+ * all 20 of these faces have, in the same place, modelled honestly, is a NOSE
+ * — and the fall off the end of it.
+ *
+ * So: slice the face's CENTRE COLUMN (the mid-sagittal strip — no ears, no
+ * temples) every `PROFILE_STEP_M` and take how far FORWARD each slice reaches.
+ * Walking up from the chin that profile climbs the lips, peaks at the nose tip
+ * and then falls away hard into the sockets. The first slice that has fallen
+ * `EYE_DROP_M` off the running maximum is where the face LEAVES the nose; the
+ * eyes these low-poly heads paint sit `EYE_OVER_FALL_M` above that, and the
+ * sum is what comes back. Because the walk STOPS there, hair hanging over the
+ * forehead — which reaches further forward than any nose on these rigs (+2.7 cm
+ * on arch-puff, +1.9 cm on arch-braids) — is never even looked at.
+ *
+ * Measured against all 20 rigs shot front-on with a projected ruler
+ * (`heads/probe-brow.mjs`, `heads/ruler-*.png`).
+ *
+ * @param {ArrayLike<number>} ys each sample's height along the head axis
+ * @param {ArrayLike<number>} fs how far forward it reaches
+ * @param {ArrayLike<number>} ss how far off the mid-sagittal plane it sits
+ * @returns {number|null} the eye line in rig metres above the `Head` joint
+ */
+export function eyeLine(ys, fs, ss, low, rise) {
+  const n = ys?.length ?? 0;
+  if (n < 50 || !(rise > low)) return null;
+  const N = Math.ceil((rise - low) / PROFILE_STEP_M) + 1;
+  if (N < 6) return null;
+  const prof = new Float64Array(N).fill(NaN);
+  for (let i = 0; i < n; i++) {
+    if (Math.abs(ss[i]) > FACE_COLUMN_M) continue;
+    const k = Math.floor((ys[i] - low) / PROFILE_STEP_M);
+    if (k < 0 || k >= N) continue;
+    if (!(prof[k] >= fs[i])) prof[k] = fs[i];        // NaN-safe max
+  }
+  // A 3-slice median over the profile. A low-poly head leaves EMPTY slices and
+  // the odd slice whose only centre-column sample is the BACK of the skull;
+  // either one is a cliff the walk below would stop at, and neither is a face.
+  const med = new Float64Array(N).fill(NaN);
+  for (let k = 0; k < N; k++) {
+    const w = [prof[k - 1], prof[k], prof[k + 1]].filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
+    if (w.length) med[k] = w[(w.length - 1) >> 1];
+  }
+  const at = (k) => low + (k + 0.5) * PROFILE_STEP_M;
+  let max = -Infinity;
+  let maxK = -1;
+  let seen = 0;
+  for (let k = 0; k < N; k++) {
+    const f = med[k];
+    if (!Number.isFinite(f)) continue;
+    // the nose has to have been climbed before its end can be found
+    if (seen >= 3 && f <= max - EYE_DROP_M) {
+      // A fall a long way over the nose tip is not the socket — it is the walk
+      // finally coming off something else it climbed (arch-braids' hairline
+      // reaches 1.2 cm further forward than her nose does). Fall back to the
+      // nose itself, which is never wrong by more than the face is deep.
+      return at(k) - at(maxK) > FALL_SPAN_M
+        ? at(maxK) + EYE_OVER_NOSE_M
+        : at(k) + EYE_OVER_FALL_M;
+    }
+    // `>=`, not `>`: a nose peaks over two or three slices on a low-poly head
+    // and it is the LAST of them the face falls off, not the first
+    if (f >= max) { max = f; maxK = k; }
+    seen++;
+  }
+  // no fall at all: a face too shallow to leave one
+  return maxK >= 0 ? at(maxK) + EYE_OVER_NOSE_M : null;
+}
+
+/**
  * The head this rig actually has, in rig metres, sampled from the vertices
  * SKINNED to it — the same trick the cleats use to find the foot.
  *
  * It reports the skull's extent above and below the `Head` joint (which sits
- * at the neck, not the chin, so the head hangs below it too) and the CROSS-
- * SECTION radius at any height.
+ * at the neck, not the chin, so the head hangs below it too), how far forward
+ * the face reaches, and the measured EYE LINE (`eyeLine`).
  *
- * @returns {{rise:number, low:number, front:number,
- *   ringRadius:(y:number, band?:number)=>number, widestY:number}|null}
+ * @param {THREE.Vector3} [frontAxis] the head's own forward, from `headAxes`.
+ *   Without it there is no face to read and `eyeY` comes back null.
+ * @returns {{rise:number, low:number, front:number, eyeY:number|null}|null}
  */
-export function measureHead(root, headBone, rig, up) {
+export function measureHead(root, headBone, rig, up, frontAxis = null) {
   try {
     let skinned = null;
     root.traverse((o) => { if (!skinned && o.isSkinnedMesh && o.skeleton) skinned = o; });
@@ -226,10 +332,18 @@ export function measureHead(root, headBone, rig, up) {
     const m = new THREE.Matrix4().copy(rig.matrixWorld).invert()
       .multiply(new THREE.Matrix4().multiplyMatrices(headBone.matrixWorld, bi));
     const axis = up.clone().normalize();
+    // The head's own forward, and the sideways that completes the frame. The
+    // eye hunt is stated in them, so a head whose bind basis is a few degrees
+    // off (every one of these auto-rigs is) still reads its own face.
+    const fwd = frontAxis && frontAxis.length() > 1e-4
+      ? frontAxis.clone().normalize()
+      : new THREE.Vector3(0, 0, 1);
+    const side = new THREE.Vector3().crossVectors(axis, fwd).normalize();
     const v = new THREE.Vector3();
     const step = Math.max(1, Math.floor(pos.count / 12000));
     const ys = [];
-    const xs = [];
+    const fs = [];
+    const ss = [];
     let rise = -Infinity, low = Infinity, front = 0;
     for (let i = 0; i < pos.count; i += step) {
       let hw = 0;
@@ -238,37 +352,15 @@ export function measureHead(root, headBone, rig, up) {
       v.fromBufferAttribute(pos, i).applyMatrix4(m);
       const y = v.dot(axis);
       ys.push(y);
-      xs.push(Math.abs(v.x));                        // ACROSS the head — a band's radius
+      fs.push(v.dot(fwd));
+      ss.push(v.dot(side));
       if (y > rise) rise = y;
       if (y < low) low = y;
       if (v.z > front) front = v.z;
     }
     if (ys.length < 50 || !Number.isFinite(rise) || !Number.isFinite(low)) return null;
-    /** Widest half-width across the head in the slice at height `y`. */
-    const ringRadius = (y, band = 0.02) => {
-      let r = 0;
-      for (let i = 0; i < ys.length; i++) if (Math.abs(ys[i] - y) <= band && xs[i] > r) r = xs[i];
-      return r;
-    };
-    // THE TEMPLE LINE. Scanning up from the chin and stopping at the FIRST
-    // local maximum of the head's width is what keeps HAIR out of it: an
-    // afro-puff or a stack of locs is far wider than the skull and pushes
-    // `rise` up by 20 cm (arch-puff measures 0.52 m from chin to hair-top, vs
-    // 0.26 for a bald rig), so any fraction-of-height rule parks the band in
-    // the hair. The face's own widest slice is the cheek/temple line, and it
-    // always comes first on the way up.
-    let widestY = low + (rise - low) * 0.35;
-    let prev = -1;
-    // and the hunt stops at the top of the FACE (~13 cm above the chin on
-    // these 2.05 m rigs), so a rig whose hair only widens on the way up —
-    // arch-vet's grey mop — can't drag the band onto the crown
-    for (let y = low + 0.02; y < low + FACE_HEIGHT_M; y += TEMPLE_STEP_M) {
-      const r = ringRadius(y, 0.012);
-      if (prev >= 0 && r < prev * 0.985) { widestY = y - TEMPLE_STEP_M; break; }
-      prev = r;
-      widestY = y;
-    }
-    return { rise, low, front, ringRadius, widestY };
+    const eyeY = frontAxis ? eyeLine(ys, fs, ss, low, rise) : null;
+    return { rise, low, front, eyeY };
   } catch { return null; }
 }
 
@@ -494,16 +586,24 @@ function wristBand(root, body, side) {
   } finally { rig.removeFromParent(); }
 }
 
+/** Where the headband's centre line sits on THIS head, in rig metres above the
+ *  `Head` joint. The measured eye line wins; `head_end` is the last resort.
+ *  Split out so the tests can hold the rule without building a whole band. */
+export function browHeight(M, up) {
+  if (Number.isFinite(M?.eyeY)) return M.eyeY + BROW_OVER_EYE_M;
+  return (up?.length?.() ?? 0) * HEAD_FRAC.headband;
+}
+
 /** The ring of skull the headband is cut from, in the HEAD's own frame. */
 function headBand(root, body) {
   const head = findNode(root, BONE.head);
   if (!head) return null;
   const rig = boneRig(root, head, 'accessory-head-frame');
   try {
-    const { up } = headAxes(root, rig);
-    // the measured skull wins; `head_end` is the fallback
-    const M = measureHead(root, head, rig, up);
-    const at = M ? M.widestY + BROW_LIFT_M : up.length() * HEAD_FRAC.headband;
+    const { up, front } = headAxes(root, rig);
+    // the measured EYE LINE wins; `head_end` is the fallback
+    const M = measureHead(root, head, rig, up, front);
+    const at = browHeight(M, up);
     const lo = at - HEAD_BAND_M / 2;
     const hi = at + HEAD_BAND_M / 2;
     const frames = boneFrames(body, new THREE.Matrix4().copy(rig.matrixWorld).invert());
