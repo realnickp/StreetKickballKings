@@ -656,14 +656,15 @@ export function selectPatchTriangles(mesh, { side = 'front', slots = null, windo
     v.fromBufferAttribute(pos, i);
     if (nor) n.fromBufferAttribute(nor, i); else n.set(0, 0, sign);
     if (!skinned) {
-      // A statue rig (no JOINTS_0/WEIGHTS_0) has nothing to filter on and
-      // nothing to skin with — read it welded to the rig and let it through.
+      // A statue rig (no JOINTS_0/WEIGHTS_0 — arch-band's authoring defect)
+      // has nothing to filter hair/arms on, so it gets NO print rather than a
+      // crest on whatever face or arm falls in the window. Benched today.
       p.copy(v); pn.copy(n);
       const one = slot.find((s) => s.xform);
       if (one) { p.applyMatrix4(one.xform); pn.applyMatrix3(one.normal); }
       x[i] = p.x; y[i] = p.y; z[i] = p.z;
       nz[i] = pn.normalize().z;
-      shirt[i] = 1;
+      shirt[i] = 0;
       continue;
     }
     const j0 = si.getX(i); const j1 = si.getY(i); const j2 = si.getZ(i); const j3 = si.getW(i);
@@ -939,8 +940,8 @@ export function attachJerseyDecals(char, { logoUrl = '', number = '', ink = null
       patch.quaternion.copy(body.quaternion);
       patch.scale.copy(body.scale);
       patch.bindMode = body.bindMode;
-      (body.parent ?? root).add(patch);
       patch.bind(body.skeleton, body.bindMatrix);
+      (body.parent ?? root).add(patch); // only in the graph once it is bound — a throw above leaves nothing behind
       patch.updateMatrixWorld(true);
       meshes[side] = patch;
     }
