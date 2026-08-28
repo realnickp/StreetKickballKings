@@ -11,8 +11,7 @@ import {
   ACCESSORY_KINDS, BAND_LIFT_M, WRIST_BAND, HEAD_BAND_M, SKULL_PAD_M, BROW_LIFT_M,
   MIN_BAND_TRIS, BAND_ATTR, BAND_FEATHER_M, attachAccessory, findNode, boneRig, headAxes, measureHead,
   bandVertices, bandTriangles, cullHairShell, jointSide, isHeadJoint,
-  isForeArmJoint, isHandJoint,
-} from '../src/game/accessories.js';
+  isForeArmJoint, isHandJoint,, bandHexFor } from '../src/game/accessories.js';
 import { boneFrames } from '../src/game/jerseyDecals.js';
 
 const SEG = 8;          // faces round a limb / round the skull
@@ -524,5 +523,14 @@ describe('attachAccessory prints the band on the body', () => {
     char.group.traverse((o) => { if (o.isBone) onBones += o.children.filter((c) => !c.isBone).length; });
     expect(onBones).toBe(0);
     acc.dispose();
+  });
+});
+
+describe('bandHexFor — a band you cannot see is not a band', () => {
+  it('falls back to the secondary when the accent is near-black, keeps a readable accent', () => {
+    expect(bandHexFor({ colors: { accent: '#1A1A1A', secondary: '#8A8D8F' } })).toBe('#8A8D8F');
+    expect(bandHexFor({ colors: { accent: '#F5B312', secondary: '#111111' } })).toBe('#F5B312');
+    expect(bandHexFor({ colors: { accent: '#111111' } })).toBe('#111111'); // nothing better on offer
+    expect(bandHexFor({ colors: {} })).toBe(null);
   });
 });

@@ -17,8 +17,8 @@
 // `skinIndex`/`skinWeight`, bound to the body's own skeleton and pushed 3 mm out
 // along its own normals. The GPU skins it with exactly the same maths it skins
 // the arm with, so it rides the walk, the kick and the dance for free, it can
-// never hang off a silhouette it is cut from, and it costs a few dozen
-// triangles and ZERO per-frame JavaScript. Same technique, same helpers, same
+// never hang off a silhouette it is cut from, and it costs 60–1900 triangles
+// (mesh density; the crossers are alpha-zero) and ZERO per-frame JavaScript. Same technique, same helpers, same
 // grazing fade as the shirt print — see `jerseyDecals.js`, which exports the
 // generic half of the machinery for this file to share.
 //
@@ -44,6 +44,7 @@
 // every number is literal METRES on the finished 2.05 m player, landing the
 // same way on all 19 archetypes.
 import * as THREE from 'three';
+import { labL } from './kits.js';
 import {
   boneFrames, frameScale, skinPatchGeometry, applyGrazingFade, bindPatchToBody,
 } from './jerseyDecals.js';
@@ -642,4 +643,14 @@ export function attachAccessory(char, kind, hex, opts = {}) {
     mat?.dispose();
     return null; // cosmetic only — never block a character build
   }
+}
+
+/** The band colour. Half the league's `accent` is near-black (#111111,
+ *  #1A1A1A…), which vanishes on dark hair and deep skin — a band that cannot
+ *  be seen is not a band. Below L* 25 the crew's secondary stands in. */
+export function bandHexFor(team) {
+  const accent = team?.colors?.accent;
+  if (!accent) return team?.colors?.secondary ?? null;
+  const dark = labL(accent) < 25;
+  return (dark ? team?.colors?.secondary : accent) ?? accent;
 }
