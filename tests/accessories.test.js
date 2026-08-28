@@ -11,7 +11,7 @@ import {
   ACCESSORY_KINDS, BAND_LIFT_M, WRIST_BAND, HEAD_BAND_M, SKULL_PAD_M, BROW_LIFT_M,
   MIN_BAND_TRIS, BAND_ATTR, BAND_FEATHER_M, attachAccessory, findNode, boneRig, headAxes, measureHead,
   bandVertices, bandTriangles, cullHairShell, jointSide, isHeadJoint,
-  isForeArmJoint, isHandJoint,, bandHexFor } from '../src/game/accessories.js';
+  isForeArmJoint, isHandJoint, bandHexFor } from '../src/game/accessories.js';
 import { boneFrames } from '../src/game/jerseyDecals.js';
 
 const SEG = 8;          // faces round a limb / round the skull
