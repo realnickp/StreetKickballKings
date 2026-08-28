@@ -409,7 +409,7 @@ async function bootFlow() {
     const opp = teamsData.teams.find((t) => t.id === 'snappers') ?? teamsData.teams[1];
     // the drills dress through the same path as a match — kit object and all —
     // so the numbers/decals a lesson teaches are the ones you'll wear out there
-    const drillKits = dressTeams({ home: opp, away: player, playerSide: 'away' });
+    const drillKits = dressTeams({ home: opp, away: player, playerSide: 'away', groundL: blacktop?.groundL ?? null }) // the drills are played on the Blacktop — dress against ITS ground;
     const chars = {
       home: await buildTeamCharsGlb(opp, drillKits.home.hex, null, { kit: drillKits.home }),
       away: await buildTeamCharsGlb(player, drillKits.away.hex, null, { kit: drillKits.away }),
