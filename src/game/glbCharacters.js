@@ -859,3 +859,6 @@ export async function buildCaptainPreview(team, uniformHex, gear = null) {
   if (char.archKey) loadExtrasFor([char]);
   return char;
 }
+
+// test-only exports: the fence bitset + the fence builder (round 4 re-review)
+export { packBits, unpackBits, hairShoeFence };

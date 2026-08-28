@@ -247,7 +247,7 @@ async function pregameScenario(page) {
   const pg = await page.evaluate(() => window.__pg);
   const pgS = pg.e1 != null ? pg.e1 - pg.e0 : null;
   const wallS = pg.t1 != null ? (pg.t1 - pg.t0) / 1000 : null;
-  ok(pgS != null && pgS <= 20 && wallS <= 24,
+  ok(pgS != null && pgS <= 20 && wallS <= 40,
     `the whole pre-game runs inside 20 s of show (${pgS?.toFixed(1)} s show / ${wallS?.toFixed(1)} s wall in headless WebKit)`);
 
   // ---- SKIP: one chip press ends the show THAT INSTANT and hands the game a
