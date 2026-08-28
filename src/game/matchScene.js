@@ -710,6 +710,7 @@ export class MatchScene {
     this.runners = [];
     for (const t of this.trailPool) { t.hide(); t.busy = false; }
     this.crown.disarm(); // an armed-but-unkicked crown stays banked, full
+    this.crown.endPlay(); // safety: never enter a new at-bat still gated
     if (this.kickingIsPlayer() && this.playerGear && !this._gearToasted) {
       this._gearToasted = true;
       this.after(0.8, () => this.hud.gearToast(gearLine(this.playerGear)));
@@ -2187,6 +2188,10 @@ export class MatchScene {
       this.bus.emit('vo', { event: 'safe', gender: this.kicker?.gender });
       if (this.kickingIsPlayer()) this.crownFeed('hit'); // base hits build the crown
     }
+    // the crown swing's own play is over — un-gate feeds for whatever comes
+    // next (dev bug: consume() zeroed the meter, then this SAME play's score
+    // listener + hit/homerun feed refilled it — "back to back crowns")
+    this.crown.endPlay();
     this.pendingRuns = 0;
     this.refreshHud();
 
@@ -3848,6 +3853,7 @@ export class MatchScene {
     this.playFinalized = true;
     this.phase = 'RESOLVE';
     this.match.applyOutcome({ outsAdded: 0, runs, finalBases: [null, null, null], label: 'homerun' });
+    this.crown.endPlay(); // see finalizePlay: the crown swing's own play never refills the crown
     this.refreshHud();
     if (this.match.state.phase === 'GAME_END') {
       this.fireMatchOver();

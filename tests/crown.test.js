@@ -47,6 +47,32 @@ it('with NO kick equipped the swing falls back to the team special', () => {
   expect(c.fill).toBe(0);
 });
 
+it('the crown swing\'s own play feeds nothing', () => {
+  const c = mk();
+  c.feed('pickleEscape'); c.feed('homerun'); // fill to 100
+  c.arm();
+  expect(c.consume()).not.toBe(null);
+  expect(c.play).toBe(true);
+  expect(c.fill).toBe(0);
+  expect(c.feed('homerun')).toBe(false);
+  expect(c.feed('run')).toBe(false);
+  expect(c.fill).toBe(0);
+  c.endPlay();
+  expect(c.play).toBe(false);
+  c.feed('run');
+  expect(c.fill).toBe(25);
+});
+it('endPlay before a shutout feed lets it through — a crown play never spans a half end', () => {
+  const c = mk();
+  c.feed('pickleEscape'); c.feed('homerun'); // fill to 100
+  c.arm(); c.consume(); // play = true, meter back to 0
+  expect(c.feed('shutout')).toBe(false); // gated: still inside the crown swing's own play
+  expect(c.fill).toBe(0);
+  c.endPlay(); // half ends AFTER the play finalizes — endPlay runs first
+  expect(c.feed('shutout')).toBe(false); // not yet full again, but it WENT IN this time
+  expect(c.fill).toBe(25);
+});
+
 it('isFinalHalf gates the last half: the game ends after the bottom of the last inning unless it is tied', () => {
   const N = 5; // cfg.innings
   expect(isFinalHalf({ inning: 5, half: 'bottom' }, { home: 5, away: 2 }, N)).toBe(true);  // last half, somebody ahead
