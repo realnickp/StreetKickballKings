@@ -9,6 +9,7 @@ import { SaveManager } from './meta/save.js';
 import { buildField } from './game/field.js';
 import { buildPlayer, CLIP_NAMES } from './game/characters.js';
 import { buildTeamCharsGlb } from './game/glbCharacters.js';
+import { dressTeams, contrastDeltaL, CLASH_DELTA_L } from './game/kits.js';
 import { loadExtrasFor, DanceBag } from './game/animExtras.js';
 import { MatchScene } from './game/matchScene.js';
 import { CinematicDirector } from './cinematics/director.js';
@@ -277,14 +278,25 @@ async function bootFlow() {
     // kit colour picked in team select; cleats tint the shoe texels; the kick
     // rides into MatchScene for the crown-meter swing.
     const gear = unlocks.equippedGear(save);
-    // Use the kits chosen in team select; otherwise default to contrasting kits so
-    // the two teams never clash (player keeps their colour, opponent gets a variant).
-    const awayColor = gear.uniform?.hex ?? kits?.away ?? playerTeam.colors.primary;
-    const homeColor = kits?.home ?? contrastUniform(opponentTeam.colors.primary, awayColor);
+    // DRESS THE TWO CREWS (src/game/kits.js): home dark, away light, seeded by
+    // the tones you set in team select and flipped if the pair wouldn't read
+    // apart on a phone. An equipped Locker kit overrides YOUR side only. Last
+    // resort — a gear kit that still clashes — the opponent gets the old
+    // brightness-shifted variant of their own colour.
+    const dressed = dressTeams({
+      home: opponentTeam, away: playerTeam, playerSide: 'away',
+      gearKit: gear.uniform, tones: kits?.tone ?? null,
+    });
+    const awayKit = dressed.away;
+    const homeKit = contrastDeltaL(dressed.home.hex, awayKit.hex) < CLASH_DELTA_L
+      ? { ...dressed.home, hex: contrastUniform(dressed.home.hex, awayKit.hex) }
+      : dressed.home;
+    const awayColor = awayKit.hex;
+    const homeColor = homeKit.hex;
     const charsPromise = (async () => {
       const c = {
-        home: await buildTeamCharsGlb(opponentTeam, homeColor),
-        away: await buildTeamCharsGlb(playerTeam, awayColor, gear),
+        home: await buildTeamCharsGlb(opponentTeam, homeColor, null, { kit: homeKit }),
+        away: await buildTeamCharsGlb(playerTeam, awayColor, gear, { kit: awayKit }),
       };
       // dances/special-kicks extras pack rides the intro-video dead time;
       // nothing gates on it — the HR dance bag and the walk-up taunts use

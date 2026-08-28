@@ -10,6 +10,20 @@
         "accent": "#111111"
       },
       "logo": "assets/logos/monarchs.png",
+      "kits": {
+        "dark": {
+          "hex": "#16161a",
+          "ink": "#f4f4f6",
+          "logo": "monarchs",
+          "img": "-alt"
+        },
+        "light": {
+          "hex": "#f5b312",
+          "ink": "#0b0c10",
+          "logo": "monarchs-light",
+          "img": ""
+        }
+      },
       "sprites": [
         "assets/sprites/monarchs-1.png",
         "assets/sprites/monarchs-2.png"
@@ -32,6 +46,7 @@
           "id": "m1",
           "nick": "King Reese",
           "pos": "Captain",
+          "number": 23,
           "stats": {
             "power": 9,
             "speed": 6,
@@ -51,6 +66,7 @@
           "id": "m2",
           "nick": "B-More Benji",
           "pos": "Leadoff",
+          "number": 7,
           "stats": {
             "power": 4,
             "speed": 9,
@@ -70,6 +86,7 @@
           "id": "m3",
           "nick": "Duchess",
           "pos": "Utility",
+          "number": 3,
           "stats": {
             "power": 6,
             "speed": 7,
@@ -89,6 +106,7 @@
           "id": "m4",
           "nick": "Old Bay Otis",
           "pos": "Slugger",
+          "number": 44,
           "stats": {
             "power": 8,
             "speed": 4,
@@ -108,6 +126,7 @@
           "id": "m5",
           "nick": "Crown Vic",
           "pos": "Pitcher",
+          "number": 11,
           "stats": {
             "power": 5,
             "speed": 6,
@@ -127,6 +146,7 @@
           "id": "m6",
           "nick": "Lil Sovereign",
           "pos": "Shortstop",
+          "number": 5,
           "stats": {
             "power": 4,
             "speed": 8,
@@ -146,6 +166,7 @@
           "id": "m7",
           "nick": "Charm City Cee",
           "pos": "Outfield",
+          "number": 88,
           "stats": {
             "power": 6,
             "speed": 6,
@@ -165,6 +186,7 @@
           "id": "m8",
           "nick": "Moat",
           "pos": "Catcher",
+          "number": 1,
           "stats": {
             "power": 6,
             "speed": 4,
@@ -192,6 +214,20 @@
         "accent": "#101410"
       },
       "logo": "assets/logos/snappers.png",
+      "kits": {
+        "dark": {
+          "hex": "#2e5944",
+          "ink": "#f4f4f6",
+          "logo": "snappers",
+          "img": ""
+        },
+        "light": {
+          "hex": "#ece5d2",
+          "ink": "#0b0c10",
+          "logo": "snappers-light",
+          "img": "-alt"
+        }
+      },
       "sprites": [
         "assets/sprites/snappers-1.png",
         "assets/sprites/snappers-2.png"
@@ -214,6 +250,7 @@
           "id": "s1",
           "nick": "Shellz",
           "pos": "Captain",
+          "number": 21,
           "stats": {
             "power": 8,
             "speed": 4,
@@ -233,6 +270,7 @@
           "id": "s2",
           "nick": "A-Train",
           "pos": "Leadoff",
+          "number": 4,
           "stats": {
             "power": 4,
             "speed": 9,
@@ -252,6 +290,7 @@
           "id": "s3",
           "nick": "Bodega Rosa",
           "pos": "Infield",
+          "number": 7,
           "stats": {
             "power": 6,
             "speed": 5,
@@ -271,6 +310,7 @@
           "id": "s4",
           "nick": "Snapback Sam",
           "pos": "Pitcher",
+          "number": 1,
           "stats": {
             "power": 6,
             "speed": 6,
@@ -290,6 +330,7 @@
           "id": "s5",
           "nick": "Five Boroughs",
           "pos": "Utility",
+          "number": 5,
           "stats": {
             "power": 7,
             "speed": 6,
@@ -309,6 +350,7 @@
           "id": "s6",
           "nick": "Turnstile Ty",
           "pos": "Outfield",
+          "number": 6,
           "stats": {
             "power": 4,
             "speed": 8,
@@ -328,6 +370,7 @@
           "id": "s7",
           "nick": "Gridlock",
           "pos": "Slugger",
+          "number": 44,
           "stats": {
             "power": 9,
             "speed": 3,
@@ -347,6 +390,7 @@
           "id": "s8",
           "nick": "Empire Em",
           "pos": "Outfield",
+          "number": 32,
           "stats": {
             "power": 5,
             "speed": 6,
@@ -374,6 +418,20 @@
         "accent": "#111111"
       },
       "logo": "assets/logos/bullies.png",
+      "kits": {
+        "dark": {
+          "hex": "#d7263d",
+          "ink": "#f4f4f6",
+          "logo": "bullies",
+          "img": ""
+        },
+        "light": {
+          "hex": "#f2f2f2",
+          "ink": "#0b0c10",
+          "logo": "bullies-light",
+          "img": "-alt"
+        }
+      },
       "anthem": null,
       "introVideo": "assets/video/intro-bullies.mp4",
       "musicGenre": "drill / hard east coast",
@@ -556,6 +614,20 @@
         "accent": "#F2A33C"
       },
       "logo": "assets/logos/funk.png",
+      "kits": {
+        "dark": {
+          "hex": "#1b2553",
+          "ink": "#f4f4f6",
+          "logo": "funk",
+          "img": ""
+        },
+        "light": {
+          "hex": "#f4e3b2",
+          "ink": "#0b0c10",
+          "logo": "funk-light",
+          "img": "-alt"
+        }
+      },
       "anthem": null,
       "introVideo": "assets/video/intro-funk.mp4",
       "musicGenre": "funk-rap",
@@ -738,6 +810,20 @@
         "accent": "#1A1A1A"
       },
       "logo": "assets/logos/marauders.png",
+      "kits": {
+        "dark": {
+          "hex": "#1c1c1c",
+          "ink": "#f4f4f6",
+          "logo": "marauders",
+          "img": "-alt"
+        },
+        "light": {
+          "hex": "#e0701a",
+          "ink": "#0b0c10",
+          "logo": "marauders-light",
+          "img": ""
+        }
+      },
       "anthem": null,
       "introVideo": "assets/video/intro-marauders.mp4",
       "musicGenre": "midwest grit / horrorcore edge",
@@ -920,6 +1006,20 @@
         "accent": "#4A90D9"
       },
       "logo": "assets/logos/metros.png",
+      "kits": {
+        "dark": {
+          "hex": "#2b2d4f",
+          "ink": "#f4f4f6",
+          "logo": "metros",
+          "img": ""
+        },
+        "light": {
+          "hex": "#f4f4f0",
+          "ink": "#0b0c10",
+          "logo": "metros-light",
+          "img": "-alt"
+        }
+      },
       "anthem": null,
       "introVideo": "assets/video/intro-metros.mp4",
       "musicGenre": "go-go / DMV bounce",
@@ -1102,6 +1202,20 @@
         "accent": "#FFFFFF"
       },
       "logo": "assets/logos/kestrals.png",
+      "kits": {
+        "dark": {
+          "hex": "#2c3035",
+          "ink": "#f4f4f6",
+          "logo": "kestrals",
+          "img": "-alt"
+        },
+        "light": {
+          "hex": "#a8d8ea",
+          "ink": "#0b0c10",
+          "logo": "kestrals-light",
+          "img": ""
+        }
+      },
       "anthem": null,
       "introVideo": "assets/video/intro-kestrals.mp4",
       "musicGenre": "chicago drill / juke",
@@ -1284,6 +1398,20 @@
         "accent": "#E8C97A"
       },
       "logo": "assets/logos/gilas.png",
+      "kits": {
+        "dark": {
+          "hex": "#5a2a1f",
+          "ink": "#f4f4f6",
+          "logo": "gilas",
+          "img": "-alt"
+        },
+        "light": {
+          "hex": "#e8772e",
+          "ink": "#0b0c10",
+          "logo": "gilas-light",
+          "img": ""
+        }
+      },
       "anthem": null,
       "introVideo": "assets/video/intro-gilas.mp4",
       "musicGenre": "desert trap / chicano rap",
@@ -1466,6 +1594,20 @@
         "accent": "#F5B312"
       },
       "logo": "assets/logos/hustlers.png",
+      "kits": {
+        "dark": {
+          "hex": "#1d8ac4",
+          "ink": "#0b0c10",
+          "logo": "hustlers-light",
+          "img": ""
+        },
+        "light": {
+          "hex": "#f1f4f8",
+          "ink": "#0b0c10",
+          "logo": "hustlers-light",
+          "img": "-alt"
+        }
+      },
       "anthem": null,
       "introVideo": "assets/video/intro-hustlers.mp4",
       "musicGenre": "crunk / memphis rap",
@@ -1648,6 +1790,20 @@
         "accent": "#3D1A10"
       },
       "logo": "assets/logos/threshers.png",
+      "kits": {
+        "dark": {
+          "hex": "#7a2417",
+          "ink": "#f4f4f6",
+          "logo": "threshers",
+          "img": ""
+        },
+        "light": {
+          "hex": "#ead9a6",
+          "ink": "#0b0c10",
+          "logo": "threshers-light",
+          "img": "-alt"
+        }
+      },
       "anthem": null,
       "introVideo": "assets/video/intro-threshers.mp4",
       "musicGenre": "g-funk / west coast",
