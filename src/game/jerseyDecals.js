@@ -4,13 +4,31 @@
 // bar — you should read who's out there from the dugout shot, and read WHO it
 // is off the back of the shirt on the walk-up.
 //
+// THE MARK IS PART OF THE SHIRT. Dev, on his phone, 2026-08-28: "I need the
+// logos and numbers to actually be on the players not hovering like this. its
+// really bad." Every round up to here hung the marks on CARDS — bowed planes
+// parented to the chest bone, re-seated a few times a second by a "settler"
+// that measured where the cloth had got to. A card on a bone cannot win: the
+// shirt is skinned to four joints and the card is skinned to one, so the moment
+// the kicker turned, breathed or raised an arm the crest floated off the chest,
+// drew straight through the arm in front of it, and hung past the torso's
+// outline into the background (his four screenshots: #12, #31, #23, #58).
+//
+// So the decal is no longer a card ON the shirt — it IS the shirt. Each player
+// gets two SKINNED SUB-MESHES cut from the body mesh's own chest and back
+// triangles, carrying the body's own `skinIndex`/`skinWeight`, bound to the
+// body's own skeleton, pushed 4 mm out along their own normals and given a NEW
+// planar uv onto the same decal canvas the cards used. The GPU skins them with
+// exactly the same maths it skins the vest with, so they deform with the cloth,
+// they are occluded by the arm the moment the arm is in front (depth test, no
+// depth write), and they cannot hang past a silhouette they are cut from.
+// Nothing measures, bows or settles any more — there is nothing left to settle.
+//
 // The archetype GLBs are one skinned mesh sharing one atlas whose texels are
 // re-used across UV islands (that's why cleats had to be tinted by geometry,
 // see glbCharacters.applyCleatVertexTint) — painting a logo into that atlas
-// would splatter it across faces and shoes. So the decal is GEOMETRY: camera-
-// facing planes parented to the chest bone, drawn from a 512² canvas. Three of
-// them — the chest, the back number, and the crest above it, which rides its
-// OWN measured depth because the upper back is not the number band's depth.
+// would splatter it across faces and shoes. The patch carries its OWN uv set,
+// so it never touches the body's atlas.
 //
 // NOT FROM HERE: the black slab that used to sit behind the back number on a
 // red or a gold kit is PRINTED INTO THE ARCHETYPE ATLAS — a dark number panel
@@ -20,14 +38,17 @@
 // Nothing in this file has EVER filled a rectangle behind a mark since the
 // conditional patch came out; the tests below hold that line.
 //
-// Everything here is metres in the CHARACTER's own space. The planes hang off
-// a rig group whose transform cancels the chest bone's bind rotation + scale
-// (bone-local units are 1/100 of a metre on these rigs, and each archetype's
-// bind basis is a little different), so the offsets below are literal metres
-// on a 2.05 m player and every archetype gets the same placement.
+// Everything here is metres in the CHARACTER's own space. The window the patch
+// is cut from, and the uv projection onto it, are stated in a RIG FRAME: the
+// chest bone with its bind rotation and its bind scale cancelled (bone-local
+// units are 1/100 of a metre on these rigs, and each archetype's bind basis is
+// a little different), so the numbers below are literal metres on a 2.05 m
+// player and every archetype gets the same placement.
 import * as THREE from 'three';
 
-/** The decal plane, in metres — a shade wider than these players' chests. */
+/** The decal window, in metres — the square of shirt the canvas is printed on.
+ *  Kept at 0.40 so the canvas layouts, and every number tuned against them,
+ *  carry over from the plane era unchanged. */
 export const PLANE_M = 0.40;
 /** Canvas per face. 512² over 0.40 m ≈ 1280 px/m: the back number lands ~300 px
  *  tall, which still reads when a phone draws the player 120 px high. */
@@ -37,196 +58,83 @@ export const DECAL_PX = 512;
 export const DECAL_CACHE_MAX = 64;
 /** Breathing room between the two marks on a face, metres. */
 export const STACK_GAP_M = 0.02;
-/** Plane centre, metres BELOW the chest bone. That bone sits at the COLLARBONE
+/** Window centre, metres BELOW the chest bone. That bone sits at the COLLARBONE
  *  on these rigs (measured on arch-locs: Hips 0.98, Spine 1.46, shoulders 1.49,
- *  neck 1.55 in model metres, ×1.067 into player metres) — hang the plane off
- *  the bone itself and its top half is over bare shoulder and background, which
- *  is exactly where the first pass put the front number. Drop it half a plane
- *  and the 0.40 m square lands ON the vest: rig +0.01 down to −0.39, against a
- *  shirt that runs +0.03 to about −0.41. */
+ *  neck 1.55 in model metres, ×1.067 into player metres) — centre the window on
+ *  the bone itself and its top half is over bare shoulder and background. Drop
+ *  it half a window and the 0.40 m square lands ON the vest: rig +0.01 down to
+ *  −0.39, against a shirt that runs +0.03 to about −0.41. */
 export const CHEST_DROP_M = 0.19;
-/** How far the decal floats off the measured shirt surface. The measurement is
- *  taken in BIND POSE and the decal is rigid, but the chest is skinned to four
- *  joints and swells forward through an idle breath, never mind a kick — at
- *  0.012 the crown's ball punched straight through it on the turntable. This is
- *  the clearance at the CENTRE of a wrapped decal, so it holds all the way
- *  round instead of ballooning at the edges the way a flat card does. */
-export const SURFACE_GAP_M = 0.02;
-/** The decal BOWS to the chest instead of being a flat card: a flat 0.40 m
- *  plate on a 0.35 m chest stands 8 cm proud at its own edges, and the walk-up
- *  camera passes the player in near-profile — where that reads as a signboard
- *  hovering off his ribs. The bow is z = −c·x², with c measured off the shirt
- *  and clamped so a bad read can neither flatten it nor curl the mark out of
- *  sight (at x = 0.20 these bound the edge drop to 2–9 cm). */
-const CURVE_MIN = 0.5;
-const CURVE_MAX = 2.25;
-const CURVE_DEFAULT = 1.4;
-/** Where the flank is sampled to solve that fall-off, metres off centre. */
-const RIB_X = 0.10;
-/** THE BACK'S OWN FALL-OFF POINT — bug fix, 2026-08-28. Fitting the parabola at
- *  RIB_X and then reading it out at the back number's real edge over-solves on
- *  a broad back: on arch-bald (bullies) the rib sample clamped to CURVE_MAX and,
- *  extrapolated to the number's own half-width, put the plane's edge 3.8 cm
- *  behind centre while the real shirt there only falls off 1–2 cm — enough to
- *  bury everything off-centre and leave a sliver of the number showing
- *  (`.superpowers/sdd/2026-08-27-crews-kits-walkout/casts/back-bullies-dark.png`,
- *  task-6 report §7). A parabola fit at 0.10 and evaluated at 0.13 is pure
- *  extrapolation — real anatomy DECELERATES toward the flank instead of
- *  continuing to accelerate the way x² does. Sampling the shirt again, right at
- *  the number's own edge, removes the extrapolation entirely: the curve is
- *  solved to match the shirt exactly where the number needs it to, not 30 %
- *  further out than where it was measured. `layoutBack().num.w / 2` is 0.13.
- *  Exported so the fix has a unit test pinned to the actual constant. */
-export const BACK_HALF_W = 0.13;
-/** Tolerance either side of BACK_HALF_W for that second sample, metres — same
- *  width as the RIB_X window below. */
-const RIB_BACK_WINDOW = 0.025;
-/** Half-width of the band we measure the shirt in — the trunk, not the arms. */
-const TORSO_HALF_W = 0.12;
-/** The outer cutoff actually used while walking vertices. BACK_HALF_W's own
- *  sample window reaches past TORSO_HALF_W (0.155 > 0.12), so the trunk cutoff
- *  has to widen enough to let it through. It only widens the FIRST gate —
- *  the mid/near/rib columns below keep their original, tighter thresholds, so
- *  this changes nothing for the front or for the existing rib sample. */
-const TRUNK_SAMPLE_HALF_W = Math.max(TORSO_HALF_W, BACK_HALF_W + RIB_BACK_WINDOW);
-/** Half-width of the CENTRE column, metres. 0.03 left the whole front/back read
- *  resting on a handful of vertices — one stray one and the plane moved a
- *  centimetre. 0.05 is still flat chest (the bow is solved off the ribs). */
-const CENTRE_HALF_W = 0.05;
-/** …and when even that column is thin — arch-locs puts SIXTEEN shirt vertices
- *  in it — widen to here before giving up. At 0.075 off centre the chest has
- *  fallen back under a centimetre, so the deep end of the column is still the
- *  sternum, but there are three times as many votes for it. */
-const CENTRE_WIDE_W = 0.075;
-/** Trim the tails before calling it "the shirt": a percentile, not a min/max.
- *  A single vertex — a seam, a lace tip, a stray weight — used to decide where
- *  a 0.40 m plane sat. */
-const SHIRT_P_LO = 0.02;
-const SHIRT_P_HI = 0.98;
-/** Enough samples for the percentile to be doing anything; under the hard floor
- *  the read is guesswork, so take the archetype mean instead of moving the mark
- *  somewhere silly. */
-const MIN_SAMPLES = 24;
-const MIN_SAMPLES_HARD = 8;
-/** Which skin joints count as SHIRT: the SPINE CHAIN plus the HIPS root —
- *  the trunk, and nothing that a hairstyle hangs off.
+/** How far the patch is pushed off the body along each vertex's own normal.
+ *  It is not clearance — the patch IS the surface — it is only enough to win
+ *  the depth test against the cloth it is a copy of. 4 mm plus `polygonOffset`;
+ *  the 45° turntable shots are the check that it never z-fights. */
+export const PATCH_LIFT_M = 0.004;
+/** How far PAST the ink the patch is cut, metres. The selection keeps whole
+ *  triangles whose CENTRE lands in the window, so the patch's own edge is
+ *  ragged by up to half a triangle — this margin puts that raggedness outside
+ *  the artwork instead of through it. Anything past the 0.40 m square samples
+ *  the canvas's clamped (transparent) edge, so a wider patch is free. */
+export const WINDOW_PAD_M = 0.03;
+/** How square-on a triangle has to face for the patch to claim it — the cosine
+ *  of its bind normal against the face's axis. 0.2 keeps the print running
+ *  round to the flanks (a real print does) and stops it wrapping under the arm
+ *  or onto the far side of the body. */
+export const FACE_MIN_Z = 0.2;
+/** Under this many triangles a patch is not a patch — an unexpected rig, a
+ *  statue mesh, a body the window missed. Ship nothing rather than confetti. */
+export const MIN_PATCH_TRIS = 12;
+/** …and under this much of the CREW MARK's own box carried by the patch, the
+ *  mark is not printed on that face at all: the number goes on alone.
  *
- *  Both halves of that were measured, not assumed. Dumped every vertex in the
- *  decal's band by dominant joint across the archetype set:
- *   - SHOULDERS ARE OUT, though the review asked for them. These auto-rigs skin
- *     the hair to them: arch-braids gives `RightShoulder` 2865 vertices running
- *     back to z −0.30 against a shirt at −0.14, arch-locs hangs the dreadlocks
- *     off `LeftShoulder`, and spine-plus-shoulders reads arch-braids' back at
- *     −0.275 — i.e. it does not fix the bug at all.
- *   - HIPS IS IN. On arch-twists the whole lower back of the vest is weighted to
- *     `Hips` (405 vertices, −0.14 … +0.12) and the spine reaches only −0.12;
- *     spine-alone pulled the back plane 3 cm forward and the screenshot showed
- *     the number sunk INTO the shirt. Hips carries no hairstyle on any rig.
+ *  These vests are TANK TOPS. Above the shoulder blades there is a racerback
+ *  strap and then bare skin, and the back crest's box sits right up there at
+ *  collarbone height — so on a good half of the archetype set the shirt simply
+ *  cannot carry it. Measured 2026-08-28 over all 20: the back crest's box is
+ *  0.90–1.00 covered on ten of them and 0.02–0.39 on seven (arch-curls 0.02,
+ *  arch-twists 0.04, arch-waves and arch-braids 0.15). A card hid that by
+ *  hovering in front of the gap; a print cannot, and a badge with four fifths
+ *  of it missing reads as a rendering glitch — see `locker-monarchs-dark-back`
+ *  in the first pass of `decals-skinned/`. A clean number reads as a jersey.
+ *  The cut is where the measured set splits: nothing lands between 0.39 and
+ *  0.61. Never gates a NUMBER — that is who the player is — and measured today
+ *  it never fires on a chest (the front crest runs 0.65–1.00). */
+export const MARK_COVER_MIN = 0.55;
+
+/** Which skin joints count as SHIRT: the SPINE CHAIN plus the HIPS root — the
+ *  trunk, and nothing a hairstyle hangs off.
+ *
+ *  Both halves of that were measured, not assumed, across the archetype set:
+ *   - SHOULDERS ARE NOT TRUNK. These auto-rigs skin the hair to them:
+ *     arch-braids gives `RightShoulder` 2865 vertices running back to z −0.30
+ *     against a shirt at −0.14, and arch-locs hangs the dreadlocks off
+ *     `LeftShoulder`. A patch that trusted the shoulders would be cut out of
+ *     the braids. (They get back in under a weight gate — see below.)
+ *   - HIPS IS IN. Measured on the shipped rule, 2026-08-28: with hips out, the
+ *     back patch covers 11 % of the number's box on arch-locs and 27 % on
+ *     arch-braids — the hero number, cut to ribbons. The lower back of these
+ *     vests is Hips-weighted. Hips carries no hairstyle on any rig.
  *  `neck` is excluded by name — it carries the collar and every ponytail. */
 const SHIRT_JOINT = /(spine|chest|torso|hip|pelvis)/i;
 const NOT_SHIRT_JOINT = /(neck|head|hair|jaw|eye)/i;
-/** WHO MAY VOTE ON THE CREST'S DEPTH, on top of the shirt joints. The crest
- *  sits over the shoulder blades, and on the short-haired archetypes the cloth
- *  up there is skinned to the SHOULDER joints, not the spine: measured on
- *  arch-bald (bullies), the crest band's centre column holds 16 spine-weighted
- *  vertices and every single one of them is the FRONT of the chest — read that
- *  band with the shirt filter alone and "the back" comes out at +0.13, i.e. the
- *  sternum. So shoulders vote HERE, and only here.
+const SHOULDER_JOINT = /(shoulder|clavicle)/i;
+/** …AND THE SHOULDERS COME BACK IN, GATED ON WEIGHT. The cloth over the
+ *  shoulder blades and across the upper chest is skinned to the SHOULDER
+ *  joints, not the spine — measured 2026-08-28 on the shipped selection, the
+ *  spine-and-hips-only rule covers 0–8 % of the back crest's box on every
+ *  archetype tried (arch-locs 1 %, arch-bald 0 %). That is the whole upper back
+ *  missing from the patch.
  *
- *  What keeps braids and dreadlocks out — they hang off these same joints — is
- *  CREST_WINDOW_M: a vote only counts if it lands within that of the number
- *  band's own depth. Real upper-back cloth is a few centimetres off it;
- *  arch-braids' hair sits 13–16 cm off the shirt (see SHIRT_JOINT), so it never
- *  gets a vote. Worst case for a style this window can't tell from cloth is a
- *  crest that stands a few cm proud — never one buried out of sight. */
-const CREST_JOINT = /(shoulder|clavicle)/i;
-const CREST_WINDOW_M = 0.07;
-/** How far past the badge's own edges the covering cloth is collected, metres.
- *  The set is picked in BIND pose and read in the live one, and the cloth that
- *  ends up over the badge is not the cloth that was over it in the bind A-pose:
- *  measured on arch-bald, the exact badge footprint misses the real occluder by
- *  1.9 cm and the mark comes back with its bottom bitten off. */
-const CREST_REACH_M = 0.06;
-/** …and how far past those edges a candidate still counts as "over the mark"
- *  when it is re-read against the live pose. Small: this one is evaluated in
- *  the pose the player is actually in, so it only has to cover the reach of the
- *  triangle a corner belongs to. */
-const CREST_LIVE_M = 0.03;
-/** Three vertices IS the data up there. arch-bald puts four in the badge's own
- *  footprint, and what protects the read is not sample count but the four
- *  gates every one of them passed: a shirt/shoulder joint carrying real trunk
- *  weight, the badge's own footprint, and CREST_WINDOW_M of the number band. */
-const CREST_MIN_VOTES = 3;
-/** …AND THE VOTE MUST BE CLOTH — bug fix, 2026-08-28. CREST_WINDOW_M alone does
- *  NOT keep hair out: on arch-braids (waist-length box braids, every strand
- *  skinned to a SHOULDER joint and welded into the same single-material mesh as
- *  the vest) the crest band holds 5018 candidates running from −0.13 to −0.29,
- *  a continuum with no gap between cloth and hair. A continuum always has a
- *  member sitting exactly on the window's edge, so the read came out at
- *  `back − CREST_WINDOW_M` to four decimals — 0.0700, the clamp, not a
- *  measurement — and shoving the shoulder 6 cm deeper moved it 0.0000, because
- *  the clamp was doing all the deciding. The crest then hung 7 cm off the
- *  shirt: a badge floating in the braids.
- *
- *  What tells them apart is the SKIN WEIGHTS, and nothing else does. Measured
- *  on all 20 archetype GLBs: they are ONE welded shell (a connected-component
- *  pass returns a single component — hair is not its own object), under ONE
- *  material, on an atlas whose islands overlap (the same reason cleats had to
- *  be tinted by geometry), so a braid vertex's own texel can read as clean kit
- *  white. But a braid hanging off a shoulder is weighted ~1.0 to that shoulder
- *  and carries NO spine weight at all, while cloth over the shoulder blades is
- *  blended shoulder+spine — it is on the trunk. So: to vote on the crest, the
- *  SHIRT bones must hold at least this much of the vertex's weight.
- *
- *  A tenth, measured. On arch-braids it drops 1517 of 1560 voters and takes
- *  `backUpper − back` from 0.0700 (the clamp) to 0.0057 bind / 0.027 in the
- *  Locker idle. On arch-bald — the P0 this whole crest read exists for, whose
- *  blade cloth IS shoulder-dominant — every one of its 22 voters survives at
- *  0.10 and the read is unchanged to four decimals; at 0.25 it starts losing
- *  them (−0.1941 → −0.1866), which is why the bar is a tenth and not a quarter.
- *  Every other archetype reads within 1 mm of what it read before. */
-const CREST_SHIRT_WEIGHT_MIN = 0.10;
-/** THE SHIRT MOVES AND THE DECAL DOESN'T. `measureShirt` reads the mesh in BIND
- *  POSE, but the cloth it measures is skinned: the moment arch-bald's rig drops
- *  its arms out of the bind A-pose, the shoulder-skinned cloth over its blades
- *  swings from −0.229 to −0.276 — nearly 5 cm — and a plane placed off the bind
- *  read sits INSIDE it, so the shirt draws over the crest and the mark never
- *  appears at all (`decals/locker-bullies-dark-back.png`, three rounds of it).
- *  A single re-read after the pose settles isn't enough either: posed, that band
- *  holds THREE vertices, far too few to read. So the sample set is chosen once
- *  in bind pose and those same vertices are re-read against the live pose a few
- *  times a second, with the back planes sitting at the deepest the shirt has
- *  been over the last `SETTLE_KEEP` beats. Up to 768 vertices per beat per
- *  player; MEASURED on a saturated 16-man bench, a whole-squad beat costs
- *  0.95 ms and allocates nothing, and SETTLE_PHASES spreads even that over
- *  eight frames — call it two players and a tenth of a millisecond in any one.
- *  (It was 5.9 ms and 21 scavenges a beat before the round-5 pass: the layout
- *  rebuild in `overMark`, an array per vertex, and the whole squad due in the
- *  same frame.) */
-const SETTLE_EVERY_MS = 200;
-const SETTLE_KEEP = 6;
-/** HOW MANY FRAMES THE SQUAD'S BEATS ARE SPREAD OVER. Every settler used to
- *  seed `nextBeat` from the shared rAF timestamp, so all 16 players came due in
- *  the SAME frame every 200 ms: a 5 ms spike five times a second on a phone
- *  that owes the compositor 16. Each settler now takes a slot — its first beat
- *  is pushed out by `SETTLE_EVERY_MS × slot / SETTLE_PHASES` — and keeps it,
- *  because every following beat is scheduled off the frame it actually ran in.
- *  Eight slots over a 16-man field is two players a frame. */
-const SETTLE_PHASES = 8;
-/** …and the pose read can never drag a plane further than this off the bind
- *  read, metres: an animation that folds the mesh in half must not take the
- *  marks with it. It is a BACKSTOP, not a working limit — measured across the
- *  archetype set in the Locker idle, the deepest a pose ever asks for is about
- *  5 cm (4.7 on arch-curls, 3.5 on arch-bald), so the rail has never actually
- *  bitten on a real clip. Anything that reaches it is a fold, not a shirt. */
-const SETTLE_MAX_M = 0.08;
-/** Ceiling on how many vertices a re-read walks per column. */
-const SETTLE_SAMPLE_MAX = 256;
-/** Used only when a character has no skinned geometry to measure (the fallback
- *  model): the mean chest/back surface across the archetype set. */
-const FALLBACK_DEPTH = {
-  front: 0.16, back: -0.19, backUpper: -0.19, curveFront: CURVE_DEFAULT, curveBack: CURVE_DEFAULT,
-};
+ *  What tells blade cloth from a braid hanging off the same joint is the SKIN
+ *  WEIGHTS, and nothing else does: they are one welded shell under one material
+ *  on an atlas whose islands overlap, so neither geometry nor texel can
+ *  separate them. Cloth on the trunk is blended shoulder+spine; a braid is
+ *  ~1.0 shoulder and carries no spine weight at all. So a shoulder-dominant
+ *  vertex joins the patch only if the SHIRT bones hold at least this much of
+ *  its weight. A tenth, measured: it takes arch-locs' back crest from 1 % to
+ *  97 % and arch-bald's from 0 % to 97 %, and at 0.20 both fall back to a
+ *  quarter — the blade cloth itself starts failing the gate. */
+export const SHOULDER_SHIRT_WEIGHT_MIN = 0.10;
 
 const FONT_STACK = "'Archivo', system-ui, sans-serif";
 /** Cap height as a fraction of the em box for Archivo 900. */
@@ -268,16 +176,44 @@ export function oppositeInk(ink) {
 }
 
 // ---- layout ---------------------------------------------------------------
-// Rects are METRES on the 0.40 m plane: `y`/`x` are offsets of the mark's
-// CENTRE from the plane centre (+y up, +x toward the player's left as you look
+// Rects are METRES on the 0.40 m window: `y`/`x` are offsets of the mark's
+// CENTRE from the window centre (+y up, +x toward the player's left as you look
 // at that face), `w`/`h` its box. A number's `w` is its CAP HEIGHT — the glyphs
 // are as wide as they need to be.
 
+/** HOW WIDE THESE VESTS ACTUALLY ARE, half-width in window metres. Measured
+ *  2026-08-28 over all 20 archetypes: the shipped selection was projected
+ *  through its own uv and averaged, and the band that has cloth on essentially
+ *  every rig runs x −0.116 … +0.122 on the chest and −0.109 … +0.116 on the
+ *  back (neither is symmetric — the A-pose arms are not). Call it 0.115 either
+ *  side, both faces.
+ *
+ *  Past that you are printing on the arm, and once the print is part of the
+ *  shirt "printing on the arm" means the ink is simply GONE. Two things were
+ *  drawn past it and the patch is what made that visible instead of floating:
+ *  the chest number (x +0.10, 0.10 m cap — its outer digit landed at +0.19, and
+ *  came back sliced in half), and the back number, which was let out to 0.86 of
+ *  the window: measured off the painted canvas, "23" inked 0.323 m wide, so its
+ *  ends ran onto the flank where the planar projection SMEARS them round the
+ *  ribs. See `.superpowers/sdd/2026-08-27-crews-kits-walkout/decals-skinned/`. */
+export const CLOTH_HALF_W = 0.115;
+/** What a number INKS, as a multiple of its cap height, edge included: two
+ *  digits of Archivo 900 measured in the browser — advance 0.667 em each,
+ *  ascent 0.7022 em, plus NUM_EDGE_RATIO. So (2×0.667 + 0.056) / (0.7022 +
+ *  0.056) = 1.833. Half of that is how far a centred number reaches. */
+export const NUM_INK_W_RATIO = 1.833;
+
 /** Chest: the crew mark big and centred, the number small up on the wearer's
  *  LEFT chest — viewer's RIGHT, +x on this face — which is where a jersey
- *  actually wears it. */
+ *  actually wears it.
+ *
+ *  The MARK keeps its 0.34: it is drawn wider than the vest and the armhole
+ *  trims it, which is what a printed vest does and what "a BIG mark on the
+ *  chest" asks for. The NUMBER cannot be trimmed — half a number is a bug, not
+ *  a print — so its box is sized and slid to keep every digit inside
+ *  CLOTH_HALF_W: 0.035 + 1.833 × 0.085 / 2 = 0.113. */
 export function layoutFront() {
-  return { logo: { w: 0.34, h: 0.34, y: 0.06 }, num: { w: 0.10, y: 0.16, x: 0.10 } };
+  return { logo: { w: 0.34, h: 0.34, y: 0.06 }, num: { w: 0.085, y: 0.14, x: 0.035 } };
 }
 
 /** Back: the number is the hero, the crew mark rides above it. */
@@ -287,7 +223,7 @@ export function layoutBack() {
 
 /**
  * Squeeze the marks asked for onto one face, top to bottom, without overlap.
- * Both layouts ask for MORE than the plane holds (front .34 + .10, back
+ * Both layouts ask for MORE than the window holds (front .34 + .10, back
  * .26 + .16) — that's deliberate: it says "fill the shirt". Left alone they'd
  * collide and spill off the top, and a crew mark cut in half by a number is
  * the first thing anyone would notice. So: shrink both by the same factor
@@ -319,7 +255,7 @@ export function stackFace(items, { span = PLANE_M, gap = STACK_GAP_M } = {}) {
   return out;
 }
 
-/** Slide a rect until it sits wholly inside the plane, size untouched. */
+/** Slide a rect until it sits wholly inside the window, size untouched. */
 export function fitBox(b, span = PLANE_M) {
   const lim = (half) => Math.max(0, span / 2 - half);
   const cx = lim(b.w / 2); const cy = lim(b.h / 2);
@@ -341,7 +277,7 @@ export function fitBox(b, span = PLANE_M) {
  * 0.10 m number, which is backwards — the mark is the whole point of the chest
  * and the number is a small badge that sits ON its upper corner, exactly the
  * way a real jersey wears it. Both keep their asked-for size; each is only slid
- * far enough to stay on the plane.
+ * far enough to stay on the window.
  */
 export function faceBoxes(side) {
   const L = side === 'back' ? layoutBack() : layoutFront();
@@ -356,34 +292,42 @@ export function faceBoxes(side) {
 }
 
 /**
- * THE BACK IS TWO PLANES — bug fix, 2026-08-28. One plane bowed in x only hangs
- * the crest at the NUMBER's depth, and a back is not one depth. Measured on
- * arch-bald (bullies), standing: the cloth is at −0.225 down where the number
- * goes and −0.276 up over the shoulder blades where the crest goes. The single
- * plane hung off the number's read, so the crest's rows of it sat 5 cm INSIDE
- * the cloth, the shirt drew over them, and the back came back with a clean
- * number and no crest at all, three rounds running
- * (`.superpowers/sdd/2026-08-27-crews-kits-walkout/decals/locker-bullies-dark-back.png`).
- * So the face is CUT along the blank stack gap between the two marks and each
- * half hangs at its own measured depth. Both halves still sample the ONE back
- * canvas — the cut is in the geometry, and the UVs follow it — so each mark is
- * drawn exactly once and the texture cache is untouched.
+ * The strip of shirt one face is cut from, in RIG METRES about the chest bone.
  *
- * @returns {number} where to cut, in PLANE-LOCAL metres above the plane centre:
- * the dead middle of the gap, so neither mark's ink is ever sliced.
+ * `cx/cy/w/h` are the 0.40 m canvas square itself — the uv projection maps that
+ * square 1:1 onto the canvas the plane era drew, so every layout number, font
+ * fit and outline weight carries over untouched. `halfX/loY/hiY` are the
+ * SELECTION bounds: the ink's own union box grown by WINDOW_PAD_M.
+ *
+ * The FRONT takes the full window width. Its mark is drawn 0.34 m wide on a
+ * torso that measures about 0.29 m across the chest, so the cut is made by the
+ * ARM JOINTS (an arm vertex is never trunk) rather than by an x bound — the
+ * print runs to the armhole and stops there, which is what a printed vest does.
+ * The BACK takes its marks' own width: nothing out at the flanks belongs to it.
  */
-export function backSplitY() {
-  const { logo, num } = faceBoxes('back');
-  return ((logo.y - logo.h / 2) + (num.y + num.h / 2)) / 2;
+export function patchWindow(side, dropM = CHEST_DROP_M) {
+  const b = faceBoxes(side);
+  const lo = Math.min(b.logo.y - b.logo.h / 2, b.num.y - b.num.h / 2) - WINDOW_PAD_M;
+  const hi = Math.max(b.logo.y + b.logo.h / 2, b.num.y + b.num.h / 2) + WINDOW_PAD_M;
+  const halfX = side === 'back'
+    ? Math.max(Math.abs(b.logo.x ?? 0) + b.logo.w / 2, Math.abs(b.num.x ?? 0) + b.num.w / 2) + WINDOW_PAD_M
+    : PLANE_M / 2;
+  return { cx: 0, cy: -dropM, w: PLANE_M, h: PLANE_M, halfX, loY: -dropM + lo, hiY: -dropM + hi };
 }
 
-/** The crest's own band of the shirt, in RIG metres about the chest bone (which
- *  sits at the collarbone — see CHEST_DROP_M), i.e. exactly the strip of upper
- *  back the crew mark is printed on. This is what `measureShirt` reads a second
- *  centre column in. */
-export function backMarkBand(dropM = CHEST_DROP_M) {
-  const { logo } = faceBoxes('back');
-  return { lo: -dropM + logo.y - logo.h / 2, hi: -dropM + logo.y + logo.h / 2 };
+/**
+ * Where a point of shirt lands on the decal canvas: a straight planar
+ * projection of its BIND position onto the window square. No wrap, no
+ * unwrapping — the artwork keeps its shape and the cloth carries it.
+ *
+ * The back mirrors `u`. Its patch is seen from behind, so without the mirror
+ * the hero number reads backwards from the one place it exists to be read.
+ * @returns {[number, number]} u, v
+ */
+export function projectUv(x, y, win, side) {
+  const u = (x - win.cx) / win.w + 0.5;
+  const v = (y - win.cy) / win.h + 0.5;
+  return [side === 'back' ? 1 - u : u, v];
 }
 
 // ---- the texture ----------------------------------------------------------
@@ -475,7 +419,7 @@ function paintFace(logoImg, number, ink, side) {
     // number's top stroke and the crew mark above it.
     const inked = (m) => (m?.actualBoundingBoxAscent ?? size * CAP_RATIO) + (m?.actualBoundingBoxDescent ?? 0);
     // The box holds the WHOLE drawn number — the glyph ink AND the edge around
-    // it. `stackFace` settles the back run flush against the plane's bottom, so
+    // it. `stackFace` settles the back run flush against the window's bottom, so
     // a number fitted on its ink alone puts its baseline ON the last row of the
     // canvas and the edge is sliced clean off there: the hero number ended up
     // the one mark on the shirt with no edge along its foot. Two passes — the
@@ -487,7 +431,13 @@ function paintFace(logoImg, number, ink, side) {
       size *= target / h;
       ctx.font = `900 ${size}px ${FONT_STACK}`;
     }
-    const maxW = mToPx(PLANE_M * 0.86);
+    // …AND NO WIDER THAN THE SHIRT. This used to be 0.86 of the window — a
+    // number free to ink 0.344 m across a back that is 0.23 m wide, so a
+    // two-digit number ran off both flanks. Off a card that just looked big;
+    // on a patch the ends land where the cloth is turning away from the
+    // projection and smear round the ribs (`decals-skinned/proof-45-monarchs-*`).
+    // Bounded by the cloth, the hero number is smaller and all of it is there.
+    const maxW = mToPx(2 * CLOTH_HALF_W);
     const w = (ctx.measureText?.(text)?.width ?? 0) + size * NUM_EDGE_RATIO;
     if (w > maxW && w > 0) {
       size *= maxW / w;
@@ -578,7 +528,7 @@ function walk(o, fn, depth = 0) {
 }
 
 /**
- * The joint the crew mark hangs off. Name priority first (a Mixamo rig means
+ * The joint the decal window hangs off. Name priority first (a Mixamo rig means
  * exactly what it says), then DEPTH as the tie-break: the archetype rigs number
  * their spine DOWNWARD — `Spine02` is the belly, `Spine01` the ribs and plain
  * `Spine` the collarbone — so on those the last link in the chain is the chest
@@ -597,405 +547,270 @@ export function findChestBone(root) {
   return null;
 }
 
-/** Is this bone part of the SHIRT? Braids, dreadlocks and ponytails are skinned
- *  to the neck and — on these rigs — to the SHOULDER joints, and they hang
- *  straight down through the decal's own band, so a measurement that trusts
- *  geometry alone reads the hair as the player's back. Only the trunk votes:
- *  spine chain + hips. See SHIRT_JOINT for the numbers that settled it. */
+/** Is this bone part of the SHIRT's TRUNK? Braids, dreadlocks and ponytails are
+ *  skinned to the neck and — on these rigs — to the SHOULDER joints, so a patch
+ *  that trusted geometry alone would be cut out of the hair. Only the trunk
+ *  qualifies outright: spine chain + hips. See SHIRT_JOINT for the numbers. */
 export function isShirtBone(name) {
   const n = String(name ?? '');
   if (NOT_SHIRT_JOINT.test(n)) return false;
   return SHIRT_JOINT.test(n);
 }
 
-/** Is this bone allowed to vote on the CREST's depth, over and above the shirt
- *  bones? The shoulders, and nothing else — see CREST_JOINT for why the cloth
- *  over the blades is skinned to them, and for the depth window that keeps the
- *  hair hanging off those same joints from voting with them. */
-export function isCrestBone(name) {
+/** Is this bone a SHOULDER — the joint the blade and upper-chest cloth is
+ *  skinned to, and the joint every long hairstyle hangs off? A vertex it
+ *  dominates joins the patch only under the weight gate (see
+ *  SHOULDER_SHIRT_WEIGHT_MIN). */
+export function isShoulderBone(name) {
   const n = String(name ?? '');
   if (NOT_SHIRT_JOINT.test(n)) return false;
-  return CREST_JOINT.test(n);
+  return SHOULDER_JOINT.test(n);
 }
 
-/** Take at most `max` of a list, evenly spread — a percentile over 300 samples
- *  says what it says over 3000, and these get walked again every pose beat. */
-export function thin(list, max = SETTLE_SAMPLE_MAX) {
-  if (!list?.length || list.length <= max) return list ?? [];
-  const step = list.length / max;
-  const out = [];
-  for (let i = 0; out.length < max; i += step) out.push(list[Math.floor(i)]);
+// ---- cutting the patch out of the body ------------------------------------
+
+/**
+ * What the selection needs to know about each of the skeleton's slots: how it
+ * places a vertex in RIG metres (and turns a normal), and what part of the body
+ * it is.
+ *
+ * `rigInv` is the inverse of the rig frame's world matrix — pass null (a test
+ * rig already stated in rig metres) and the geometry is read as-is.
+ *
+ * In bind pose `bone.matrixWorld · boneInverse` IS the geometry→world map for a
+ * vertex welded to that bone, whatever the rig did with node transforms (these
+ * GLBs park the whole armature at scale 0.01), so this needs no assumptions
+ * about units. A shirt vertex is SKINNED rather than welded, so it is placed
+ * with its own linear blend of those maps — the same weighted sum the GPU skins
+ * with — because build scaling bakes a different accumulated scale into each
+ * link of the spine and "borrow the chest bone's transform" reads a four-joint
+ * back vertex as much as 5 cm out.
+ */
+export function rigSlots(mesh, rigInv = null) {
+  const bones = mesh?.skeleton?.bones ?? [];
+  const inverses = mesh?.skeleton?.boneInverses ?? [];
+  return bones.map((b, i) => {
+    let xform = null;
+    if (rigInv && b && inverses[i]) {
+      xform = new THREE.Matrix4()
+        .multiplyMatrices(rigInv, new THREE.Matrix4().multiplyMatrices(b.matrixWorld, inverses[i]));
+    }
+    return {
+      xform,
+      normal: xform ? new THREE.Matrix3().getNormalMatrix(xform) : null,
+      shirt: isShirtBone(b?.name),
+      shoulder: isShoulderBone(b?.name),
+    };
+  });
+}
+
+/**
+ * THE PATCH: the body's own triangles that make up one face of the print.
+ *
+ * A triangle joins the patch when
+ *  1. EVERY vertex is shirt — its dominant joint is a trunk joint, or a
+ *     shoulder joint holding at least SHOULDER_SHIRT_WEIGHT_MIN of trunk weight
+ *     (that gate is the only thing that separates blade cloth from a braid);
+ *  2. it FACES the right way — the mean of its three bind normals, projected
+ *     on the face's axis, clears FACE_MIN_Z; and
+ *  3. its CENTRE lands inside the window.
+ *
+ * The centre — rather than all three corners — is what makes the patch cover
+ * the ink rather than a shape a triangle's width inside it; WINDOW_PAD_M keeps
+ * the resulting ragged edge off the artwork. Vertices are COPIED, not shared,
+ * so a corner shared with a rejected neighbour costs nothing.
+ *
+ * One pass over the vertices and one over the index buffer, once per character
+ * at build. Nothing runs per frame.
+ *
+ * @param {THREE.SkinnedMesh} mesh the body
+ * @returns {{triangles:number[], x:Float32Array, y:Float32Array, z:Float32Array,
+ *   window:object}|null} `triangles` is flat: three BODY vertex indices per face
+ */
+export function selectPatchTriangles(mesh, { side = 'front', slots = null, window: win = null } = {}) {
+  const geo = mesh?.geometry;
+  const pos = geo?.getAttribute?.('position');
+  if (!pos?.count) return null;
+  const nor = geo.getAttribute?.('normal');
+  const si = geo.getAttribute?.('skinIndex');
+  const sw = geo.getAttribute?.('skinWeight');
+  const slot = slots ?? rigSlots(mesh, null);
+  const W = win ?? patchWindow(side);
+  const sign = side === 'back' ? -1 : 1;
+
+  const N = pos.count;
+  const x = new Float32Array(N);
+  const y = new Float32Array(N);
+  const z = new Float32Array(N);
+  const nz = new Float32Array(N);
+  const shirt = new Uint8Array(N);
+
+  const v = new THREE.Vector3();
+  const n = new THREE.Vector3();
+  const p = new THREE.Vector3();
+  const pn = new THREE.Vector3();
+  const tmp = new THREE.Vector3();
+  const skinned = !!(si && sw);
+
+  for (let i = 0; i < N; i++) {
+    v.fromBufferAttribute(pos, i);
+    if (nor) n.fromBufferAttribute(nor, i); else n.set(0, 0, sign);
+    if (!skinned) {
+      // A statue rig (no JOINTS_0/WEIGHTS_0 — arch-band's authoring defect)
+      // has nothing to filter hair/arms on, so it gets NO print rather than a
+      // crest on whatever face or arm falls in the window. Benched today.
+      p.copy(v); pn.copy(n);
+      const one = slot.find((s) => s.xform);
+      if (one) { p.applyMatrix4(one.xform); pn.applyMatrix3(one.normal); }
+      x[i] = p.x; y[i] = p.y; z[i] = p.z;
+      nz[i] = pn.normalize().z;
+      shirt[i] = 0;
+      continue;
+    }
+    const j0 = si.getX(i); const j1 = si.getY(i); const j2 = si.getZ(i); const j3 = si.getW(i);
+    const w0 = sw.getX(i); const w1 = sw.getY(i); const w2 = sw.getZ(i); const w3 = sw.getW(i);
+    p.set(0, 0, 0); pn.set(0, 0, 0);
+    let used = 0; let total = 0; let trunk = 0; let domW = 0; let domSlot = -1;
+    for (let k = 0; k < 4; k++) {
+      const w = k === 0 ? w0 : k === 1 ? w1 : k === 2 ? w2 : w3;
+      if (!(w > 0)) continue;
+      const j = k === 0 ? j0 : k === 1 ? j1 : k === 2 ? j2 : j3;
+      total += w;
+      if (slot[j]?.shirt) trunk += w;
+      if (w > domW) { domW = w; domSlot = j; }   // ties go to the first
+      const s = slot[j];
+      if (!s?.xform) continue;
+      tmp.copy(v).applyMatrix4(s.xform); p.addScaledVector(tmp, w);
+      tmp.copy(n).applyMatrix3(s.normal); pn.addScaledVector(tmp, w);
+      used += w;
+    }
+    if (used > 0) { p.multiplyScalar(1 / used); pn.multiplyScalar(1 / used); }
+    else { p.copy(v); pn.copy(n); }               // no slot had a usable transform
+    x[i] = p.x; y[i] = p.y; z[i] = p.z;
+    nz[i] = pn.lengthSq() > 0 ? pn.normalize().z : 0;
+    const s = slot[domSlot];
+    const share = total > 0 ? trunk / total : 0;
+    shirt[i] = (s && (s.shirt || (s.shoulder && share >= SHOULDER_SHIRT_WEIGHT_MIN))) ? 1 : 0;
+  }
+
+  const index = geo.getIndex?.();
+  const tris = index ? Math.floor(index.count / 3) : Math.floor(N / 3);
+  const triangles = [];
+  for (let t = 0; t < tris; t++) {
+    const a = index ? index.getX(t * 3) : t * 3;
+    const b = index ? index.getX(t * 3 + 1) : t * 3 + 1;
+    const c = index ? index.getX(t * 3 + 2) : t * 3 + 2;
+    if (!shirt[a] || !shirt[b] || !shirt[c]) continue;
+    if ((nz[a] + nz[b] + nz[c]) / 3 * sign < FACE_MIN_Z) continue;
+    const cx = (x[a] + x[b] + x[c]) / 3;
+    const cy = (y[a] + y[b] + y[c]) / 3;
+    if (Math.abs(cx - W.cx) > W.halfX || cy < W.loY || cy > W.hiY) continue;
+    triangles.push(a, b, c);
+  }
+  return { triangles, x, y, z, window: W };
+}
+
+/**
+ * That selection as a geometry the GPU can skin: the body's own positions,
+ * normals and skin weights for the chosen vertices, re-indexed, with a NEW
+ * planar uv onto the decal canvas — and every position pushed `lift` out along
+ * its own normal so the print wins the depth test against the cloth it is a
+ * copy of.
+ *
+ * @param {THREE.SkinnedMesh} mesh the body
+ * @param {object} sel what `selectPatchTriangles` returned
+ * @param {'front'|'back'} side
+ * @param {{lift?:number, scale?:number}} o `scale` is RIG METRES PER GEOMETRY
+ *   UNIT — the lift is quoted in metres and the buffer is in the body's units.
+ */
+export function buildPatchGeometry(mesh, sel, side, { lift = PATCH_LIFT_M, scale = 1 } = {}) {
+  const geo = mesh.geometry;
+  const pos = geo.getAttribute('position');
+  const nor = geo.getAttribute('normal');
+  const si = geo.getAttribute('skinIndex');
+  const sw = geo.getAttribute('skinWeight');
+  const off = lift / (scale || 1);
+  const seen = new Map(); // body vertex -> patch vertex
+  const P = []; const NN = []; const UV = []; const SI = []; const SW = []; const IX = [];
+  for (const old of sel.triangles) {
+    let at = seen.get(old);
+    if (at === undefined) {
+      at = P.length / 3;
+      seen.set(old, at);
+      const nx = nor ? nor.getX(old) : 0;
+      const ny = nor ? nor.getY(old) : 0;
+      const nzv = nor ? nor.getZ(old) : (side === 'back' ? -1 : 1);
+      P.push(pos.getX(old) + nx * off, pos.getY(old) + ny * off, pos.getZ(old) + nzv * off);
+      NN.push(nx, ny, nzv);
+      const [u, v] = projectUv(sel.x[old], sel.y[old], sel.window, side);
+      UV.push(u, v);
+      SI.push(si ? si.getX(old) : 0, si ? si.getY(old) : 0, si ? si.getZ(old) : 0, si ? si.getW(old) : 0);
+      SW.push(sw ? sw.getX(old) : 1, sw ? sw.getY(old) : 0, sw ? sw.getZ(old) : 0, sw ? sw.getW(old) : 0);
+    }
+    IX.push(at);
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+  out.setAttribute('normal', new THREE.Float32BufferAttribute(NN, 3));
+  out.setAttribute('uv', new THREE.Float32BufferAttribute(UV, 2));
+  out.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(SI, 4));
+  out.setAttribute('skinWeight', new THREE.Float32BufferAttribute(SW, 4));
+  out.setIndex(IX);
+  out.computeBoundingSphere();
+  out.userData.owned = true; // per-character: disposeCharacter() frees it
   return out;
 }
 
-/** The p-th value of a sample, 0..1, sorted. Used instead of min/max: the
- *  extremes of a 40 k-vertex mesh are always some seam, lace tip or stray
- *  weight, and one of them used to decide where a 0.40 m plane sat. */
-export function percentile(values, p) {
-  if (!values?.length) return NaN;
-  const a = Float64Array.from(values).sort();
-  const i = Math.round((a.length - 1) * Math.min(1, Math.max(0, p)));
-  return a[i];
-}
-
 /**
- * Where this character's shirt actually IS, in rig metres. Measured, not
- * guessed: the archetypes differ by a good 5 cm front to back (arch-bald's
- * chest sits at +0.17, arch-locs' at +0.13), and a fixed offset would either
- * bury the mark inside the beefy ones or float it off the lean ones — and a
- * floating mark is exactly what the turntable shows off at 45°.
- *
- * In BIND POSE `bone.matrixWorld · boneInverse` IS the geometry→world map for
- * a vertex RIGIDLY WELDED to that bone, whatever the rig did with node
- * transforms (these GLBs park the whole armature at scale 0.01), so this needs
- * no assumptions about units. But a shirt vertex is skinned, not welded — bug,
- * 2026-08-28: reading EVERY vertex through the CHEST bone's transform alone
- * (as if the whole shirt were rigidly bolted to it) is only correct where a
- * vertex's own weights happen to agree with the chest bone's own motion. They
- * don't have to: build scaling bakes a different accumulated scale into each
- * link of the spine, so a back vertex split nearly evenly across
- * Spine/Spine1/Spine2/Hips reads its OWN blended transform as much as 5 cm
- * deeper than "borrow the chest bone's transform" gives it — measured on
- * arch-bald, whose back decal that shallow reading buried clean out of sight
- * behind the real (deeper) cloth
- * (`.superpowers/sdd/2026-08-27-crews-kits-walkout/casts/back-bullies-dark.png`).
- * Every vertex is now placed with its OWN proper linear-blend transform — the
- * same weighted sum of joint transforms the GPU itself skins with — falling
- * back to the chest bone's transform only where a vertex has no usable weights
- * at all (a "statue" mesh with no JOINTS_0/WEIGHTS_0, or a degenerate one).
- *
- * Two more things keep the read honest, both of them fixes to a first pass
- * that put the back mark a hand's width behind arch-braids' shirt:
- *  - only vertices whose DOMINANT skin joint is a shirt bone count, so hair
- *    never votes (see `isShirtBone`);
- *  - the columns are read at the 2nd/98th percentile over EVERY vertex, not the
- *    min/max of a 1-in-N stride, so no single point moves the plane.
+ * How much of one mark's box the patch actually carries, 0..1 — rasterised
+ * through the patch's OWN uv, which IS the canvas square, so a covered texel is
+ * a texel with cloth behind it. Run once per face at build; nothing per frame.
+ * @param {THREE.BufferGeometry} geometry a built patch
+ * @param {{x?:number,y:number,w:number,h:number}} box a `faceBoxes` rect, metres
  */
-function measureShirt(root, bone, rig, dropM) {
-  try {
-    let skinned = null;
-    root.traverse((o) => { if (!skinned && o.isSkinnedMesh && o.skeleton) skinned = o; });
-    const idx = skinned?.skeleton?.bones?.indexOf(bone) ?? -1;
-    const bi = idx >= 0 ? skinned.skeleton.boneInverses?.[idx] : null;
-    const pos = skinned?.geometry?.getAttribute?.('position');
-    if (!bi || !pos) return FALLBACK_DEPTH;
-    const rigInv = new THREE.Matrix4().copy(rig.matrixWorld).invert();
-    const worldXform = (b, biMat) => new THREE.Matrix4()
-      .multiplyMatrices(rigInv, new THREE.Matrix4().multiplyMatrices(b.matrixWorld, biMat));
-    // The CHEST bone's own transform — the fallback for a vertex with no
-    // usable skin weights, and the shape EVERY vertex used to be forced into.
-    const chestXform = worldXform(bone, bi);
-
-    // Which skeleton slots are shirt. No JOINTS_0/WEIGHTS_0 (or no names) means
-    // no filter — a statue rig still gets a measured, if hairier, shirt.
-    const si = skinned.geometry.getAttribute?.('skinIndex');
-    const sw = skinned.geometry.getAttribute?.('skinWeight');
-    const bones = skinned.skeleton.bones ?? [];
-    const boneInverses = skinned.skeleton.boneInverses ?? [];
-    const shirtSlot = bones.map((b) => isShirtBone(b?.name));
-    const filtering = !!(si && sw && shirtSlot.some(Boolean));
-    // One world*inverse per joint, in RIG-local space — every vertex blends
-    // across ITS OWN up-to-four of these, instead of borrowing the chest
-    // bone's alone. Only built when there is skin data to blend with.
-    const boneXform = (si && sw)
-      ? bones.map((b, i) => (boneInverses[i] ? worldXform(b, boneInverses[i]) : null))
-      : null;
-
-    // The shirt is sampled in x columns: dead centre, out at ±RIB_X on each
-    // flank, and — for the back only — again at ±BACK_HALF_W, the number's
-    // own edge. Centre gives the depth, RIB_X gives the FRONT its fall-off,
-    // and BACK_HALF_W gives the BACK its fall-off measured where it actually
-    // needs to be right, instead of extrapolated from RIB_X (see BACK_HALF_W).
-    //
-    // The BACK is read twice down the face: the centre column over the whole
-    // band gives `back`, where the number goes, and the cloth that actually
-    // covers the crew mark gives `backUpper`. One depth for the whole back is
-    // what buried the crest — see `backSplitY`.
-    const markBand = backMarkBand(dropM);
-    const crestSlot = bones.map((b) => isShirtBone(b?.name) || isCrestBone(b?.name));
-    const v = new THREE.Vector3();
-    const blended = new THREE.Vector3();
-    const tmp = new THREE.Vector3();
-    // A vertex's four skin slots and their weights, re-filled per call. These
-    // used to be two fresh 4-element arrays plus a `Math.max(...w)` spread on
-    // EVERY vertex — 768 vertices a beat per player, 16 players, five times a
-    // second. Nothing in the beat may allocate; see `resample`.
-    const vJoint = new Int32Array(4);
-    const vWeight = new Float32Array(4);
-    /** The SHIRT bones' share of the weight of the vertex `place` last read,
-     *  0..1 — the crest's cloth gate (see CREST_SHIRT_WEIGHT_MIN). Left here
-     *  rather than returned so the hot path still hands back a plain number. */
-    let placeShirtW = 1;
-
-    /** Blend-skin vertex `i` into rig-local space through `xforms` — the same
-     *  weighted sum the GPU skins with. Returns its DOMINANT skeleton slot, or
-     *  −1 where it has no usable weights (then `fallback` places it), and sets
-     *  `placeShirtW` on the way through. */
-    const place = (i, xforms, fallback, out) => {
-      v.fromBufferAttribute(pos, i);
-      if (!xforms) { out.copy(v).applyMatrix4(fallback); placeShirtW = 1; return -1; }
-      vJoint[0] = si.getX(i); vJoint[1] = si.getY(i); vJoint[2] = si.getZ(i); vJoint[3] = si.getW(i);
-      vWeight[0] = sw.getX(i); vWeight[1] = sw.getY(i); vWeight[2] = sw.getZ(i); vWeight[3] = sw.getW(i);
-      let domSlot = -1; let domW = 0; let totW = 0; let shirtW = 0; let usedW = 0;
-      out.set(0, 0, 0);
-      for (let k = 0; k < 4; k++) {
-        const w = vWeight[k];
-        if (!(w > 0)) continue;
-        const j = vJoint[k];
-        totW += w;
-        if (shirtSlot[j]) shirtW += w;
-        if (w > domW) { domW = w; domSlot = j; }   // ties go to the first, as before
-        const xf = xforms[j];
-        if (!xf) continue;
-        tmp.copy(v).applyMatrix4(xf);
-        out.addScaledVector(tmp, w);
-        usedW += w;
-      }
-      placeShirtW = totW > 0 ? shirtW / totW : 0;
-      if (usedW > 0) out.multiplyScalar(1 / usedW);
-      else out.copy(v).applyMatrix4(fallback); // no bone had a usable transform
-      return domSlot;
-    };
-
-    const mid = []; const near = []; const rib = []; const ribBack = [];
-    const upperMid = []; const upperNear = [];
-    // …and WHICH vertices those were. The pose re-read below walks these same
-    // ones again (see `resample`), because band membership has to be decided
-    // once, in bind pose: posed, arch-bald's crest band holds three vertices.
-    const midAt = []; const nearAt = []; const upMidAt = []; const upNearAt = [];
-    // Every vertex's bind-pose place, kept for the triangle sweep below.
-    const vx = new Float32Array(pos.count);
-    const vy = new Float32Array(pos.count);
-    const vz = new Float32Array(pos.count);
-    const crestOk = new Uint8Array(pos.count);
-    for (let i = 0; i < pos.count; i++) {   // EVERY vertex — no stride to alias
-      const domSlot = place(i, boneXform, chestXform, blended);
-      vx[i] = blended.x; vy[i] = blended.y; vz[i] = blended.z;
-      // WHO MAY VOTE ON THE CREST: a shirt or shoulder joint, AND a real share
-      // of trunk weight — a braid hanging off that same shoulder has none.
-      crestOk[i] = (!filtering
-        || (domSlot >= 0 && crestSlot[domSlot] && placeShirtW >= CREST_SHIRT_WEIGHT_MIN)) ? 1 : 0;
-      const ax = Math.abs(blended.x);
-      if (ax > TRUNK_SAMPLE_HALF_W) continue;               // trunk, not arms
-      if (Math.abs(blended.y + dropM) > PLANE_M / 2) continue; // the band the decal covers
-      const isMid = ax < CENTRE_WIDE_W;
-      const isRib = !isMid && ax > RIB_X - 0.025 && ax < RIB_X + 0.025;
-      const isRibBack = ax > BACK_HALF_W - RIB_BACK_WINDOW && ax < BACK_HALF_W + RIB_BACK_WINDOW;
-      if (!isMid && !isRib && !isRibBack) continue;
-      const votes = !filtering || (domSlot >= 0 && shirtSlot[domSlot]); // hair doesn't vote
-      if (isRib && votes) rib.push(blended.z);
-      if (isRibBack && votes) ribBack.push(blended.z);
-      if (isMid && votes) {
-        near.push(blended.z); nearAt.push(i);
-        if (ax < CENTRE_HALF_W) { mid.push(blended.z); midAt.push(i); }
-      }
-      // The crest's own strip, where the SHOULDER joints vote too — see
-      // `isCrestBone`. Windowed against the number's depth further down, which
-      // is what keeps braids and dreadlocks out of it. (Only the fall-back set:
-      // the crest is normally read off the triangles that cover it, below.)
-      if (isMid && crestOk[i] && blended.y >= markBand.lo && blended.y <= markBand.hi) {
-        upperNear.push(blended.z); upNearAt.push(i);
-        if (ax < CENTRE_HALF_W) { upperMid.push(blended.z); upMidAt.push(i); }
+export function patchCoverage(geometry, box, side, res = 32) {
+  const uv = geometry?.getAttribute?.('uv');
+  const ix = geometry?.getIndex?.();
+  if (!uv || !ix || !box) return 0;
+  const toU = (m) => m / PLANE_M + 0.5;
+  const u0 = toU((box.x ?? 0) - box.w / 2); const u1 = toU((box.x ?? 0) + box.w / 2);
+  const v0 = toU(box.y - box.h / 2); const v1 = toU(box.y + box.h / 2);
+  if (!(u1 > u0) || !(v1 > v0)) return 0;
+  const cell = new Uint8Array(res * res);
+  const px = [0, 0, 0]; const py = [0, 0, 0];
+  for (let t = 0; t + 2 < ix.count; t += 3) {
+    for (let k = 0; k < 3; k++) {
+      const i = ix.getX(t + k);
+      const u = side === 'back' ? 1 - uv.getX(i) : uv.getX(i);
+      px[k] = ((u - u0) / (u1 - u0)) * res;
+      py[k] = ((uv.getY(i) - v0) / (v1 - v0)) * res;
+    }
+    const d = (px[1] - px[0]) * (py[2] - py[0]) - (px[2] - px[0]) * (py[1] - py[0]);
+    if (!(Math.abs(d) > 1e-12)) continue;
+    const x0 = Math.max(0, Math.floor(Math.min(px[0], px[1], px[2])));
+    const x1 = Math.min(res - 1, Math.ceil(Math.max(px[0], px[1], px[2])));
+    const y0 = Math.max(0, Math.floor(Math.min(py[0], py[1], py[2])));
+    const y1 = Math.min(res - 1, Math.ceil(Math.max(py[0], py[1], py[2])));
+    for (let yy = y0; yy <= y1; yy++) {
+      for (let xx = x0; xx <= x1; xx++) {
+        const cx = xx + 0.5; const cy = yy + 0.5;
+        const w0 = ((px[1] - cx) * (py[2] - cy) - (px[2] - cx) * (py[1] - cy)) / d;
+        const w1 = ((px[2] - cx) * (py[0] - cy) - (px[0] - cx) * (py[2] - cy)) / d;
+        if (w0 >= -1e-6 && w1 >= -1e-6 && 1 - w0 - w1 >= -1e-6) cell[yy * res + xx] = 1;
       }
     }
-
-    // THE BADGE'S BOX, SOLVED ONCE. `faceBoxes('back')` runs a sort and builds
-    // a fresh layout every call, and `overMark` below used to call it PER
-    // CANDIDATE VERTEX — 8192 rebuilds per 16-player beat, two thirds of the
-    // beat's time and most of its garbage. It is a pure function of constants.
-    const backLogo = faceBoxes('back').logo;
-
-    // THE CREST'S SAMPLE SET: the cloth that can actually draw over the mark.
-    // A vertex COLUMN is not enough on a sparse mesh — arch-bald puts four
-    // vertices in the badge's own column, and the triangles that cover the
-    // badge reach out well past it, so the surface between them runs 2 cm
-    // deeper than anything the column can see (measured, posed: column −0.277,
-    // the real covering triangles −0.297 — and the badge came back with its
-    // bottom third eaten by cloth the read never knew about). A triangle is
-    // planar, so its interior is never deeper than its own deepest corner:
-    // clear every corner of every triangle that overlaps the badge and nothing
-    // can draw over the badge. That is this set.
-    const crestTriangleSet = () => {
-      // …grown by CREST_REACH_M, because the set is chosen in BIND pose and the
-      // cloth that ends up over the badge is not the cloth that was over it in
-      // the T-pose.
-      const half = backLogo.w / 2 + CREST_REACH_M;
-      const lo = markBand.lo - CREST_REACH_M;
-      const hi = markBand.hi + CREST_REACH_M;
-      const index = skinned.geometry.getIndex?.();
-      const n = index ? index.count : pos.count;
-      const picked = new Uint8Array(pos.count);
-      const out = [];
-      for (let t = 0; t + 2 < n; t += 3) {
-        const a = index ? index.getX(t) : t;
-        const b = index ? index.getX(t + 1) : t + 1;
-        const c = index ? index.getX(t + 2) : t + 2;
-        if (!(vz[a] < 0 || vz[b] < 0 || vz[c] < 0)) continue;       // the chest, not the back
-        if (Math.min(vx[a], vx[b], vx[c]) > half || Math.max(vx[a], vx[b], vx[c]) < -half) continue;
-        if (Math.min(vy[a], vy[b], vy[c]) > hi || Math.max(vy[a], vy[b], vy[c]) < lo) continue;
-        for (const i of [a, b, c]) {
-          if (picked[i] || !crestOk[i] || !(vz[i] < 0)) continue;   // hair still never votes
-          picked[i] = 1;
-          out.push(i);
-        }
-      }
-      return out;
-    };
-    // the tight column when it has the numbers, the wide one when it doesn't
-    const col = mid.length >= MIN_SAMPLES ? mid : near;
-    if (col.length < MIN_SAMPLES_HARD) return FALLBACK_DEPTH;
-    const enough = rib.length >= MIN_SAMPLES_HARD;
-    const ribF = enough ? percentile(rib, SHIRT_P_HI) : NaN;
-    const ribB = enough ? percentile(rib, SHIRT_P_LO) : NaN;
-    // The back's own fall-off point. Falls back to the RIB_X sample — same as
-    // before this fix — only when the narrower BACK_HALF_W band came up dry.
-    const ribBackEnough = ribBack.length >= MIN_SAMPLES_HARD;
-    const ribBackB = ribBackEnough ? percentile(ribBack, SHIRT_P_LO) : NaN;
-
-    // The two sample SETS, chosen here and never re-chosen: the centre column,
-    // and the crest's own strip of it. Strided down if a dense mesh hands us
-    // thousands — the percentile does not get better past a few hundred, and
-    // these are walked again on every pose beat.
-    // The per-beat walk lists, as typed arrays: chosen once here, then read on
-    // every pose beat for the life of the player.
-    const colAt = Int32Array.from(thin(mid.length >= MIN_SAMPLES ? midAt : nearAt));
-    const triAt = crestTriangleSet();
-    // the covering triangles when there are any, the plain column when the mesh
-    // has no index buffer or nothing overlaps (then it reads as it did before).
-    // A looser cap than the column's: this one is read at its DEEPEST, not at a
-    // percentile, so thinning it costs accuracy rather than just resolution.
-    const upAt = Int32Array.from(thin(triAt.length >= MIN_SAMPLES_HARD
-      ? triAt
-      : (upperMid.length >= MIN_SAMPLES ? upMidAt : upNearAt), SETTLE_SAMPLE_MAX * 2));
-    /** The column's depths for ONE read, sorted in place. Sized once: the beat
-     *  neither grows an array nor copies one into a Float64Array to sort it,
-     *  and one sort answers both percentiles instead of two. */
-    const colZ = new Float64Array(colAt.length);
-    const colLast = colAt.length - 1;
-    const colHiAt = Math.round(colLast * SHIRT_P_HI);
-    const colLoAt = Math.round(colLast * SHIRT_P_LO);
-    /** The badge's own footprint plus a hair, tested against the LIVE pose —
-     *  membership in the candidate set is decided once, but whether a candidate
-     *  is actually over the mark right now is decided every read. All four
-     *  bounds are constants; they are solved here, not per vertex. */
-    const overHalfX = backLogo.w / 2 + CREST_LIVE_M;
-    const overLoY = markBand.lo - CREST_LIVE_M;
-    const overHiY = markBand.hi + CREST_LIVE_M;
-    const overMark = (p) => Math.abs(p.x) <= overHalfX && p.y >= overLoY && p.y <= overHiY;
-    /** The three depths off those sets, in whatever pose `xforms` describes,
-     *  written into the caller's `out` (one object per reader, re-used). */
-    const readColumns = (xforms, fallback, out) => {
-      for (let k = 0; k < colAt.length; k++) {
-        place(colAt[k], xforms, fallback, blended);
-        colZ[k] = blended.z;
-      }
-      colZ.sort(); // typed arrays sort NUMERICALLY, in place — no copy, no closure
-      const f = colLast >= 0 ? colZ[colHiAt] : NaN;
-      const b = colLast >= 0 ? colZ[colLoAt] : NaN;
-      // The crest clears the DEEPEST cloth actually over it — not a percentile.
-      // Every survivor of these three gates is real cloth on the badge: its own
-      // joint (shirt or shoulder, never hair), the badge's own footprint in the
-      // pose it is standing in, and within CREST_WINDOW_M of the number band's
-      // depth. The one that reaches furthest back is the one that would draw
-      // over the mark; a percentile leaves the last few nibbling its bottom
-      // edge, which is exactly how the badge kept coming back cut.
-      let deep = NaN; let votes = 0;
-      for (let k = 0; k < upAt.length; k++) {
-        place(upAt[k], xforms, fallback, blended);
-        if (!overMark(blended)) continue;
-        if (!(Math.abs(blended.z - b) <= CREST_WINDOW_M)) continue;
-        votes++;
-        if (!(deep <= blended.z)) deep = blended.z;
-      }
-      out.front = f;
-      out.back = b;
-      out.backUpper = votes >= CREST_MIN_VOTES ? deep : b;
-      return out;
-    };
-    const bind = readColumns(boneXform, chestXform, { front: NaN, back: NaN, backUpper: NaN });
-    if (!Number.isFinite(bind.front) || !Number.isFinite(bind.back)) return FALLBACK_DEPTH;
-
-    // The same read again, against the pose the player is standing in NOW.
-    // NOTHING HERE ALLOCATES, by policy: one matrix per joint, the scratch
-    // vectors and the two 4-slot skin buffers above, one Float64Array of
-    // depths, and ONE result object handed back over and over. The beat is a
-    // few hundred vertex reads per player five times a second on a phone that
-    // is already drawing 16 of them — every object it made was a phone-frame
-    // tax and the whole squad used to pay it in the same frame (SETTLE_PHASES).
-    const liveOut = { front: NaN, back: NaN, backUpper: NaN };
-    const live = boneXform ? bones.map(() => new THREE.Matrix4()) : null;
-    const liveChest = new THREE.Matrix4();
-    const scratch = new THREE.Matrix4();
-    const inv = new THREE.Matrix4();
-    const resample = () => {
-      try {
-        inv.copy(rig.matrixWorld).invert();
-        liveChest.multiplyMatrices(inv, scratch.multiplyMatrices(bone.matrixWorld, bi));
-        if (live) {
-          for (let i = 0; i < bones.length; i++) {
-            if (!boneInverses[i]) { live[i] = null; continue; }
-            if (!live[i]) live[i] = new THREE.Matrix4();
-            live[i].multiplyMatrices(inv, scratch.multiplyMatrices(bones[i].matrixWorld, boneInverses[i]));
-          }
-        }
-        const r = readColumns(live, liveChest, liveOut);
-        return Number.isFinite(r.back) ? r : null;
-      } catch { return null; }
-    };
-
-    return {
-      ...bind,
-      curveFront: fallOff(bind.front, ribF),
-      curveBack: Number.isFinite(ribBackB)
-        ? fallOff(-bind.back, -ribBackB, BACK_HALF_W)
-        : fallOff(-bind.back, -ribB),
-      resample,
-    };
-  } catch { return FALLBACK_DEPTH; }
-}
-
-/** z = centre − c·x². Solve c from a shirt sample taken at `x` metres off
- *  centre (RIB_X unless the caller solves it somewhere else — the back solves
- *  it at the number's own half-width, see BACK_HALF_W above), then clamp it: a
- *  flat card stands 8 cm proud of its own edges on a 0.35 m chest, a c that ran
- *  away would curl the mark round the ribs and out of sight. */
-export function fallOff(centre, rib, x = RIB_X) {
-  if (!Number.isFinite(centre) || !Number.isFinite(rib)) return CURVE_DEFAULT;
-  const c = (centre - rib) / (x * x);
-  return Math.min(CURVE_MAX, Math.max(CURVE_MIN, c));
-}
-
-/**
- * A 0.40 m square bowed onto the chest we just measured. This is a DECAL
- * PROJECTION, not a wrap: x stays put and only z follows the shirt, so the
- * artwork keeps its shape and the whole mark sits the same 2 cm off the
- * player. The first pass used a true cylindrical wrap on the torso's own
- * half-depth and it dived straight in behind a chest that is far flatter than
- * a circle — the crew mark lost both its flanks.
- *
- * `h`/`bottom` cut a horizontal SLICE of that square (plane-local metres, so
- * the full face is h = PLANE_M, bottom = −PLANE_M/2). The slice keeps the whole
- * width and re-maps its UVs onto its own rows of the shared canvas, so the back
- * can hang as two planes at two depths off ONE texture — see `backSplitY`.
- */
-function decalGeometry(curve, { h = PLANE_M, bottom = -PLANE_M / 2 } = {}) {
-  const geo = new THREE.PlaneGeometry(PLANE_M, h, 16, 1);
-  const p = geo.attributes.position;
-  const uv = geo.attributes.uv;
-  for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i);
-    p.setZ(i, -curve * x * x); // 0 at the centre, falling away at the flanks
-    // v runs 0 at the face's bottom edge to 1 at its top, whatever slice this
-    // is — so each mark is sampled by exactly one plane, and drawn once.
-    uv.setY(i, (bottom + PLANE_M / 2 + uv.getY(i) * h) / PLANE_M);
   }
-  p.needsUpdate = true;
-  uv.needsUpdate = true;
-  geo.computeVertexNormals();
-  geo.userData.owned = true; // per-character: disposeCharacter() frees it
-  return geo;
+  let on = 0;
+  for (let i = 0; i < cell.length; i++) on += cell[i];
+  return on / (res * res);
 }
 
+/** Basic, not lit: the mark has to READ on a 120 px player in any light, and it
+ *  is the same canvas the plane era shipped. `depthWrite:false` with the depth
+ *  TEST left on is what puts the arm in front of the crest — the body writes
+ *  depth first and the print is simply not drawn where the arm already is,
+ *  which is the whole bug the dev photographed. `polygonOffset` backs up the
+ *  4 mm lift against z-fighting at grazing angles. */
 function decalMaterial(map) {
   const mat = new THREE.MeshBasicMaterial({
     map,
@@ -1006,70 +821,55 @@ function decalMaterial(map) {
     polygonOffsetUnits: -2,
     toneMapped: false,
   });
-  // GRAZING FADE. Print on a shirt disappears as the shirt turns away; a decal
-  // does the opposite — the 2 cm it stands off the chest becomes ALL you see,
-  // hanging past the player's outline. The walk-up camera sweeps right through
-  // that angle. Fading the mark out as the surface turns edge-on costs nothing
-  // legible (you can't read a number side-on) and kills the artefact, plus any
-  // skinning lag: the chest skin is shared with two lower spine joints, so a
-  // rigid decal on the chest bone leads the shirt through a torso twist.
+  // THE GRAZING FADE, on the SKINNED normal. The uv is a PLANAR projection of
+  // the window onto the cloth, so where the cloth turns edge-on to that
+  // projection a texel covers a lot of surface and the print SMEARS round the
+  // flank — on the walk-out that read as a black slick of the back number's
+  // outline down a player's ribs (`decals-skinned/walkout-4.png`, first pass).
+  // Tightening the selection's own facing gate costs the crest its flanks on
+  // every archetype for a defect that only shows at the silhouette; a fade is
+  // camera-relative, so it only ever touches the rim that is actually smeared —
+  // and a print running out of sight round a body is what a print does.
+  //
+  // `transformedNormal` is three's own SKINNED, view-space normal, which the
+  // basic vertex shader computes whenever USE_SKINNING is on (it always is
+  // here). The card era faded on `mat3(modelMatrix) * normal`, which on a
+  // skinned mesh is the BIND normal and would lag every pose.
   mat.onBeforeCompile = (sh) => {
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vDecalN;\nvarying vec3 vDecalP;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvDecalN = normalize(mat3(modelMatrix) * normal);\n\tvDecalP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      .replace('#include <common>', '#include <common>\nvarying vec3 vDecalN;\nvarying vec3 vDecalV;')
+      .replace('#include <begin_vertex>', '#ifdef USE_SKINNING\n\tvDecalN = transformedNormal;\n#else\n\tvDecalN = vec3(0.0, 0.0, 1.0);\n#endif\n#include <begin_vertex>')
+      .replace('#include <project_vertex>', '#include <project_vertex>\n\tvDecalV = -mvPosition.xyz;');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vDecalN;\nvarying vec3 vDecalP;')
-      .replace('#include <alphatest_fragment>', '\tdiffuseColor.a *= smoothstep(0.14, 0.44, abs(dot(normalize(vDecalN), normalize(cameraPosition - vDecalP))));\n#include <alphatest_fragment>');
+      .replace('#include <common>', '#include <common>\nvarying vec3 vDecalN;\nvarying vec3 vDecalV;')
+      .replace('#include <alphatest_fragment>', '\tdiffuseColor.a *= smoothstep(0.14, 0.44, abs(dot(normalize(vDecalN), normalize(vDecalV))));\n#include <alphatest_fragment>');
   };
-  // one compiled program for every decal in the game, never shared with the
-  // untouched basic materials (three keys its cache on the shader string)
-  mat.customProgramCacheKey = () => 'jerseyDecal';
+  mat.customProgramCacheKey = () => 'jerseyPatch';
+  mat.userData.owned = true;
   return mat;
 }
 
-// ---- keeping the back planes on the moving shirt ---------------------------
-
-/** ONE driver for every settling player on the field: each returns false when
- *  it is done (or disposed) and drops out. Nothing runs when nobody is on. */
-const settlers = new Set();
-let settleFrame = 0;
-/** Which stagger slot the next settler takes — see SETTLE_PHASES. */
-let settleSeq = 0;
-function pumpSettlers(t) {
-  settleFrame = 0;
-  // Straight over the Set: deleting the entry you are standing on is defined
-  // behaviour, and the copy this replaces was a fresh 16-element array EVERY
-  // FRAME — 60 a second for as long as anyone is on the field.
-  for (const fn of settlers) {
-    let alive = false;
-    try { alive = fn(t); } catch { alive = false; }
-    if (!alive) settlers.delete(fn);
-  }
-  if (settlers.size) settleFrame = requestAnimationFrame(pumpSettlers);
+let warnedPatch = false;
+function warnPatch(msg) {
+  if (warnedPatch) return;
+  warnedPatch = true;
+  console.warn('[skk] jersey decal patch:', msg);
 }
-function addSettler(fn) {
-  if (typeof requestAnimationFrame !== 'function') return; // no frames, no pose
-  settlers.add(fn);
-  if (!settleFrame) settleFrame = requestAnimationFrame(pumpSettlers);
-}
-export const settlerCount = () => settlers.size;
 
 /**
- * Hang the crew mark and the number on one character's shirt.
+ * Print the crew mark and the number ON one character's shirt.
  *
- * Sync: the planes go on immediately (hidden) and light up when the mark and
+ * Sync: the patches go on immediately (hidden) and light up when the mark and
  * the display font have landed, so a slow logo never delays a player onto the
  * field. `ready` resolves once they're painted — the e2e pass waits on it.
  *
  * @param {{group:THREE.Object3D}} char a built character
  * @param {{logoUrl?:string, number?:number|string, ink?:string, hex?:string}} o
- * @returns {{front:THREE.Mesh, back:THREE.Mesh, backMark:THREE.Mesh, ready:Promise<void>,
- *   settle:Function, dispose:Function}|null}
- *   `back` is the NUMBER's plane; `backMark` is the crest riding above it at
- *   the upper back's own depth. `settle()` re-reads the shirt against the pose
- *   the player is standing in right now and moves those two planes onto it —
- *   the module beats it a few times a second on its own; it is exposed so a
- *   test can drive it by hand.
+ * @returns {{front:THREE.SkinnedMesh|null, back:THREE.SkinnedMesh|null,
+ *   triangles:{front:number,back:number}, marks:{front:boolean,back:boolean},
+ *   cover:{front:number,back:number}, ready:Promise<void>, dispose:Function}|null}
+ *   `marks` says whether each face got the CREW MARK as well as the number —
+ *   a face whose shirt could not carry it wears the number alone.
  */
 export function attachJerseyDecals(char, { logoUrl = '', number = '', ink = null, hex = null } = {}) {
   try {
@@ -1078,133 +878,76 @@ export function attachJerseyDecals(char, { logoUrl = '', number = '', ink = null
     root.updateMatrixWorld(true);
     const bone = findChestBone(root);
     if (!bone) return null;
+    let body = null;
+    root.traverse((o) => { if (!body && o.isSkinnedMesh && o.skeleton) body = o; });
+    if (!body) { warnPatch('no skinned body mesh — no print'); return null; }
     const paint = ink ?? oppositeInk(hex ?? INK_DARK);
 
-    // The rig cancels the bone's bind rotation and its 1/100 scale, so what
-    // hangs inside is plain metres with +Z the way the character faces (the
-    // archetype spine joints come out near identity — X right, Y up the spine,
-    // Z out through the sternum — but Hips and each archetype's own bake vary,
-    // so cancel rather than trust).
+    // THE RIG FRAME: the chest bone with its bind rotation and its bind scale
+    // cancelled, so what is stated inside it is plain metres with +Z the way
+    // the character faces. (The archetype spine joints come out near identity —
+    // X right, Y up the spine, Z out through the sternum — but Hips and each
+    // archetype's own bake vary, so cancel rather than trust.) It is a MATRIX,
+    // not a node: nothing hangs off the bone any more.
     const rel = new THREE.Matrix4().copy(root.matrixWorld).invert().multiply(bone.matrixWorld);
     const q = new THREE.Quaternion();
     const s = new THREE.Vector3();
     rel.decompose(new THREE.Vector3(), q, s);
-    const rig = new THREE.Group();
-    rig.name = 'jersey-decals';
-    rig.quaternion.copy(q).invert();
-    rig.scale.setScalar(1 / (s.x || 1));
-    bone.add(rig);
-    rig.updateMatrixWorld(true);
+    const rigLocal = new THREE.Matrix4().compose(
+      new THREE.Vector3(),
+      q.clone().invert(),
+      new THREE.Vector3().setScalar(1 / (s.x || 1)),
+    );
+    const rigInv = new THREE.Matrix4()
+      .multiplyMatrices(bone.matrixWorld, rigLocal).invert();
 
-    const depth = measureShirt(root, bone, rig, CHEST_DROP_M);
-    rig.userData.shirt = depth; // what the shirt measured, for probes and shots
-    // The back is cut in two along the blank gap between its marks so the crest
-    // can ride the upper back's own depth (see `backSplitY`). The number half
-    // keeps the name `jersey-back` — it is the plane every probe and evidence
-    // shot in the repo looks up.
-    const split = backSplitY();
-    const faces = [
-      { key: 'front', name: 'jersey-front', side: 'front', z: depth.front + SURFACE_GAP_M, curve: depth.curveFront },
-      {
-        key: 'back',
-        name: 'jersey-back',
-        side: 'back',
-        z: depth.back - SURFACE_GAP_M,
-        curve: depth.curveBack,
-        bottom: -PLANE_M / 2,
-        h: split + PLANE_M / 2,
-      },
-      {
-        key: 'backMark',
-        name: 'jersey-back-mark',
-        side: 'back',
-        z: (depth.backUpper ?? depth.back) - SURFACE_GAP_M,
-        curve: depth.curveBack,
-        bottom: split,
-        h: PLANE_M / 2 - split,
-      },
-    ];
+    const slots = rigSlots(body, rigInv);
+    // Rig metres per geometry unit — the lift is quoted in metres and the
+    // position buffer is in whatever the GLB was authored in.
+    const ref = slots.find((sl) => sl.xform)?.xform;
+    const scale = ref ? new THREE.Vector3().setFromMatrixScale(ref).x : 1;
+
     const meshes = {};
-    for (const f of faces) {
-      const bottom = f.bottom ?? -PLANE_M / 2;
-      const h = f.h ?? PLANE_M;
-      const mesh = new THREE.Mesh(
-        decalGeometry(f.curve ?? CURVE_DEFAULT, { h, bottom }),
+    const triangles = { front: 0, back: 0 };
+    /** Whether the CREW MARK is printed on each face — see MARK_COVER_MIN. */
+    const marks = { front: false, back: false };
+    const cover = { front: 0, back: 0 };
+    for (const side of ['front', 'back']) {
+      const sel = selectPatchTriangles(body, { side, slots });
+      const n = sel ? sel.triangles.length / 3 : 0;
+      triangles[side] = n;
+      if (n < MIN_PATCH_TRIS) {
+        warnPatch(`${side}: only ${n} triangles on this rig — no print on that face`);
+        continue;
+      }
+      const patch = new THREE.SkinnedMesh(
+        buildPatchGeometry(body, sel, side, { scale }),
         decalMaterial(null),
       );
-      // …the slice's own centre, so a cut face still hangs where its rows do
-      mesh.position.set(0, -CHEST_DROP_M + bottom + h / 2, f.z);
-      if (f.side === 'back') mesh.rotation.y = Math.PI;
-      mesh.renderOrder = 2;
-      mesh.frustumCulled = false; // it rides a bone; the plane's own bounds lie
-      mesh.visible = false;       // until the mark is painted
-      mesh.name = f.name;
-      rig.add(mesh);
-      meshes[f.key] = mesh;
+      patch.name = side === 'back' ? 'jersey-back' : 'jersey-front';
+      patch.renderOrder = 2;
+      patch.frustumCulled = false; // it rides a skeleton; its own bounds lie
+      patch.visible = false;       // until the mark is painted
+      cover[side] = patchCoverage(patch.geometry, faceBoxes(side).logo, side);
+      marks[side] = cover[side] >= MARK_COVER_MIN;
+      patch.userData.decal = {
+        side, triangles: n, window: sel.window, markCover: cover[side], mark: marks[side],
+      };
+      // Next to the body, with the body's own transform: in `attached` bind
+      // mode a skinned mesh's own matrix cancels out of the skin, but keeping
+      // them identical means nothing about it can ever drift.
+      patch.position.copy(body.position);
+      patch.quaternion.copy(body.quaternion);
+      patch.scale.copy(body.scale);
+      patch.bindMode = body.bindMode;
+      patch.bind(body.skeleton, body.bindMatrix);
+      (body.parent ?? root).add(patch); // only in the graph once it is bound — a throw above leaves nothing behind
+      patch.updateMatrixWorld(true);
+      meshes[side] = patch;
     }
+    if (!meshes.front && !meshes.back) return null;
 
     let dead = false;
-
-    // THE BACK PLANES RIDE THE POSE. Everything above is a bind-pose read, and
-    // the cloth over the shoulder blades does not stay where bind pose left it
-    // (see SETTLE_EVERY_MS). So the same vertices get re-read a few times a
-    // second and the two back planes sit at the DEEPEST the shirt has been over
-    // the last few beats — the shirt can never close over the marks, and the
-    // window means they follow it back in instead of floating out there for
-    // good. The front is left exactly where it was measured: its cloth is spine
-    // -skinned, it does not swing, and it has been right on screen for rounds.
-    // The window is a fixed RING, not a growing list: two Float64Arrays and a
-    // cursor, seeded with the bind read (which the rail below guarantees is the
-    // shallowest thing in it, so pre-filling changes no answer) and overwritten
-    // one slot a beat. What it replaces allocated an object, two mapped arrays
-    // and two spreads on every beat of every player.
-    const bindUpper = Number.isFinite(depth.backUpper) ? depth.backUpper : depth.back;
-    const seenBack = new Float64Array(SETTLE_KEEP).fill(depth.back);
-    const seenUpper = new Float64Array(SETTLE_KEEP).fill(bindUpper);
-    let seenAt = 0;
-    // A pose read may only ever ADD clearance. Halfway through a kick the torso
-    // is twisted far enough that the "back" of the shirt is barely behind the
-    // rig at all (monarchs read −0.105 against a bind −0.160), and a plane that
-    // followed THAT would climb inside the shirt and take the number with it.
-    // So: never shallower than the bind read, and never more than SETTLE_MAX_M
-    // deeper than it.
-    const rail = (bindZ, z) => (Number.isFinite(z)
-      ? Math.min(bindZ, Math.max(z, bindZ - SETTLE_MAX_M))
-      : bindZ);
-    const settle = () => {
-      if (dead || !depth.resample) return false;
-      const r = depth.resample();
-      // A read can come back empty for one beat — a matrix mid-update, a frame
-      // the animation system has half-written. That is a beat to SKIP, not a
-      // reason to retire the player for the rest of the match: the planes stay
-      // where the window last put them and the next beat tries again.
-      if (!r) return true;
-      seenBack[seenAt] = rail(depth.back, r.back);
-      seenUpper[seenAt] = rail(bindUpper, r.backUpper);
-      seenAt = (seenAt + 1) % SETTLE_KEEP;
-      let deepBack = Infinity; let deepUpper = Infinity;
-      for (let i = 0; i < SETTLE_KEEP; i++) {
-        if (seenBack[i] < deepBack) deepBack = seenBack[i];
-        if (seenUpper[i] < deepUpper) deepUpper = seenUpper[i];
-      }
-      meshes.back.position.z = deepBack - SURFACE_GAP_M;
-      meshes.backMark.position.z = deepUpper - SURFACE_GAP_M;
-      return true;
-    };
-    // …and this player's slot in the beat. Seeded from the FIRST frame it sees
-    // rather than from 0, so the offset is real wall-clock spacing however long
-    // the character took to build; every beat after that is scheduled off the
-    // frame it ran in, which keeps the slots apart instead of re-converging.
-    const phase = SETTLE_EVERY_MS * ((settleSeq++ % SETTLE_PHASES) / SETTLE_PHASES);
-    let nextBeat = -1;
-    addSettler((t) => {
-      if (dead) return false;
-      if (nextBeat < 0) { nextBeat = t + phase; return true; }
-      if (t < nextBeat) return true;
-      nextBeat = t + SETTLE_EVERY_MS;
-      return settle();
-    });
-
     const ready = Promise.all([
       loadLogoImage(logoUrl),
       // Archivo comes off the page's webfont; drawing before it lands gives a
@@ -1212,17 +955,16 @@ export function attachJerseyDecals(char, { logoUrl = '', number = '', ink = null
       Promise.resolve(document?.fonts?.load?.(`900 100px ${FONT_STACK}`)).catch(() => null),
     ]).then(([img]) => {
       if (dead) return;
-      // One texture per FACE, however many planes that face is cut into: the
-      // two back halves share the back canvas and each samples its own rows.
-      const tex = {
-        front: decalTexture(img, number, paint, 'front'),
-        back: decalTexture(img, number, paint, 'back'),
-      };
-      for (const f of faces) {
-        const mesh = meshes[f.key];
-        mesh.material.map = tex[f.side];
-        mesh.material.needsUpdate = true;
-        mesh.visible = true;
+      for (const side of ['front', 'back']) {
+        const m = meshes[side];
+        if (!m) continue;
+        // A face whose shirt cannot carry the mark gets the NUMBER alone: a
+        // badge four fifths eaten by a racerback reads as a glitch. Passing
+        // null re-uses `paintFace`'s own number-only path and keys its own
+        // cache entry, which every player in the same fix then shares.
+        m.material.map = decalTexture(marks[side] ? img : null, number, paint, side);
+        m.material.needsUpdate = true;
+        m.visible = true;
       }
     }).catch(() => {});
 
@@ -1232,10 +974,10 @@ export function attachJerseyDecals(char, { logoUrl = '', number = '', ink = null
         m.removeFromParent();
         m.geometry.dispose();
         m.material.dispose(); // the MAP is shared via the cache — never here
+        // the SKELETON is the body's; disposing it here would blank the player
       }
-      rig.removeFromParent();
     };
-    return { front: meshes.front, back: meshes.back, backMark: meshes.backMark, ready, settle, dispose };
+    return { front: meshes.front ?? null, back: meshes.back ?? null, triangles, marks, cover, ready, dispose };
   } catch (e) {
     console.warn('[skk] jersey decals unavailable:', e);
     return null; // cosmetic only — never block a character build

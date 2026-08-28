@@ -286,10 +286,12 @@ function applyCleatVertexTint(mesh, cleatHex) {
  * recoloured texture deliberately does NOT carry it.
  */
 export function disposeCharacter(char) {
-  // The jersey decals own two plane geometries + two materials per character
-  // and BORROW their texture from the shared decal cache — their own dispose()
-  // knows the difference, so let it go first (the traverse below would free the
-  // same geometry/material anyway, but never the rig group's parenting).
+  // The jersey decals own two skinned PATCH meshes per character — geometry cut
+  // from this body's own chest/back triangles, plus a material each — and
+  // BORROW both their texture (the shared decal cache) and their SKELETON (the
+  // body's). Their own dispose() knows the difference, so let it go first: the
+  // traverse below would free the same geometry/material, but it would also
+  // dispose a patch's skeleton, which is the player's.
   try { char?.decals?.dispose?.(); } catch { /* cosmetic */ }
   // the headband / wristbands / shades own their geometry + material and hang
   // off a rig group on a bone — same deal, let them let go first
@@ -703,10 +705,11 @@ export async function buildGlbCharacter(def, { heightM = 2.05, clips = null } = 
   // The SPINE is deliberately not on the list. A lateral spine scale is the
   // strongest build signal there is — it widens the torso and swings the whole
   // arm chain out with it — but it also makes the chest bone's world scale
-  // ANISOTROPIC (x,z scaled, y not), and the jersey decal hangs off that bone
-  // through a rig that cancels it with ONE uniform factor. Widening the torso
-  // therefore drags the crew mark up the shirt and squashes it. Shoulders and
-  // up-legs buy most of the look and leave the decal's maths untouched.
+  // ANISOTROPIC (x,z scaled, y not), and the jersey decal states its window and
+  // its uv projection in a frame that cancels that scale with ONE uniform
+  // factor. Widening the torso therefore drags the crew mark up the shirt and
+  // squashes it. Shoulders and up-legs buy most of the look and leave the
+  // decal's maths untouched.
   applyBuildScale(bones, def.cast?.build ?? 1);
 
   const which = chooseAnimator({ clips, forceCode: def.forceCode ?? false });

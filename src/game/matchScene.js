@@ -4550,10 +4550,8 @@ export class MatchScene {
     this.hud.destroy();
     this.engine.scene.remove(this.field.root, this.ball.mesh);
     // THE SIXTEEN GO WITH THE SCENE. Taking a character off the graph is not
-    // letting go of it: its decals keep a rAF settler beating in jerseyDecals'
-    // module-level Set for the life of the tab (menu → match → menu → match used
-    // to leave sixteen dead drivers running per match, forever), and its cloned
-    // materials, per-character geometries, skeleton bone textures and accessory
+    // letting go of it: its decals own two skinned patch geometries + materials,
+    // and its cloned materials, per-character geometries, skeleton bone textures and accessory
     // meshes stay on the GPU. `disposeCharacter` frees exactly what the build
     // ALLOCATED — the shared GLTF geometry and the recoloured atlas out of
     // `recolorCache` are borrowed, carry no `userData.owned`, and survive for
