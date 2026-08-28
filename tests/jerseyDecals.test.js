@@ -1,9 +1,10 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import * as THREE from 'three';
 import {
   layoutFront, layoutBack, faceBoxes, stackFace, fitBox, decalKey, decalTexture,
   findChestBone, clearDecalCache, decalCacheSize, loadLogoImage, oppositeInk, fallOff,
   isShirtBone, isCrestBone, thin, percentile, attachJerseyDecals, backSplitY, backMarkBand,
+  settlerCount,
   DECAL_CACHE_MAX, DECAL_PX, PLANE_M, OUTLINE_RATIO, NUM_EDGE_RATIO, CHEST_DROP_M, BACK_HALF_W,
   SURFACE_GAP_M,
 } from '../src/game/jerseyDecals.js';
@@ -696,7 +697,13 @@ describe('the back planes ride the POSE, not just the bind read', () => {
   // This rig reproduces exactly that: the crest band's cloth hangs off a
   // SHOULDER bone, so moving that bone moves the shirt WITHOUT moving the decal
   // rig (which hangs off the chest).
-  function shoulderBackRig({ numZ = -0.19, upperZ = -0.19 } = {}) {
+  //
+  // `clothW` is the SHOULDER's share of that cloth: real cloth over the blades
+  // is blended shoulder+spine (it is on the trunk), and `hairZ` optionally adds
+  // a braid — the same joint, the same band, but weighted 1.0 to the shoulder
+  // and nothing to the spine, which is what a hanging strand looks like on
+  // every archetype GLB.
+  function shoulderBackRig({ numZ = -0.19, upperZ = -0.19, clothW = 0.75, hairZ = null, hairN = 300 } = {}) {
     const group = new THREE.Group();
     const hips = new THREE.Bone(); hips.name = 'Hips'; hips.position.set(0, 1.0, 0);
     group.add(hips);
@@ -718,18 +725,24 @@ describe('the back planes ride the POSE, not just the bind read', () => {
     const upperY = chestWorldY + (band.lo + band.hi) / 2;
     const numY = chestWorldY - 0.28;
 
-    const pts = []; const slot = [];
-    const at = (y, z, n, s) => { for (let i = 0; i < n; i++) { pts.push(0, y, z); slot.push(s); } };
+    const pts = []; const slot = []; const share = [];
+    const at = (y, z, n, s, w = 1) => {
+      for (let i = 0; i < n; i++) { pts.push(0, y, z); slot.push(s); share.push(w); }
+    };
     at(numY, numZ, 300, chestIdx);        // the number's band — spine cloth
     at(numY, 0.16, 300, chestIdx);
-    at(upperY, upperZ, 24, shoulderIdx);  // the crest's band — SHOULDER cloth
+    at(upperY, upperZ, 24, shoulderIdx, clothW); // the crest's band — SHOULDER cloth, on the trunk
     at(upperY, 0.16, 24, chestIdx);
+    if (hairZ !== null) at(upperY, hairZ, hairN, shoulderIdx, 1); // …and a braid: pure shoulder
 
     const n = pts.length / 3;
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
     const si = new Uint16Array(n * 4); const swt = new Float32Array(n * 4);
-    for (let i = 0; i < n; i++) { si[i * 4] = slot[i]; swt[i * 4] = 1; }
+    for (let i = 0; i < n; i++) {
+      si[i * 4] = slot[i]; swt[i * 4] = share[i];
+      si[i * 4 + 1] = chestIdx; swt[i * 4 + 1] = 1 - share[i]; // the spine's share, if any
+    }
     geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
     geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(swt, 4));
     const mesh = new THREE.SkinnedMesh(geo, new THREE.MeshStandardMaterial());
@@ -747,12 +760,13 @@ describe('the back planes ride the POSE, not just the bind read', () => {
     const bindZ = acc.backMark.position.z;
     expect(bindZ).toBeCloseTo(-0.19 - SURFACE_GAP_M, 6); // one depth, bind pose
 
-    // …now stand the player up: the shoulder swings the cloth 5 cm back.
+    // …now stand the player up: the shoulder swings the cloth back with it, by
+    // the shoulder's own share of that cloth's skin weight (0.75 × 5 cm).
     shoulder.position.z -= 0.05;
     group.updateMatrixWorld(true);
     expect(acc.settle()).toBe(true);
     expect(acc.backMark.position.z, 'the crest went with the cloth')
-      .toBeCloseTo(-0.24 - SURFACE_GAP_M, 3);
+      .toBeCloseTo(-0.19 - 0.75 * 0.05 - SURFACE_GAP_M, 3);
     expect(acc.back.position.z, 'the number, on spine cloth, did not move')
       .toBeCloseTo(-0.19 - SURFACE_GAP_M, 6);
     acc.dispose();
@@ -799,6 +813,166 @@ describe('the back planes ride the POSE, not just the bind read', () => {
     acc.dispose();
     expect(acc.settle()).toBe(false);
   });
+
+  it('a beat that reads nothing is a beat SKIPPED, not a player retired', async () => {
+    const { group } = shoulderBackRig();
+    const acc = attachJerseyDecals({ group }, { number: 7, ink: '#f4f4f6' });
+    await acc.ready;
+    const shirt = group.getObjectByName('jersey-decals').userData.shirt;
+    const real = shirt.resample;
+    const where = acc.backMark.position.z;
+    shirt.resample = () => null;              // one bad frame — a half-written matrix
+    expect(acc.settle(), 'the settler stays on the field').toBe(true);
+    expect(acc.backMark.position.z, 'and the planes stay where they were').toBe(where);
+    shirt.resample = real;
+    expect(acc.settle()).toBe(true);
+    acc.dispose();
+  });
+
+  it('keeps the deepest of the last few beats in a fixed ring, then lets go', async () => {
+    // SETTLE_KEEP beats of memory: the shirt can never close over the marks
+    // mid-swing, and the planes come back in afterwards instead of floating out
+    // there for good. The ring is pre-seeded with the bind read, which the rail
+    // makes the shallowest thing in it, so it can only ever be the answer when
+    // nothing deeper has been seen.
+    const { group, shoulder } = shoulderBackRig();
+    const acc = attachJerseyDecals({ group }, { number: 7, ink: '#f4f4f6' });
+    await acc.ready;
+    const bind = acc.backMark.position.z;
+    shoulder.position.z -= 0.06;              // one deep beat…
+    group.updateMatrixWorld(true);
+    acc.settle();
+    const deep = acc.backMark.position.z;
+    expect(deep).toBeLessThan(bind - 0.03);
+    shoulder.position.z += 0.06;              // …then the pose comes back
+    group.updateMatrixWorld(true);
+    for (let i = 0; i < 5; i++) acc.settle();  // SETTLE_KEEP − 1 beats
+    expect(acc.backMark.position.z, 'still clearing the deepest it has seen').toBe(deep);
+    acc.settle();                              // the deep beat rolls out of the ring
+    expect(acc.backMark.position.z, 'and then it lets go').toBeCloseTo(bind, 6);
+    acc.dispose();
+  });
+});
+
+describe('the crest votes on CLOTH, never on hair — the arch-braids bug', () => {
+  // Bug, 2026-08-28. CREST_WINDOW_M was supposed to keep hair out of the crest
+  // read: real cloth is a few cm off the number band, and braids hang 13–16 cm
+  // off it. But arch-braids' box braids are not a cluster out at 16 cm — they
+  // are a CONTINUUM from the shirt to the waist, 5018 candidates in the crest
+  // band alone, and a continuum always has a member sitting exactly on the
+  // window's edge. So `backUpper − back` came out at 0.0700 — CREST_WINDOW_M to
+  // four decimals, the clamp rather than a measurement — and moving the
+  // shoulder moved it 0.0000, because the clamp was doing all the deciding.
+  // The badge hung 7 cm off the shirt, floating in the hair.
+  //
+  // Nothing but the SKIN WEIGHTS separates them: the archetype GLBs are one
+  // welded shell under one material on an atlas whose islands overlap, so
+  // neither connectivity nor the vertex's own texel can tell a braid from the
+  // vest. A braid is ~1.0 to a shoulder with no spine weight; cloth over the
+  // blades is blended shoulder+spine, because it is on the trunk.
+  function braidedBackRig({ numZ = -0.19, clothZ = -0.20, hairZ = -0.26, hairN = 400, clothW = 0.75 } = {}) {
+    const group = new THREE.Group();
+    const hips = new THREE.Bone(); hips.name = 'Hips'; hips.position.set(0, 1.0, 0);
+    group.add(hips);
+    const spine = new THREE.Bone(); spine.name = 'Spine'; spine.position.set(0, 0.2, 0);
+    hips.add(spine);
+    const spine1 = new THREE.Bone(); spine1.name = 'Spine1'; spine1.position.set(0, 0.15, 0);
+    spine.add(spine1);
+    const chest = new THREE.Bone(); chest.name = 'Spine2'; chest.position.set(0, 0.15, 0);
+    spine1.add(chest);
+    const shoulder = new THREE.Bone(); shoulder.name = 'RightShoulder'; shoulder.position.set(0, 0.05, 0);
+    chest.add(shoulder);
+    group.updateMatrixWorld(true);
+    const bones = []; group.traverse((o) => { if (o.isBone) bones.push(o); });
+    const chestIdx = bones.indexOf(chest);
+    const shoulderIdx = bones.indexOf(shoulder);
+    const band = backMarkBand();
+    const upperY = 1.5 + (band.lo + band.hi) / 2;
+    const numY = 1.5 - 0.28;
+
+    const pts = []; const rows = [];
+    const at = (y, z, n, s, w) => {
+      for (let i = 0; i < n; i++) { pts.push(0, y, z); rows.push([s, w]); }
+    };
+    at(numY, numZ, 300, chestIdx, 1);                 // the number's band
+    at(numY, 0.16, 300, chestIdx, 1);
+    at(upperY, clothZ, 24, shoulderIdx, clothW);      // the vest over the blades
+    at(upperY, 0.16, 24, chestIdx, 1);
+    // …and the braids: the SAME joint, the SAME band, all the way from just
+    // behind the cloth to well past the window — no gap anywhere.
+    for (let k = 0; k < hairN; k++) {
+      at(upperY, clothZ - 0.005 - (k / hairN) * (Math.abs(hairZ - clothZ) + 0.10), 1, shoulderIdx, 1);
+    }
+
+    const n = pts.length / 3;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    const si = new Uint16Array(n * 4); const swt = new Float32Array(n * 4);
+    for (let i = 0; i < n; i++) {
+      si[i * 4] = rows[i][0]; swt[i * 4] = rows[i][1];
+      si[i * 4 + 1] = chestIdx; swt[i * 4 + 1] = 1 - rows[i][1];
+    }
+    geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
+    geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(swt, 4));
+    const mesh = new THREE.SkinnedMesh(geo, new THREE.MeshStandardMaterial());
+    group.add(mesh);
+    mesh.bind(new THREE.Skeleton(bones), new THREE.Matrix4());
+    group.updateMatrixWorld(true);
+    return { group, shoulder };
+  }
+
+  it('sits on the vest, not out in the braids — and not on the window clamp', async () => {
+    const numZ = -0.19; const clothZ = -0.20;
+    const { group } = braidedBackRig({ numZ, clothZ });
+    const acc = attachJerseyDecals({ group }, { number: 7, ink: '#f4f4f6' });
+    await acc.ready;
+    const shirt = group.getObjectByName('jersey-decals').userData.shirt;
+    expect(shirt.back).toBeCloseTo(numZ, 3);
+    expect(shirt.backUpper, 'the crest reads the CLOTH').toBeCloseTo(clothZ, 3);
+    // the tell-tale of the bug: the read landing exactly on CREST_WINDOW_M
+    expect(Math.abs(shirt.backUpper - shirt.back), 'a measurement, not the 7 cm clamp')
+      .toBeLessThan(0.03);
+    expect(acc.backMark.position.z).toBeCloseTo(clothZ - SURFACE_GAP_M, 3);
+    acc.dispose();
+  });
+
+  it('and the pose still moves it — the clamp is not doing the deciding', async () => {
+    // The diagnostic that named the bug: with hair voting, shoving the shoulder
+    // 6 cm deeper moved the crest plane 0.0000, because the vote was pinned to
+    // `back − CREST_WINDOW_M` either way. The cloth's own share of the joint is
+    // what has to move it now.
+    const { group, shoulder } = braidedBackRig();
+    const acc = attachJerseyDecals({ group }, { number: 7, ink: '#f4f4f6' });
+    await acc.ready;
+    const before = acc.backMark.position.z;
+    shoulder.position.z -= 0.06;
+    group.updateMatrixWorld(true);
+    acc.settle();
+    expect(before - acc.backMark.position.z, 'the crest followed the cloth out')
+      .toBeCloseTo(0.75 * 0.06, 2);
+    acc.dispose();
+  });
+
+  it('hair that is ALL shoulder never votes; cloth that shares the trunk always does', async () => {
+    // The bar is a tenth of the vertex's weight. Measured on the archetype set:
+    // at 0.10 every one of arch-bald's 22 blade-cloth voters survives and the
+    // read is unchanged; at 0.25 it starts losing them.
+    const onTheTrunk = braidedBackRig({ clothZ: -0.20, hairZ: -0.30 });
+    const a = attachJerseyDecals({ group: onTheTrunk.group }, { number: 7, ink: '#f4f4f6' });
+    await a.ready;
+    expect(onTheTrunk.group.getObjectByName('jersey-decals').userData.shirt.backUpper)
+      .toBeCloseTo(-0.20, 3);
+    a.dispose();
+
+    // …the same rig with that cloth cut loose from the spine reads as hair and
+    // gets no vote at all, so the crest falls back to the number's own depth
+    // rather than chasing something that might be a braid.
+    const cutLoose = braidedBackRig({ clothZ: -0.20, hairZ: -0.30, clothW: 1 });
+    const b = attachJerseyDecals({ group: cutLoose.group }, { number: 7, ink: '#f4f4f6' });
+    await b.ready;
+    expect(b.backMark.position.z).toBeCloseTo(b.back.position.z, 6);
+    b.dispose();
+  });
 });
 
 describe('measuring the shirt, not the hair', () => {
@@ -831,6 +1005,102 @@ describe('measuring the shirt, not the hair', () => {
     expect(Number.isNaN(percentile(null, 0.5))).toBe(true);
     expect(percentile([1, 2, 3, 4, 5], 0)).toBe(1);
     expect(percentile([1, 2, 3, 4, 5], 1)).toBe(5);
+  });
+});
+
+describe('one shared driver, and the squad staggered across it', () => {
+  // Every settler used to seed its first beat from the SHARED rAF timestamp, so
+  // all 16 players came due in the same frame every 200 ms — one 5 ms spike,
+  // five times a second, on a phone that owes the compositor 16 ms. They take
+  // slots now. (vitest runs in node with no rAF at all, which is why the module
+  // simply never starts a driver there; stand one up by hand.)
+  const queue = [];
+  const live = [];
+  let hadRaf = false;
+  beforeEach(() => {
+    hadRaf = 'requestAnimationFrame' in globalThis;
+    if (!hadRaf) globalThis.requestAnimationFrame = (fn) => queue.push(fn);
+    queue.length = 0;
+  });
+  afterEach(() => {
+    // whatever the test did, leave the shared driver empty for the next one
+    for (const acc of live.splice(0)) acc.dispose();
+    for (const fn of queue.splice(0)) fn(1e7);
+    queue.length = 0;
+    if (!hadRaf) delete globalThis.requestAnimationFrame;
+  });
+  /** One frame at `t` ms: drain what the driver asked for, let it re-book. */
+  const frame = (t) => { for (const fn of queue.splice(0)) fn(t); };
+  const dress = async (group, number) => {
+    const acc = attachJerseyDecals({ group }, { number, ink: '#f4f4f6' });
+    await acc.ready;
+    live.push(acc);
+    return acc;
+  };
+
+  function plainRig() {
+    const group = new THREE.Group();
+    const hips = new THREE.Bone(); hips.name = 'Hips'; hips.position.set(0, 1.0, 0);
+    group.add(hips);
+    const chest = new THREE.Bone(); chest.name = 'Spine2'; chest.position.set(0, 0.5, 0);
+    hips.add(chest);
+    group.updateMatrixWorld(true);
+    const bones = []; group.traverse((o) => { if (o.isBone) bones.push(o); });
+    const chestIdx = bones.indexOf(chest);
+    const pts = [];
+    for (let i = 0; i < 300; i++) pts.push(0, 1.22, -0.19);
+    for (let i = 0; i < 300; i++) pts.push(0, 1.22, 0.16);
+    const n = pts.length / 3;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    const si = new Uint16Array(n * 4); const swt = new Float32Array(n * 4);
+    for (let i = 0; i < n; i++) { si[i * 4] = chestIdx; swt[i * 4] = 1; }
+    geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
+    geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(swt, 4));
+    const mesh = new THREE.SkinnedMesh(geo, new THREE.MeshStandardMaterial());
+    group.add(mesh);
+    mesh.bind(new THREE.Skeleton(bones), new THREE.Matrix4());
+    group.updateMatrixWorld(true);
+    return group;
+  }
+
+  it('never beats the whole squad in one frame, and gives everyone a beat', async () => {
+    const squad = []; const beats = new Array(16).fill(0);
+    let firedThisFrame = 0;
+    for (let i = 0; i < 16; i++) {
+      const group = plainRig();
+      const acc = await dress(group, i);
+      // count real beats: the settler reaches `resample` through this object
+      const shirt = group.getObjectByName('jersey-decals').userData.shirt;
+      const real = shirt.resample;
+      shirt.resample = () => { beats[i] += 1; firedThisFrame += 1; return real(); };
+      squad.push(acc);
+    }
+    expect(settlerCount(), 'one driver, sixteen settlers').toBe(16);
+
+    let worst = 0;
+    for (let f = 0; f <= 30; f++) {          // half a second at 60 Hz
+      firedThisFrame = 0;
+      frame(f * 16.7);
+      worst = Math.max(worst, firedThisFrame);
+    }
+    expect(worst, 'a 16-man field spread over 8 slots is 2 a frame').toBeLessThanOrEqual(2);
+    expect(Math.min(...beats), 'and every player still gets its beat').toBeGreaterThanOrEqual(1);
+
+    for (const acc of squad) acc.dispose();
+    frame(1000);
+    expect(settlerCount(), 'the last dispose empties the driver').toBe(0);
+  });
+
+  it('drops a disposed player on the next frame and stops asking for frames', async () => {
+    const acc = await dress(plainRig(), 7);
+    expect(settlerCount()).toBe(1);
+    frame(16);
+    expect(queue.length, 'it books the next frame while anyone is settling').toBe(1);
+    acc.dispose();
+    frame(32);
+    expect(settlerCount()).toBe(0);
+    expect(queue.length, 'and stops booking frames when nobody is').toBe(0);
   });
 });
 

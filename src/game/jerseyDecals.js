@@ -153,10 +153,39 @@ const CREST_REACH_M = 0.06;
  *  triangle a corner belongs to. */
 const CREST_LIVE_M = 0.03;
 /** Three vertices IS the data up there. arch-bald puts four in the badge's own
- *  footprint, and what protects the read is not sample count but the three
- *  gates every one of them passed: a shirt/shoulder joint, the badge's own
- *  footprint, and CREST_WINDOW_M of the number band's depth. */
+ *  footprint, and what protects the read is not sample count but the four
+ *  gates every one of them passed: a shirt/shoulder joint carrying real trunk
+ *  weight, the badge's own footprint, and CREST_WINDOW_M of the number band. */
 const CREST_MIN_VOTES = 3;
+/** …AND THE VOTE MUST BE CLOTH — bug fix, 2026-08-28. CREST_WINDOW_M alone does
+ *  NOT keep hair out: on arch-braids (waist-length box braids, every strand
+ *  skinned to a SHOULDER joint and welded into the same single-material mesh as
+ *  the vest) the crest band holds 5018 candidates running from −0.13 to −0.29,
+ *  a continuum with no gap between cloth and hair. A continuum always has a
+ *  member sitting exactly on the window's edge, so the read came out at
+ *  `back − CREST_WINDOW_M` to four decimals — 0.0700, the clamp, not a
+ *  measurement — and shoving the shoulder 6 cm deeper moved it 0.0000, because
+ *  the clamp was doing all the deciding. The crest then hung 7 cm off the
+ *  shirt: a badge floating in the braids.
+ *
+ *  What tells them apart is the SKIN WEIGHTS, and nothing else does. Measured
+ *  on all 20 archetype GLBs: they are ONE welded shell (a connected-component
+ *  pass returns a single component — hair is not its own object), under ONE
+ *  material, on an atlas whose islands overlap (the same reason cleats had to
+ *  be tinted by geometry), so a braid vertex's own texel can read as clean kit
+ *  white. But a braid hanging off a shoulder is weighted ~1.0 to that shoulder
+ *  and carries NO spine weight at all, while cloth over the shoulder blades is
+ *  blended shoulder+spine — it is on the trunk. So: to vote on the crest, the
+ *  SHIRT bones must hold at least this much of the vertex's weight.
+ *
+ *  A tenth, measured. On arch-braids it drops 1517 of 1560 voters and takes
+ *  `backUpper − back` from 0.0700 (the clamp) to 0.0057 bind / 0.027 in the
+ *  Locker idle. On arch-bald — the P0 this whole crest read exists for, whose
+ *  blade cloth IS shoulder-dominant — every one of its 22 voters survives at
+ *  0.10 and the read is unchanged to four decimals; at 0.25 it starts losing
+ *  them (−0.1941 → −0.1866), which is why the bar is a tenth and not a quarter.
+ *  Every other archetype reads within 1 mm of what it read before. */
+const CREST_SHIRT_WEIGHT_MIN = 0.10;
 /** THE SHIRT MOVES AND THE DECAL DOESN'T. `measureShirt` reads the mesh in BIND
  *  POSE, but the cloth it measures is skinned: the moment arch-bald's rig drops
  *  its arms out of the bind A-pose, the shoulder-skinned cloth over its blades
@@ -167,13 +196,29 @@ const CREST_MIN_VOTES = 3;
  *  holds THREE vertices, far too few to read. So the sample set is chosen once
  *  in bind pose and those same vertices are re-read against the live pose a few
  *  times a second, with the back planes sitting at the deepest the shirt has
- *  been over the last `SETTLE_KEEP` beats. A few hundred vertices per beat —
- *  the whole squad costs well under a millisecond of a frame. */
+ *  been over the last `SETTLE_KEEP` beats. Up to 768 vertices per beat per
+ *  player; MEASURED on a saturated 16-man bench, a whole-squad beat costs
+ *  0.95 ms and allocates nothing, and SETTLE_PHASES spreads even that over
+ *  eight frames — call it two players and a tenth of a millisecond in any one.
+ *  (It was 5.9 ms and 21 scavenges a beat before the round-5 pass: the layout
+ *  rebuild in `overMark`, an array per vertex, and the whole squad due in the
+ *  same frame.) */
 const SETTLE_EVERY_MS = 200;
 const SETTLE_KEEP = 6;
+/** HOW MANY FRAMES THE SQUAD'S BEATS ARE SPREAD OVER. Every settler used to
+ *  seed `nextBeat` from the shared rAF timestamp, so all 16 players came due in
+ *  the SAME frame every 200 ms: a 5 ms spike five times a second on a phone
+ *  that owes the compositor 16. Each settler now takes a slot — its first beat
+ *  is pushed out by `SETTLE_EVERY_MS × slot / SETTLE_PHASES` — and keeps it,
+ *  because every following beat is scheduled off the frame it actually ran in.
+ *  Eight slots over a 16-man field is two players a frame. */
+const SETTLE_PHASES = 8;
 /** …and the pose read can never drag a plane further than this off the bind
  *  read, metres: an animation that folds the mesh in half must not take the
- *  marks with it. */
+ *  marks with it. It is a BACKSTOP, not a working limit — measured across the
+ *  archetype set in the Locker idle, the deepest a pose ever asks for is about
+ *  5 cm (4.7 on arch-curls, 3.5 on arch-bald), so the rail has never actually
+ *  bitten on a real clip. Anything that reaches it is a fold, not a shirt. */
 const SETTLE_MAX_M = 0.08;
 /** Ceiling on how many vertices a re-read walks per column. */
 const SETTLE_SAMPLE_MAX = 256;
@@ -669,27 +714,42 @@ function measureShirt(root, bone, rig, dropM) {
     const v = new THREE.Vector3();
     const blended = new THREE.Vector3();
     const tmp = new THREE.Vector3();
+    // A vertex's four skin slots and their weights, re-filled per call. These
+    // used to be two fresh 4-element arrays plus a `Math.max(...w)` spread on
+    // EVERY vertex — 768 vertices a beat per player, 16 players, five times a
+    // second. Nothing in the beat may allocate; see `resample`.
+    const vJoint = new Int32Array(4);
+    const vWeight = new Float32Array(4);
+    /** The SHIRT bones' share of the weight of the vertex `place` last read,
+     *  0..1 — the crest's cloth gate (see CREST_SHIRT_WEIGHT_MIN). Left here
+     *  rather than returned so the hot path still hands back a plain number. */
+    let placeShirtW = 1;
 
     /** Blend-skin vertex `i` into rig-local space through `xforms` — the same
      *  weighted sum the GPU skins with. Returns its DOMINANT skeleton slot, or
-     *  −1 where it has no usable weights (then `fallback` places it). */
+     *  −1 where it has no usable weights (then `fallback` places it), and sets
+     *  `placeShirtW` on the way through. */
     const place = (i, xforms, fallback, out) => {
       v.fromBufferAttribute(pos, i);
-      if (!xforms) { out.copy(v).applyMatrix4(fallback); return -1; }
-      const idxs = [si.getX(i), si.getY(i), si.getZ(i), si.getW(i)];
-      const w = [sw.getX(i), sw.getY(i), sw.getZ(i), sw.getW(i)];
-      const domIdx = w.indexOf(Math.max(...w));
-      const domSlot = w[domIdx] > 0 ? idxs[domIdx] : -1;
-      let usedW = 0;
+      if (!xforms) { out.copy(v).applyMatrix4(fallback); placeShirtW = 1; return -1; }
+      vJoint[0] = si.getX(i); vJoint[1] = si.getY(i); vJoint[2] = si.getZ(i); vJoint[3] = si.getW(i);
+      vWeight[0] = sw.getX(i); vWeight[1] = sw.getY(i); vWeight[2] = sw.getZ(i); vWeight[3] = sw.getW(i);
+      let domSlot = -1; let domW = 0; let totW = 0; let shirtW = 0; let usedW = 0;
       out.set(0, 0, 0);
       for (let k = 0; k < 4; k++) {
-        if (!(w[k] > 0)) continue;
-        const xf = xforms[idxs[k]];
+        const w = vWeight[k];
+        if (!(w > 0)) continue;
+        const j = vJoint[k];
+        totW += w;
+        if (shirtSlot[j]) shirtW += w;
+        if (w > domW) { domW = w; domSlot = j; }   // ties go to the first, as before
+        const xf = xforms[j];
         if (!xf) continue;
         tmp.copy(v).applyMatrix4(xf);
-        out.addScaledVector(tmp, w[k]);
-        usedW += w[k];
+        out.addScaledVector(tmp, w);
+        usedW += w;
       }
+      placeShirtW = totW > 0 ? shirtW / totW : 0;
       if (usedW > 0) out.multiplyScalar(1 / usedW);
       else out.copy(v).applyMatrix4(fallback); // no bone had a usable transform
       return domSlot;
@@ -709,7 +769,10 @@ function measureShirt(root, bone, rig, dropM) {
     for (let i = 0; i < pos.count; i++) {   // EVERY vertex — no stride to alias
       const domSlot = place(i, boneXform, chestXform, blended);
       vx[i] = blended.x; vy[i] = blended.y; vz[i] = blended.z;
-      crestOk[i] = (!filtering || (domSlot >= 0 && crestSlot[domSlot])) ? 1 : 0;
+      // WHO MAY VOTE ON THE CREST: a shirt or shoulder joint, AND a real share
+      // of trunk weight — a braid hanging off that same shoulder has none.
+      crestOk[i] = (!filtering
+        || (domSlot >= 0 && crestSlot[domSlot] && placeShirtW >= CREST_SHIRT_WEIGHT_MIN)) ? 1 : 0;
       const ax = Math.abs(blended.x);
       if (ax > TRUNK_SAMPLE_HALF_W) continue;               // trunk, not arms
       if (Math.abs(blended.y + dropM) > PLANE_M / 2) continue; // the band the decal covers
@@ -734,6 +797,12 @@ function measureShirt(root, bone, rig, dropM) {
       }
     }
 
+    // THE BADGE'S BOX, SOLVED ONCE. `faceBoxes('back')` runs a sort and builds
+    // a fresh layout every call, and `overMark` below used to call it PER
+    // CANDIDATE VERTEX — 8192 rebuilds per 16-player beat, two thirds of the
+    // beat's time and most of its garbage. It is a pure function of constants.
+    const backLogo = faceBoxes('back').logo;
+
     // THE CREST'S SAMPLE SET: the cloth that can actually draw over the mark.
     // A vertex COLUMN is not enough on a sparse mesh — arch-bald puts four
     // vertices in the badge's own column, and the triangles that cover the
@@ -748,7 +817,7 @@ function measureShirt(root, bone, rig, dropM) {
       // …grown by CREST_REACH_M, because the set is chosen in BIND pose and the
       // cloth that ends up over the badge is not the cloth that was over it in
       // the T-pose.
-      const half = faceBoxes('back').logo.w / 2 + CREST_REACH_M;
+      const half = backLogo.w / 2 + CREST_REACH_M;
       const lo = markBand.lo - CREST_REACH_M;
       const hi = markBand.hi + CREST_REACH_M;
       const index = skinned.geometry.getIndex?.();
@@ -785,26 +854,42 @@ function measureShirt(root, bone, rig, dropM) {
     // and the crest's own strip of it. Strided down if a dense mesh hands us
     // thousands — the percentile does not get better past a few hundred, and
     // these are walked again on every pose beat.
-    const colAt = thin(mid.length >= MIN_SAMPLES ? midAt : nearAt);
+    // The per-beat walk lists, as typed arrays: chosen once here, then read on
+    // every pose beat for the life of the player.
+    const colAt = Int32Array.from(thin(mid.length >= MIN_SAMPLES ? midAt : nearAt));
     const triAt = crestTriangleSet();
     // the covering triangles when there are any, the plain column when the mesh
     // has no index buffer or nothing overlaps (then it reads as it did before).
     // A looser cap than the column's: this one is read at its DEEPEST, not at a
     // percentile, so thinning it costs accuracy rather than just resolution.
-    const upAt = thin(triAt.length >= MIN_SAMPLES_HARD
+    const upAt = Int32Array.from(thin(triAt.length >= MIN_SAMPLES_HARD
       ? triAt
-      : (upperMid.length >= MIN_SAMPLES ? upMidAt : upNearAt), SETTLE_SAMPLE_MAX * 2);
+      : (upperMid.length >= MIN_SAMPLES ? upMidAt : upNearAt), SETTLE_SAMPLE_MAX * 2));
+    /** The column's depths for ONE read, sorted in place. Sized once: the beat
+     *  neither grows an array nor copies one into a Float64Array to sort it,
+     *  and one sort answers both percentiles instead of two. */
+    const colZ = new Float64Array(colAt.length);
+    const colLast = colAt.length - 1;
+    const colHiAt = Math.round(colLast * SHIRT_P_HI);
+    const colLoAt = Math.round(colLast * SHIRT_P_LO);
     /** The badge's own footprint plus a hair, tested against the LIVE pose —
      *  membership in the candidate set is decided once, but whether a candidate
-     *  is actually over the mark right now is decided every read. */
-    const overMark = (p) => Math.abs(p.x) <= faceBoxes('back').logo.w / 2 + CREST_LIVE_M
-      && p.y >= markBand.lo - CREST_LIVE_M && p.y <= markBand.hi + CREST_LIVE_M;
-    /** The three depths off those sets, in whatever pose `xforms` describes. */
-    const readColumns = (xforms, fallback) => {
-      const zs = [];
-      for (const i of colAt) { place(i, xforms, fallback, blended); zs.push(blended.z); }
-      const f = percentile(zs, SHIRT_P_HI);
-      const b = percentile(zs, SHIRT_P_LO);
+     *  is actually over the mark right now is decided every read. All four
+     *  bounds are constants; they are solved here, not per vertex. */
+    const overHalfX = backLogo.w / 2 + CREST_LIVE_M;
+    const overLoY = markBand.lo - CREST_LIVE_M;
+    const overHiY = markBand.hi + CREST_LIVE_M;
+    const overMark = (p) => Math.abs(p.x) <= overHalfX && p.y >= overLoY && p.y <= overHiY;
+    /** The three depths off those sets, in whatever pose `xforms` describes,
+     *  written into the caller's `out` (one object per reader, re-used). */
+    const readColumns = (xforms, fallback, out) => {
+      for (let k = 0; k < colAt.length; k++) {
+        place(colAt[k], xforms, fallback, blended);
+        colZ[k] = blended.z;
+      }
+      colZ.sort(); // typed arrays sort NUMERICALLY, in place — no copy, no closure
+      const f = colLast >= 0 ? colZ[colHiAt] : NaN;
+      const b = colLast >= 0 ? colZ[colLoAt] : NaN;
       // The crest clears the DEEPEST cloth actually over it — not a percentile.
       // Every survivor of these three gates is real cloth on the badge: its own
       // joint (shirt or shoulder, never hair), the badge's own footprint in the
@@ -813,20 +898,29 @@ function measureShirt(root, bone, rig, dropM) {
       // over the mark; a percentile leaves the last few nibbling its bottom
       // edge, which is exactly how the badge kept coming back cut.
       let deep = NaN; let votes = 0;
-      for (const i of upAt) {
-        place(i, xforms, fallback, blended);
+      for (let k = 0; k < upAt.length; k++) {
+        place(upAt[k], xforms, fallback, blended);
         if (!overMark(blended)) continue;
         if (!(Math.abs(blended.z - b) <= CREST_WINDOW_M)) continue;
         votes++;
         if (!(deep <= blended.z)) deep = blended.z;
       }
-      return { front: f, back: b, backUpper: votes >= CREST_MIN_VOTES ? deep : b };
+      out.front = f;
+      out.back = b;
+      out.backUpper = votes >= CREST_MIN_VOTES ? deep : b;
+      return out;
     };
-    const bind = readColumns(boneXform, chestXform);
+    const bind = readColumns(boneXform, chestXform, { front: NaN, back: NaN, backUpper: NaN });
     if (!Number.isFinite(bind.front) || !Number.isFinite(bind.back)) return FALLBACK_DEPTH;
 
     // The same read again, against the pose the player is standing in NOW.
-    // Reuses one matrix per joint so a beat allocates nothing.
+    // NOTHING HERE ALLOCATES, by policy: one matrix per joint, the scratch
+    // vectors and the two 4-slot skin buffers above, one Float64Array of
+    // depths, and ONE result object handed back over and over. The beat is a
+    // few hundred vertex reads per player five times a second on a phone that
+    // is already drawing 16 of them — every object it made was a phone-frame
+    // tax and the whole squad used to pay it in the same frame (SETTLE_PHASES).
+    const liveOut = { front: NaN, back: NaN, backUpper: NaN };
     const live = boneXform ? bones.map(() => new THREE.Matrix4()) : null;
     const liveChest = new THREE.Matrix4();
     const scratch = new THREE.Matrix4();
@@ -842,7 +936,7 @@ function measureShirt(root, bone, rig, dropM) {
             live[i].multiplyMatrices(inv, scratch.multiplyMatrices(bones[i].matrixWorld, boneInverses[i]));
           }
         }
-        const r = readColumns(live, liveChest);
+        const r = readColumns(live, liveChest, liveOut);
         return Number.isFinite(r.back) ? r : null;
       } catch { return null; }
     };
@@ -937,9 +1031,14 @@ function decalMaterial(map) {
  *  it is done (or disposed) and drops out. Nothing runs when nobody is on. */
 const settlers = new Set();
 let settleFrame = 0;
+/** Which stagger slot the next settler takes — see SETTLE_PHASES. */
+let settleSeq = 0;
 function pumpSettlers(t) {
   settleFrame = 0;
-  for (const fn of [...settlers]) {
+  // Straight over the Set: deleting the entry you are standing on is defined
+  // behaviour, and the copy this replaces was a fresh 16-element array EVERY
+  // FRAME — 60 a second for as long as anyone is on the field.
+  for (const fn of settlers) {
     let alive = false;
     try { alive = fn(t); } catch { alive = false; }
     if (!alive) settlers.delete(fn);
@@ -1052,26 +1151,53 @@ export function attachJerseyDecals(char, { logoUrl = '', number = '', ink = null
     // window means they follow it back in instead of floating out there for
     // good. The front is left exactly where it was measured: its cloth is spine
     // -skinned, it does not swing, and it has been right on screen for rounds.
-    const seen = [{ back: depth.back, backUpper: depth.backUpper }];
+    // The window is a fixed RING, not a growing list: two Float64Arrays and a
+    // cursor, seeded with the bind read (which the rail below guarantees is the
+    // shallowest thing in it, so pre-filling changes no answer) and overwritten
+    // one slot a beat. What it replaces allocated an object, two mapped arrays
+    // and two spreads on every beat of every player.
+    const bindUpper = Number.isFinite(depth.backUpper) ? depth.backUpper : depth.back;
+    const seenBack = new Float64Array(SETTLE_KEEP).fill(depth.back);
+    const seenUpper = new Float64Array(SETTLE_KEEP).fill(bindUpper);
+    let seenAt = 0;
     // A pose read may only ever ADD clearance. Halfway through a kick the torso
     // is twisted far enough that the "back" of the shirt is barely behind the
     // rig at all (monarchs read −0.105 against a bind −0.160), and a plane that
     // followed THAT would climb inside the shirt and take the number with it.
     // So: never shallower than the bind read, and never more than SETTLE_MAX_M
     // deeper than it.
-    const rail = (bindZ, z) => Math.min(bindZ, Math.max(z, bindZ - SETTLE_MAX_M));
+    const rail = (bindZ, z) => (Number.isFinite(z)
+      ? Math.min(bindZ, Math.max(z, bindZ - SETTLE_MAX_M))
+      : bindZ);
     const settle = () => {
-      const r = dead ? null : depth.resample?.();
-      if (!r) return false;
-      seen.push({ back: rail(depth.back, r.back), backUpper: rail(depth.backUpper, r.backUpper) });
-      while (seen.length > SETTLE_KEEP) seen.shift();
-      meshes.back.position.z = Math.min(...seen.map((d) => d.back)) - SURFACE_GAP_M;
-      meshes.backMark.position.z = Math.min(...seen.map((d) => d.backUpper)) - SURFACE_GAP_M;
+      if (dead || !depth.resample) return false;
+      const r = depth.resample();
+      // A read can come back empty for one beat — a matrix mid-update, a frame
+      // the animation system has half-written. That is a beat to SKIP, not a
+      // reason to retire the player for the rest of the match: the planes stay
+      // where the window last put them and the next beat tries again.
+      if (!r) return true;
+      seenBack[seenAt] = rail(depth.back, r.back);
+      seenUpper[seenAt] = rail(bindUpper, r.backUpper);
+      seenAt = (seenAt + 1) % SETTLE_KEEP;
+      let deepBack = Infinity; let deepUpper = Infinity;
+      for (let i = 0; i < SETTLE_KEEP; i++) {
+        if (seenBack[i] < deepBack) deepBack = seenBack[i];
+        if (seenUpper[i] < deepUpper) deepUpper = seenUpper[i];
+      }
+      meshes.back.position.z = deepBack - SURFACE_GAP_M;
+      meshes.backMark.position.z = deepUpper - SURFACE_GAP_M;
       return true;
     };
-    let nextBeat = 0;
+    // …and this player's slot in the beat. Seeded from the FIRST frame it sees
+    // rather than from 0, so the offset is real wall-clock spacing however long
+    // the character took to build; every beat after that is scheduled off the
+    // frame it ran in, which keeps the slots apart instead of re-converging.
+    const phase = SETTLE_EVERY_MS * ((settleSeq++ % SETTLE_PHASES) / SETTLE_PHASES);
+    let nextBeat = -1;
     addSettler((t) => {
       if (dead) return false;
+      if (nextBeat < 0) { nextBeat = t + phase; return true; }
       if (t < nextBeat) return true;
       nextBeat = t + SETTLE_EVERY_MS;
       return settle();
