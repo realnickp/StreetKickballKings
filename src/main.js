@@ -9,7 +9,8 @@ import { SaveManager } from './meta/save.js';
 import { buildField } from './game/field.js';
 import { buildPlayer, CLIP_NAMES } from './game/characters.js';
 import { buildTeamCharsGlb } from './game/glbCharacters.js';
-import { dressTeams } from './game/kits.js';
+import { dressTeams, groundLFor } from './game/kits.js';
+import { prewarmCharacters } from './game/prewarm.js';
 import { loadExtrasFor, DanceBag } from './game/animExtras.js';
 import { MatchScene } from './game/matchScene.js';
 import { CinematicDirector } from './cinematics/director.js';
@@ -269,6 +270,11 @@ async function bootFlow() {
     // kit colour picked in team select; cleats tint the shoe texels; the kick
     // rides into MatchScene for the crown-meter swing.
     const gear = unlocks.equippedGear(save);
+    // Play at the HOME team's (opponent's) city field so each team's stadium
+    // shows. Resolved HERE, once: the dressing below needs this court's own
+    // lightness (through `groundLFor`, which resolves the same field and the
+    // same Blacktop fallback), and MatchScene needs the field itself.
+    const homeField = fieldsData.fields.find(f => f.id === opponentTeam.homeField) ?? blacktop;
     // DRESS THE TWO CREWS (src/game/kits.js): home dark, away light, seeded by
     // the tones you set in team select and flipped if the pair wouldn't read
     // apart on a phone. An equipped Locker kit PINS your side and the opponent
@@ -277,6 +283,11 @@ async function bootFlow() {
     const dressed = dressTeams({
       home: opponentTeam, away: playerTeam, playerSide: 'away',
       gearKit: gear.uniform, tones: kits?.tone ?? null,
+      // ...and the GROUND gets a vote: the court you're about to play on is as
+      // much a thing to stand out from as the other crew (Winter Classic's snow
+      // ate a white kit whole). `groundLFor` is the SAME call GEAR UP's
+      // turntable makes, so the preview wears what walks out here.
+      groundL: groundLFor(opponentTeam),
     });
     const awayKit = dressed.away;
     const homeKit = dressed.home;
@@ -291,6 +302,16 @@ async function bootFlow() {
       // nothing gates on it — the HR dance bag and the walk-up taunts use
       // clips as they land, and every other consumer has its base-pack fallback
       void loadExtrasFor([...c.home, ...c.away]);
+      // PRINT AND UPLOAD BEHIND THE VIDEOS (src/game/prewarm.js). Every crest +
+      // number is painted onto all sixteen vests and every recoloured atlas and
+      // decal canvas is pushed to the GPU while the intro clips are still on
+      // screen — the half of a character's first-draw cost that needs nothing
+      // but the character. (The SHADER half is keyed on the scene's LIGHTS,
+      // which don't exist until MatchScene builds the field, so its ctor
+      // finishes the warm behind the coin toss and lineupIntro holds the
+      // walk-out until it resolves. Dev, on his phone, 2026-08-28: "all
+      // characters should render before we see them.")
+      await prewarmCharacters(engine, c, { compile: false });
       return c;
     })();
 
@@ -306,8 +327,6 @@ async function bootFlow() {
     await showLogoClash(playerTeam, opponentTeam);
 
     const chars = await charsPromise;
-    // Play at the HOME team's (opponent's) city field so each team's stadium shows.
-    const homeField = fieldsData.fields.find(f => f.id === opponentTeam.homeField) ?? blacktop;
     ctx.scene = new MatchScene({
       engine, input, bus, chars,
       teams: { home: opponentTeam, away: playerTeam },
@@ -390,7 +409,8 @@ async function bootFlow() {
     const opp = teamsData.teams.find((t) => t.id === 'snappers') ?? teamsData.teams[1];
     // the drills dress through the same path as a match — kit object and all —
     // so the numbers/decals a lesson teaches are the ones you'll wear out there
-    const drillKits = dressTeams({ home: opp, away: player, playerSide: 'away' });
+    // the drills are played on the Blacktop — dress against ITS ground
+    const drillKits = dressTeams({ home: opp, away: player, playerSide: 'away', groundL: blacktop?.groundL ?? null });
     const chars = {
       home: await buildTeamCharsGlb(opp, drillKits.home.hex, null, { kit: drillKits.home }),
       away: await buildTeamCharsGlb(player, drillKits.away.hex, null, { kit: drillKits.away }),

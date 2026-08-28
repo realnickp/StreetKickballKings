@@ -32,7 +32,10 @@ import { markerClamp } from '../ui/runnerArrows.js';
 import { gearLine } from '../meta/gearLine.js';
 import { PREGAME, pregameTimeline, walkoutPregame } from './pregame.js';
 import { WALKOUT_SHOW, walkoutTimeline, walkoutShotAt, walkoutPosAt, craneT } from './walkoutShow.js';
+import { prewarmCharacters } from './prewarm.js';
 import { disposeCharacter } from './glbCharacters.js';
+import { cityTrackId } from '../engine/audioTracks.js';
+import teamsData from '../data/teams.json';
 
 // fallback facing for a trail update on a runner who never got a live `dir`
 // this game (defensive only — every runner passes through the running branch
@@ -123,6 +126,13 @@ export class MatchScene {
     this.matchStats = { hr: 0, defOuts: 0, steals: 0, pickleEscapes: 0, perfects: 0 };
 
     this.match = new MatchEngine({ home: teams.home.id, away: teams.away.id }, tuning.match, { firstKick });
+    // MATCH MUSIC: the FIELD's own city scores the game (dev: "each city is
+    // supposed to have their own music, i don't think that's working") — the
+    // field's home team's city, not necessarily teams.home (a neutral-field
+    // booking, e.g. the dev harness, can hand this scene a field whose
+    // homeTeam differs from the scheduled home side).
+    const fieldHomeTeam = teamsData.teams.find((t) => t.id === fieldData.homeTeam);
+    this.matchCityTrack = cityTrackId(fieldHomeTeam?.city ?? teams.home?.city);
     this.field = buildField(fieldData, engine.scene);
     // Light the live layer BY the scene: IBL + grade tint derived from this
     // field's own backdrop art so court/players sit inside it, not on top.
@@ -156,6 +166,15 @@ export class MatchScene {
         engine.scene.add(c.group);
       }
     }
+    // PRE-WARM, RIGHT HERE — the field (and therefore the lights the shader
+    // programs are keyed on) is built, the sixteen are on the graph, and NOBODY
+    // IS LOOKING: the real flow builds this scene behind the coin toss and only
+    // then walks anyone out. So every character's shader link, atlas upload,
+    // decal canvas and skeleton bone texture is paid now, off screen, instead of
+    // on the frame he is first drawn (dev, on his phone, 2026-08-28: "all
+    // characters should render before we see them"). lineupIntro waits on this
+    // promise before the show opens; see src/game/prewarm.js.
+    this.prewarm = prewarmCharacters(engine, this.chars, { cancelled: () => this.dead });
 
     // instant-replay capture: the last ~6s of every character's skeleton + ball
     this.replayChars = [...this.chars.home, ...this.chars.away];
@@ -373,6 +392,11 @@ export class MatchScene {
     const url = new URLSearchParams(location.search);
     if (url.has('nointro') || url.has('drill')) return done();
 
+    // THE STAGE CLOSES NOW, AND SO DOES THE SHOW'S TAP ROUTE. Both flags are
+    // synchronous on purpose: onTap's cinematicLock branch only reaches the SKIP
+    // chip while `walkoutActive` is true, so a locked frame with it false is a
+    // frame whose taps go nowhere and no chip on screen to catch them. The
+    // pre-warm below gates the TIMELINE, never the player's way out.
     this.walkoutActive = true;
     this.cinematicLock = true;
     // The walk-out is DIRECTED, not hand-flown: cameraLock stays OFF so every
@@ -408,8 +432,9 @@ export class MatchScene {
       // ===== THE BREAK (dev, 2026-08-05: "we need some sort of break between
       // the opening dance number and the game... the music needs to change").
       // The dance ends WITH its music — scratch, one breath of crowd, GAME
-      // TIME — then the game starts on its own groove (the in-match beat; the
-      // city track stays the walkout's showcase).
+      // TIME — then the game resumes on the SAME city track (dev, 2026-08-28:
+      // "each city is supposed to have their own music") — never the generic
+      // beat pool once a field's dialect is known.
       this.bus.emit('sfx', 'scratch');
       this.bus.emit('music', { stop: true });
       this.bus.emit('sfx', 'crowd-cheer');
@@ -419,7 +444,7 @@ export class MatchScene {
         this.hud.setLetterbox(false);
         this.cinematicLock = false;
         this.engine.cameraLock = false;
-        this.bus.emit('music', { name: 'beat' });
+        this.bus.emit('music', { name: this.matchCityTrack });
         done();
       });
     };
@@ -500,17 +525,42 @@ export class MatchScene {
       });
     };
 
-    // both crews have bodies -> the walk-out; otherwise the splash-only open
-    // (the lineup must ALWAYS show, even for a squad we can't walk)
-    const canWalk = this.walkoutSquad('away').length >= 1 && this.walkoutSquad('home').length >= 1;
-    for (const e of (canWalk ? walkoutPregame() : pregameTimeline()).events) {
-      switch (e.kind) {
-        case 'open': this.after(e.t, () => { if (this.walkoutActive) { this.bus.emit('vo', 'lineups'); this.hud.stamp('STARTING LINEUPS', 'crowned'); } }); break;
-        case 'walkout': runWalkout(e.side, e.t); break;
-        case 'splash': splash(this.teams[e.side], e.t); break;
-        case 'cleanup': this.after(e.t, cleanup); break;
+    // ===== NOBODY WALKS OUT UNTIL EVERY BODY IS COMPILED, UPLOADED AND PRINTED.
+    // Dev, on his phone, 2026-08-28: "when the team walks out ... they don't
+    // appear or render all at once ... all characters should render before we
+    // see them." All eight ARE visible from t = 0 — what he is watching is the
+    // GPU meeting each one for the first time on the frame it is first drawn
+    // (shader link + atlas/decal/bone-texture upload), so the file materialises
+    // man by man. `prewarmCharacters` pays all sixteen of those first draws
+    // HERE, off screen, against this scene's own lights and the composer's own
+    // render target — see src/game/prewarm.js. The show is scheduled only once
+    // it resolves (it never rejects, and it opens the gate even if it broke:
+    // a warm that failed must not cost the player his match).
+    const gen = this.introGen = (this.introGen ?? 0) + 1;
+    const open = () => {
+      // a rematch or a teardown overtook this warm...
+      if (this.introGen !== gen) return;
+      // ...or the player pressed SKIP while it ran, and cleanup has already run
+      // the break and handed the game back. Either way there is no show to open.
+      if (!this.walkoutActive) return;
+      // both crews have bodies -> the walk-out; otherwise the splash-only open
+      // (the lineup must ALWAYS show, even for a squad we can't walk)
+      const canWalk = this.walkoutSquad('away').length >= 1 && this.walkoutSquad('home').length >= 1;
+      for (const e of (canWalk ? walkoutPregame() : pregameTimeline()).events) {
+        switch (e.kind) {
+          case 'open': this.after(e.t, () => { if (this.walkoutActive) { this.bus.emit('vo', 'lineups'); this.hud.stamp('STARTING LINEUPS', 'crowned'); } }); break;
+          case 'walkout': runWalkout(e.side, e.t); break;
+          case 'splash': splash(this.teams[e.side], e.t); break;
+          case 'cleanup': this.after(e.t, cleanup); break;
+        }
       }
-    }
+    };
+    // THE PROMISE IS THE GATE (never the `engine.prewarmed` flag, which is
+    // telemetry and would race a rematch's second warm). The ctor's warm
+    // normally landed long ago — it rides the coin toss; the `??` is for a scene
+    // built some other way.
+    (this.prewarm ?? prewarmCharacters(this.engine, this.chars, { cancelled: () => this.dead }))
+      .then(open, open);
   }
 
   /** The crew that walks out, CAPTAIN FIRST — he leads the file and takes the
@@ -4584,6 +4634,10 @@ export class MatchScene {
   }
 
   destroy() {
+    // a pre-warm still in flight must never stage sixteen bodies into a graph
+    // being dismantled, nor open a show on a scene that is gone
+    this.dead = true;
+    this.introGen = (this.introGen ?? 0) + 1;
     this.offTap?.();
     this.offSwipe?.();
     this.offDrag?.();

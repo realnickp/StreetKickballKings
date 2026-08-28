@@ -16,6 +16,27 @@ export const FIELD_LAYOUT = {
 // Global light lift (dev, 2026-08-25: "characters and surfaces brighter"):
 // ONE table so all ten skies move together.
 export const LIGHT_LIFT = { amb: 1.65, hemi: 1.4, rim: 0.5 };
+/** The KEY light has never been lifted — `sunI` is used as the preset states
+ *  it. It gets a multiplier of its own here only so a preset's `lift` block can
+ *  reach it; the default is a no-op, so this table is unchanged for nine skies. */
+export const SUN_LIFT = 1;
+
+/** THE LIFT, PER SKY. A preset may carry its own `lift` block and the builder
+ *  takes it over the global table, key by key.
+ *
+ *  It exists for ONE sky. Dev, on his phone, 2026-08-28, on Winter Classic:
+ *  "the white in Chicago makes it hard to see" — a white kit on a white player
+ *  on white snow. `winter` is the brightest row in the table (sunI 2.1, hemiI
+ *  1.7) AND the only ground whose albedo is already near-white, so the global
+ *  lift lands it past the top of the range: the snow clipped and every light
+ *  kit clipped with it, which is a contrast the tone-mapper cannot give back.
+ *  Cutting the fill (2.38 -> 1.00 effective) and the key (2.10 -> 1.35) drops
+ *  the snow off the ceiling and leaves the players a shade to stand on — the
+ *  ball goes from a white blob back to RED at the plate.
+ *  MEASURED, headless, off the kicking view — see the round's `glare/` shots.
+ *  Nothing else moves: `neon-night-court` and every other sky carry no `lift`
+ *  and take the global table unchanged. */
+export const liftFor = (lp) => ({ sun: SUN_LIFT, ...LIGHT_LIFT, ...(lp?.lift ?? {}) });
 
 // Per-sky lighting. Every field is FLOODLIT bright enough to clearly read the
 // players and court (night stadiums use lights, they aren't dim) — mood comes
@@ -29,7 +50,16 @@ export const SKY_PRESETS = {
   'golden-hour':   { hemiSky: '#d2e2f2', hemiGround: '#6a5642', sun: '#ffd9a0', sunI: 2.2, hemiI: 1.35, amb: '#6a5a4a', ambI: 0.3 },
   'shaft-light':   { hemiSky: '#b4c0cc', hemiGround: '#52525a', sun: '#fff2dd', sunI: 2.1, hemiI: 1.45, amb: '#56565e', ambI: 0.36 },
   'overcast':      { hemiSky: '#cdd2d8', hemiGround: '#6a665e', sun: '#e8e4dc', sunI: 1.8, hemiI: 1.7,  amb: '#888c92', ambI: 0.35 },
-  'winter':        { hemiSky: '#dde8f5', hemiGround: '#aab4c0', sun: '#f4f8ff', sunI: 2.1, hemiI: 1.7,  amb: '#9aa6b4', ambI: 0.35 },
+  'winter':        { hemiSky: '#dde8f5', hemiGround: '#aab4c0', sun: '#f4f8ff', sunI: 2.1, hemiI: 1.7,  amb: '#9aa6b4', ambI: 0.35,
+    // snow is the one ground whose albedo is already white — see `liftFor`.
+    // The multipliers land the EFFECTIVE intensities on hemi 1.00 (1.7*0.588),
+    // sun 1.35 (2.1*0.643) and amb 0.35 (the global lift OFF), down from
+    // 2.38 / 2.10 / 0.58. MEASURED on the snow, mean of the lit court:
+    // 0.892 of white before, 0.804 after (glare/tune-h1-s1.35-a0.35.png). The
+    // response saturates hard up there — the backdrop-derived environment map
+    // supplies the rest of it — so this is about the floor this table can
+    // reach without draining the light out of a bright winter afternoon.
+    lift: { hemi: 0.588, sun: 0.643, amb: 1 } },
   'desert-sunset': { hemiSky: '#d6b6c6', hemiGround: '#7a5642', sun: '#ffc88e', sunI: 2.2, hemiI: 1.35, amb: '#6a544a', ambI: 0.3 },
   'stadium-night': { hemiSky: '#868eba', hemiGround: '#42424f', sun: '#ffffff', sunI: 2.5, hemiI: 1.5,  amb: '#4a4a5a', ambI: 0.46 },
 };
@@ -527,11 +557,12 @@ export function buildField(fieldData, scene) {
   const fogColor = (SKY_DOME[fieldData.sky] ?? SKY_DOME.day)[3];
   scene.fog = new THREE.FogExp2(new THREE.Color(fogColor), 0.004);
 
-  const hemi = new THREE.HemisphereLight(lp.hemiSky, lp.hemiGround, lp.hemiI * LIGHT_LIFT.hemi);
+  const lift = liftFor(lp);
+  const hemi = new THREE.HemisphereLight(lp.hemiSky, lp.hemiGround, lp.hemiI * lift.hemi);
   root.add(hemi);
   // a small ambient floor so ACES tone-mapping never crushes the court to black
-  root.add(new THREE.AmbientLight(lp.amb ?? '#55585f', (lp.ambI ?? 0.3) * LIGHT_LIFT.amb));
-  const sun = new THREE.DirectionalLight(lp.sun, lp.sunI);
+  root.add(new THREE.AmbientLight(lp.amb ?? '#55585f', (lp.ambI ?? 0.3) * lift.amb));
+  const sun = new THREE.DirectionalLight(lp.sun, lp.sunI * lift.sun);
   // golden-hour 3D world: LOW warm sun from the third-base side -> long dusk
   // shadows across the asphalt (the mood the whole world bake is lit for)
   if (world3d) sun.position.set(-34, 17, 24);
@@ -555,7 +586,7 @@ export function buildField(fieldData, scene) {
   // players and ball so they pop off the crowd ring (a broadcast separation cue).
   // Accent only — casts no shadow, modest intensity — tinted with the preset's sky
   // hue so it reads cool or warm to match the field's mood. Aims at home (origin).
-  const rim = new THREE.DirectionalLight(lp.hemiSky, LIGHT_LIFT.rim);
+  const rim = new THREE.DirectionalLight(lp.hemiSky, lift.rim);
   rim.position.set(-20, 30, -40);
   rim.castShadow = false;
   root.add(rim);

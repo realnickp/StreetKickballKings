@@ -15,9 +15,11 @@ export const CITY_TRACKS = {
   'city-los-angeles': 'assets/audio/music/city/los-angeles.m4a',   // G-funk
 };
 
-/** Music-table id for a city name; the generic 'beat' pool when unknown. */
+/** Music-table id for a city name; the generic 'beat' pool when unknown.
+ *  Periods/apostrophes ("D.C.", "St. Louis") are dropped rather than turned
+ *  into dashes, so punctuation variants of the same city slug the same way. */
 export function cityTrackId(city) {
   if (!city) return 'beat';
-  const id = `city-${city.toLowerCase().replace(/[^a-z]+/g, '-')}`;
+  const id = `city-${city.toLowerCase().replace(/[.']/g, '').replace(/[^a-z]+/g, '-')}`;
   return CITY_TRACKS[id] ? id : 'beat';
 }

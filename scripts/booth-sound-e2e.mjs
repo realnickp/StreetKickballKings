@@ -3,8 +3,8 @@
 // Run: node scripts/booth-sound-e2e.mjs   (dev server must be up on :5173)
 //
 // Scenarios:
-//  1. BREAK — skip the walkout: GAME TIME stamp, music stop -> 'beat' restart,
-//     game reaches a live pitch.
+//  1. BREAK — skip the walkout: GAME TIME stamp, music stop -> the FIELD's
+//     city track restart (never the generic 'beat'), game reaches a live pitch.
 //  2. PRONOUNS — vo({event,gender}) never picks a cross-gender line; bare
 //     events stay neutral-only.
 //  3. VO QUEUE — a second call HOLDS while a line is live (flavor drops),
@@ -43,7 +43,7 @@ async function poll(page, fn, timeoutMs, label) {
 async function breakScenario(page) {
   console.log('\n--- scenario 1: the dance -> game BREAK ---');
   await page.goto(url('match&nosplash'), { waitUntil: 'domcontentloaded' });
-  const booted = await poll(page, () => !!window.__skk, 20000, 'scene boot');
+  const booted = await poll(page, () => !!window.__skk, 150000, 'scene boot');
   if (!booted) throw new Error('scene never booted');
   // prove the silence before a single frame of the show runs
   const silent = await page.evaluate(() => ({
@@ -76,13 +76,20 @@ async function breakScenario(page) {
   const stamped = await poll(page, () =>
     [...document.querySelectorAll('.stamp span')].some((s) => /GAME TIME/i.test(s.textContent)), 3000, 'GAME TIME stamp');
   ok(!!stamped, 'GAME TIME stamp shown at the break');
+  // ?match with no &field= boots the default harness field, THE BLACKTOP —
+  // whose homeTeam is the Bullies (Brooklyn) — regardless of which side is
+  // dressed as teams.home (here, the Snappers, New York): the field's own
+  // city is what should score the match, so the break must restart on
+  // 'city-brooklyn', never the generic 'beat' pool.
   const music = await poll(page, () => {
     const log = window.__musicLog;
     const stopI = log.findIndex((m) => m?.stop);
-    const beatI = log.findIndex((m) => m?.name === 'beat');
-    return stopI >= 0 && beatI > stopI;
-  }, 4000, 'music stop -> beat');
-  ok(!!music, 'music STOPS with the dance, in-match beat starts after the break');
+    const cityI = log.findIndex((m) => m?.name === 'city-brooklyn');
+    return stopI >= 0 && cityI > stopI;
+  }, 4000, "music stop -> the field's city track");
+  ok(!!music, "music STOPS with the dance, the BLACKTOP's own city-brooklyn track resumes after the break (not the generic beat)");
+  ok(!(await page.evaluate(() => window.__musicLog.some((m) => m?.name === 'beat'))),
+    'the generic beat pool never plays once the field is a known city');
   ok((await page.evaluate(() => window.__sfxLog.includes('scratch'))), 'record scratch closed the dance number');
   const live = await poll(page, () => !window.__skk.walkoutActive && window.__skk.phase === 'PITCH', 25000, 'first pitch after break');
   ok(!!live, 'game reached a live pitch after the break');

@@ -10,7 +10,7 @@
 import { LockerPreview } from '../lockerPreview.js';
 import { lockerTabs } from '../lockerModel.js';
 import { gearLine } from '../../meta/gearLine.js';
-import { dressTeams } from '../../game/kits.js';
+import { dressTeams, groundLFor } from '../../game/kits.js';
 
 // THE LOCKER has no opponent, but the captain must be the SAME colour on both
 // screens — it read as a bug that the menu showed the crew's signature primary
@@ -69,10 +69,16 @@ export function buildLocker(ctx, { mode, team, opponent = null, tones = null, on
   // GEAR UP names the kit you'll ACTUALLY wear out there: the match dressing
   // (home dark / away light, flipped if the pair clashes) with your equipped
   // kit layered on top — so the turntable, this line and the field agree.
+  // THE GROUND IS PART OF THAT ANSWER. The match is played on the opponent's
+  // court and dresses against its lightness (main.js), so this preview has to
+  // pass the same number or it shows you a kit you never wear — it did, on 25
+  // of the 90 matchups. The menu Locker has no opponent and no field, so it has
+  // no ground either, and the captain there is unchanged.
   const dressed = () => dressTeams({
     home: opponent ?? NEUTRAL_CREW, away: team, playerSide: 'away',
     gearKit: equippedGear(save).uniform,
     tones: opponent ? tones : { home: 'dark', away: 'light' },
+    groundL: opponent ? groundLFor(opponent) : null,
   });
   const refreshPreview = () => {
     const eq = equippedGear(save);

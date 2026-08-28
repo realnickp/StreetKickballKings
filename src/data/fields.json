@@ -9,6 +9,7 @@
       "flavor": "none",
       "element": "el-train",
       "sky": "golden-hour",
+      "groundL": 56,
       "palette": {
         "ground": "#3c3f44",
         "lines": "#e8e6df",
@@ -49,6 +50,7 @@
       "flavor": "trains",
       "element": "steam-vents",
       "sky": "sodium-night",
+      "groundL": 44,
       "textures": {
         "ground": "assets/textures/ground-subway-yard.jpg",
         "backdrop": "assets/textures/backdrop-subway-yard-3d.jpg",
@@ -82,6 +84,7 @@
       "flavor": "hydrant",
       "element": "dj-drop",
       "sky": "dusk",
+      "groundL": 47,
       "textures": {
         "ground": "assets/textures/ground-block-party.jpg",
         "backdrop": "assets/textures/backdrop-block-party-3d.jpg",
@@ -115,6 +118,7 @@
       "flavor": "wet-reflections",
       "element": "night-hustle",
       "sky": "neon-night",
+      "groundL": 10,
       "textures": {
         "ground": "assets/textures/ground-neon-night-court.jpg",
         "backdrop": "assets/textures/backdrop-neon-night-court-3d.jpg",
@@ -148,6 +152,7 @@
       "flavor": "gulls",
       "element": "sea-breeze",
       "sky": "golden-hour",
+      "groundL": 86,
       "textures": {
         "ground": "assets/textures/ground-boardwalk-kings.jpg",
         "backdrop": "assets/textures/backdrop-boardwalk-kings-3d.jpg",
@@ -181,6 +186,7 @@
       "flavor": "echo",
       "element": "motorcade",
       "sky": "day",
+      "groundL": 90,
       "textures": {
         "ground": "assets/textures/ground-the-underpass.jpg",
         "backdrop": "assets/textures/backdrop-the-underpass-3d.jpg",
@@ -214,6 +220,7 @@
       "flavor": "smoke",
       "element": "extra-bounce",
       "sky": "overcast",
+      "groundL": 39,
       "textures": {
         "ground": "assets/textures/ground-rubber-yard.jpg",
         "backdrop": "assets/textures/backdrop-rubber-yard-3d.jpg",
@@ -247,6 +254,7 @@
       "flavor": "snow",
       "element": "the-hawk",
       "sky": "winter",
+      "groundL": 82,
       "textures": {
         "ground": "assets/textures/ground-winter-classic.jpg",
         "backdrop": "assets/textures/backdrop-winter-classic-3d.jpg",
@@ -280,6 +288,7 @@
       "flavor": "heat-haze",
       "element": "heat-wave",
       "sky": "desert-sunset",
+      "groundL": 72,
       "textures": {
         "ground": "assets/textures/ground-scorchyard.jpg",
         "backdrop": "assets/textures/backdrop-scorchyard-3d.jpg",
@@ -313,6 +322,7 @@
       "flavor": "fireworks",
       "element": "heavy-air",
       "sky": "stadium-night",
+      "groundL": 41,
       "textures": {
         "ground": "assets/textures/ground-the-crown.jpg",
         "backdrop": "assets/textures/backdrop-the-crown-3d.jpg",
