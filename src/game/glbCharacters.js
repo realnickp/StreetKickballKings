@@ -14,6 +14,9 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { MocapAnimator, loadMocapClips } from './mocapAnimator.js';
 // no cycle: animExtras imports mocapAnimator only, never this module
 import { loadExtrasFor } from './animExtras.js';
+// leaf modules: jerseyDecals imports three + kits, kits imports nothing
+import { attachJerseyDecals } from './jerseyDecals.js';
+import { inkFor, logoFor } from './kits.js';
 
 const loader = new GLTFLoader();
 const gltfCache = new Map();
@@ -126,6 +129,11 @@ function applyCleatVertexTint(mesh, cleatHex) {
  * `userData.owned` is the tag the builder leaves on what it made.
  */
 export function disposeCharacter(char) {
+  // The jersey decals own two plane geometries + two materials per character
+  // and BORROW their texture from the shared decal cache — their own dispose()
+  // knows the difference, so let it go first (the traverse below would free the
+  // same geometry/material anyway, but never the rig group's parenting).
+  try { char?.decals?.dispose?.(); } catch { /* cosmetic */ }
   char?.group?.traverse((o) => {
     if (!o.isMesh || !o.material) return;
     if (o.geometry?.userData?.owned) o.geometry.dispose();
@@ -547,15 +555,33 @@ function archIdxFor(team, i) {
   return BENCHED.get(archIdx) ?? archIdx;
 }
 
+/** The kit a colour belongs to — the crew's own data when the hex IS one of
+ *  their two kits, derived the same way kits.js derives it otherwise (a Locker
+ *  BLACKOUT/GOLD is a loose colour with no kit block of its own). Gives the
+ *  decals the right ink and the right mark variant without a call-site change. */
+function kitOf(team, hex) {
+  const k = team?.kits;
+  if (hex && k?.dark?.hex === hex) return k.dark;
+  if (hex && k?.light?.hex === hex) return k.light;
+  const h = hex ?? team?.colors?.primary ?? '#8a8a92';
+  return { hex: h, ink: inkFor(h), logo: logoFor(team ?? { id: '' }, h) };
+}
+
+const logoUrlFor = (kit) => (kit?.logo ? `/assets/logos/${kit.logo}.png` : '');
+
 /** Build a full team of detailed GLB characters, recolored to a uniform colour
  *  (defaults to the team's primary; pass `uniformColor` for a light/dark kit so
  *  two teams don't clash). `gear` (THE LOCKER, player team only) applies the
  *  equipped cleats' foot tint — the uniform override happens at the call site
- *  by passing its hex as `uniformColor`. */
-export async function buildTeamCharsGlb(team, uniformColor, gear = null) {
+ *  by passing its hex as `uniformColor`. `opts.kit` is the dressed kit from
+ *  kits.js (`{ hex, ink, logo, img }`): it decides the jersey decals' ink and
+ *  which mark variant goes on the shirt. */
+export async function buildTeamCharsGlb(team, uniformColor, gear = null, opts = {}) {
   const roster = team.roster ?? [];
   const primary = uniformColor ?? team.colors?.primary;
   const cleatHex = gear?.cleats?.hex ?? null;
+  const kit = opts.kit ?? kitOf(team, primary);
+  const logoUrl = logoUrlFor(kit);
   // Per-archetype mocap clips (each Meshy rig has its own rest pose, so each
   // gets its own bake); loadMocapClips caches per URL — 6 fetches total across
   // ALL teams. Missing bakes (or ?codeanim=1) fall back to the legacy code
@@ -585,6 +611,9 @@ export async function buildTeamCharsGlb(team, uniformColor, gear = null) {
     char.gender = FEMALE_ARCHETYPES.has(archIdx) ? 'she' : 'he'; // for the announcer's he/she calls
     char.hasBall = false;
     char.archKey = clips ? archKeyOf(archIdx) : null; // which extras packs (mocap-<pack>-*) fit this rig
+    // crew mark front and back + this player's number (spec §2). Never awaited:
+    // the mark streams in behind the character, which is on the field either way.
+    char.decals = attachJerseyDecals(char, { logoUrl, number: char.number, ink: kit.ink, hex: kit.hex ?? primary });
     out.push(char);
   }
   return out;
@@ -600,6 +629,15 @@ export async function buildCaptainPreview(team, uniformHex, gear = null) {
   try { clips = await loadMocapClips(`/assets/anims/mocap-${archKey}.glb`); } catch { clips = null; }
   const char = await buildGlbCharacter({ model: ARCHETYPES[idx], teamColor: uniformHex ?? team.colors?.primary, cleatHex: gear?.cleats?.hex ?? null }, { heightM: 2.05, clips });
   char.data = team.roster?.[0] ?? null;
+  char.number = char.data?.number ?? JERSEY_NUMBERS[0];
+  // The turntable is where the dev SEES the kit, so the captain wears the same
+  // mark and number he takes out there. The equipped Locker uniform arrives as
+  // a hex (lockerScreen resolves it through dressTeams/resolveGearKit), so the
+  // ink + mark variant are recovered from the crew's own kit data.
+  const kit = kitOf(team, uniformHex ?? team.colors?.primary);
+  char.decals = attachJerseyDecals(char, {
+    logoUrl: logoUrlFor(kit), number: char.number, ink: kit.ink, hex: kit.hex,
+  });
   // The Locker plays the EQUIPPED kick/taunt on the turntable, and those clips
   // live in the extras packs (x, k) — not the base bake. Fire-and-forget so the
   // captain is on screen immediately; hasClip() gates playback until they land.
