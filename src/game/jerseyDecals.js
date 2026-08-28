@@ -16,7 +16,6 @@
 // bind basis is a little different), so the offsets below are literal metres
 // on a 2.05 m player and every archetype gets the same placement.
 import * as THREE from 'three';
-import { contrastDeltaL } from './kits.js';
 
 /** The decal plane, in metres — a shade wider than these players' chests. */
 export const PLANE_M = 0.40;
@@ -56,6 +55,42 @@ const CURVE_DEFAULT = 1.4;
 const RIB_X = 0.10;
 /** Half-width of the band we measure the shirt in — the trunk, not the arms. */
 const TORSO_HALF_W = 0.12;
+/** Half-width of the CENTRE column, metres. 0.03 left the whole front/back read
+ *  resting on a handful of vertices — one stray one and the plane moved a
+ *  centimetre. 0.05 is still flat chest (the bow is solved off the ribs). */
+const CENTRE_HALF_W = 0.05;
+/** …and when even that column is thin — arch-locs puts SIXTEEN shirt vertices
+ *  in it — widen to here before giving up. At 0.075 off centre the chest has
+ *  fallen back under a centimetre, so the deep end of the column is still the
+ *  sternum, but there are three times as many votes for it. */
+const CENTRE_WIDE_W = 0.075;
+/** Trim the tails before calling it "the shirt": a percentile, not a min/max.
+ *  A single vertex — a seam, a lace tip, a stray weight — used to decide where
+ *  a 0.40 m plane sat. */
+const SHIRT_P_LO = 0.02;
+const SHIRT_P_HI = 0.98;
+/** Enough samples for the percentile to be doing anything; under the hard floor
+ *  the read is guesswork, so take the archetype mean instead of moving the mark
+ *  somewhere silly. */
+const MIN_SAMPLES = 24;
+const MIN_SAMPLES_HARD = 8;
+/** Which skin joints count as SHIRT: the SPINE CHAIN plus the HIPS root —
+ *  the trunk, and nothing that a hairstyle hangs off.
+ *
+ *  Both halves of that were measured, not assumed. Dumped every vertex in the
+ *  decal's band by dominant joint across the archetype set:
+ *   - SHOULDERS ARE OUT, though the review asked for them. These auto-rigs skin
+ *     the hair to them: arch-braids gives `RightShoulder` 2865 vertices running
+ *     back to z −0.30 against a shirt at −0.14, arch-locs hangs the dreadlocks
+ *     off `LeftShoulder`, and spine-plus-shoulders reads arch-braids' back at
+ *     −0.275 — i.e. it does not fix the bug at all.
+ *   - HIPS IS IN. On arch-twists the whole lower back of the vest is weighted to
+ *     `Hips` (405 vertices, −0.14 … +0.12) and the spine reaches only −0.12;
+ *     spine-alone pulled the back plane 3 cm forward and the screenshot showed
+ *     the number sunk INTO the shirt. Hips carries no hairstyle on any rig.
+ *  `neck` is excluded by name — it carries the collar and every ponytail. */
+const SHIRT_JOINT = /(spine|chest|torso|hip|pelvis)/i;
+const NOT_SHIRT_JOINT = /(neck|head|hair|jaw|eye)/i;
 /** Used only when a character has no skinned geometry to measure (the fallback
  *  model): the mean chest/back surface across the archetype set. */
 const FALLBACK_DEPTH = { front: 0.16, back: -0.19, curveFront: CURVE_DEFAULT, curveBack: CURVE_DEFAULT };
@@ -65,14 +100,20 @@ const FONT_STACK = "'Archivo', system-ui, sans-serif";
 const CAP_RATIO = 0.72;
 const INK_DARK = '#0b0c10';
 const INK_LIGHT = '#f4f4f6';
-/** Under this much L* between the mark and the kit it's wearing, the mark
- *  vanishes into the shirt (gold-on-gold, orange-on-orange, white-on-white —
- *  three crews' light kits carry a `-light` mark that is a plain copy of the
- *  dark one). Below the line the mark gets a patch to sit on. */
-export const PATCH_DELTA_L = 20;
-/** How much bigger than the mark the patch is drawn. */
-const PATCH_PAD = 1.08;
-const PATCH_ALPHA = 0.92;
+/** THE INK OUTLINE. Every mark on every shirt wears one — a printed emblem has
+ *  an edge, and that edge is what stops gold-on-gold, orange-on-orange and
+ *  white-on-white from reading as nothing at all. It replaced a conditional
+ *  filled slab, which read as a sticker on the crews that got it and did
+ *  nothing for the ones that didn't: this is the mark's OWN silhouette, dilated
+ *  and filled with the kit ink, drawn underneath it. Radius as a fraction of
+ *  the drawn mark's width, so it scales with the chest mark and the small back
+ *  one alike. */
+export const OUTLINE_RATIO = 0.025;
+/** The dilation is stamped, not filtered: the silhouette is redrawn round two
+ *  rings (the outer one gives the radius, the inner one fills the gaps a single
+ *  ring leaves between stamps on a thin serif). 18 draws of a cached canvas,
+ *  once per texture — the texture cache means it never runs twice. */
+const OUTLINE_RING = [[1, 12], [0.5, 6]];
 
 /** The number reads in `ink` with a fat outline in the OTHER ink, so it holds
  *  its edge over a logo, over a light kit, over anything. */
@@ -89,9 +130,11 @@ export function oppositeInk(ink) {
 // at that face), `w`/`h` its box. A number's `w` is its CAP HEIGHT — the glyphs
 // are as wide as they need to be.
 
-/** Chest: the crew mark big and centred, the number small up on the left. */
+/** Chest: the crew mark big and centred, the number small up on the wearer's
+ *  LEFT chest — viewer's RIGHT, +x on this face — which is where a jersey
+ *  actually wears it. */
 export function layoutFront() {
-  return { logo: { w: 0.34, h: 0.34, y: 0.06 }, num: { w: 0.10, y: 0.16, x: -0.10 } };
+  return { logo: { w: 0.34, h: 0.34, y: 0.06 }, num: { w: 0.10, y: 0.16, x: 0.10 } };
 }
 
 /** Back: the number is the hero, the crew mark rides above it. */
@@ -133,61 +176,48 @@ export function stackFace(items, { span = PLANE_M, gap = STACK_GAP_M } = {}) {
   return out;
 }
 
-/** The placed marks for one face — what the canvas actually draws. */
+/** Slide a rect until it sits wholly inside the plane, size untouched. */
+export function fitBox(b, span = PLANE_M) {
+  const lim = (half) => Math.max(0, span / 2 - half);
+  const cx = lim(b.w / 2); const cy = lim(b.h / 2);
+  return {
+    x: Math.max(-cx, Math.min(cx, b.x ?? 0)),
+    y: Math.max(-cy, Math.min(cy, b.y)),
+    w: b.w,
+    h: b.h,
+  };
+}
+
+/**
+ * The placed marks for one face — what the canvas actually draws.
+ *
+ * BACK stacks: the number is the hero there and a crew mark cut in half by it
+ * is the first thing anyone would notice.
+ *
+ * FRONT does not. Stacking shrank the 0.34 m chest mark to 0.29 to clear a
+ * 0.10 m number, which is backwards — the mark is the whole point of the chest
+ * and the number is a small badge that sits ON its upper corner, exactly the
+ * way a real jersey wears it. Both keep their asked-for size; each is only slid
+ * far enough to stay on the plane.
+ */
 export function faceBoxes(side) {
   const L = side === 'back' ? layoutBack() : layoutFront();
-  return stackFace([
+  const items = [
     { key: 'logo', w: L.logo.w, h: L.logo.h ?? L.logo.w, x: L.logo.x ?? 0, y: L.logo.y },
     { key: 'num', w: L.num.w, h: L.num.h ?? L.num.w, x: L.num.x ?? 0, y: L.num.y },
-  ]);
+  ];
+  if (side === 'back') return stackFace(items);
+  const out = {};
+  for (const it of items) out[it.key] = fitBox(it);
+  return out;
 }
 
 // ---- the texture ----------------------------------------------------------
 
-/** Does this mark disappear into this kit? Pure, so the call is testable
- *  without a canvas: the mark's mean opaque colour against the shirt in L*. */
-export function needsPatch(meanHex, kitHex) {
-  if (!meanHex || !kitHex) return false;
-  return contrastDeltaL(meanHex, kitHex) < PATCH_DELTA_L;
-}
-
-const meanCache = new Map(); // logo url -> '#rrggbb' mean opaque colour
-
-/** The mark's own colour, averaged over its opaque pixels — once per file.
- *  Null when there's no canvas to read (node, a tainted image): no reading,
- *  no patch, the mark draws exactly as it always did. */
-export function logoMeanHex(img) {
-  const url = img?.src ?? '';
-  if (!img) return null;
-  if (meanCache.has(url)) return meanCache.get(url);
-  let out = null;
-  try {
-    const n = 48; // plenty for a mean, and one 48² readback instead of 1024²
-    const c = document.createElement('canvas');
-    c.width = n; c.height = n;
-    const g = c.getContext('2d');
-    g.drawImage(img, 0, 0, n, n);
-    const px = g.getImageData(0, 0, n, n).data;
-    let r = 0; let gg = 0; let b = 0; let w = 0;
-    for (let i = 0; i < px.length; i += 4) {
-      const a = px[i + 3];
-      if (a < 32) continue; // the marks are cut out; ignore the transparency
-      r += px[i] * a; gg += px[i + 1] * a; b += px[i + 2] * a; w += a;
-    }
-    if (w > 0) {
-      const hx = (v) => Math.round(v / w).toString(16).padStart(2, '0');
-      out = `#${hx(r)}${hx(gg)}${hx(b)}`;
-    }
-  } catch { out = null; }
-  meanCache.set(url, out);
-  return out;
-}
-
-/** `patch` rides the key implicitly — it's a function of the mark and the kit
- *  hex, and two kits can share a mark AND an ink (hustlers wear the light mark
- *  on both) while only one of them needs the patch. */
-export function decalKey(logoUrl, number, ink, side, patch = false) {
-  return `${logoUrl}|${number}|${ink}|${side}${patch ? '|patch' : ''}`;
+/** The ink outline is unconditional and its colour is the ink, which is already
+ *  in the key — nothing else to carry. */
+export function decalKey(logoUrl, number, ink, side) {
+  return `${logoUrl}|${number}|${ink}|${side}`;
 }
 
 const cache = new Map(); // key -> CanvasTexture, insertion-ordered = LRU
@@ -196,28 +226,35 @@ export const decalCacheSize = () => cache.size;
 export function clearDecalCache() {
   for (const t of cache.values()) t.dispose?.();
   cache.clear();
-  meanCache.clear();
+  logoCache.clear();
 }
 
 const mToPx = (m) => (m / PLANE_M) * DECAL_PX;
 const toX = (x) => DECAL_PX / 2 + mToPx(x);
 const toY = (y) => DECAL_PX / 2 - mToPx(y);
 
-/** A rounded slab for the mark to sit on when the kit would swallow it. */
-function patchPath(ctx, cx, cy, w, h) {
-  const r = Math.min(w, h) * 0.28;
-  const x = cx - w / 2; const y = cy - h / 2;
-  ctx.beginPath?.();
-  if (ctx.roundRect) { ctx.roundRect(x, y, w, h, r); return; }
-  ctx.moveTo?.(x + r, y);
-  ctx.lineTo?.(x + w - r, y); ctx.quadraticCurveTo?.(x + w, y, x + w, y + r);
-  ctx.lineTo?.(x + w, y + h - r); ctx.quadraticCurveTo?.(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo?.(x + r, y + h); ctx.quadraticCurveTo?.(x, y + h, x, y + h - r);
-  ctx.lineTo?.(x, y + r); ctx.quadraticCurveTo?.(x, y, x + r, y);
-  ctx.closePath?.();
+/** The mark's own alpha, flooded with one flat colour: draw it, then paint the
+ *  whole box through `source-in` so only the pixels the mark covers take the
+ *  ink. That's the silhouette the outline is stamped from. Null if the browser
+ *  won't give us a second canvas — the mark then draws bare, as it always did.
+ */
+function inkSilhouette(img, w, h, ink) {
+  try {
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.ceil(w));
+    c.height = Math.max(1, Math.ceil(h));
+    const g = c.getContext('2d');
+    if (!g) return null;
+    g.drawImage(img, 0, 0, w, h);
+    g.globalCompositeOperation = 'source-in';
+    g.fillStyle = ink;
+    g.fillRect(0, 0, c.width, c.height);
+    g.globalCompositeOperation = 'source-over';
+    return c;
+  } catch { return null; }
 }
 
-function paintFace(logoImg, number, ink, side, patch) {
+function paintFace(logoImg, number, ink, side) {
   const canvas = document.createElement('canvas');
   canvas.width = DECAL_PX; canvas.height = DECAL_PX;
   const ctx = canvas.getContext('2d');
@@ -230,16 +267,22 @@ function paintFace(logoImg, number, ink, side, patch) {
     const b = box.logo;
     const s = Math.min(mToPx(b.w) / iw, mToPx(b.h) / ih);
     const w = iw * s; const h = ih * s;
-    if (patch) {
-      // gold on gold reads as nothing at all — give the mark a shirt of its own
-      ctx.save();
-      ctx.globalAlpha = PATCH_ALPHA;
-      ctx.fillStyle = ink;
-      patchPath(ctx, toX(b.x), toY(b.y), w * PATCH_PAD, h * PATCH_PAD);
-      ctx.fill?.();
-      ctx.restore();
+    const x = toX(b.x) - w / 2; const y = toY(b.y) - h / 2;
+    // THE INK OUTLINE, under the mark, always: the mark's silhouette stamped
+    // round two rings so it grows by `r` in every direction. A crew mark cut
+    // from its own kit colour (gold on gold, white on white) has nothing but
+    // this edge to read by, and every other mark is only sharper for it.
+    const sil = inkSilhouette(logoImg, w, h, ink);
+    if (sil) {
+      const r = Math.max(1, w * OUTLINE_RATIO);
+      for (const [scale, n] of OUTLINE_RING) {
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2;
+          ctx.drawImage(sil, x + Math.cos(a) * r * scale, y + Math.sin(a) * r * scale, w, h);
+        }
+      }
     }
-    ctx.drawImage(logoImg, toX(b.x) - w / 2, toY(b.y) - h / 2, w, h);
+    ctx.drawImage(logoImg, x, y, w, h);
   }
 
   // The number, drawn LAST so it always wins — a jersey with no readable
@@ -247,22 +290,39 @@ function paintFace(logoImg, number, ink, side, patch) {
   const text = String(number ?? '');
   if (text) {
     const b = box.num;
-    let size = mToPx(b.h) / CAP_RATIO;
+    const target = mToPx(b.h);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic'; // the ink box, not the em box — see below
+    let size = target / CAP_RATIO;
     ctx.font = `900 ${size}px ${FONT_STACK}`;
+    // Fit the number to its REAL ink, both ways. CAP_RATIO is a guess at
+    // Archivo's cap height; `actualBoundingBox*` is what the font actually
+    // inked, and on the back that difference is the whole margin between the
+    // number's top stroke and the crew mark above it.
+    const inked = (m) => (m?.actualBoundingBoxAscent ?? size * CAP_RATIO) + (m?.actualBoundingBoxDescent ?? 0);
+    const h0 = inked(ctx.measureText?.(text));
+    if (h0 > 0) {
+      size *= target / h0;
+      ctx.font = `900 ${size}px ${FONT_STACK}`;
+    }
     const maxW = mToPx(PLANE_M * 0.86);
     const w = ctx.measureText?.(text)?.width ?? 0;
     if (w > maxW && w > 0) {
       size *= maxW / w;
       ctx.font = `900 ${size}px ${FONT_STACK}`;
     }
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+    // Centre the INK on the box: digits sit on the baseline with nothing below
+    // it, so an em-box 'middle' hangs them high by a good tenth of their size.
+    const m = ctx.measureText?.(text);
+    const asc = m?.actualBoundingBoxAscent ?? size * CAP_RATIO;
+    const desc = m?.actualBoundingBoxDescent ?? 0;
+    const baseY = toY(b.y) + (asc - desc) / 2;
     ctx.lineJoin = 'round';
     ctx.lineWidth = 10;
     ctx.strokeStyle = oppositeInk(ink);
-    ctx.strokeText(text, toX(b.x), toY(b.y));
+    ctx.strokeText(text, toX(b.x), baseY);
     ctx.fillStyle = ink;
-    ctx.fillText(text, toX(b.x), toY(b.y));
+    ctx.fillText(text, toX(b.x), baseY);
   }
 
   const tex = new THREE.CanvasTexture(canvas);
@@ -278,17 +338,15 @@ function paintFace(logoImg, number, ink, side, patch) {
  * re-uses everything it already drew.
  * @param {HTMLImageElement|null} logoImg loaded crew mark, or null (number only)
  * @param {number|string} number
- * @param {string} ink the kit's number colour
+ * @param {string} ink the kit's number colour, and the mark's outline
  * @param {'front'|'back'} side
- * @param {string|null} kitHex the shirt the mark is going on (patch decision)
  * @returns {THREE.CanvasTexture} SHARED — never dispose it, the cache does
  */
-export function decalTexture(logoImg, number, ink, side, kitHex = null) {
-  const patch = needsPatch(logoMeanHex(logoImg), kitHex);
-  const key = decalKey(logoImg?.src ?? '', number, ink, side, patch);
+export function decalTexture(logoImg, number, ink, side) {
+  const key = decalKey(logoImg?.src ?? '', number, ink, side);
   const hit = cache.get(key);
   if (hit) { cache.delete(key); cache.set(key, hit); return hit; } // touch = LRU
-  const tex = paintFace(logoImg, number, ink, side, patch);
+  const tex = paintFace(logoImg, number, ink, side);
   cache.set(key, tex);
   while (cache.size > DECAL_CACHE_MAX) {
     const oldest = cache.keys().next().value;
@@ -355,6 +413,27 @@ export function findChestBone(root) {
   return null;
 }
 
+/** Is this bone part of the SHIRT? Braids, dreadlocks and ponytails are skinned
+ *  to the neck and — on these rigs — to the SHOULDER joints, and they hang
+ *  straight down through the decal's own band, so a measurement that trusts
+ *  geometry alone reads the hair as the player's back. Only the trunk votes:
+ *  spine chain + hips. See SHIRT_JOINT for the numbers that settled it. */
+export function isShirtBone(name) {
+  const n = String(name ?? '');
+  if (NOT_SHIRT_JOINT.test(n)) return false;
+  return SHIRT_JOINT.test(n);
+}
+
+/** The p-th value of a sample, 0..1, sorted. Used instead of min/max: the
+ *  extremes of a 40 k-vertex mesh are always some seam, lace tip or stray
+ *  weight, and one of them used to decide where a 0.40 m plane sat. */
+export function percentile(values, p) {
+  if (!values?.length) return NaN;
+  const a = Float64Array.from(values).sort();
+  const i = Math.round((a.length - 1) * Math.min(1, Math.max(0, p)));
+  return a[i];
+}
+
 /**
  * Where this character's shirt actually IS, in rig metres. Measured, not
  * guessed: the archetypes differ by a good 5 cm front to back (arch-bald's
@@ -365,6 +444,13 @@ export function findChestBone(root) {
  * In BIND POSE `bone.matrixWorld · boneInverse` IS the geometry→world map for
  * every vertex, whatever the rig did with node transforms (these GLBs park the
  * whole armature at scale 0.01), so this needs no assumptions about units.
+ *
+ * Two things keep the read honest, both of them fixes to a first pass that put
+ * the back mark a hand's width behind arch-braids' shirt:
+ *  - only vertices whose DOMINANT skin joint is a shirt bone count, so hair
+ *    never votes (see `isShirtBone`);
+ *  - the columns are read at the 2nd/98th percentile over EVERY vertex, not the
+ *    min/max of a 1-in-N stride, so no single point moves the plane.
  */
 function measureShirt(root, bone, rig, dropM) {
   try {
@@ -376,26 +462,47 @@ function measureShirt(root, bone, rig, dropM) {
     if (!bi || !pos) return FALLBACK_DEPTH;
     const m = new THREE.Matrix4().copy(rig.matrixWorld).invert()
       .multiply(new THREE.Matrix4().multiplyMatrices(bone.matrixWorld, bi));
-    const v = new THREE.Vector3();
-    const step = Math.max(1, Math.floor(pos.count / 8000)); // ~8k samples is plenty
+
+    // Which skeleton slots are shirt. No JOINTS_0/WEIGHTS_0 (or no names) means
+    // no filter — a statue rig still gets a measured, if hairier, shirt.
+    const si = skinned.geometry.getAttribute?.('skinIndex');
+    const sw = skinned.geometry.getAttribute?.('skinWeight');
+    const shirtSlot = (skinned.skeleton.bones ?? []).map((b) => isShirtBone(b?.name));
+    const filtering = !!(si && sw && shirtSlot.some(Boolean));
+    const dominantIsShirt = (i) => {
+      const w = [sw.getX(i), sw.getY(i), sw.getZ(i), sw.getW(i)];
+      const j = w.indexOf(Math.max(...w));
+      if (!(w[j] > 0)) return false;
+      const slot = [si.getX(i), si.getY(i), si.getZ(i), si.getW(i)][j];
+      return shirtSlot[slot] === true;
+    };
+
     // The shirt is sampled in three x columns: dead centre, and out at ±RIB_X
     // on each flank. Centre gives the depth, the pair gives the FALL-OFF —
     // how fast the chest turns away — which is what the decal has to follow.
-    let front = -Infinity; let back = Infinity;
-    let ribF = -Infinity; let ribB = Infinity;
-    for (let i = 0; i < pos.count; i += step) {
+    const v = new THREE.Vector3();
+    const mid = []; const near = []; const rib = [];
+    for (let i = 0; i < pos.count; i++) {   // EVERY vertex — no stride to alias
       v.fromBufferAttribute(pos, i).applyMatrix4(m);
       const ax = Math.abs(v.x);
       if (ax > TORSO_HALF_W) continue;                     // trunk, not arms
       if (Math.abs(v.y + dropM) > PLANE_M / 2) continue;   // the band the decal covers
-      if (ax < 0.03) {
-        if (v.z > front) front = v.z;
-        if (v.z < back) back = v.z;
-      } else if (ax > RIB_X - 0.025 && ax < RIB_X + 0.025) {
-        if (v.z > ribF) ribF = v.z;
-        if (v.z < ribB) ribB = v.z;
-      }
+      const column = ax < CENTRE_WIDE_W ? 'mid'
+        : (ax > RIB_X - 0.025 && ax < RIB_X + 0.025 ? 'rib' : null);
+      if (!column) continue;
+      if (filtering && !dominantIsShirt(i)) continue;      // hair doesn't vote
+      if (column === 'rib') { rib.push(v.z); continue; }
+      near.push(v.z);
+      if (ax < CENTRE_HALF_W) mid.push(v.z);
     }
+    // the tight column when it has the numbers, the wide one when it doesn't
+    const col = mid.length >= MIN_SAMPLES ? mid : near;
+    if (col.length < MIN_SAMPLES_HARD) return FALLBACK_DEPTH;
+    const front = percentile(col, SHIRT_P_HI);
+    const back = percentile(col, SHIRT_P_LO);
+    const enough = rib.length >= MIN_SAMPLES_HARD;
+    const ribF = enough ? percentile(rib, SHIRT_P_HI) : NaN;
+    const ribB = enough ? percentile(rib, SHIRT_P_LO) : NaN;
     if (!Number.isFinite(front) || !Number.isFinite(back)) return FALLBACK_DEPTH;
     return {
       front,
@@ -531,7 +638,7 @@ export function attachJerseyDecals(char, { logoUrl = '', number = '', ink = null
     ]).then(([img]) => {
       if (dead) return;
       for (const side of ['front', 'back']) {
-        meshes[side].material.map = decalTexture(img, number, paint, side, hex);
+        meshes[side].material.map = decalTexture(img, number, paint, side);
         meshes[side].material.needsUpdate = true;
         meshes[side].visible = true;
       }
