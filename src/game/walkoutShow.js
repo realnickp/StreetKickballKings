@@ -206,7 +206,7 @@ export function walkoutPosAt(line, t) {
         z: a.z + (b.z - a.z) * k,
         hx: (b.x - a.x) / l,
         hz: (b.z - a.z) / l,
-        arrived: k >= 1,
+        arrived: i === path.length - 1 && k >= 1, // the SLOT, never a corner of the lane
       };
     }
     s -= l;
