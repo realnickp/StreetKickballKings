@@ -9,12 +9,15 @@
 //     tab's stock pair is YOUR crew's own LIGHT and DARK kit, so they lead the
 //     row and the unlockables (Blackout/Whiteout/Gold) follow
 //   • a bare "no piece equipped" chip only where the category has no stock
-//     item to fall back to (kits/cleats), never where one exists (taunts)
+//     item to fall back to (kits/cleats), never where one exists (taunts) —
+//     EXCEPT kits, where bare is a choice of its own: AUTO means "let the match
+//     dress me" (home dark / away light, flipped on a clash), which no chip can
+//     express, and it's what a fresh save is wearing, so it must be on the row
 export const TABS = [
   { cat: 'kick', label: 'KICKS', bare: 'STOCK KICK' },
   { cat: 'taunt', label: 'TAUNTS', bare: null },
   { cat: 'cleats', label: 'CLEATS', bare: 'CLASSIC' },
-  { cat: 'uniform', label: 'KITS', bare: 'CLASSIC' },
+  { cat: 'uniform', label: 'KITS', bare: 'AUTO', bareAlways: true },
 ];
 
 /** @param {{GEAR: object[], isUnlocked: (id: string) => boolean, eq: object,
@@ -24,7 +27,7 @@ export const TABS = [
  *  Without a team they're filtered out (there'd be no colour to show).
  *  @returns {{cat: string, label: string, chips: object[], owned: number, total: number}[]} */
 export function lockerTabs({ GEAR, isUnlocked, eq, team = null }) {
-  return TABS.map(({ cat, label, bare }) => {
+  return TABS.map(({ cat, label, bare, bareAlways = false }) => {
     const items = GEAR.filter((g) => g.cat === cat && (!g.teamKit || team));
     const chips = items.map((g) => ({
       id: g.id, name: g.name, hex: (g.teamKit ? team?.kits?.[g.teamKit]?.hex : null) ?? g.hex ?? null,
@@ -33,7 +36,7 @@ export function lockerTabs({ GEAR, isUnlocked, eq, team = null }) {
     }));
     chips.sort((a, b) => (b.on - a.on) || (b.owned - a.owned));
     const hasStock = items.some((g) => g.stock);
-    if (bare && !hasStock) chips.unshift({ id: null, name: bare, hex: '#7a7a85', clip: null, stock: false, owned: true, on: !eq[cat], hint: '', play: '' });
+    if (bare && (bareAlways || !hasStock)) chips.unshift({ id: null, name: bare, hex: '#7a7a85', clip: null, stock: false, owned: true, on: !eq[cat], hint: '', play: cat === 'uniform' ? 'the match dresses you' : '' });
     // the tab badge counts what you can WEAR right now — stock gear included.
     // (Excluding it read as 0/14 on a fresh save while THE FLAIR sat equipped
     //  at the top of the list: a lie the player can see.)

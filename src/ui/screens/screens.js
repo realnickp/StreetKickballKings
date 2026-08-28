@@ -296,14 +296,11 @@ export function TeamSelectScreen(ctx) {
         b.addEventListener('pointerdown', () => playVideo(ready[sel[b.dataset.side]].introVideo)));
       s.querySelector('.m-start').addEventListener('pointerdown', () => {
         ctx.bus.emit('sfx', 'bassdrop');
-        // the TONES ride along, not just the hexes: the match dressing re-checks
-        // the pair for a clash and can flip both sides (dressTeams), and GEAR UP
-        // names the kit you'll actually wear.
-        const kits = {
-          away: kitFor(ready[sel.away], kit.away).hex,
-          home: kitFor(ready[sel.home], kit.home).hex,
-          tone: { away: kit.away, home: kit.home },
-        };
+        // ONLY the tones ride along. A hex picked here would be a stale copy:
+        // the match dressing re-checks the pair for a clash and can flip both
+        // sides (dressTeams), and an equipped Locker kit pins yours — so every
+        // consumer resolves the colour from the tone, never from a payload.
+        const kits = { tone: { away: kit.away, home: kit.home } };
         // `pick` is the cursor, not a match arg (gearUpArgs ignores it): GEAR
         // UP carries it so ← TEAMS can put this exact matchup back on screen.
         ctx.router.go('gearUp', { away: ready[sel.away], home: ready[sel.home], kits, pick: { sel: { ...sel }, kit: { ...kit } } }); // away = you, home = opponent (their field)

@@ -1596,9 +1596,9 @@
       "logo": "assets/logos/hustlers.png",
       "kits": {
         "dark": {
-          "hex": "#1d8ac4",
-          "ink": "#0b0c10",
-          "logo": "hustlers-light",
+          "hex": "#155f8c",
+          "ink": "#f4f4f6",
+          "logo": "hustlers",
           "img": ""
         },
         "light": {

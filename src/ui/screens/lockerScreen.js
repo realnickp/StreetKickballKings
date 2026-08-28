@@ -10,7 +10,17 @@
 import { LockerPreview } from '../lockerPreview.js';
 import { lockerTabs } from '../lockerModel.js';
 import { gearLine } from '../../meta/gearLine.js';
-import { dressTeams, resolveGearKit } from '../../game/kits.js';
+import { dressTeams } from '../../game/kits.js';
+
+// THE LOCKER has no opponent, but the captain must be the SAME colour on both
+// screens — it read as a bug that the menu showed the crew's signature primary
+// and GEAR UP showed the dressed kit. So the menu dresses him through the same
+// path against this stand-in crew, seeded so his own DARK kit is the default
+// look; anything equipped still pins his side and wins.
+const NEUTRAL_CREW = { id: '', colors: { primary: '#8a8a92' }, kits: {
+  dark: { hex: '#23232a', ink: '#f4f4f6', logo: '', img: '' },
+  light: { hex: '#f2f2f4', ink: '#0b0c10', logo: '', img: '' },
+} };
 
 function el(html) { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; }
 
@@ -59,15 +69,17 @@ export function buildLocker(ctx, { mode, team, opponent = null, tones = null, on
   // GEAR UP names the kit you'll ACTUALLY wear out there: the match dressing
   // (home dark / away light, flipped if the pair clashes) with your equipped
   // kit layered on top — so the turntable, this line and the field agree.
-  const dressed = () => (opponent
-    ? dressTeams({ home: opponent, away: team, playerSide: 'away', gearKit: equippedGear(save).uniform, tones })
-    : null);
+  const dressed = () => dressTeams({
+    home: opponent ?? NEUTRAL_CREW, away: team, playerSide: 'away',
+    gearKit: equippedGear(save).uniform,
+    tones: opponent ? tones : { home: 'light', away: 'dark' },
+  });
   const refreshPreview = () => {
     const eq = equippedGear(save);
     const d = dressed();
     cap.textContent = `${(team.roster?.[0]?.nick ?? 'YOUR CAPTAIN').toUpperCase()} — ${gearLine(eq)}`;
-    if (d && sub) sub.textContent = `WEARING: ${d.away.tone.toUpperCase()} vs ${opponent.name.toUpperCase()} ${d.home.tone.toUpperCase()}`;
-    const hex = d ? d.away.hex : (resolveGearKit(eq.uniform, team)?.hex ?? null);
+    if (opponent && sub) sub.textContent = `WEARING: ${d.away.tone.toUpperCase()} vs ${opponent.name.toUpperCase()} ${d.home.tone.toUpperCase()}`;
+    const hex = d.away.hex;
     preview?.show({ team, uniformHex: hex, gear: eq }).catch((e) => console.warn('[skk] locker preview failed:', e));
   };
   // The model sorts equipped-first, so an equip would RE-SORT the row under the
