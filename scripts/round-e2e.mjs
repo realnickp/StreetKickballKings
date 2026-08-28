@@ -936,7 +936,13 @@ async function lockerTabsScenario(page) {
     const flatTex = mem.every((m) => m.textures === mem[0].textures);
     const flatGeo = mem.every((m) => m.geometries === mem[0].geometries);
     ok(flatTex, `the replaced captain's textures are DISPOSED — count flat across four equips (${mem.map((m) => m.textures).join(' -> ')})`);
-    ok(flatGeo, `...and so is his cloned foot geometry (${mem.map((m) => m.geometries).join(' -> ')})`);
+    // WHAT THE GEOMETRY COUNT IS, since 2026-08-28: the body, plus the TWO
+    // skinned jersey patches cut from it (jerseyDecals) — three. It used to be
+    // four, because the print was three bowed planes; the patch era dropped the
+    // separate crest plane. The assertion is FLATNESS across equips, not the
+    // number, so the change costs it nothing — but a reader chasing "3" should
+    // know the decals are in there.
+    ok(flatGeo, `...and so is his cloned foot geometry — body + 2 jersey patches (${mem.map((m) => m.geometries).join(' -> ')})`);
   }
 
   // ---- and the cleats actually READ as the gear's colour. The old vertex-colour
