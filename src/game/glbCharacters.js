@@ -16,7 +16,7 @@ import { MocapAnimator, loadMocapClips } from './mocapAnimator.js';
 import { loadExtrasFor } from './animExtras.js';
 // leaf modules: jerseyDecals imports three + kits, kits imports nothing
 import { attachJerseyDecals } from './jerseyDecals.js';
-import { inkFor, logoFor } from './kits.js';
+import { inkFor, logoFor, markFor } from './kits.js';
 // leaf modules: skinTint is pure maths, accessories imports three and nothing else
 import { recolorPixels, kitTintPixel, inkKitPanels, rasterizeUvMask, dilateMask } from './skinTint.js';
 import { attachAccessory } from './accessories.js';
@@ -98,15 +98,24 @@ function recolorKitTexture(srcTex, primaryHex, { skinTone = null, mesh = null } 
 // thrown away. Keyed on what the result depends on and nothing else: the source
 // texture, the crew hex and the skin tone. Bounded, LRU, disposed on eviction.
 //
-// WHY FOUR AND NOT MORE: an entry is a live 2048² canvas — 16 MB of CPU pixels
-// plus its GPU copy — and six of the nineteen archetypes are that size, so the
-// bound is retained memory on a phone, and this project's iOS rules do not have
-// 100 MB spare. Four is more than the only pattern that actually repeats: the
-// Locker asks for the SAME key on every cleat/taunt/kick equip and one more per
-// kit toggle. A MATCH is the opposite — sixteen players, sixteen different
-// archetypes, sixteen keys, nothing reused — so a bigger bound would buy that
-// path nothing and cost it a fortune.
-const RECOLOR_CACHE_MAX = 4;
+// WHY SIXTEEN — A MATCH'S WORKING SET. Round-4 review got the arithmetic
+// backwards and set this to four "to save memory". Eviction saves NO memory
+// here: the entry's pixels live in a <canvas> that the LIVE material still
+// holds through `map.image`, so dropping the Map entry frees nothing on the CPU
+// — all `dispose()` releases is the GL handle of a texture still bound to a
+// character standing on the field, and three re-uploads it from that same
+// canvas on the very next frame it renders. A match fields sixteen players
+// across sixteen archetypes: sixteen distinct keys, so a bound of four evicted
+// twelve textures mid-build and bought the walk-out ~96 MB of re-uploads for
+// nothing.
+//
+// So the bound is a WORKING SET, not a memory cap: hold the sixteen a match is
+// actually using (the Locker's repeat-key pattern — the SAME key on every
+// cleat/taunt/kick equip, one more per kit toggle — fits inside that with room
+// to spare). It only ever climbs above the live set when a SECOND match dresses
+// different crews, and then eviction is real: the old characters are gone, the
+// canvas goes with the entry, and the GL handle is genuinely freed.
+const RECOLOR_CACHE_MAX = 16;
 const recolorCache = new Map();
 
 // ---- the hair/shoe fence --------------------------------------------------
@@ -136,8 +145,16 @@ const packBits = (m) => {
   for (let i = 0; i < m.length; i++) if (m[i]) out[i >> 3] |= 1 << (i & 7);
   return out;
 };
+// ...and unpacked into a SCRATCH buffer, one per atlas size. A fresh 4 MB
+// Uint8Array on every cache HIT is the whole cost the bitset existed to save —
+// sixteen of them a match, thrown straight at the GC on the frame the walk-out
+// wants. Every byte is written before the buffer is handed back, so there is no
+// stale data to clear; the caller (recolorKitTexture) reads it inside ONE
+// synchronous call and never keeps it, which is what makes sharing safe.
+const fenceScratch = new Map();
 const unpackBits = (bits, n) => {
-  const out = new Uint8Array(n);
+  let out = fenceScratch.get(n);
+  if (!out) { out = new Uint8Array(n); fenceScratch.set(n, out); }
   for (let i = 0; i < n; i++) out[i] = (bits[i >> 3] >> (i & 7)) & 1;
   return out;
 };
@@ -768,13 +785,23 @@ export function castSlotFor(team, i) {
  *  decals the right ink and the right mark variant without a call-site change. */
 function kitOf(team, hex) {
   const k = team?.kits;
-  if (hex && k?.dark?.hex === hex) return k.dark;
-  if (hex && k?.light?.hex === hex) return k.light;
+  // CASE-INSENSITIVE, because teams.json is not internally consistent about it:
+  // `colors.primary` is written "#F5B312" and `kits.light.hex` "#f5b312". The
+  // default match path hands this the team's own primary, so a `===` compare
+  // MISSED the crew's authored kit for every team and silently fell through to
+  // the derived branch — losing the data's `img` and re-deriving an ink the
+  // artist had already chosen.
+  const h0 = String(hex ?? '').toLowerCase();
+  const eq = (a) => !!h0 && String(a ?? '').toLowerCase() === h0;
+  if (eq(k?.dark?.hex)) return k.dark;
+  if (eq(k?.light?.hex)) return k.light;
   const h = hex ?? team?.colors?.primary ?? '#8a8a92';
   return { hex: h, ink: inkFor(h), logo: logoFor(team ?? { id: '' }, h) };
 }
 
-const logoUrlFor = (kit) => (kit?.logo ? `/assets/logos/${kit.logo}.png` : '');
+// `markFor` because `kitOf` can hand back a RAW teams.json kit, whose `logo`
+// still names the `<id>-light` hook. Only marks that exist reach the shirt.
+const logoUrlFor = (kit) => (kit?.logo ? `/assets/logos/${markFor(kit.logo)}.png` : '');
 
 /** Build a full team of detailed GLB characters, recolored to a uniform colour
  *  (defaults to the team's primary; pass `uniformColor` for a light/dark kit so
@@ -860,5 +887,6 @@ export async function buildCaptainPreview(team, uniformHex, gear = null) {
   return char;
 }
 
-// test-only exports: the fence bitset + the fence builder (round 4 re-review)
-export { packBits, unpackBits, hairShoeFence };
+// test-only exports: the fence bitset + the fence builder (round 4 re-review),
+// and the kit lookup whose hex compare has to stay case-blind (final round)
+export { packBits, unpackBits, hairShoeFence, kitOf };

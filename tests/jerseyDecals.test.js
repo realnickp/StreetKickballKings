@@ -8,6 +8,7 @@ import {
   DECAL_CACHE_MAX, DECAL_PX, PLANE_M, OUTLINE_RATIO, NUM_EDGE_RATIO, CHEST_DROP_M, BACK_HALF_W,
   SURFACE_GAP_M,
 } from '../src/game/jerseyDecals.js';
+import { disposeCharacter } from '../src/game/glbCharacters.js';
 
 // The decal canvas is the ONLY DOM this module touches. vitest runs in node,
 // so stand up the smallest 2D context that exercises the real draw path
@@ -1090,6 +1091,36 @@ describe('one shared driver, and the squad staggered across it', () => {
     for (const acc of squad) acc.dispose();
     frame(1000);
     expect(settlerCount(), 'the last dispose empties the driver').toBe(0);
+  });
+
+  // THE TEARDOWN. matchScene.destroy() used to take the sixteen off the graph
+  // and never let go of them, so every menu → match round trip left sixteen
+  // dead settlers beating in this module's Set for the life of the tab.
+  // `disposeCharacter` is what closes that loop — pin that the two modules
+  // agree, and that it frees only what a character OWNS: the recoloured atlas
+  // is shared out of glbCharacters' cache with every player in the same kit and
+  // carries no `userData.owned`, so disposing one man must not blank the rest.
+  it('disposeCharacter retires the whole squad and leaves the SHARED atlas alone', async () => {
+    const squad = [];
+    for (let i = 0; i < 16; i++) {
+      const group = plainRig();
+      squad.push({ group, decals: await dress(group, i) });
+    }
+    expect(settlerCount(), 'sixteen players, sixteen settlers').toBe(16);
+
+    // one man's own map (the builder tags what it allocated) and the shared
+    // recoloured atlas (deliberately untagged) — hung on the two rigs' meshes
+    let ownedFreed = 0, sharedFreed = 0;
+    const owned = { userData: { owned: true }, dispose: () => { ownedFreed += 1; } };
+    const shared = { userData: {}, dispose: () => { sharedFreed += 1; } };
+    squad[0].group.traverse((o) => { if (o.isMesh) o.material.map = owned; });
+    squad[1].group.traverse((o) => { if (o.isMesh) o.material.map = shared; });
+
+    for (const c of squad) disposeCharacter(c);
+    frame(1000);
+    expect(settlerCount(), 'a teardown leaves nothing beating').toBe(0);
+    expect(ownedFreed, "what the build allocated is freed").toBe(1);
+    expect(sharedFreed, 'the shared recolour survives for the next character').toBe(0);
   });
 
   it('drops a disposed player on the next frame and stops asking for frames', async () => {

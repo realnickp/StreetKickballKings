@@ -9,8 +9,9 @@
 // Pure + data-driven on purpose: the screens (team select swatches, the Locker
 // chips, GEAR UP's "what you're wearing" line) and the 3D recolour all read the
 // SAME kit object, so the preview is the uniform you actually take out there.
-// `ink` is the number/decal colour, `logo` the mark variant ('<id>' reads on a
-// dark kit, '<id>-light' on a bright one).
+// `ink` is the number/decal colour, `logo` the mark FILE (no extension) — a
+// bright kit asks for the light cut, and gets it only where the crew actually
+// ships one (see LIGHT_LOGOS/markFor); otherwise it wears the base mark.
 
 /** Two crews closer than this in Lab lightness read as one team at phone size. */
 export const CLASH_DELTA_L = 25;
@@ -44,9 +45,31 @@ export function inkFor(hex) {
   return contrastDeltaL(hex, INK_DARK) >= contrastDeltaL(hex, INK_LIGHT) ? INK_DARK : INK_LIGHT;
 }
 
-/** The logo variant for a kit — the light-background mark on a bright kit. */
+// ---- the light mark -------------------------------------------------------
+// Crews that ship a SECOND, light-background cut of their mark as
+// `<id>-light.png`. EMPTY today, on purpose: the ten `-light.png` files this
+// repo carried were byte-for-byte COPIES of the base marks — 20 MB of duplicate
+// art and duplicate download for a file that could never look different. They
+// were deleted and every kit now names the one mark that exists.
+//
+// The hook survives the deletion as DATA: drop a real light cut next to the
+// base mark and add its crew id here. That is the whole change — `logoFor` and
+// `kitFor` both resolve through `markFor`, so the variant reaches the shirt,
+// the 3D decals and anything else reading `kit.logo` with no call-site edit.
+export const LIGHT_LOGOS = new Set();
+
+/** The mark FILE a logo name resolves to (no extension): `<id>-light` only
+ *  where a light cut is registered, otherwise the crew's base mark. Idempotent
+ *  and safe on a raw `teams.json` value, which may still say `<id>-light`. */
+export function markFor(logo) {
+  const base = String(logo ?? '').replace(/-light$/, '');
+  return LIGHT_LOGOS.has(base) ? `${base}-light` : base;
+}
+
+/** The logo variant for a kit — the light-background mark on a bright kit,
+ *  where the crew has one; the base mark otherwise. */
 export function logoFor(team, hex) {
-  return inkFor(hex) === INK_DARK ? `${team.id}-light` : `${team.id}`;
+  return markFor(inkFor(hex) === INK_DARK ? `${team?.id ?? ''}-light` : `${team?.id ?? ''}`);
 }
 
 /** Which tone a loose colour belongs to (a Locker kit has no tone of its own). */
@@ -66,7 +89,10 @@ export const contrastUniform = (hex, vsHex) =>
  *  block (a stub crew) still dresses: signature colour, base sprite. */
 export function kitFor(team, tone) {
   const k = team?.kits?.[tone];
-  if (k) return k;
+  // teams.json still names `<id>-light` on every light kit — a hook kept in the
+  // data. `markFor` resolves it to the mark that is actually on disk, so a kit
+  // object can never carry a logo name with no file behind it.
+  if (k) return k.logo === markFor(k.logo) ? k : { ...k, logo: markFor(k.logo) };
   const hex = team?.colors?.primary ?? '#8a8a92';
   return { hex, ink: inkFor(hex), logo: logoFor(team ?? { id: '' }, hex), img: '' };
 }

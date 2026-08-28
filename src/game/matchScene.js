@@ -32,6 +32,7 @@ import { markerClamp } from '../ui/runnerArrows.js';
 import { gearLine } from '../meta/gearLine.js';
 import { PREGAME, pregameTimeline, walkoutPregame } from './pregame.js';
 import { WALKOUT_SHOW, walkoutTimeline, walkoutShotAt, craneT } from './walkoutShow.js';
+import { disposeCharacter } from './glbCharacters.js';
 
 // fallback facing for a trail update on a runner who never got a live `dir`
 // this game (defensive only — every runner passes through the running branch
@@ -87,8 +88,13 @@ export function chooseLiveShot({ phase, kickingIsPlayer, trailBall, deepBall, ru
 }
 
 export class MatchScene {
-  constructor({ engine, input, bus, teams, chars, fieldData, tuning, difficulty = 'Street', playerSide = 'away', firstKick = 'away', hudRoot, autoStart = true, gear = null, danceBag = null }) {
+  constructor({ engine, input, bus, teams, chars, fieldData, tuning, difficulty = 'Street', playerSide = 'away', firstKick = 'away', hudRoot, autoStart = true, gear = null, danceBag = null, noIntro = false }) {
     this.engine = engine;
+    // NO WALK-OUT for this scene, whatever the URL says — the drills are a
+    // lesson, not a broadcast, and 17 s of starting lineups before drill one is
+    // dead air. `?nointro`/`?drill` still work for everyone else; this is the
+    // same door, opened from code instead of the query string.
+    this.noIntro = !!noIntro;
     this.input = input;
     this.bus = bus;
     this.teams = teams;
@@ -363,6 +369,7 @@ export class MatchScene {
   // anywhere is inert here — the skip chip is the only way out (the
   // cinematicLock tap route emits cine:skip; walkoutActive gates it).
   lineupIntro(done) {
+    if (this.noIntro) return done();
     const url = new URLSearchParams(location.search);
     if (url.has('nointro') || url.has('drill')) return done();
 
@@ -4542,7 +4549,21 @@ export class MatchScene {
     this.clearTimers();
     this.hud.destroy();
     this.engine.scene.remove(this.field.root, this.ball.mesh);
-    for (const c of [...this.chars.home, ...this.chars.away]) this.engine.scene.remove(c.group);
+    // THE SIXTEEN GO WITH THE SCENE. Taking a character off the graph is not
+    // letting go of it: its decals keep a rAF settler beating in jerseyDecals'
+    // module-level Set for the life of the tab (menu → match → menu → match used
+    // to leave sixteen dead drivers running per match, forever), and its cloned
+    // materials, per-character geometries, skeleton bone textures and accessory
+    // meshes stay on the GPU. `disposeCharacter` frees exactly what the build
+    // ALLOCATED — the shared GLTF geometry and the recoloured atlas out of
+    // `recolorCache` are borrowed, carry no `userData.owned`, and survive for
+    // the next match. Safe here because a rematch reuses this scene through
+    // startMatch() (which rebuilds only the MatchEngine) — nothing but a real
+    // teardown reaches this line, and the next match builds its own crews.
+    for (const c of [...this.chars.home, ...this.chars.away]) {
+      this.engine.scene.remove(c.group);
+      try { disposeCharacter(c); } catch { /* cosmetic — never block a teardown */ }
+    }
     // every mesh this scene OWNS: off the graph and its GPU buffers freed —
     // a rematch builds a fresh scene, so leaked geo/materials just pile up
     const drop = (m) => {

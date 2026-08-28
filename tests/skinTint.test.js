@@ -153,7 +153,7 @@ describe('recolorPixels — the fast atlas pass', () => {
     return px;
   };
 
-  it('agrees with kitTintPixel + skinTintPixel over the colour cube', () => {
+  it('agrees with kitTintPixel + skinTintPixel over the colour cube', { timeout: 20000 }, () => {
     for (const [kit, tone] of [['#f5b312', 'deep'], ['#2e5944', 'light'], ['#a8d8ea', 'tan'], ['#d7263d', 'brown']]) {
       const lattice = cube(19);
       const src = new Uint8ClampedArray(lattice.length + 4000 * 4);
@@ -168,6 +168,11 @@ describe('recolorPixels — the fast atlas pass', () => {
         expect([got[i], got[i + 1], got[i + 2]], `${kit}/${tone} ${px}`).toEqual(want);
       }
     }
+    // ~10 000 texels x four kit/tone pairs, each with a per-pixel `expect` — it
+    // runs in well under a second alone, but the full suite loads every worker
+    // at once and this is the one test that has tipped past the 5 s default.
+    // The budget is generous on purpose: a REAL regression here fails on the
+    // first mismatched texel, so nothing is bought by failing it on the clock.
   });
 
   it('does the kit alone when no tone is cast, and the tone alone with no kit', () => {

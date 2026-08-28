@@ -375,6 +375,16 @@ async function bootFlow() {
     black.style.cssText = 'background:#050308;position:absolute;inset:0;z-index:1;';
     uiRoot.appendChild(black);
 
+    // ...and SAY SO. Dressing two crews is seconds of GLB load + atlas recolour
+    // on a phone, and a bare black rectangle for that long reads as a hang. The
+    // title screen's own type, no new CSS — `margin:auto` is the only thing the
+    // line needs that `.screen` doesn't already give it.
+    const loading = document.createElement('div');
+    loading.className = 'tap-start bounce-beat';
+    loading.style.margin = 'auto';
+    loading.textContent = 'LOADING DRILLS…';
+    black.appendChild(loading);
+
     if (ctx.scene) ctx.scene.destroy();
     const player = teamsData.teams.find((t) => t.id === 'monarchs') ?? teamsData.teams[0];
     const opp = teamsData.teams.find((t) => t.id === 'snappers') ?? teamsData.teams[1];
@@ -398,6 +408,8 @@ async function bootFlow() {
       playerSide: 'away',
       hudRoot,
       autoStart: false,
+      // no starting lineups before a lesson — the drills open on the plate
+      noIntro: true,
       danceBag: new DanceBag({ recent: save.get('dance.recent', []), onDraw: (r) => save.set('dance.recent', r) }),
     });
     window.__skk = ctx.scene;

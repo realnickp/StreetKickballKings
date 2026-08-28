@@ -539,9 +539,11 @@ export function decalTexture(logoImg, number, ink, side) {
 }
 
 // ---- the crew mark image --------------------------------------------------
-// 1024² RGBA decodes to ~4 MB, so this cache stays TINY: a match needs two
-// marks, the Locker one. The decal texture is what's kept — the source image
-// is only needed while it's being drawn.
+// Every mark in public/assets/logos/ is cut to 1024² RGBA — 4 MB decoded, and
+// the size any new art must land at (eight of them shipped at 2000² for a
+// while, which is 16 MB each and made this comment a lie). So the cache stays
+// TINY: a match needs two marks, the Locker one. The decal texture is what's
+// kept — the source image is only needed while it's being drawn.
 const LOGO_CACHE_MAX = 4;
 const logoCache = new Map();
 

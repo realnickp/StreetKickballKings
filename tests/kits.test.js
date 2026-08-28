@@ -4,7 +4,8 @@
 // chips and the jersey numbers ride the same data.
 import { describe, it, expect } from 'vitest';
 import teams from '../src/data/teams.json';
-import { contrastDeltaL, dressTeams, inkFor, kitFor, logoFor, resolveGearKit, CLASH_DELTA_L } from '../src/game/kits.js';
+import fs from 'node:fs';
+import { contrastDeltaL, dressTeams, inkFor, kitFor, logoFor, markFor, resolveGearKit, CLASH_DELTA_L, LIGHT_LOGOS } from '../src/game/kits.js';
 import { kitFor as kitForScreens } from '../src/ui/screens/screens.js';
 import { lockerTabs } from '../src/ui/lockerModel.js';
 import { GEAR, isUnlocked, equipGear, equippedGear } from '../src/meta/unlocks.js';
@@ -89,12 +90,13 @@ describe('dressTeams', () => {
       const opp = byId(id);
       const kits = dressTeams({ home: opp, away: me, playerSide: 'away', gearKit });
       expect(kits.away.hex, id).toBe('#1b1b22');           // your pick is untouched
-      expect(kits.home, id).toMatchObject(opp.kits.light); // their real light kit, whole
+      // their real light kit, whole — its mark resolved to the file on disk
+      expect(kits.home, id).toMatchObject({ ...opp.kits.light, logo: markFor(opp.kits.light.logo) });
       expect(contrastDeltaL(kits.home.hex, kits.away.hex), id).toBeGreaterThanOrEqual(49);
       // playerSide mirrors: the same two crews, your side still pinned
       const mirrored = dressTeams({ home: me, away: opp, playerSide: 'home', gearKit });
       expect(mirrored.home.hex, id).toBe('#1b1b22');
-      expect(mirrored.away, id).toMatchObject(opp.kits.light);
+      expect(mirrored.away, id).toMatchObject({ ...opp.kits.light, logo: markFor(opp.kits.light.logo) });
     }
   });
 
@@ -131,7 +133,9 @@ describe('dressTeams', () => {
     const gearKit = { id: 'kit-team-light', teamKit: 'light', hex: '#f2f2f4' };
     const kits = dressTeams({ home, away, playerSide: 'away', gearKit });
     expect(kits.away.hex).toBe(away.kits.light.hex);
-    expect(kits.away.logo).toBe(away.kits.light.logo);
+    // the DATA still names the `<id>-light` hook; the kit wears the mark that
+    // is actually on disk (see LIGHT_LOGOS — empty today, so the base mark)
+    expect(kits.away.logo).toBe(markFor(away.kits.light.logo));
   });
 
   it('two crews sent out in the SAME tone still separate on the field', () => {
@@ -147,6 +151,60 @@ describe('dressTeams', () => {
     const kits = dressTeams({ home, away, tones: { home: 'light', away: 'dark' } });
     expect(kits.home.tone).toBe('light');
     expect(kits.away.tone).toBe('dark');
+  });
+});
+
+// THE MARK ON THE SHIRT. The ten `<id>-light.png` files were byte-identical
+// copies of the base marks — 20 MB of duplicate art — so they are gone and
+// every kit names the one mark that exists. `LIGHT_LOGOS` is the hook that lets
+// real light art come back one entry at a time; these pin BOTH halves of that
+// contract, so a future drop can't ship a kit pointing at a missing file.
+describe('the light mark resolves to a file that exists', () => {
+  it('markFor is idempotent and strips an unregistered -light', () => {
+    expect(LIGHT_LOGOS.size).toBe(0);              // no light art today
+    expect(markFor('monarchs-light')).toBe('monarchs');
+    expect(markFor('monarchs')).toBe('monarchs');
+    expect(markFor(markFor('monarchs-light'))).toBe('monarchs');
+    expect(markFor(null)).toBe('');
+  });
+
+  it('a bright kit still asks for the light cut, and gets one where it exists', () => {
+    const registered = new Set(['monarchs']);
+    const pick = (id, hex) => (inkFor(hex) === '#0b0c10'
+      ? (registered.has(id) ? `${id}-light` : id) : id);
+    // what logoFor would answer if `monarchs` were registered — the shape of
+    // the hook, checked without mutating the shipped Set
+    expect(pick('monarchs', '#f5b312')).toBe('monarchs-light');
+    expect(pick('snappers', '#ece5d2')).toBe('snappers');
+    // ...and what it answers TODAY, with nothing registered
+    expect(logoFor({ id: 'monarchs' }, '#f5b312')).toBe('monarchs');
+    expect(logoFor({ id: 'monarchs' }, '#16161a')).toBe('monarchs');
+  });
+
+  it('every kit a match can dress names a mark on disk', () => {
+    for (const t of teams.teams) {
+      for (const tone of ['dark', 'light']) {
+        const k = kitFor(t, tone);
+        expect(k.logo, `${t.id}.${tone}`).toBe(markFor(k.logo));
+        expect(fs.existsSync(`public/assets/logos/${k.logo}.png`), `${t.id}.${tone} -> ${k.logo}.png`).toBe(true);
+      }
+    }
+    // ...and every pairing the dresser can produce, shift included
+    for (const home of teams.teams) {
+      for (const away of teams.teams) {
+        const kits = dressTeams({ home, away, playerSide: 'away' });
+        for (const side of ['home', 'away']) {
+          expect(fs.existsSync(`public/assets/logos/${kits[side].logo}.png`),
+            `${home.id} v ${away.id} ${side} -> ${kits[side].logo}.png`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('the duplicate -light copies are gone from the repo', () => {
+    for (const t of teams.teams) {
+      expect(fs.existsSync(`public/assets/logos/${t.id}-light.png`), `${t.id}-light.png`).toBe(false);
+    }
   });
 });
 
@@ -190,7 +248,9 @@ describe('teams.json kits + numbers', () => {
   it('kitFor reads the data and is still exported from screens.js', () => {
     const t = byId('funk');
     expect(kitFor(t, 'dark')).toEqual(t.kits.dark);
-    expect(kitFor(t, 'light')).toEqual(t.kits.light);
+    // the light kit comes back whole too — only its `logo` is resolved past the
+    // `<id>-light` hook to the mark that ships (markFor / LIGHT_LOGOS)
+    expect(kitFor(t, 'light')).toEqual({ ...t.kits.light, logo: markFor(t.kits.light.logo) });
     expect(kitForScreens(t, 'dark')).toEqual(t.kits.dark);
     // a team with no kits block still dresses (signature colour, base sprite)
     const bare = { id: 'x', colors: { primary: '#123456' } };

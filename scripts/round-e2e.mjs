@@ -1345,6 +1345,7 @@ async function seamScenario(page) {
         const joinEdge = Math.max(col[j - 1] ?? 0, col[j] ?? 0, col[j + 1] ?? 0);
         const sorted = [...col.slice(1)].sort((a, b) => a - b);
         return {
+          j,
           joinEdge: +joinEdge.toFixed(4),
           med: +sorted[Math.floor(sorted.length / 2)].toFixed(4),
           worstCol: +sorted[sorted.length - 1].toFixed(4),
@@ -1366,6 +1367,14 @@ async function seamScenario(page) {
     if (probe.litFrac > 0.5) { await page.waitForTimeout(2200); probe = await readStrip(); }
     if (!ok(probe.litFrac > 0.5,
       `${id}: the strip really read the painted wall (${(probe.litFrac * 100).toFixed(0)} % lit px over rows ${probe.y0}-${probe.y1}, join at x ${probe.seamX}, wall r ${probe.R} m, fov ${probe.fov})`)) continue;
+    // ...AND THE JOIN IS IN IT. `x0` is CLAMPED to the viewport, so a join that
+    // drifts off screen leaves the strip sampling clean wall somewhere else and
+    // `col[j-1..j+1]` reading `undefined` — joinEdge falls out as 0 and the
+    // assertion below passes having measured nothing. A vacuous pass on the one
+    // check standing between the shipped art and a hard vertical seam is worse
+    // than a failure, so the column has to have both neighbours inside the strip.
+    if (!ok(probe.j >= 1 && probe.j < W - 1,
+      `${id}: the join is inside the sampled strip (column ${probe.j} of ${W}, strip from x ${probe.x0})`)) continue;
     ok(probe.joinEdge < JOIN_EDGE_MAX,
       `${id}: the corner join CROSS-FADES — the join column's mean neighbour step down the whole wall is ${probe.joinEdge} (needs < ${JOIN_EDGE_MAX}; butted it read 0.13-0.16 right here), against ${probe.med} for a typical column and ${probe.worstCol} for the strip's busiest; sharpest single pair anywhere in the strip ${probe.peakStep}`);
   }
