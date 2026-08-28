@@ -103,6 +103,9 @@ async function boot(page, q) {
     window.__stamps = [];    // every stamp band that appeared, in order
     window.__splashes = [];  // every team-splash crew word, in order
     window.__walk = [];      // [elapsed, kicker x, walk-up phase, clip] per frame
+    window.__shots = [];     // every camera shot the director cut to, in order
+    window.__wo = [];        // walk-out samples: [side, t, arrived, visible, plate]
+    window.__pg = {};        // wall-clock bounds of the whole pre-game
     window.__skk.engine.onFrame(() => {
       for (const el of document.querySelectorAll('.stamp span')) {
         if (window.__stamps[window.__stamps.length - 1] !== el.textContent) window.__stamps.push(el.textContent);
@@ -110,6 +113,17 @@ async function boot(page, q) {
       const crew = document.querySelector('.team-splash .ts-crew')?.textContent;
       if (crew && window.__splashes[window.__splashes.length - 1] !== crew) window.__splashes.push(crew);
       if (s.walkup) window.__walk.push([s.elapsed, s.kicker.group.position.x, s.walkup.phase, s.kicker.animator.name]);
+      const shot = s.camDir?.shot;
+      if (shot && window.__shots[window.__shots.length - 1] !== shot) window.__shots.push(shot);
+      // STARTING LINEUPS: who is on the field, who has planted, is the plate up
+      const w = s.walkoutRun;
+      if (w) {
+        window.__wo.push([w.side, +(s.elapsed - w.t0).toFixed(2), w.arrived.size,
+          w.chars.filter((c) => c.group.visible).length,
+          !!document.querySelector('.walkout-card')]);
+      }
+      if (s.walkoutActive && window.__pg.t0 == null) { window.__pg.t0 = performance.now(); window.__pg.e0 = s.elapsed; }
+      if (!s.walkoutActive && window.__pg.t0 != null && window.__pg.t1 == null) { window.__pg.t1 = performance.now(); window.__pg.e1 = s.elapsed; }
     });
     const snap = {
       phase: s.phase,
@@ -155,10 +169,52 @@ async function pregameScenario(page) {
   await page.evaluate(() => window.__skk.onTap({ x: 200, y: 500 }));
   await page.waitForTimeout(400);
   ok(await page.evaluate(() => window.__skk.walkoutActive === true), 'a stray tap is inert during the pre-game');
-  const splashes = await poll(page, () => (window.__splashes.length >= 2 ? window.__splashes : null), 8000, 'both splashes');
+
+  // ---- THE WALK-OUT (dev, 2026-08-27: "different cinematic angles of the
+  // teams walking out to the field, all of them for starting lineups")
+  ok(!!(await poll(page, () => window.__skk.walkoutRun?.side === 'away', 8000, 'away walk-out')),
+    'the AWAY crew walks out first');
+  // only the crew whose segment it is may be on the field
+  const alone = await poll(page, () => {
+    const s = window.__skk;
+    if (s.walkoutRun?.side !== 'away' || s.walkoutRun.arrived.size < 1) return null;
+    return { away: s.chars.away.filter((c) => c.group.visible).length, home: s.chars.home.filter((c) => c.group.visible).length };
+  }, 10000, 'away on the field');
+  ok(alone?.away === 8, `all 8 away players are on the field (${alone?.away})`);
+  ok(alone?.home === 0, `the home crew is still off stage (${alone?.home} visible)`);
+  ok(!!(await poll(page, () => window.__skk.walkoutRun?.side === 'home', 20000, 'home walk-out')),
+    'the HOME crew walks out second');
+  const alone2 = await poll(page, () => {
+    const s = window.__skk;
+    if (s.walkoutRun?.side !== 'home' || s.walkoutRun.arrived.size < 1) return null;
+    return { away: s.chars.away.filter((c) => c.group.visible).length, home: s.chars.home.filter((c) => c.group.visible).length };
+  }, 10000, 'home on the field');
+  ok(alone2?.home === 8, `all 8 home players are on the field (${alone2?.home})`);
+  ok(alone2?.away === 0, `the away crew has cleared off (${alone2?.away} visible)`);
+
+  const splashes = await poll(page, () => (window.__splashes.length >= 2 ? window.__splashes : null), 25000, 'both splashes');
   ok(splashes?.[0] === 'MONARCHS', `away crest splashes first (${splashes?.[0]})`);
   ok(splashes?.[1] === 'SNAPPERS', `home crest splashes second (${splashes?.[1]})`);
-  ok(!!(await poll(page, () => !window.__skk.walkoutActive, 10000, 'pre-game end')), 'pre-game ends on its own');
+  ok(!!(await poll(page, () => !window.__skk.walkoutActive, 15000, 'pre-game end')), 'pre-game ends on its own');
+
+  // three angles, cut in order, once per crew
+  const shots = (await page.evaluate(() => window.__shots.slice())).filter((n) => /^walkout/.test(n));
+  ok(shots.slice(0, 3).join(',') === 'walkoutGate,walkoutSide,walkoutCrane',
+    `gate dolly → side steadicam → crane reveal (${shots.join(' → ') || 'no walk-out shots'})`);
+  ok(shots.length >= 6, `both crews get the full three-shot package (${shots.length} cuts)`);
+  const wo = await page.evaluate(() => window.__wo.slice());
+  for (const side of ['away', 'home']) {
+    const seg = wo.filter((r) => r[0] === side);
+    const capAt = seg.find((r) => r[2] >= 1)?.[1];
+    ok(capAt != null && capAt <= 6.0, `${side}: the captain plants inside 6 s (${capAt ?? 'never'} s)`);
+    const planted = seg.find((r) => r[2] === 8)?.[1];
+    ok(planted != null && planted <= 6.5, `${side}: the whole wedge is planted before the crest (${planted ?? 'never'} s)`);
+    const plateEarly = seg.some((r) => r[1] <= 3.0 && r[4]);
+    const plateLate = seg.some((r) => r[1] >= 3.4 && r[4]);
+    ok(plateEarly, `${side}: the captain's plate rides the gate dolly`);
+    ok(!plateLate, `${side}: the plate is gone by the second shot`);
+  }
+  ok(wo.every((r) => r[3] <= 8), 'never more than one crew on the field at a time');
   const stamps = await page.evaluate(() => window.__stamps);
   ok(/GAME TIME/i.test(stamps[stamps.length - 1] ?? ''), `GAME TIME! is the break stamp (${stamps.join(' | ')})`);
   const sfx = await page.evaluate(() => window.__sfxLog.slice());
@@ -176,6 +232,38 @@ async function pregameScenario(page) {
   // serializer for minutes.
   ok(!!(await poll(page, () => !!window.__skk.walkup || ['PITCH', 'PITCH_SELECT'].includes(window.__skk.phase), 20000, 'first at-bat')),
     'the first at-bat follows the break');
+  // The show's own clock is the gate (that is what a phone at 60 fps spends);
+  // the wall clock carries this software-rendered WebKit's frame slop, so it
+  // only gets a sanity ceiling.
+  const pg = await page.evaluate(() => window.__pg);
+  const pgS = pg.e1 != null ? pg.e1 - pg.e0 : null;
+  const wallS = pg.t1 != null ? (pg.t1 - pg.t0) / 1000 : null;
+  ok(pgS != null && pgS <= 20 && wallS <= 24,
+    `the whole pre-game runs inside 20 s of show (${pgS?.toFixed(1)} s show / ${wallS?.toFixed(1)} s wall in headless WebKit)`);
+
+  // ---- SKIP: one chip press ends the show THAT INSTANT and hands the game a
+  // clean stage (the walk-out must never leave a body standing in the wedge)
+  await boot(page, 'match&nosplash');
+  ok(!!(await poll(page, () => window.__skk.walkoutRun?.side === 'away', 10000, 'away walk-out')), 'skip test starts mid walk-out');
+  await page.waitForTimeout(1000);
+  const cut = await page.evaluate(() => {
+    const s = window.__skk;
+    document.querySelector('.skip-chip')?.dispatchEvent(new Event('pointerdown'));
+    return {                                     // read back in the SAME turn: the skip is synchronous
+      active: s.walkoutActive, run: !!s.walkoutRun, cam: !!s.walkoutCam,
+      onField: [...s.chars.home, ...s.chars.away].filter((c) => c.group.visible).length,
+    };
+  });
+  ok(cut.active === false, 'the chip ends the walk-out on the spot (0 frames, not 2)');
+  ok(cut.run === false && cut.cam === false, 'the mover and the walk-out camera are torn down with it');
+  ok(cut.onField === 0, `the stage is cleared by the skip (${cut.onField} still on the field)`);
+  const back = await poll(page, () => {
+    const s = window.__skk;
+    if (!s.walkup && !['PITCH', 'PITCH_SELECT'].includes(s.phase)) return null;
+    return { x: +(s.kicker?.group.position.x ?? 99).toFixed(2), lock: s.cinematicLock, locked: s.engine.cameraLock };
+  }, 12000, 'play positions');
+  ok(back?.x === -3.4, `a skipped walk-out still puts the kicker on his mark (x ${back?.x})`);
+  ok(back?.lock === false && back?.locked === false, 'the lens is handed back to the game (no cinematic lock left on)');
 }
 
 // --------------------------------------------------------------- 2. SKIP CHIP
