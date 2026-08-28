@@ -17,7 +17,8 @@ import { loadExtrasFor } from './animExtras.js';
 // leaf modules: jerseyDecals imports three + kits, kits imports nothing
 import { attachJerseyDecals } from './jerseyDecals.js';
 import { inkFor, logoFor, markFor } from './kits.js';
-// leaf modules: skinTint is pure maths, accessories imports three and nothing else
+// leaf modules: skinTint is pure maths; accessories imports three + jerseyDecals
+// (it cuts its bands with the SAME patch machinery the shirt print uses)
 import { recolorPixels, kitTintPixel, inkKitPanels, rasterizeUvMask, dilateMask } from './skinTint.js';
 import { attachAccessory } from './accessories.js';
 import castsData from '../data/casts.json';
@@ -845,7 +846,7 @@ export async function buildTeamCharsGlb(team, uniformColor, gear = null, opts = 
       char = await buildGlbCharacter({ model: FALLBACK_MODEL }, { heightM: 2.05, clips: null });
     }
     char.cast = cast;
-    // headband / wristbands / shades in the crew's accent, scaled with the body
+    // the headband / wristbands, PRINTED on this body in the crew's accent
     char.accessories = attachAccessory(char, cast?.accessory, team.colors?.accent, { scale: cast?.height ?? 1 });
     char.data = p;
     char.number = p.number ?? JERSEY_NUMBERS[i % JERSEY_NUMBERS.length];

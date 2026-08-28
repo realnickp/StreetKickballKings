@@ -587,6 +587,27 @@ export function isShoulderBone(name) {
  * back vertex as much as 5 cm out.
  */
 export function rigSlots(mesh, rigInv = null) {
+  return boneFrames(mesh, rigInv).map((f) => ({
+    ...f,
+    shirt: isShirtBone(f.name),
+    shoulder: isShoulderBone(f.name),
+  }));
+}
+
+/**
+ * The BIND MAP of every slot in a skeleton, with nothing said about what part
+ * of the body it is — the half of `rigSlots` that is pure geometry.
+ *
+ * SHARED WITH `accessories.js`, which cuts a wristband and a headband out of
+ * the same body the same way; the only thing that differs between a crest and a
+ * band is which joints and which window claim a triangle.
+ *
+ * @param {THREE.SkinnedMesh} mesh
+ * @param {THREE.Matrix4|null} rigInv inverse of the rig frame's world matrix —
+ *   null (a test rig already stated in rig metres) reads the geometry as-is
+ * @returns {{name:string, xform:THREE.Matrix4|null, normal:THREE.Matrix3|null}[]}
+ */
+export function boneFrames(mesh, rigInv = null) {
   const bones = mesh?.skeleton?.bones ?? [];
   const inverses = mesh?.skeleton?.boneInverses ?? [];
   return bones.map((b, i) => {
@@ -596,12 +617,19 @@ export function rigSlots(mesh, rigInv = null) {
         .multiplyMatrices(rigInv, new THREE.Matrix4().multiplyMatrices(b.matrixWorld, inverses[i]));
     }
     return {
+      name: b?.name ?? '',
       xform,
       normal: xform ? new THREE.Matrix3().getNormalMatrix(xform) : null,
-      shirt: isShirtBone(b?.name),
-      shoulder: isShoulderBone(b?.name),
     };
   });
+}
+
+/** RIG METRES PER GEOMETRY UNIT for a set of bone frames — every lift in this
+ *  file and in `accessories.js` is quoted in metres and every position buffer
+ *  is in whatever units the GLB was authored in (1/100 m on these rigs). */
+export function frameScale(frames) {
+  const ref = frames?.find?.((f) => f.xform)?.xform;
+  return ref ? new THREE.Vector3().setFromMatrixScale(ref).x : 1;
 }
 
 /**
@@ -724,35 +752,106 @@ export function selectPatchTriangles(mesh, { side = 'front', slots = null, windo
  *   UNIT — the lift is quoted in metres and the buffer is in the body's units.
  */
 export function buildPatchGeometry(mesh, sel, side, { lift = PATCH_LIFT_M, scale = 1 } = {}) {
+  return skinPatchGeometry(mesh, sel.triangles, {
+    lift,
+    scale,
+    defaultNormal: side === 'back' ? [0, 0, -1] : [0, 0, 1],
+    uv: (old) => projectUv(sel.x[old], sel.y[old], sel.window, side),
+  });
+}
+
+/**
+ * One averaged, normalised normal per POSITION over the vertices a patch uses —
+ * the cure for the hairline cracks a uv seam opens in a lifted patch.
+ * Positions at a seam are bit-identical (the split is in uv and normal only),
+ * so an exact key is the right key.
+ * @returns {Map<number, [number,number,number]>} body vertex -> normal
+ */
+export function weldNormals(pos, nor, triangles) {
+  const out = new Map();
+  if (!nor) return out;
+  const groups = new Map();
+  for (const i of triangles) {
+    if (out.has(i)) continue;
+    out.set(i, null);
+    const key = `${pos.getX(i)},${pos.getY(i)},${pos.getZ(i)}`;
+    let g = groups.get(key);
+    if (!g) { g = { n: [0, 0, 0], of: [] }; groups.set(key, g); }
+    g.n[0] += nor.getX(i); g.n[1] += nor.getY(i); g.n[2] += nor.getZ(i);
+    g.of.push(i);
+  }
+  for (const g of groups.values()) {
+    const len = Math.hypot(g.n[0], g.n[1], g.n[2]) || 1;
+    const n = [g.n[0] / len, g.n[1] / len, g.n[2] / len];
+    for (const i of g.of) out.set(i, n);
+  }
+  return out;
+}
+
+/**
+ * ANY list of body triangles as a geometry the GPU can skin — the generic half
+ * of `buildPatchGeometry`, shared with `accessories.js`.
+ *
+ * The body's own positions, normals and skin weights for the chosen vertices,
+ * re-indexed, every position pushed `lift` METRES out along its own normal so
+ * the patch wins the depth test against the surface it is a copy of. Vertices
+ * are COPIED, not shared, so a corner shared with a rejected neighbour costs
+ * nothing.
+ *
+ * @param {THREE.SkinnedMesh} mesh the body
+ * @param {number[]} triangles flat: three BODY vertex indices per face
+ * @param {{lift?:number, scale?:number, uv?:((i:number)=>[number,number])|null,
+ *   defaultNormal?:number[], attributes?:{name:string, value:(i:number)=>number}[]}} o
+ *   `scale` is RIG METRES PER GEOMETRY UNIT (see `frameScale`); `uv` null means
+ *   the patch carries no uv at all — a flat colour needs none, and an unused
+ *   attribute is bytes on the GPU for nothing. `attributes` adds one float per
+ *   vertex for a shader of the caller's own (the bands' edge coordinate).
+ *   `weld` averages the normals of vertices sharing a position — see below.
+ */
+export function skinPatchGeometry(mesh, triangles, {
+  lift = PATCH_LIFT_M, scale = 1, uv = null, defaultNormal = [0, 0, 1], attributes = [],
+  weld = false,
+} = {}) {
   const geo = mesh.geometry;
   const pos = geo.getAttribute('position');
   const nor = geo.getAttribute('normal');
   const si = geo.getAttribute('skinIndex');
   const sw = geo.getAttribute('skinWeight');
   const off = lift / (scale || 1);
+  // SPLIT NORMALS TEAR A LIFTED PATCH. A uv seam duplicates a vertex in the
+  // body mesh — same position, DIFFERENT normal — and pushing each copy along
+  // its own normal pulls them apart by up to the whole lift, so the patch opens
+  // a hairline crack down every seam it crosses and the skin underneath shines
+  // through it (`bands/close-wrists-akron-2`, second pass). Averaging the
+  // normals of everything at one position closes it; the seam's own shading is
+  // irrelevant here because a patch is drawn flat.
+  const welded = weld ? weldNormals(pos, nor, triangles) : null;
   const seen = new Map(); // body vertex -> patch vertex
   const P = []; const NN = []; const UV = []; const SI = []; const SW = []; const IX = [];
-  for (const old of sel.triangles) {
+  const EX = attributes.map(() => []);
+  for (const old of triangles) {
     let at = seen.get(old);
     if (at === undefined) {
       at = P.length / 3;
       seen.set(old, at);
-      const nx = nor ? nor.getX(old) : 0;
-      const ny = nor ? nor.getY(old) : 0;
-      const nzv = nor ? nor.getZ(old) : (side === 'back' ? -1 : 1);
+      const w3 = welded?.get(old);
+      const nx = w3 ? w3[0] : (nor ? nor.getX(old) : defaultNormal[0]);
+      const ny = w3 ? w3[1] : (nor ? nor.getY(old) : defaultNormal[1]);
+      const nzv = w3 ? w3[2] : (nor ? nor.getZ(old) : defaultNormal[2]);
       P.push(pos.getX(old) + nx * off, pos.getY(old) + ny * off, pos.getZ(old) + nzv * off);
       NN.push(nx, ny, nzv);
-      const [u, v] = projectUv(sel.x[old], sel.y[old], sel.window, side);
-      UV.push(u, v);
+      if (uv) { const [u, v] = uv(old); UV.push(u, v); }
       SI.push(si ? si.getX(old) : 0, si ? si.getY(old) : 0, si ? si.getZ(old) : 0, si ? si.getW(old) : 0);
       SW.push(sw ? sw.getX(old) : 1, sw ? sw.getY(old) : 0, sw ? sw.getZ(old) : 0, sw ? sw.getW(old) : 0);
+      attributes.forEach((a, k) => EX[k].push(a.value(old)));
     }
     IX.push(at);
   }
   const out = new THREE.BufferGeometry();
   out.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
   out.setAttribute('normal', new THREE.Float32BufferAttribute(NN, 3));
-  out.setAttribute('uv', new THREE.Float32BufferAttribute(UV, 2));
+  if (uv) out.setAttribute('uv', new THREE.Float32BufferAttribute(UV, 2));
+  attributes.forEach((a, k) => out.setAttribute(a.name, new THREE.Float32BufferAttribute(EX[k], 1)));
   out.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(SI, 4));
   out.setAttribute('skinWeight', new THREE.Float32BufferAttribute(SW, 4));
   out.setIndex(IX);
@@ -821,32 +920,92 @@ function decalMaterial(map) {
     polygonOffsetUnits: -2,
     toneMapped: false,
   });
-  // THE GRAZING FADE, on the SKINNED normal. The uv is a PLANAR projection of
-  // the window onto the cloth, so where the cloth turns edge-on to that
-  // projection a texel covers a lot of surface and the print SMEARS round the
-  // flank — on the walk-out that read as a black slick of the back number's
-  // outline down a player's ribs (`decals-skinned/walkout-4.png`, first pass).
-  // Tightening the selection's own facing gate costs the crest its flanks on
-  // every archetype for a defect that only shows at the silhouette; a fade is
-  // camera-relative, so it only ever touches the rim that is actually smeared —
-  // and a print running out of sight round a body is what a print does.
-  //
-  // `transformedNormal` is three's own SKINNED, view-space normal, which the
-  // basic vertex shader computes whenever USE_SKINNING is on (it always is
-  // here). The card era faded on `mat3(modelMatrix) * normal`, which on a
-  // skinned mesh is the BIND normal and would lag every pose.
-  mat.onBeforeCompile = (sh) => {
-    sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vDecalN;\nvarying vec3 vDecalV;')
-      .replace('#include <begin_vertex>', '#ifdef USE_SKINNING\n\tvDecalN = transformedNormal;\n#else\n\tvDecalN = vec3(0.0, 0.0, 1.0);\n#endif\n#include <begin_vertex>')
-      .replace('#include <project_vertex>', '#include <project_vertex>\n\tvDecalV = -mvPosition.xyz;');
-    sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vDecalN;\nvarying vec3 vDecalV;')
-      .replace('#include <alphatest_fragment>', '\tdiffuseColor.a *= smoothstep(0.14, 0.44, abs(dot(normalize(vDecalN), normalize(vDecalV))));\n#include <alphatest_fragment>');
-  };
-  mat.customProgramCacheKey = () => 'jerseyPatch';
+  // THE GRAZING FADE at the PRINT's thresholds (`GRAZE`, below). The uv is a
+  // PLANAR projection of the window onto the cloth, so where the cloth turns
+  // edge-on to that projection a texel covers a lot of surface and the print
+  // SMEARS round the flank — on the walk-out that read as a black slick of the
+  // back number's outline down a player's ribs (`decals-skinned/walkout-4.png`,
+  // first pass). Tightening the selection's own facing gate costs the crest its
+  // flanks on every archetype for a defect that only shows at the silhouette; a
+  // fade is camera-relative, so it only ever touches the rim that is actually
+  // smeared — and a print running out of sight round a body is what a print
+  // does. A FLAT-COLOUR band has no projection to smear and fades far later.
+  applyGrazingFade(mat, 'jerseyPatch');
   mat.userData.owned = true;
   return mat;
+}
+
+/** How square-on a patch has to face the camera before it fades out, as the
+ *  cosine of its skinned normal against the view ray. The PRINT's numbers: it
+ *  is a planar projection, so it starts smearing well before the silhouette. */
+export const GRAZE = { from: 0.14, to: 0.44 };
+
+/**
+ * THE GRAZING FADE — fade a skinned patch out where its surface turns edge-on
+ * to the camera, so the rim never smears round a flank or leaves a hard seam
+ * where the patch's border runs off the silhouette. SHARED with the crew
+ * accessories, which are the same kind of patch in a flat colour.
+ *
+ * `transformedNormal` is three's own SKINNED, view-space normal, which the
+ * basic vertex shader computes whenever USE_SKINNING is on (it always is here).
+ * The card era faded on `mat3(modelMatrix) * normal`, which on a skinned mesh is
+ * the BIND normal and would lag every pose.
+ *
+ * The thresholds are a parameter because a BAND is not a print: a print's uv is
+ * a planar projection that smears long before the silhouette, and a flat colour
+ * has no projection to smear. Faded on the print's numbers, a wristband loses a
+ * stripe down every wrinkle in the wrist (`bands/close-wrists-akron-2` in the
+ * first pass) — so a band fades only on the last few degrees of the rim.
+ * @param {object} sh three's shader object, inside `onBeforeCompile`
+ */
+export function grazingFadeShader(sh, { from = GRAZE.from, to = GRAZE.to } = {}) {
+  sh.vertexShader = sh.vertexShader
+    .replace('#include <common>', '#include <common>\nvarying vec3 vDecalN;\nvarying vec3 vDecalV;')
+    .replace('#include <begin_vertex>', '#ifdef USE_SKINNING\n\tvDecalN = transformedNormal;\n#else\n\tvDecalN = vec3(0.0, 0.0, 1.0);\n#endif\n#include <begin_vertex>')
+    .replace('#include <project_vertex>', '#include <project_vertex>\n\tvDecalV = -mvPosition.xyz;');
+  sh.fragmentShader = sh.fragmentShader
+    .replace('#include <common>', '#include <common>\nvarying vec3 vDecalN;\nvarying vec3 vDecalV;')
+    .replace('#include <alphatest_fragment>', `\tdiffuseColor.a *= smoothstep(${from.toFixed(3)}, ${to.toFixed(3)}, abs(dot(normalize(vDecalN), normalize(vDecalV))));\n#include <alphatest_fragment>`);
+  return sh;
+}
+
+/**
+ * The fade, hung on a material.
+ * @param {THREE.Material} mat needs `transparent` — the fade is on ALPHA
+ * @param {string} cacheKey three caches programs by material type + defines, so
+ *   a patched shader MUST carry a key of its own or it is served the stock one.
+ *   Anything baked into the source below — the thresholds, an `extra` patch —
+ *   has to be answered for by this key.
+ * @param {{from?:number, to?:number, extra?:(sh:object)=>void}} [o] `extra`
+ *   chains another patch onto the same compile (the bands' edge feather)
+ */
+export function applyGrazingFade(mat, cacheKey = 'skinPatch', { from, to, extra = null } = {}) {
+  mat.onBeforeCompile = (sh) => {
+    grazingFadeShader(sh, { from, to });
+    extra?.(sh);
+  };
+  mat.customProgramCacheKey = () => cacheKey;
+  return mat;
+}
+
+/**
+ * Hang a patch off the body it was cut from: next to the body, with the body's
+ * own transform, bound to the body's own skeleton.
+ *
+ * In `attached` bind mode a skinned mesh's own matrix cancels out of the skin,
+ * but keeping them identical means nothing about it can ever drift. SHARED with
+ * `accessories.js`.
+ */
+export function bindPatchToBody(patch, body, root = null) {
+  patch.position.copy(body.position);
+  patch.quaternion.copy(body.quaternion);
+  patch.scale.copy(body.scale);
+  patch.bindMode = body.bindMode;
+  patch.bind(body.skeleton, body.bindMatrix);
+  // only in the graph once it is bound — a throw above leaves nothing behind
+  (body.parent ?? root)?.add(patch);
+  patch.updateMatrixWorld(true);
+  return patch;
 }
 
 let warnedPatch = false;
@@ -904,8 +1063,7 @@ export function attachJerseyDecals(char, { logoUrl = '', number = '', ink = null
     const slots = rigSlots(body, rigInv);
     // Rig metres per geometry unit — the lift is quoted in metres and the
     // position buffer is in whatever the GLB was authored in.
-    const ref = slots.find((sl) => sl.xform)?.xform;
-    const scale = ref ? new THREE.Vector3().setFromMatrixScale(ref).x : 1;
+    const scale = frameScale(slots);
 
     const meshes = {};
     const triangles = { front: 0, back: 0 };
@@ -933,16 +1091,7 @@ export function attachJerseyDecals(char, { logoUrl = '', number = '', ink = null
       patch.userData.decal = {
         side, triangles: n, window: sel.window, markCover: cover[side], mark: marks[side],
       };
-      // Next to the body, with the body's own transform: in `attached` bind
-      // mode a skinned mesh's own matrix cancels out of the skin, but keeping
-      // them identical means nothing about it can ever drift.
-      patch.position.copy(body.position);
-      patch.quaternion.copy(body.quaternion);
-      patch.scale.copy(body.scale);
-      patch.bindMode = body.bindMode;
-      patch.bind(body.skeleton, body.bindMatrix);
-      (body.parent ?? root).add(patch); // only in the graph once it is bound — a throw above leaves nothing behind
-      patch.updateMatrixWorld(true);
+      bindPatchToBody(patch, body, root);
       meshes[side] = patch;
     }
     if (!meshes.front && !meshes.back) return null;

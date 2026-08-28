@@ -107,15 +107,21 @@ describe('the crews look like their intros', () => {
     expect(women.filter((n) => n >= 3).length).toBeGreaterThanOrEqual(4);
   });
 
-  it('accessorises 2-5 players a crew, and uses every kind somewhere', () => {
+  // SHADES ARE GONE, 2026-08-28: there is no convincing SKINNED form for a
+  // visor — it stands off the head, and standing off the body is the whole
+  // defect the bands round killed (see accessories.js). Every pair was re-cast
+  // as a headband, which is why some crews now wear three of them.
+  it('accessorises 2-5 players a crew, and uses BOTH kinds somewhere', () => {
     const kinds = new Set();
     for (const [id, cast] of entries) {
       const worn = cast.filter((c) => c.accessory !== 'none');
       expect(worn.length, `${id} accessories`).toBeGreaterThanOrEqual(2);
       expect(worn.length, `${id} accessories`).toBeLessThanOrEqual(5);
-      for (const c of worn) kinds.add(c.accessory);
+      const own = new Set(worn.map((c) => c.accessory));
+      expect(own.size, `${id} fields only ${[...own]}`).toBeGreaterThanOrEqual(2);
+      for (const k of own) kinds.add(k);
     }
-    expect([...kinds].sort()).toEqual(['headband', 'shades', 'wristbands']);
+    expect([...kinds].sort()).toEqual(['headband', 'wristbands']);
   });
 
   it('keeps the big bodies out of the leadoff spot and the small ones out of the 4-hole', () => {
