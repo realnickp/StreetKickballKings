@@ -1,6 +1,8 @@
 // Generate realistic gameplay SFX via ElevenLabs sound-generation, server-side.
 // Run: node scripts/gen-sfx.mjs   (resumable — skips files that already exist)
 import fs from 'fs';
+import { execFileSync } from 'child_process';
+import { fileURLToPath } from 'url';
 const ROOT = new URL('..', import.meta.url);
 const key = fs.readFileSync(new URL('.env.local', ROOT), 'utf8').match(/ELEVENLABS_API_KEY=(.+)/)?.[1]?.trim();
 if (!key) { console.error('no ELEVENLABS_API_KEY'); process.exit(1); }
@@ -69,8 +71,33 @@ async function gen({ file, text, dur, infl }) {
   });
   if (!r.ok) { console.error('FAIL', file, r.status, (await r.text()).slice(0, 160)); return 'fail'; }
   fs.writeFileSync(out, Buffer.from(await r.arrayBuffer()));
-  console.log('ok  ', file);
+  console.log('ok  ', file, loudnessGate(out));
   return 'ok';
+}
+
+// LOUDNESS GATE (2026-08-28): this generator renders single-hit impacts at
+// -23…-51 dBFS (kick, ui-tap, scratch all shipped inaudible). Every new take is
+// measured; anything peaking under -6 dBFS is peak-normalised to -1.9 dBFS in
+// place. Needs ffmpeg on PATH; if it is missing the take is kept and flagged.
+function loudnessGate(outUrl) {
+  const path = fileURLToPath(outUrl);
+  const peak = () => {
+    const log = execFileSync('ffmpeg', ['-hide_banner', '-i', path, '-af', 'volumedetect', '-f', 'null', '-'], { stdio: ['ignore', 'pipe', 'pipe'] }).toString()
+      + '';
+    const m = /max_volume:\s*(-?[\d.]+) dB/.exec(log);
+    return m ? parseFloat(m[1]) : null;
+  };
+  try {
+    const before = peak();
+    if (before == null) return '(peak unknown)';
+    if (before >= -6) return `(peak ${before} dBFS ok)`;
+    const tmp = path.replace(/\.mp3$/, '.norm.mp3');
+    execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-i', path, '-af', `volume=${(-1.9 - before).toFixed(2)}dB`, '-codec:a', 'libmp3lame', '-q:a', '2', tmp], { stdio: 'ignore' });
+    fs.renameSync(tmp, path);
+    return `(peak ${before} dBFS → normalised to ${peak()} dBFS)`;
+  } catch (e) {
+    return `(loudness gate skipped: ${String(e.message).slice(0, 80)})`;
+  }
 }
 
 let ok = 0, fail = 0;

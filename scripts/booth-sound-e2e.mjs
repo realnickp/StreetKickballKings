@@ -248,6 +248,8 @@ async function specialSwingScenario(page) {
   ok(sfx2.includes('swing'), 'the swish still lands, mid-wind-up');
   ok(sfx2.indexOf('bigwhoosh') >= 0 && sfx2.indexOf('bigwhoosh') < sfx2.indexOf('swing'),
     'whoosh opens the move, swish follows it');
+  ok(sfx2.indexOf('swing') >= 0 && sfx2.indexOf('swing') < sfx2.indexOf('strike'),
+    'the swish lands BEFORE the thump — the 60 % timer runs on the real clock, not the slowed one');
 }
 
 async function pegPadScenario(page) {
