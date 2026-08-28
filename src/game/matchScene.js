@@ -33,6 +33,8 @@ import { gearLine } from '../meta/gearLine.js';
 import { PREGAME, pregameTimeline, walkoutPregame } from './pregame.js';
 import { WALKOUT_SHOW, walkoutTimeline, walkoutShotAt, walkoutPosAt, craneT } from './walkoutShow.js';
 import { disposeCharacter } from './glbCharacters.js';
+import { cityTrackId } from '../engine/audioTracks.js';
+import teamsData from '../data/teams.json';
 
 // fallback facing for a trail update on a runner who never got a live `dir`
 // this game (defensive only — every runner passes through the running branch
@@ -123,6 +125,13 @@ export class MatchScene {
     this.matchStats = { hr: 0, defOuts: 0, steals: 0, pickleEscapes: 0, perfects: 0 };
 
     this.match = new MatchEngine({ home: teams.home.id, away: teams.away.id }, tuning.match, { firstKick });
+    // MATCH MUSIC: the FIELD's own city scores the game (dev: "each city is
+    // supposed to have their own music, i don't think that's working") — the
+    // field's home team's city, not necessarily teams.home (a neutral-field
+    // booking, e.g. the dev harness, can hand this scene a field whose
+    // homeTeam differs from the scheduled home side).
+    const fieldHomeTeam = teamsData.teams.find((t) => t.id === fieldData.homeTeam);
+    this.matchCityTrack = cityTrackId(fieldHomeTeam?.city ?? teams.home?.city);
     this.field = buildField(fieldData, engine.scene);
     // Light the live layer BY the scene: IBL + grade tint derived from this
     // field's own backdrop art so court/players sit inside it, not on top.
@@ -408,8 +417,9 @@ export class MatchScene {
       // ===== THE BREAK (dev, 2026-08-05: "we need some sort of break between
       // the opening dance number and the game... the music needs to change").
       // The dance ends WITH its music — scratch, one breath of crowd, GAME
-      // TIME — then the game starts on its own groove (the in-match beat; the
-      // city track stays the walkout's showcase).
+      // TIME — then the game resumes on the SAME city track (dev, 2026-08-28:
+      // "each city is supposed to have their own music") — never the generic
+      // beat pool once a field's dialect is known.
       this.bus.emit('sfx', 'scratch');
       this.bus.emit('music', { stop: true });
       this.bus.emit('sfx', 'crowd-cheer');
@@ -419,7 +429,7 @@ export class MatchScene {
         this.hud.setLetterbox(false);
         this.cinematicLock = false;
         this.engine.cameraLock = false;
-        this.bus.emit('music', { name: 'beat' });
+        this.bus.emit('music', { name: this.matchCityTrack });
         done();
       });
     };
