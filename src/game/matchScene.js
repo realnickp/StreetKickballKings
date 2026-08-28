@@ -387,8 +387,13 @@ export class MatchScene {
       this.walkoutActive = false;
       this.walkoutRun = null;
       this.walkoutCam = null;
-      // back to the empty-stage invariant — nextAtBat unhides who it needs
+      // back to the empty-stage invariant — nextAtBat unhides who it needs.
+      // Eight bodies blinking out mid-shot is a POP, so it goes under a
+      // broadcast CUT: the lens snaps to the kick framing on the SAME frame the
+      // wedge is hidden (and the scratch + GAME TIME stamp land on it too).
+      // Cheapest cover that reads — no fade state, no extra frame of bookkeeping.
       for (const c of [...this.chars.home, ...this.chars.away]) c.group.visible = false;
+      if (!this.engine.cameraLock) this.camDir.request('kick', this.camCtx(), { cut: true });
       offSkip?.();
       this.hud.walkoutHide();
       this.hud.teamSplashHide();
@@ -455,10 +460,10 @@ export class MatchScene {
         if (cap?.nick) {
           this.after(WALKOUT_SHOW.plateInS, () => {
             if (this.walkoutRun?.side !== side) return;
-            this.hud.walkoutShow({
+            this.hud.walkoutShow({   // mini plate: no tag row, so no `label`
               nick: cap.nick, number: cap.number ?? squad[0].number, pos: cap.pos,
               stats: cap.stats, color: this.teams[side].colors?.primary,
-              label: 'THE CAPTAIN', mini: true,
+              mini: true,
             });
           });
           this.after(WALKOUT_SHOW.plateOutS, () => { if (this.walkoutRun?.side === side) this.hud.walkoutHide(); });
@@ -471,7 +476,12 @@ export class MatchScene {
           });
         }
         this.after(tl.splashAt, () => {
-          if (this.walkoutRun?.side === side) showSplash(this.teams[side], WALKOUT_SHOW.splashS);
+          if (this.walkoutRun?.side !== side) return;
+          showSplash(this.teams[side], WALKOUT_SHOW.splashS);
+          // the crew's own intro sting UNDER its crest — the mic is free here
+          // (lineups at 0.2 s, walkout-captain at ~3.0 s, and GAME TIME's
+          // 'gametime' is a CALL that queues behind whatever is playing)
+          this.bus.emit('vo', { event: 'nowkicking', team: this.teams[side].id });
         });
       });
     };
@@ -490,12 +500,14 @@ export class MatchScene {
   }
 
   /** The crew that walks out, CAPTAIN FIRST — he leads the file and takes the
-   *  point of the wedge (slot 0), so the roster order never buries him. */
+   *  point of the wedge (slot 0), so the roster order never buries him. Capped
+   *  at the eight wedge slots: a ninth body would double up on slot 0 and walk
+   *  through the captain. */
   walkoutSquad(side) {
     const chars = this.chars[side] ?? [];
     const cap = chars.findIndex((c) => /captain/i.test(c.data?.pos ?? ''));
-    if (cap <= 0) return [...chars];
-    return [chars[cap], ...chars.filter((_, i) => i !== cap)];
+    const roster = cap <= 0 ? [...chars] : [chars[cap], ...chars.filter((_, i) => i !== cap)];
+    return roster.slice(0, WALKOUT_SHOW.slots.length);
   }
 
   /** Per-frame walk-out mover: every player rides his own straight line from

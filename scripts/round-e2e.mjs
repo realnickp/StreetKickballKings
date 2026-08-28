@@ -120,7 +120,10 @@ async function boot(page, q) {
       if (w) {
         window.__wo.push([w.side, +(s.elapsed - w.t0).toFixed(2), w.arrived.size,
           w.chars.filter((c) => c.group.visible).length,
-          !!document.querySelector('.walkout-card')]);
+          !!document.querySelector('.walkout-card'),
+          // EVERY body on the stage, both crews — the one-crew-at-a-time
+          // invariant is about the whole field, not this crew's own squad
+          [...s.chars.home, ...s.chars.away].filter((c) => c.group.visible).length]);
       }
       if (s.walkoutActive && window.__pg.t0 == null) { window.__pg.t0 = performance.now(); window.__pg.e0 = s.elapsed; }
       if (!s.walkoutActive && window.__pg.t0 != null && window.__pg.t1 == null) { window.__pg.t1 = performance.now(); window.__pg.e1 = s.elapsed; }
@@ -208,13 +211,19 @@ async function pregameScenario(page) {
     const capAt = seg.find((r) => r[2] >= 1)?.[1];
     ok(capAt != null && capAt <= 6.0, `${side}: the captain plants inside 6 s (${capAt ?? 'never'} s)`);
     const planted = seg.find((r) => r[2] === 8)?.[1];
-    ok(planted != null && planted <= 6.5, `${side}: the whole wedge is planted before the crest (${planted ?? 'never'} s)`);
+    // the crest wash lands at 7.0 s — the wedge has to be finished, and READ,
+    // before it covers the field
+    // (6.3, not 5.95: this is the first SAMPLED frame, and headless WebKit's
+    // software renderer can be a fat frame behind the arrival itself)
+    ok(planted != null && planted <= 6.3, `${side}: the whole wedge is planted well before the 7.0 s crest (${planted ?? 'never'} s)`);
     const plateEarly = seg.some((r) => r[1] <= 3.0 && r[4]);
     const plateLate = seg.some((r) => r[1] >= 3.4 && r[4]);
     ok(plateEarly, `${side}: the captain's plate rides the gate dolly`);
     ok(!plateLate, `${side}: the plate is gone by the second shot`);
   }
-  ok(wo.every((r) => r[3] <= 8), 'never more than one crew on the field at a time');
+  const crowded = wo.filter((r) => r[5] > 8);
+  ok(wo.length > 0 && crowded.length === 0,
+    `never more than one crew on the field at a time (peak ${Math.max(0, ...wo.map((r) => r[5]))} bodies over ${wo.length} frames)`);
   const stamps = await page.evaluate(() => window.__stamps);
   ok(/GAME TIME/i.test(stamps[stamps.length - 1] ?? ''), `GAME TIME! is the break stamp (${stamps.join(' | ')})`);
   const sfx = await page.evaluate(() => window.__sfxLog.slice());
@@ -269,11 +278,13 @@ async function pregameScenario(page) {
 // --------------------------------------------------------------- 2. SKIP CHIP
 async function skipChipScenario(page) {
   console.log('\n--- 2: SKIP CHIP ---');
-  // The pre-game runs ~4.3s on its own (pregame.js: 0.2 + 0.3 + 1.9 + 1.9).
-  // Press the chip while the FIRST crest is still up, then demand the show be
-  // over inside 1.5s — a pass here cannot be the show ending by itself.
+  // The pre-game runs 17.2s on its own (pregame.js: 0.2 open + 0.6 lead + two
+  // 8.0s walk-outs with a 0.2s gap each). The first crest is up at 7.8s, so the
+  // poll has to outwait that. Press the chip while it is still up, then demand
+  // the show be over inside 1.5s — a pass here cannot be the show ending by
+  // itself, with 9+ seconds still to run.
   await boot(page, 'match&nosplash');
-  if (!ok(!!(await poll(page, () => window.__splashes.length >= 1 && window.__skk.walkoutActive, 10000, 'first crest')), 'chip test starts mid-show')) return;
+  if (!ok(!!(await poll(page, () => window.__splashes.length >= 1 && window.__skk.walkoutActive, 15000, 'first crest')), 'chip test starts mid-show')) return;
   const pressed = await page.evaluate(() => {
     const chip = document.querySelector('.skip-chip');
     if (!chip) return null;
@@ -281,7 +292,7 @@ async function skipChipScenario(page) {
     return true;
   });
   ok(!!pressed, 'the SKIP chip is on screen mid-show');
-  ok(!!(await poll(page, () => !window.__skk.walkoutActive, 1500, 'skip ends the show')), 'the chip ends the pre-game inside 1.5s (it runs 4.3s on its own)');
+  ok(!!(await poll(page, () => !window.__skk.walkoutActive, 1500, 'skip ends the show')), 'the chip ends the pre-game inside 1.5s (it runs 17.2s on its own)');
   ok(!!(await poll(page, () => window.__stamps.some((t) => /GAME TIME/i.test(t)), 2000, 'GAME TIME')), 'the skip still gets the GAME TIME break');
   ok(await page.evaluate(() => !document.querySelector('.skip-chip') && !document.querySelector('.team-splash')),
     'the chip and the crest clear with the show');

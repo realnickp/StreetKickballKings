@@ -43,15 +43,18 @@ export const SHOTS = {
   },
   //  2. SIDE STEADICAM (3.0-5.6 s): off the foul line, the whole file streaming
   //     across frame into the wedge.
-  walkoutSide: (c) => ({ pos: V((c.side ?? -1) * 9, 1.6, -9.5), look: V(0, 1.1, -10), fovScale: 0.85, stiffness: 12 }),
+  walkoutSide: (c) => ({ pos: V((c.side ?? -1) * 9, 1.4, -9.5), look: V(0, 1.1, -10), fovScale: 0.85, stiffness: 12 }),
   //  3. CRANE REVEAL (5.6-8.0 s): pull back and up off the captain until ALL
   //     EIGHT are in frame (the dev asked to see the crew, "all of them"), and
-  //     it has to be WIDE before the crest card lands over the last 1.5 s — so
+  //     it has to be WIDE before the crest card lands over the last beat — so
   //     the move starts further back than a face close-up and finishes on the
   //     kick framing, letting the GAME TIME break settle instead of jump.
+  //     It also DRIFTS x 1.6 -> 0: dead on the centre line the wedge's middle
+  //     column stacks into one silhouette, so the crane starts off-axis (the
+  //     rows separate) and settles onto x 0 for the kick framing.
   walkoutCrane: (c) => {
     const t = Math.max(0, Math.min(1, c.walkoutT ?? 0));
-    return { pos: V(0, 2.4 + 2.2 * t, 6.5 * t), look: V(0, 1.05, -10), fovScale: 0.9, stiffness: 22 };
+    return { pos: V(1.6 - 1.6 * t, 2.4 + 2.2 * t, 6.5 * t), look: V(0, 1.05, -10), fovScale: 0.9, stiffness: 22 };
   },
 
   // hard CUT on contact: low hero cam beside the plate, looking up the lane.

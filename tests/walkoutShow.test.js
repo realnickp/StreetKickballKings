@@ -18,9 +18,26 @@ it('every player rides his own line from the side gate to a wedge slot', () => {
   // the wedge: captain on point at z -8.2, the crew filling back to z -11.8
   expect(WALKOUT_SHOW.slots).toEqual([
     [0, -8.2], [-1.7, -9.4], [1.7, -9.4],
-    [-3.1, -10.6], [0, -10.6], [3.1, -10.6],
+    [-3.1, -10.6], [0.6, -10.6], [3.1, -10.6],
     [-2.2, -11.8], [2.2, -11.8],
   ]);
+  // NOBODY IS HIDDEN BEHIND THE CAPTAIN. The crane looks down the +z axis at
+  // ~14°, so a slot on the captain's centre line is a body he eclipses for the
+  // whole reveal — slot 4 is off-axis on purpose.
+  for (const [x, z] of WALKOUT_SHOW.slots.slice(1)) {
+    expect(Math.abs(x - WALKOUT_SHOW.slots[0][0]) > 0.5 || z === WALKOUT_SHOW.slots[0][1]).toBe(true);
+  }
+});
+
+it('the pace is a WALK — the clip never stretches past 1.5x', () => {
+  expect(WALKOUT_SHOW.gateX).toBe(6.5);
+  expect(WALKOUT_SHOW.mps).toBe(2.3);
+  expect(WALKOUT_SHOW.stagger).toBe(0.20);
+  expect(WALKOUT_SHOW.trail).toBe(0.14);
+  // feet match ground speed via a time-scaled walk clip; past ~1.5x it reads
+  // as fast-forward instead of a stride (3.0 m/s was 1.88x)
+  expect(WALKOUT_SHOW.mps / WALKOUT_SHOW.walkClipMps).toBeLessThanOrEqual(1.5);
+  expect(walkoutTimeline('away').capArriveAt).toBeCloseTo(2.98, 1);
 });
 
 it('the file leaves the gate on a stagger and walks at one speed', () => {
@@ -53,7 +70,8 @@ it('the whole crew is planted before the crane reveal has to hold it', () => {
     const tl = walkoutTimeline(side);
     expect(tl.capArriveAt).toBeLessThanOrEqual(6.0);
     expect(tl.lastArriveAt).toBeLessThanOrEqual(6.0);      // brief gate
-    expect(tl.lastArriveAt).toBeLessThan(tl.splashAt);      // settled BEFORE the crest lands
+    // and a full second of PLANTED WEDGE before the crest wash covers it
+    expect(tl.lastArriveAt).toBeLessThanOrEqual(tl.splashAt - 1.0);
     expect(tl.totalS - tl.lastArriveAt).toBeGreaterThanOrEqual(WALKOUT_SHOW.holdS);
   }
 });
@@ -62,7 +80,12 @@ it('three shots, cut on the beat, eight seconds a team', () => {
   const tl = walkoutTimeline('away');
   expect(tl.cuts).toEqual([0, 3.0, 5.6]);
   expect(tl.totalS).toBe(8.0);
+  // the crest card is a near-opaque full-screen wash: it lands LAST, so the
+  // crane's reveal gets 1.4 s of legible lineup before it slams
+  expect(WALKOUT_SHOW.splashS).toBe(1.0);
+  expect(tl.splashAt).toBeCloseTo(7.0, 6);
   expect(tl.splashAt).toBeCloseTo(8.0 - WALKOUT_SHOW.splashS, 6);
+  expect(tl.splashAt - tl.cuts[2]).toBeGreaterThanOrEqual(1.4);
   expect(walkoutShotAt(0)).toBe('walkoutGate');
   expect(walkoutShotAt(2.99)).toBe('walkoutGate');
   expect(walkoutShotAt(3.0)).toBe('walkoutSide');
