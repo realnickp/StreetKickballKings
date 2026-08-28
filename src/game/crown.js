@@ -14,7 +14,7 @@ export class Crown {
    *  crown) must never refill the meter it just emptied — that read as
    *  "back to back crowns" (dev, 2026-08-27). */
   feed(event) {
-    if (this.play) return false;
+    if (this.play && event !== 'shutout') return false; // a shutout is a HALF event, never part of the swing's play
     if (!OFFENSE.has(event)) return false;
     const was = this.meter.ready;
     this.meter.add(event);
