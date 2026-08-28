@@ -72,7 +72,7 @@ export function buildLocker(ctx, { mode, team, opponent = null, tones = null, on
   const dressed = () => dressTeams({
     home: opponent ?? NEUTRAL_CREW, away: team, playerSide: 'away',
     gearKit: equippedGear(save).uniform,
-    tones: opponent ? tones : { home: 'light', away: 'dark' },
+    tones: opponent ? tones : { home: 'dark', away: 'light' },
   });
   const refreshPreview = () => {
     const eq = equippedGear(save);
