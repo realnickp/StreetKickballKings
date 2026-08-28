@@ -214,7 +214,7 @@ async function specialSwingScenario(page) {
   const armed = await page.evaluate(() => {
     const s = window.__skk;
     // MEIA LUA: the move the dev unlocked, and the clip whose release mark this
-    // round re-cut from the plant (0.86) to the strike (0.606).
+    // round re-cut from the plant (0.86) to the sweep's apex (0.618).
     s.crown.gear = { id: 'kick-meia', name: 'MEIA LUA', clip: 'kickMeia', mods: { powerMult: 1.35, curl: 1.5 } };
     s.crown.disarm(); s.special.value = 100; s.refreshHud();
     document.querySelector('.special-btn').dispatchEvent(new Event('pointerdown'));
