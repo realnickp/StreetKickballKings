@@ -10,6 +10,14 @@
 // would splatter it across faces and shoes. So the decal is GEOMETRY: two
 // camera-facing planes parented to the chest bone, drawn from a 512² canvas.
 //
+// NOT FROM HERE: the black slab that used to sit behind the back number on a
+// red or a gold kit is PRINTED INTO THE ARCHETYPE ATLAS — a dark number panel
+// on the vest's back. `glbCharacters.recolorKitTexture` only re-inks pixels
+// with `s < 0.17 && v > 0.52`, so the panel survives every kit and shows up on
+// anything that isn't a dark shirt. Hide `jersey-back` and it is still there.
+// Nothing in this file has EVER filled a rectangle behind a mark since the
+// conditional patch came out; the tests below hold that line.
+//
 // Everything here is metres in the CHARACTER's own space. The planes hang off
 // a rig group whose transform cancels the chest bone's bind rotation + scale
 // (bone-local units are 1/100 of a metre on these rigs, and each archetype's
@@ -114,6 +122,16 @@ export const OUTLINE_RATIO = 0.025;
  *  ring leaves between stamps on a thin serif). 18 draws of a cached canvas,
  *  once per texture — the texture cache means it never runs twice. */
 const OUTLINE_RING = [[1, 12], [0.5, 6]];
+
+/** THE NUMBER'S EDGE, as a fraction of the drawn glyph size — NOT a fixed
+ *  stroke. The back number is drawn about 2.3× the chest badge, so `lineWidth
+ *  10` on both gave the hero number an edge less than half as heavy as the
+ *  little one's, and it is the back that has to hold its own over whatever the
+ *  shirt is printed with. 0.056 is the chest badge's old weight (10 px on its
+ *  ~178 px glyph), so the front is where it always was and the back now matches
+ *  it. NOTHING is ever filled behind the number — the edge is the glyph's own
+ *  stroke, exactly like the mark's silhouette outline above. */
+export const NUM_EDGE_RATIO = 0.056;
 
 /** The number reads in `ink` with a fat outline in the OTHER ink, so it holds
  *  its edge over a logo, over a light kit, over anything. */
@@ -300,13 +318,21 @@ function paintFace(logoImg, number, ink, side) {
     // inked, and on the back that difference is the whole margin between the
     // number's top stroke and the crew mark above it.
     const inked = (m) => (m?.actualBoundingBoxAscent ?? size * CAP_RATIO) + (m?.actualBoundingBoxDescent ?? 0);
-    const h0 = inked(ctx.measureText?.(text));
-    if (h0 > 0) {
-      size *= target / h0;
+    // The box holds the WHOLE drawn number — the glyph ink AND the edge around
+    // it. `stackFace` settles the back run flush against the plane's bottom, so
+    // a number fitted on its ink alone puts its baseline ON the last row of the
+    // canvas and the edge is sliced clean off there: the hero number ended up
+    // the one mark on the shirt with no edge along its foot. Two passes — the
+    // ink measurement is exact and the edge is a fixed fraction of the size, so
+    // the correction lands.
+    for (let i = 0; i < 2; i++) {
+      const h = inked(ctx.measureText?.(text)) + size * NUM_EDGE_RATIO;
+      if (!(h > 0)) break;
+      size *= target / h;
       ctx.font = `900 ${size}px ${FONT_STACK}`;
     }
     const maxW = mToPx(PLANE_M * 0.86);
-    const w = ctx.measureText?.(text)?.width ?? 0;
+    const w = (ctx.measureText?.(text)?.width ?? 0) + size * NUM_EDGE_RATIO;
     if (w > maxW && w > 0) {
       size *= maxW / w;
       ctx.font = `900 ${size}px ${FONT_STACK}`;
@@ -318,7 +344,7 @@ function paintFace(logoImg, number, ink, side) {
     const desc = m?.actualBoundingBoxDescent ?? 0;
     const baseY = toY(b.y) + (asc - desc) / 2;
     ctx.lineJoin = 'round';
-    ctx.lineWidth = 10;
+    ctx.lineWidth = Math.max(2, size * NUM_EDGE_RATIO);
     ctx.strokeStyle = oppositeInk(ink);
     ctx.strokeText(text, toX(b.x), baseY);
     ctx.fillStyle = ink;

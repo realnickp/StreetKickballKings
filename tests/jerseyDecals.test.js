@@ -3,7 +3,7 @@ import {
   layoutFront, layoutBack, faceBoxes, stackFace, fitBox, decalKey, decalTexture,
   findChestBone, clearDecalCache, decalCacheSize, loadLogoImage, oppositeInk, fallOff,
   isShirtBone, percentile,
-  DECAL_CACHE_MAX, DECAL_PX, PLANE_M, OUTLINE_RATIO,
+  DECAL_CACHE_MAX, DECAL_PX, PLANE_M, OUTLINE_RATIO, NUM_EDGE_RATIO,
 } from '../src/game/jerseyDecals.js';
 
 // The decal canvas is the ONLY DOM this module touches. vitest runs in node,
@@ -19,14 +19,26 @@ function stubCanvas() {
     _font: '900 100px Archivo',
     get font() { return this._font; },
     set font(v) { this._font = v; },
-    fillStyle: '', strokeStyle: '', lineWidth: 0, lineJoin: '',
+    fillStyle: '', strokeStyle: '', lineWidth: 0, lineJoin: '', globalAlpha: 1,
     textAlign: '', textBaseline: '', globalCompositeOperation: 'source-over',
     ops,
-    clearRect() {},
+    clearRect(...a) { ops.push({ op: 'clearRect', a }); },
     fillRect(...a) { ops.push({ op: 'fillRect', a, fill: this.fillStyle, gco: this.globalCompositeOperation }); },
     drawImage(src, ...a) { ops.push({ op: 'drawImage', src, a, gco: this.globalCompositeOperation }); },
     fillText(t, x, y) { ops.push({ op: 'fillText', t, x, y, fill: this.fillStyle, font: this._font }); },
-    strokeText(t, x, y) { ops.push({ op: 'strokeText', t, x, y, stroke: this.strokeStyle }); },
+    strokeText(t, x, y) { ops.push({ op: 'strokeText', t, x, y, stroke: this.strokeStyle, lineWidth: this.lineWidth, font: this._font }); },
+    // Every way a 2D context can flood a REGION rather than a glyph. The old
+    // conditional slab went down through beginPath/roundRect/fill; if any of
+    // them ever comes back, the "no plate" tests below see it.
+    beginPath(...a) { ops.push({ op: 'beginPath', a }); },
+    closePath(...a) { ops.push({ op: 'closePath', a }); },
+    moveTo(...a) { ops.push({ op: 'moveTo', a }); },
+    lineTo(...a) { ops.push({ op: 'lineTo', a }); },
+    quadraticCurveTo(...a) { ops.push({ op: 'quadraticCurveTo', a }); },
+    rect(...a) { ops.push({ op: 'rect', a, fill: this.fillStyle }); },
+    roundRect(...a) { ops.push({ op: 'roundRect', a, fill: this.fillStyle }); },
+    arc(...a) { ops.push({ op: 'arc', a }); },
+    fill(...a) { ops.push({ op: 'fill', a, fill: this.fillStyle, alpha: this.globalAlpha }); },
     save() {}, restore() {},
     measureText(s) {
       const px = parseFloat(/(\d+(?:\.\d+)?)px/.exec(this._font)?.[1] ?? '100');
@@ -263,10 +275,81 @@ describe('decal texture cache', () => {
   });
 });
 
-describe('the number\'s own outline', () => {
+describe('the number\'s own outline — a glyph edge, NEVER a plate', () => {
+  // Every op that floods a REGION instead of a glyph. `strokeText`/`fillText`
+  // ink the letterform; `drawImage` of the silhouette canvas is the mark's own
+  // alpha. Anything else laid down on a face canvas is a slab.
+  const REGION_OPS = ['fillRect', 'roundRect', 'rect', 'arc', 'fill', 'beginPath', 'moveTo', 'lineTo', 'quadraticCurveTo'];
+  const faceOf = () => canvases[0].ctx;
+
   it('reads in the kit ink over an outline in the OTHER ink', () => {
     expect(oppositeInk('#0b0c10')).toBe('#f4f4f6');
     expect(oppositeInk('#f4f4f6')).toBe('#0b0c10');
+  });
+
+  it('a number-only jersey draws EXACTLY two ops — the edge, then the ink', () => {
+    // No mark to outline, so this is the whole of what the number costs. If a
+    // backing slab ever creeps back in, it lands here first.
+    for (const side of ['front', 'back']) {
+      clearDecalCache(); canvases.length = 0;
+      decalTexture(null, 7, '#f4f4f6', side);
+      const ops = faceOf().ops;
+      expect(ops.map((o) => o.op), side).toEqual(['strokeText', 'fillText']);
+      expect(ops[0].stroke).toBe('#0b0c10');   // the edge, in the OTHER ink
+      expect(ops[1].fill).toBe('#f4f4f6');     // the number, in the kit ink
+      expect(ops[1].x).toBe(ops[0].x);
+      expect(ops[1].y).toBe(ops[0].y);
+    }
+  });
+
+  it('fills no region ANYWHERE on the face — the mark\'s outline is its own alpha', () => {
+    for (const [side, ink] of [['front', '#f4f4f6'], ['back', '#0b0c10']]) {
+      clearDecalCache(); canvases.length = 0;
+      decalTexture(img('/assets/logos/bullies.png'), 7, ink, side);
+      const face = faceOf();
+      for (const op of REGION_OPS) {
+        expect(face.ops.filter((o) => o.op === op).length, `${side} ${op} on the face`).toBe(0);
+      }
+      // every mark the face lays down is a glyph or the mark's own silhouette
+      expect(face.ops.every((o) => ['drawImage', 'strokeText', 'fillText'].includes(o.op))).toBe(true);
+      // the ONE fillRect in the run is the source-in flood that CUTS the
+      // silhouette, on its own scratch canvas — never on the face
+      const floods = canvases.flatMap((c, i) => c.ctx.ops.filter((o) => o.op === 'fillRect').map((o) => ({ i, o })));
+      expect(floods.length, `${side} fillRect count`).toBe(1);
+      expect(floods[0].i, 'not the face canvas').toBeGreaterThan(0);
+      expect(floods[0].o.gco).toBe('source-in');
+    }
+  });
+
+  it('wears the SAME edge weight on both faces — proportional, not a fixed 10 px', () => {
+    // The back number is drawn ~2.3× the chest badge. A fixed stroke made the
+    // hero number's edge less than half as heavy as the little one's.
+    const weight = (side) => {
+      clearDecalCache(); canvases.length = 0;
+      decalTexture(null, 7, '#f4f4f6', side);
+      const s = faceOf().ops.find((o) => o.op === 'strokeText');
+      return { lw: s.lineWidth, size: fontPx(s.font) };
+    };
+    const f = weight('front'); const b = weight('back');
+    expect(b.size).toBeGreaterThan(f.size * 2);            // the back IS the hero
+    expect(f.lw / f.size).toBeCloseTo(NUM_EDGE_RATIO, 9);
+    expect(b.lw / b.size).toBeCloseTo(NUM_EDGE_RATIO, 9);
+  });
+
+  it('keeps that edge ON the canvas — the back number settles flush to the plane', () => {
+    // stackFace pushes the back run against the plane's bottom edge, so a
+    // number fitted on its ink alone put its baseline on the last row and the
+    // canvas sliced the edge off along its foot.
+    clearDecalCache(); canvases.length = 0;
+    decalTexture(null, 7, '#f4f4f6', 'back');
+    const s = faceOf().ops.find((o) => o.op === 'strokeText');
+    const size = fontPx(s.font);
+    const half = s.lineWidth / 2;
+    expect(s.y + half, 'the foot of the edge').toBeLessThanOrEqual(DECAL_PX + 1e-6);
+    expect(s.y - size * 0.72 - half, 'the top of the edge').toBeGreaterThanOrEqual(0);
+    // and the whole drawn mark still fits the box it was given
+    const b = faceBoxes('back').num;
+    expect(size * 0.72 + s.lineWidth).toBeCloseTo(mToPx(b.h), 6);
   });
 });
 
