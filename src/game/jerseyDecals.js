@@ -7,8 +7,10 @@
 // The archetype GLBs are one skinned mesh sharing one atlas whose texels are
 // re-used across UV islands (that's why cleats had to be tinted by geometry,
 // see glbCharacters.applyCleatVertexTint) — painting a logo into that atlas
-// would splatter it across faces and shoes. So the decal is GEOMETRY: two
-// camera-facing planes parented to the chest bone, drawn from a 512² canvas.
+// would splatter it across faces and shoes. So the decal is GEOMETRY: camera-
+// facing planes parented to the chest bone, drawn from a 512² canvas. Three of
+// them — the chest, the back number, and the crest above it, which rides its
+// OWN measured depth because the upper back is not the number band's depth.
 //
 // NOT FROM HERE: the black slab that used to sit behind the back number on a
 // red or a gold kit is PRINTED INTO THE ARCHETYPE ATLAS — a dark number panel
@@ -123,9 +125,63 @@ const MIN_SAMPLES_HARD = 8;
  *  `neck` is excluded by name — it carries the collar and every ponytail. */
 const SHIRT_JOINT = /(spine|chest|torso|hip|pelvis)/i;
 const NOT_SHIRT_JOINT = /(neck|head|hair|jaw|eye)/i;
+/** WHO MAY VOTE ON THE CREST'S DEPTH, on top of the shirt joints. The crest
+ *  sits over the shoulder blades, and on the short-haired archetypes the cloth
+ *  up there is skinned to the SHOULDER joints, not the spine: measured on
+ *  arch-bald (bullies), the crest band's centre column holds 16 spine-weighted
+ *  vertices and every single one of them is the FRONT of the chest — read that
+ *  band with the shirt filter alone and "the back" comes out at +0.13, i.e. the
+ *  sternum. So shoulders vote HERE, and only here.
+ *
+ *  What keeps braids and dreadlocks out — they hang off these same joints — is
+ *  CREST_WINDOW_M: a vote only counts if it lands within that of the number
+ *  band's own depth. Real upper-back cloth is a few centimetres off it;
+ *  arch-braids' hair sits 13–16 cm off the shirt (see SHIRT_JOINT), so it never
+ *  gets a vote. Worst case for a style this window can't tell from cloth is a
+ *  crest that stands a few cm proud — never one buried out of sight. */
+const CREST_JOINT = /(shoulder|clavicle)/i;
+const CREST_WINDOW_M = 0.07;
+/** How far past the badge's own edges the covering cloth is collected, metres.
+ *  The set is picked in BIND pose and read in the live one, and the cloth that
+ *  ends up over the badge is not the cloth that was over it in the bind A-pose:
+ *  measured on arch-bald, the exact badge footprint misses the real occluder by
+ *  1.9 cm and the mark comes back with its bottom bitten off. */
+const CREST_REACH_M = 0.06;
+/** …and how far past those edges a candidate still counts as "over the mark"
+ *  when it is re-read against the live pose. Small: this one is evaluated in
+ *  the pose the player is actually in, so it only has to cover the reach of the
+ *  triangle a corner belongs to. */
+const CREST_LIVE_M = 0.03;
+/** Three vertices IS the data up there. arch-bald puts four in the badge's own
+ *  footprint, and what protects the read is not sample count but the three
+ *  gates every one of them passed: a shirt/shoulder joint, the badge's own
+ *  footprint, and CREST_WINDOW_M of the number band's depth. */
+const CREST_MIN_VOTES = 3;
+/** THE SHIRT MOVES AND THE DECAL DOESN'T. `measureShirt` reads the mesh in BIND
+ *  POSE, but the cloth it measures is skinned: the moment arch-bald's rig drops
+ *  its arms out of the bind A-pose, the shoulder-skinned cloth over its blades
+ *  swings from −0.229 to −0.276 — nearly 5 cm — and a plane placed off the bind
+ *  read sits INSIDE it, so the shirt draws over the crest and the mark never
+ *  appears at all (`decals/locker-bullies-dark-back.png`, three rounds of it).
+ *  A single re-read after the pose settles isn't enough either: posed, that band
+ *  holds THREE vertices, far too few to read. So the sample set is chosen once
+ *  in bind pose and those same vertices are re-read against the live pose a few
+ *  times a second, with the back planes sitting at the deepest the shirt has
+ *  been over the last `SETTLE_KEEP` beats. A few hundred vertices per beat —
+ *  the whole squad costs well under a millisecond of a frame. */
+const SETTLE_EVERY_MS = 200;
+const SETTLE_KEEP = 6;
+/** …and the pose read can never drag a plane further than this off the bind
+ *  read, metres: an animation that folds the mesh in half must not take the
+ *  marks with it. */
+const SETTLE_MAX_M = 0.08;
+/** Ceiling on how many vertices a re-read walks per column. */
+const SETTLE_SAMPLE_MAX = 256;
 /** Used only when a character has no skinned geometry to measure (the fallback
  *  model): the mean chest/back surface across the archetype set. */
-const FALLBACK_DEPTH = { front: 0.16, back: -0.19, curveFront: CURVE_DEFAULT, curveBack: CURVE_DEFAULT };
+const FALLBACK_DEPTH = {
+  front: 0.16, back: -0.19, backUpper: -0.19, curveFront: CURVE_DEFAULT, curveBack: CURVE_DEFAULT,
+};
 
 const FONT_STACK = "'Archivo', system-ui, sans-serif";
 /** Cap height as a fraction of the em box for Archivo 900. */
@@ -252,6 +308,37 @@ export function faceBoxes(side) {
   const out = {};
   for (const it of items) out[it.key] = fitBox(it);
   return out;
+}
+
+/**
+ * THE BACK IS TWO PLANES — bug fix, 2026-08-28. One plane bowed in x only hangs
+ * the crest at the NUMBER's depth, and a back is not one depth. Measured on
+ * arch-bald (bullies), standing: the cloth is at −0.225 down where the number
+ * goes and −0.276 up over the shoulder blades where the crest goes. The single
+ * plane hung off the number's read, so the crest's rows of it sat 5 cm INSIDE
+ * the cloth, the shirt drew over them, and the back came back with a clean
+ * number and no crest at all, three rounds running
+ * (`.superpowers/sdd/2026-08-27-crews-kits-walkout/decals/locker-bullies-dark-back.png`).
+ * So the face is CUT along the blank stack gap between the two marks and each
+ * half hangs at its own measured depth. Both halves still sample the ONE back
+ * canvas — the cut is in the geometry, and the UVs follow it — so each mark is
+ * drawn exactly once and the texture cache is untouched.
+ *
+ * @returns {number} where to cut, in PLANE-LOCAL metres above the plane centre:
+ * the dead middle of the gap, so neither mark's ink is ever sliced.
+ */
+export function backSplitY() {
+  const { logo, num } = faceBoxes('back');
+  return ((logo.y - logo.h / 2) + (num.y + num.h / 2)) / 2;
+}
+
+/** The crest's own band of the shirt, in RIG metres about the chest bone (which
+ *  sits at the collarbone — see CHEST_DROP_M), i.e. exactly the strip of upper
+ *  back the crew mark is printed on. This is what `measureShirt` reads a second
+ *  centre column in. */
+export function backMarkBand(dropM = CHEST_DROP_M) {
+  const { logo } = faceBoxes('back');
+  return { lo: -dropM + logo.y - logo.h / 2, hi: -dropM + logo.y + logo.h / 2 };
 }
 
 // ---- the texture ----------------------------------------------------------
@@ -474,6 +561,26 @@ export function isShirtBone(name) {
   return SHIRT_JOINT.test(n);
 }
 
+/** Is this bone allowed to vote on the CREST's depth, over and above the shirt
+ *  bones? The shoulders, and nothing else — see CREST_JOINT for why the cloth
+ *  over the blades is skinned to them, and for the depth window that keeps the
+ *  hair hanging off those same joints from voting with them. */
+export function isCrestBone(name) {
+  const n = String(name ?? '');
+  if (NOT_SHIRT_JOINT.test(n)) return false;
+  return CREST_JOINT.test(n);
+}
+
+/** Take at most `max` of a list, evenly spread — a percentile over 300 samples
+ *  says what it says over 3000, and these get walked again every pose beat. */
+export function thin(list, max = SETTLE_SAMPLE_MAX) {
+  if (!list?.length || list.length <= max) return list ?? [];
+  const step = list.length / max;
+  const out = [];
+  for (let i = 0; out.length < max; i += step) out.push(list[Math.floor(i)]);
+  return out;
+}
+
 /** The p-th value of a sample, 0..1, sorted. Used instead of min/max: the
  *  extremes of a 40 k-vertex mesh are always some seam, lace tip or stray
  *  weight, and one of them used to decide where a 0.40 m plane sat. */
@@ -552,33 +659,57 @@ function measureShirt(root, bone, rig, dropM) {
     // own edge. Centre gives the depth, RIB_X gives the FRONT its fall-off,
     // and BACK_HALF_W gives the BACK its fall-off measured where it actually
     // needs to be right, instead of extrapolated from RIB_X (see BACK_HALF_W).
+    //
+    // The BACK is read twice down the face: the centre column over the whole
+    // band gives `back`, where the number goes, and the cloth that actually
+    // covers the crew mark gives `backUpper`. One depth for the whole back is
+    // what buried the crest — see `backSplitY`.
+    const markBand = backMarkBand(dropM);
+    const crestSlot = bones.map((b) => isShirtBone(b?.name) || isCrestBone(b?.name));
     const v = new THREE.Vector3();
     const blended = new THREE.Vector3();
     const tmp = new THREE.Vector3();
-    const mid = []; const near = []; const rib = []; const ribBack = [];
-    for (let i = 0; i < pos.count; i++) {   // EVERY vertex — no stride to alias
+
+    /** Blend-skin vertex `i` into rig-local space through `xforms` — the same
+     *  weighted sum the GPU skins with. Returns its DOMINANT skeleton slot, or
+     *  −1 where it has no usable weights (then `fallback` places it). */
+    const place = (i, xforms, fallback, out) => {
       v.fromBufferAttribute(pos, i);
-      let domSlot = -1;
-      if (boneXform) {
-        const idxs = [si.getX(i), si.getY(i), si.getZ(i), si.getW(i)];
-        const w = [sw.getX(i), sw.getY(i), sw.getZ(i), sw.getW(i)];
-        const domIdx = w.indexOf(Math.max(...w));
-        if (w[domIdx] > 0) domSlot = idxs[domIdx];
-        let usedW = 0;
-        blended.set(0, 0, 0);
-        for (let k = 0; k < 4; k++) {
-          if (!(w[k] > 0)) continue;
-          const xf = boneXform[idxs[k]];
-          if (!xf) continue;
-          tmp.copy(v).applyMatrix4(xf);
-          blended.addScaledVector(tmp, w[k]);
-          usedW += w[k];
-        }
-        if (usedW > 0) blended.multiplyScalar(1 / usedW);
-        else blended.copy(v).applyMatrix4(chestXform); // no bone had a usable transform
-      } else {
-        blended.copy(v).applyMatrix4(chestXform);       // no JOINTS_0/WEIGHTS_0 at all
+      if (!xforms) { out.copy(v).applyMatrix4(fallback); return -1; }
+      const idxs = [si.getX(i), si.getY(i), si.getZ(i), si.getW(i)];
+      const w = [sw.getX(i), sw.getY(i), sw.getZ(i), sw.getW(i)];
+      const domIdx = w.indexOf(Math.max(...w));
+      const domSlot = w[domIdx] > 0 ? idxs[domIdx] : -1;
+      let usedW = 0;
+      out.set(0, 0, 0);
+      for (let k = 0; k < 4; k++) {
+        if (!(w[k] > 0)) continue;
+        const xf = xforms[idxs[k]];
+        if (!xf) continue;
+        tmp.copy(v).applyMatrix4(xf);
+        out.addScaledVector(tmp, w[k]);
+        usedW += w[k];
       }
+      if (usedW > 0) out.multiplyScalar(1 / usedW);
+      else out.copy(v).applyMatrix4(fallback); // no bone had a usable transform
+      return domSlot;
+    };
+
+    const mid = []; const near = []; const rib = []; const ribBack = [];
+    const upperMid = []; const upperNear = [];
+    // …and WHICH vertices those were. The pose re-read below walks these same
+    // ones again (see `resample`), because band membership has to be decided
+    // once, in bind pose: posed, arch-bald's crest band holds three vertices.
+    const midAt = []; const nearAt = []; const upMidAt = []; const upNearAt = [];
+    // Every vertex's bind-pose place, kept for the triangle sweep below.
+    const vx = new Float32Array(pos.count);
+    const vy = new Float32Array(pos.count);
+    const vz = new Float32Array(pos.count);
+    const crestOk = new Uint8Array(pos.count);
+    for (let i = 0; i < pos.count; i++) {   // EVERY vertex — no stride to alias
+      const domSlot = place(i, boneXform, chestXform, blended);
+      vx[i] = blended.x; vy[i] = blended.y; vz[i] = blended.z;
+      crestOk[i] = (!filtering || (domSlot >= 0 && crestSlot[domSlot])) ? 1 : 0;
       const ax = Math.abs(blended.x);
       if (ax > TRUNK_SAMPLE_HALF_W) continue;               // trunk, not arms
       if (Math.abs(blended.y + dropM) > PLANE_M / 2) continue; // the band the decal covers
@@ -586,19 +717,62 @@ function measureShirt(root, bone, rig, dropM) {
       const isRib = !isMid && ax > RIB_X - 0.025 && ax < RIB_X + 0.025;
       const isRibBack = ax > BACK_HALF_W - RIB_BACK_WINDOW && ax < BACK_HALF_W + RIB_BACK_WINDOW;
       if (!isMid && !isRib && !isRibBack) continue;
-      if (filtering && !(domSlot >= 0 && shirtSlot[domSlot])) continue; // hair doesn't vote
-      if (isRib) rib.push(blended.z);
-      if (isRibBack) ribBack.push(blended.z);
-      if (isMid) {
-        near.push(blended.z);
-        if (ax < CENTRE_HALF_W) mid.push(blended.z);
+      const votes = !filtering || (domSlot >= 0 && shirtSlot[domSlot]); // hair doesn't vote
+      if (isRib && votes) rib.push(blended.z);
+      if (isRibBack && votes) ribBack.push(blended.z);
+      if (isMid && votes) {
+        near.push(blended.z); nearAt.push(i);
+        if (ax < CENTRE_HALF_W) { mid.push(blended.z); midAt.push(i); }
+      }
+      // The crest's own strip, where the SHOULDER joints vote too — see
+      // `isCrestBone`. Windowed against the number's depth further down, which
+      // is what keeps braids and dreadlocks out of it. (Only the fall-back set:
+      // the crest is normally read off the triangles that cover it, below.)
+      if (isMid && crestOk[i] && blended.y >= markBand.lo && blended.y <= markBand.hi) {
+        upperNear.push(blended.z); upNearAt.push(i);
+        if (ax < CENTRE_HALF_W) { upperMid.push(blended.z); upMidAt.push(i); }
       }
     }
+
+    // THE CREST'S SAMPLE SET: the cloth that can actually draw over the mark.
+    // A vertex COLUMN is not enough on a sparse mesh — arch-bald puts four
+    // vertices in the badge's own column, and the triangles that cover the
+    // badge reach out well past it, so the surface between them runs 2 cm
+    // deeper than anything the column can see (measured, posed: column −0.277,
+    // the real covering triangles −0.297 — and the badge came back with its
+    // bottom third eaten by cloth the read never knew about). A triangle is
+    // planar, so its interior is never deeper than its own deepest corner:
+    // clear every corner of every triangle that overlaps the badge and nothing
+    // can draw over the badge. That is this set.
+    const crestTriangleSet = () => {
+      // …grown by CREST_REACH_M, because the set is chosen in BIND pose and the
+      // cloth that ends up over the badge is not the cloth that was over it in
+      // the T-pose.
+      const half = faceBoxes('back').logo.w / 2 + CREST_REACH_M;
+      const lo = markBand.lo - CREST_REACH_M;
+      const hi = markBand.hi + CREST_REACH_M;
+      const index = skinned.geometry.getIndex?.();
+      const n = index ? index.count : pos.count;
+      const picked = new Uint8Array(pos.count);
+      const out = [];
+      for (let t = 0; t + 2 < n; t += 3) {
+        const a = index ? index.getX(t) : t;
+        const b = index ? index.getX(t + 1) : t + 1;
+        const c = index ? index.getX(t + 2) : t + 2;
+        if (!(vz[a] < 0 || vz[b] < 0 || vz[c] < 0)) continue;       // the chest, not the back
+        if (Math.min(vx[a], vx[b], vx[c]) > half || Math.max(vx[a], vx[b], vx[c]) < -half) continue;
+        if (Math.min(vy[a], vy[b], vy[c]) > hi || Math.max(vy[a], vy[b], vy[c]) < lo) continue;
+        for (const i of [a, b, c]) {
+          if (picked[i] || !crestOk[i] || !(vz[i] < 0)) continue;   // hair still never votes
+          picked[i] = 1;
+          out.push(i);
+        }
+      }
+      return out;
+    };
     // the tight column when it has the numbers, the wide one when it doesn't
     const col = mid.length >= MIN_SAMPLES ? mid : near;
     if (col.length < MIN_SAMPLES_HARD) return FALLBACK_DEPTH;
-    const front = percentile(col, SHIRT_P_HI);
-    const back = percentile(col, SHIRT_P_LO);
     const enough = rib.length >= MIN_SAMPLES_HARD;
     const ribF = enough ? percentile(rib, SHIRT_P_HI) : NaN;
     const ribB = enough ? percentile(rib, SHIRT_P_LO) : NaN;
@@ -606,14 +780,80 @@ function measureShirt(root, bone, rig, dropM) {
     // before this fix — only when the narrower BACK_HALF_W band came up dry.
     const ribBackEnough = ribBack.length >= MIN_SAMPLES_HARD;
     const ribBackB = ribBackEnough ? percentile(ribBack, SHIRT_P_LO) : NaN;
-    if (!Number.isFinite(front) || !Number.isFinite(back)) return FALLBACK_DEPTH;
+
+    // The two sample SETS, chosen here and never re-chosen: the centre column,
+    // and the crest's own strip of it. Strided down if a dense mesh hands us
+    // thousands — the percentile does not get better past a few hundred, and
+    // these are walked again on every pose beat.
+    const colAt = thin(mid.length >= MIN_SAMPLES ? midAt : nearAt);
+    const triAt = crestTriangleSet();
+    // the covering triangles when there are any, the plain column when the mesh
+    // has no index buffer or nothing overlaps (then it reads as it did before).
+    // A looser cap than the column's: this one is read at its DEEPEST, not at a
+    // percentile, so thinning it costs accuracy rather than just resolution.
+    const upAt = thin(triAt.length >= MIN_SAMPLES_HARD
+      ? triAt
+      : (upperMid.length >= MIN_SAMPLES ? upMidAt : upNearAt), SETTLE_SAMPLE_MAX * 2);
+    /** The badge's own footprint plus a hair, tested against the LIVE pose —
+     *  membership in the candidate set is decided once, but whether a candidate
+     *  is actually over the mark right now is decided every read. */
+    const overMark = (p) => Math.abs(p.x) <= faceBoxes('back').logo.w / 2 + CREST_LIVE_M
+      && p.y >= markBand.lo - CREST_LIVE_M && p.y <= markBand.hi + CREST_LIVE_M;
+    /** The three depths off those sets, in whatever pose `xforms` describes. */
+    const readColumns = (xforms, fallback) => {
+      const zs = [];
+      for (const i of colAt) { place(i, xforms, fallback, blended); zs.push(blended.z); }
+      const f = percentile(zs, SHIRT_P_HI);
+      const b = percentile(zs, SHIRT_P_LO);
+      // The crest clears the DEEPEST cloth actually over it — not a percentile.
+      // Every survivor of these three gates is real cloth on the badge: its own
+      // joint (shirt or shoulder, never hair), the badge's own footprint in the
+      // pose it is standing in, and within CREST_WINDOW_M of the number band's
+      // depth. The one that reaches furthest back is the one that would draw
+      // over the mark; a percentile leaves the last few nibbling its bottom
+      // edge, which is exactly how the badge kept coming back cut.
+      let deep = NaN; let votes = 0;
+      for (const i of upAt) {
+        place(i, xforms, fallback, blended);
+        if (!overMark(blended)) continue;
+        if (!(Math.abs(blended.z - b) <= CREST_WINDOW_M)) continue;
+        votes++;
+        if (!(deep <= blended.z)) deep = blended.z;
+      }
+      return { front: f, back: b, backUpper: votes >= CREST_MIN_VOTES ? deep : b };
+    };
+    const bind = readColumns(boneXform, chestXform);
+    if (!Number.isFinite(bind.front) || !Number.isFinite(bind.back)) return FALLBACK_DEPTH;
+
+    // The same read again, against the pose the player is standing in NOW.
+    // Reuses one matrix per joint so a beat allocates nothing.
+    const live = boneXform ? bones.map(() => new THREE.Matrix4()) : null;
+    const liveChest = new THREE.Matrix4();
+    const scratch = new THREE.Matrix4();
+    const inv = new THREE.Matrix4();
+    const resample = () => {
+      try {
+        inv.copy(rig.matrixWorld).invert();
+        liveChest.multiplyMatrices(inv, scratch.multiplyMatrices(bone.matrixWorld, bi));
+        if (live) {
+          for (let i = 0; i < bones.length; i++) {
+            if (!boneInverses[i]) { live[i] = null; continue; }
+            if (!live[i]) live[i] = new THREE.Matrix4();
+            live[i].multiplyMatrices(inv, scratch.multiplyMatrices(bones[i].matrixWorld, boneInverses[i]));
+          }
+        }
+        const r = readColumns(live, liveChest);
+        return Number.isFinite(r.back) ? r : null;
+      } catch { return null; }
+    };
+
     return {
-      front,
-      back,
-      curveFront: fallOff(front, ribF),
+      ...bind,
+      curveFront: fallOff(bind.front, ribF),
       curveBack: Number.isFinite(ribBackB)
-        ? fallOff(-back, -ribBackB, BACK_HALF_W)
-        : fallOff(-back, -ribB),
+        ? fallOff(-bind.back, -ribBackB, BACK_HALF_W)
+        : fallOff(-bind.back, -ribB),
+      resample,
     };
   } catch { return FALLBACK_DEPTH; }
 }
@@ -636,15 +876,25 @@ export function fallOff(centre, rib, x = RIB_X) {
  * player. The first pass used a true cylindrical wrap on the torso's own
  * half-depth and it dived straight in behind a chest that is far flatter than
  * a circle — the crew mark lost both its flanks.
+ *
+ * `h`/`bottom` cut a horizontal SLICE of that square (plane-local metres, so
+ * the full face is h = PLANE_M, bottom = −PLANE_M/2). The slice keeps the whole
+ * width and re-maps its UVs onto its own rows of the shared canvas, so the back
+ * can hang as two planes at two depths off ONE texture — see `backSplitY`.
  */
-function decalGeometry(curve) {
-  const geo = new THREE.PlaneGeometry(PLANE_M, PLANE_M, 16, 1);
+function decalGeometry(curve, { h = PLANE_M, bottom = -PLANE_M / 2 } = {}) {
+  const geo = new THREE.PlaneGeometry(PLANE_M, h, 16, 1);
   const p = geo.attributes.position;
+  const uv = geo.attributes.uv;
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i);
     p.setZ(i, -curve * x * x); // 0 at the centre, falling away at the flanks
+    // v runs 0 at the face's bottom edge to 1 at its top, whatever slice this
+    // is — so each mark is sampled by exactly one plane, and drawn once.
+    uv.setY(i, (bottom + PLANE_M / 2 + uv.getY(i) * h) / PLANE_M);
   }
   p.needsUpdate = true;
+  uv.needsUpdate = true;
   geo.computeVertexNormals();
   geo.userData.owned = true; // per-character: disposeCharacter() frees it
   return geo;
@@ -681,6 +931,28 @@ function decalMaterial(map) {
   return mat;
 }
 
+// ---- keeping the back planes on the moving shirt ---------------------------
+
+/** ONE driver for every settling player on the field: each returns false when
+ *  it is done (or disposed) and drops out. Nothing runs when nobody is on. */
+const settlers = new Set();
+let settleFrame = 0;
+function pumpSettlers(t) {
+  settleFrame = 0;
+  for (const fn of [...settlers]) {
+    let alive = false;
+    try { alive = fn(t); } catch { alive = false; }
+    if (!alive) settlers.delete(fn);
+  }
+  if (settlers.size) settleFrame = requestAnimationFrame(pumpSettlers);
+}
+function addSettler(fn) {
+  if (typeof requestAnimationFrame !== 'function') return; // no frames, no pose
+  settlers.add(fn);
+  if (!settleFrame) settleFrame = requestAnimationFrame(pumpSettlers);
+}
+export const settlerCount = () => settlers.size;
+
 /**
  * Hang the crew mark and the number on one character's shirt.
  *
@@ -690,7 +962,13 @@ function decalMaterial(map) {
  *
  * @param {{group:THREE.Object3D}} char a built character
  * @param {{logoUrl?:string, number?:number|string, ink?:string, hex?:string}} o
- * @returns {{front:THREE.Mesh, back:THREE.Mesh, ready:Promise<void>, dispose:Function}|null}
+ * @returns {{front:THREE.Mesh, back:THREE.Mesh, backMark:THREE.Mesh, ready:Promise<void>,
+ *   settle:Function, dispose:Function}|null}
+ *   `back` is the NUMBER's plane; `backMark` is the crest riding above it at
+ *   the upper back's own depth. `settle()` re-reads the shirt against the pose
+ *   the player is standing in right now and moves those two planes onto it —
+ *   the module beats it a few times a second on its own; it is exposed so a
+ *   test can drive it by hand.
  */
 export function attachJerseyDecals(char, { logoUrl = '', number = '', ink = null, hex = null } = {}) {
   try {
@@ -718,25 +996,87 @@ export function attachJerseyDecals(char, { logoUrl = '', number = '', ink = null
     rig.updateMatrixWorld(true);
 
     const depth = measureShirt(root, bone, rig, CHEST_DROP_M);
+    rig.userData.shirt = depth; // what the shirt measured, for probes and shots
+    // The back is cut in two along the blank gap between its marks so the crest
+    // can ride the upper back's own depth (see `backSplitY`). The number half
+    // keeps the name `jersey-back` — it is the plane every probe and evidence
+    // shot in the repo looks up.
+    const split = backSplitY();
+    const faces = [
+      { key: 'front', name: 'jersey-front', side: 'front', z: depth.front + SURFACE_GAP_M, curve: depth.curveFront },
+      {
+        key: 'back',
+        name: 'jersey-back',
+        side: 'back',
+        z: depth.back - SURFACE_GAP_M,
+        curve: depth.curveBack,
+        bottom: -PLANE_M / 2,
+        h: split + PLANE_M / 2,
+      },
+      {
+        key: 'backMark',
+        name: 'jersey-back-mark',
+        side: 'back',
+        z: (depth.backUpper ?? depth.back) - SURFACE_GAP_M,
+        curve: depth.curveBack,
+        bottom: split,
+        h: PLANE_M / 2 - split,
+      },
+    ];
     const meshes = {};
-    for (const side of ['front', 'back']) {
-      const curve = side === 'front' ? depth.curveFront : depth.curveBack;
-      const mesh = new THREE.Mesh(decalGeometry(curve ?? CURVE_DEFAULT), decalMaterial(null));
-      mesh.position.set(
-        0,
-        -CHEST_DROP_M,
-        side === 'front' ? depth.front + SURFACE_GAP_M : depth.back - SURFACE_GAP_M,
+    for (const f of faces) {
+      const bottom = f.bottom ?? -PLANE_M / 2;
+      const h = f.h ?? PLANE_M;
+      const mesh = new THREE.Mesh(
+        decalGeometry(f.curve ?? CURVE_DEFAULT, { h, bottom }),
+        decalMaterial(null),
       );
-      if (side === 'back') mesh.rotation.y = Math.PI;
+      // …the slice's own centre, so a cut face still hangs where its rows do
+      mesh.position.set(0, -CHEST_DROP_M + bottom + h / 2, f.z);
+      if (f.side === 'back') mesh.rotation.y = Math.PI;
       mesh.renderOrder = 2;
       mesh.frustumCulled = false; // it rides a bone; the plane's own bounds lie
       mesh.visible = false;       // until the mark is painted
-      mesh.name = `jersey-${side}`;
+      mesh.name = f.name;
       rig.add(mesh);
-      meshes[side] = mesh;
+      meshes[f.key] = mesh;
     }
 
     let dead = false;
+
+    // THE BACK PLANES RIDE THE POSE. Everything above is a bind-pose read, and
+    // the cloth over the shoulder blades does not stay where bind pose left it
+    // (see SETTLE_EVERY_MS). So the same vertices get re-read a few times a
+    // second and the two back planes sit at the DEEPEST the shirt has been over
+    // the last few beats — the shirt can never close over the marks, and the
+    // window means they follow it back in instead of floating out there for
+    // good. The front is left exactly where it was measured: its cloth is spine
+    // -skinned, it does not swing, and it has been right on screen for rounds.
+    const seen = [{ back: depth.back, backUpper: depth.backUpper }];
+    // A pose read may only ever ADD clearance. Halfway through a kick the torso
+    // is twisted far enough that the "back" of the shirt is barely behind the
+    // rig at all (monarchs read −0.105 against a bind −0.160), and a plane that
+    // followed THAT would climb inside the shirt and take the number with it.
+    // So: never shallower than the bind read, and never more than SETTLE_MAX_M
+    // deeper than it.
+    const rail = (bindZ, z) => Math.min(bindZ, Math.max(z, bindZ - SETTLE_MAX_M));
+    const settle = () => {
+      const r = dead ? null : depth.resample?.();
+      if (!r) return false;
+      seen.push({ back: rail(depth.back, r.back), backUpper: rail(depth.backUpper, r.backUpper) });
+      while (seen.length > SETTLE_KEEP) seen.shift();
+      meshes.back.position.z = Math.min(...seen.map((d) => d.back)) - SURFACE_GAP_M;
+      meshes.backMark.position.z = Math.min(...seen.map((d) => d.backUpper)) - SURFACE_GAP_M;
+      return true;
+    };
+    let nextBeat = 0;
+    addSettler((t) => {
+      if (dead) return false;
+      if (t < nextBeat) return true;
+      nextBeat = t + SETTLE_EVERY_MS;
+      return settle();
+    });
+
     const ready = Promise.all([
       loadLogoImage(logoUrl),
       // Archivo comes off the page's webfont; drawing before it lands gives a
@@ -744,10 +1084,17 @@ export function attachJerseyDecals(char, { logoUrl = '', number = '', ink = null
       Promise.resolve(document?.fonts?.load?.(`900 100px ${FONT_STACK}`)).catch(() => null),
     ]).then(([img]) => {
       if (dead) return;
-      for (const side of ['front', 'back']) {
-        meshes[side].material.map = decalTexture(img, number, paint, side);
-        meshes[side].material.needsUpdate = true;
-        meshes[side].visible = true;
+      // One texture per FACE, however many planes that face is cut into: the
+      // two back halves share the back canvas and each samples its own rows.
+      const tex = {
+        front: decalTexture(img, number, paint, 'front'),
+        back: decalTexture(img, number, paint, 'back'),
+      };
+      for (const f of faces) {
+        const mesh = meshes[f.key];
+        mesh.material.map = tex[f.side];
+        mesh.material.needsUpdate = true;
+        mesh.visible = true;
       }
     }).catch(() => {});
 
@@ -760,7 +1107,7 @@ export function attachJerseyDecals(char, { logoUrl = '', number = '', ink = null
       }
       rig.removeFromParent();
     };
-    return { front: meshes.front, back: meshes.back, ready, dispose };
+    return { front: meshes.front, back: meshes.back, backMark: meshes.backMark, ready, settle, dispose };
   } catch (e) {
     console.warn('[skk] jersey decals unavailable:', e);
     return null; // cosmetic only — never block a character build

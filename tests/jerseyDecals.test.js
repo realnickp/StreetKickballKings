@@ -3,8 +3,9 @@ import * as THREE from 'three';
 import {
   layoutFront, layoutBack, faceBoxes, stackFace, fitBox, decalKey, decalTexture,
   findChestBone, clearDecalCache, decalCacheSize, loadLogoImage, oppositeInk, fallOff,
-  isShirtBone, percentile, attachJerseyDecals,
+  isShirtBone, isCrestBone, thin, percentile, attachJerseyDecals, backSplitY, backMarkBand,
   DECAL_CACHE_MAX, DECAL_PX, PLANE_M, OUTLINE_RATIO, NUM_EDGE_RATIO, CHEST_DROP_M, BACK_HALF_W,
+  SURFACE_GAP_M,
 } from '../src/game/jerseyDecals.js';
 
 // The decal canvas is the ONLY DOM this module touches. vitest runs in node,
@@ -463,6 +464,340 @@ describe('the back solves its fall-off at its OWN half-width, not RIB_X extrapol
     expect(oldPredictedDrop - trueDrop, 'the bug this test guards against').toBeGreaterThan(0.01);
 
     acc.dispose();
+  });
+});
+
+describe('the back crest rides the UPPER back on its own plane', () => {
+  // Bug, 2026-08-28: the back was ONE plane at ONE measured depth, and a back
+  // is not one depth. Measured live on arch-bald/bullies in fix round 3: the
+  // shirt runs about -0.19 down at the number (plane y -0.08) and about -0.25
+  // up at the crew mark (plane y +0.13, over the shoulder blades). The single
+  // plane hung off the -0.19 read, so the crest's rows of it sat 4 cm INSIDE
+  // the cloth, the shirt drew over them, and the back came back with a clean
+  // number and no crest at all
+  // (`.superpowers/sdd/2026-08-27-crews-kits-walkout/decals/locker-bullies-dark-back.png`).
+  //
+  // A synthetic shirt, real THREE bones + SkinnedMesh, with two depths down the
+  // back. `upperN` is deliberately a SMALL minority of the centre column — that
+  // is what the real mesh looks like up by the blades (few centre vertices, and
+  // `isShirtBone` throws out the shoulder-weighted ones), and it is why the
+  // whole-band percentile reads the NUMBER's depth and misses the crest's.
+  function backBandShirtRig({ numZ = -0.19, upperZ = -0.25, frontZ = 0.16, upperN = 12, numN = 400 } = {}) {
+    const group = new THREE.Group();
+    const hips = new THREE.Bone(); hips.name = 'Hips'; hips.position.set(0, 1.0, 0);
+    group.add(hips);
+    const spine = new THREE.Bone(); spine.name = 'Spine'; spine.position.set(0, 0.2, 0);
+    hips.add(spine);
+    const spine1 = new THREE.Bone(); spine1.name = 'Spine1'; spine1.position.set(0, 0.15, 0);
+    spine.add(spine1);
+    const chest = new THREE.Bone(); chest.name = 'Spine2'; chest.position.set(0, 0.15, 0);
+    spine1.add(chest);
+    group.updateMatrixWorld(true);
+
+    const bones = []; group.traverse((o) => { if (o.isBone) bones.push(o); });
+    const chestIdx = bones.indexOf(chest);
+    const chestWorldY = 1.0 + 0.2 + 0.15 + 0.15; // 1.5 — the rig hangs off here
+
+    // The crest's own strip of back, straight from the layout; the number sits
+    // well below it, inside the plane's band but clear of that strip.
+    const band = backMarkBand();
+    const upperY = chestWorldY + (band.lo + band.hi) / 2;
+    const numY = chestWorldY - 0.28;
+
+    const pts = [];
+    const at = (x, y, z, n) => { for (let i = 0; i < n; i++) pts.push(x, y, z); };
+    at(0, numY, numZ, numN);       // the number's band, back
+    at(0, numY, frontZ, numN);     // …and its chest
+    at(0, upperY, upperZ, upperN); // the crest's band, back — the minority
+    at(0, upperY, frontZ, upperN);
+
+    const n = pts.length / 3;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(
+      new Uint16Array(n * 4).map((_, i) => (i % 4 === 0 ? chestIdx : 0)), 4));
+    geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(
+      new Float32Array(n * 4).map((_, i) => (i % 4 === 0 ? 1 : 0)), 4));
+    const mesh = new THREE.SkinnedMesh(geo, new THREE.MeshStandardMaterial());
+    const skeleton = new THREE.Skeleton(bones);
+    group.add(mesh);
+    mesh.bind(skeleton, new THREE.Matrix4());
+    group.updateMatrixWorld(true);
+    return group;
+  }
+
+  /** The plane's own bow, read off its geometry: z = −curve·x² in local space. */
+  const bowOf = (mesh) => {
+    const p = mesh.geometry.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      if (Math.abs(p.getX(i) - 0.125) < 1e-6) return -p.getZ(i) / (0.125 * 0.125);
+    }
+    return null;
+  };
+  /** How deep a back plane sits `x` metres off centre, in RIG z. The mesh is
+   *  turned 180°, so its own −curve·x² bow comes back toward the body. */
+  const backZAt = (mesh, x) => mesh.position.z + bowOf(mesh) * x * x;
+  const vRange = (mesh) => {
+    const uv = mesh.geometry.attributes.uv;
+    let lo = Infinity; let hi = -Infinity;
+    for (let i = 0; i < uv.count; i++) { lo = Math.min(lo, uv.getY(i)); hi = Math.max(hi, uv.getY(i)); }
+    return { lo, hi };
+  };
+  const heightOf = (mesh) => {
+    const p = mesh.geometry.attributes.position;
+    let lo = Infinity; let hi = -Infinity;
+    for (let i = 0; i < p.count; i++) { lo = Math.min(lo, p.getY(i)); hi = Math.max(hi, p.getY(i)); }
+    return hi - lo;
+  };
+
+  it('follows the upper back when it runs 4+ cm DEEPER than the number band — the bullies bug', async () => {
+    const upperZ = -0.25; const numZ = -0.19;   // the measured bullies back
+    const acc = attachJerseyDecals({ group: backBandShirtRig({ numZ, upperZ }) }, { number: 7, ink: '#f4f4f6' });
+    expect(acc).toBeTruthy();
+    await acc.ready;
+    expect(acc.backMark, 'the crest gets a plane of its own').toBeTruthy();
+    expect(acc.backMark.name).toBe('jersey-back-mark');
+
+    // it hangs off `backUpper` — the crest band's own read — and nothing else
+    expect(Math.abs(acc.backMark.position.z - (upperZ - SURFACE_GAP_M)), 'within 5 mm of backUpper')
+      .toBeLessThanOrEqual(0.005);
+    // …and is never INSIDE the shirt it was measured off, right out to the
+    // mark's own edge, where the plane's bow brings it back toward the body.
+    const edge = faceBoxes('back').logo.w / 2;
+    expect(backZAt(acc.backMark, edge), 'the crest\'s own edge still stands off the cloth')
+      .toBeLessThanOrEqual(upperZ + 1e-9);
+
+    // the number is untouched, still on ITS band's depth
+    expect(acc.back.position.z).toBeCloseTo(numZ - SURFACE_GAP_M, 6);
+    // …and THAT is the depth the crest used to be forced onto: buried, because
+    // the real cloth up there is 4 cm further out than this plane.
+    expect(acc.back.position.z, 'the one-plane depth sat inside the upper back')
+      .toBeGreaterThan(upperZ);
+    expect(acc.backMark.position.z, 'the crest plane no longer does')
+      .toBeLessThan(acc.back.position.z);
+
+    acc.dispose();
+    expect(acc.backMark.parent, 'disposal takes the new plane with it').toBe(null);
+  });
+
+  it('follows it the other way too — an upper back 4 cm SHALLOWER than the number band', async () => {
+    // The same split has to work when the crest's strip sits nearer the body
+    // (the crest would otherwise hang 4 cm off the cloth in mid-air).
+    const upperZ = -0.15; const numZ = -0.19;
+    const acc = attachJerseyDecals({ group: backBandShirtRig({ numZ, upperZ }) }, { number: 7, ink: '#f4f4f6' });
+    await acc.ready;
+    expect(Math.abs(acc.backMark.position.z - (upperZ - SURFACE_GAP_M)), 'within 5 mm of backUpper')
+      .toBeLessThanOrEqual(0.005);
+    const edge = faceBoxes('back').logo.w / 2;
+    expect(backZAt(acc.backMark, edge), 'never behind the measured shirt').toBeLessThanOrEqual(upperZ + 1e-9);
+    expect(acc.back.position.z).toBeCloseTo(numZ - SURFACE_GAP_M, 6);
+    acc.dispose();
+  });
+
+  it('a back that is one depth all the way down still hangs both halves together', async () => {
+    const acc = attachJerseyDecals({ group: backBandShirtRig({ numZ: -0.19, upperZ: -0.19 }) }, { number: 7, ink: '#f4f4f6' });
+    await acc.ready;
+    expect(acc.backMark.position.z).toBeCloseTo(acc.back.position.z, 6);
+    acc.dispose();
+  });
+
+  it('an unmeasurable shirt still gets both halves, on the fallback depth', async () => {
+    // no skinned mesh at all: the archetype-mean fallback, and the crest must
+    // not vanish or land somewhere silly because of it
+    const group = new THREE.Group();
+    const hips = new THREE.Bone(); hips.name = 'Hips'; group.add(hips);
+    const chest = new THREE.Bone(); chest.name = 'Spine2'; hips.add(chest);
+    group.updateMatrixWorld(true);
+    const acc = attachJerseyDecals({ group }, { number: 7, ink: '#f4f4f6' });
+    await acc.ready;
+    expect(acc.backMark.position.z).toBeCloseTo(acc.back.position.z, 6);
+    expect(acc.backMark.visible).toBe(true);
+    acc.dispose();
+  });
+
+  it('the two halves tile the face exactly once — the crest above the cut, the number below', async () => {
+    const acc = attachJerseyDecals({ group: backBandShirtRig() }, { number: 7, ink: '#f4f4f6' });
+    await acc.ready;
+    const split = backSplitY();
+    const vSplit = (split + PLANE_M / 2) / PLANE_M;
+    // the canvas is cut where the geometry is: no row of it is sampled twice,
+    // and none is dropped
+    expect(vRange(acc.back).lo).toBeCloseTo(0, 6);
+    expect(vRange(acc.back).hi).toBeCloseTo(vSplit, 6);
+    expect(vRange(acc.backMark).lo).toBeCloseTo(vSplit, 6);
+    expect(vRange(acc.backMark).hi).toBeCloseTo(1, 6);
+    expect(heightOf(acc.back) + heightOf(acc.backMark)).toBeCloseTo(PLANE_M, 6);
+
+    // the cut lands in the blank gap: neither mark's ink is sliced
+    const { logo, num } = faceBoxes('back');
+    expect(logo.y - logo.h / 2, 'the crest sits wholly above the cut').toBeGreaterThan(split);
+    expect(num.y + num.h / 2, 'the number wholly below it').toBeLessThan(split);
+
+    // the halves meet edge to edge on the shirt — no seam, no overlap
+    const top = (m) => m.position.y + heightOf(m) / 2;
+    const bottom = (m) => m.position.y - heightOf(m) / 2;
+    expect(top(acc.back)).toBeCloseTo(bottom(acc.backMark), 6);
+    expect(top(acc.backMark)).toBeCloseTo(-CHEST_DROP_M + PLANE_M / 2, 6);
+    expect(bottom(acc.back)).toBeCloseTo(-CHEST_DROP_M - PLANE_M / 2, 6);
+
+    // ONE canvas for the whole face — the cut is geometry, so the texture cache
+    // still holds exactly two textures for a dressed player
+    expect(acc.backMark.material.map).toBe(acc.back.material.map);
+    expect(acc.back.material.map).not.toBe(acc.front.material.map);
+    expect(decalCacheSize()).toBe(2);
+    acc.dispose();
+  });
+
+  it('the shoulders vote on the crest, and only there — hair never does', () => {
+    // The cloth over the blades is skinned to the SHOULDER joints on the
+    // short-haired archetypes: read the crest band with the shirt filter alone
+    // and arch-bald's "back" comes out at +0.13, the sternum.
+    for (const n of ['LeftShoulder', 'RightShoulder', 'clavicle_l']) {
+      expect(isCrestBone(n), n).toBe(true);
+      expect(isShirtBone(n), `${n} is still NOT shirt`).toBe(false);
+    }
+    for (const n of ['neck', 'Head', 'hair_root', 'HairTie02', 'Spine', 'Hips', 'LeftArm', '']) {
+      expect(isCrestBone(n), n).toBe(false);
+    }
+  });
+
+  it('thins a sample set without losing its span — these get walked every beat', () => {
+    const list = Array.from({ length: 1000 }, (_, i) => i);
+    const cut = thin(list, 10);
+    expect(cut.length).toBe(10);
+    expect(cut[0]).toBe(0);
+    expect(cut.at(-1)).toBeGreaterThan(880);        // still reaches the far end
+    expect(new Set(cut).size).toBe(10);             // no repeats
+    expect(thin([1, 2, 3], 10)).toEqual([1, 2, 3]); // shorter than the cap: untouched
+    expect(thin([], 10)).toEqual([]);
+    expect(thin(null, 10)).toEqual([]);
+  });
+
+  it('the crest band is the crew mark\'s own strip of shirt, in rig metres', () => {
+    const { logo } = faceBoxes('back');
+    const band = backMarkBand();
+    expect(band.hi - band.lo).toBeCloseTo(logo.h, 6);
+    expect((band.lo + band.hi) / 2).toBeCloseTo(logo.y - CHEST_DROP_M, 6);
+    expect(band.hi, 'never above the plane\'s own top edge')
+      .toBeLessThanOrEqual(-CHEST_DROP_M + PLANE_M / 2 + 1e-9);
+    // and it is the UPPER back — clear of where the number is read
+    expect(band.lo).toBeGreaterThan(-CHEST_DROP_M + faceBoxes('back').num.y);
+  });
+});
+
+describe('the back planes ride the POSE, not just the bind read', () => {
+  // The measurement is taken in bind pose; the cloth is not. On arch-bald the
+  // upper back is skinned to the SHOULDER joints, so the moment the rig drops
+  // its arms out of the bind A-pose that cloth swings ~5 cm further back
+  // (measured: −0.229 bind → −0.276 in the Locker idle) and a plane placed off
+  // the bind read sits inside it — which is why the crest never appeared at all
+  // for three rounds. So the same vertices are re-read against the live pose.
+  //
+  // This rig reproduces exactly that: the crest band's cloth hangs off a
+  // SHOULDER bone, so moving that bone moves the shirt WITHOUT moving the decal
+  // rig (which hangs off the chest).
+  function shoulderBackRig({ numZ = -0.19, upperZ = -0.19 } = {}) {
+    const group = new THREE.Group();
+    const hips = new THREE.Bone(); hips.name = 'Hips'; hips.position.set(0, 1.0, 0);
+    group.add(hips);
+    const spine = new THREE.Bone(); spine.name = 'Spine'; spine.position.set(0, 0.2, 0);
+    hips.add(spine);
+    const spine1 = new THREE.Bone(); spine1.name = 'Spine1'; spine1.position.set(0, 0.15, 0);
+    spine.add(spine1);
+    const chest = new THREE.Bone(); chest.name = 'Spine2'; chest.position.set(0, 0.15, 0);
+    spine1.add(chest);
+    const shoulder = new THREE.Bone(); shoulder.name = 'LeftShoulder'; shoulder.position.set(0, 0.05, 0);
+    chest.add(shoulder);
+    group.updateMatrixWorld(true);
+
+    const bones = []; group.traverse((o) => { if (o.isBone) bones.push(o); });
+    const chestIdx = bones.indexOf(chest);
+    const shoulderIdx = bones.indexOf(shoulder);
+    const chestWorldY = 1.5;
+    const band = backMarkBand();
+    const upperY = chestWorldY + (band.lo + band.hi) / 2;
+    const numY = chestWorldY - 0.28;
+
+    const pts = []; const slot = [];
+    const at = (y, z, n, s) => { for (let i = 0; i < n; i++) { pts.push(0, y, z); slot.push(s); } };
+    at(numY, numZ, 300, chestIdx);        // the number's band — spine cloth
+    at(numY, 0.16, 300, chestIdx);
+    at(upperY, upperZ, 24, shoulderIdx);  // the crest's band — SHOULDER cloth
+    at(upperY, 0.16, 24, chestIdx);
+
+    const n = pts.length / 3;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    const si = new Uint16Array(n * 4); const swt = new Float32Array(n * 4);
+    for (let i = 0; i < n; i++) { si[i * 4] = slot[i]; swt[i * 4] = 1; }
+    geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
+    geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(swt, 4));
+    const mesh = new THREE.SkinnedMesh(geo, new THREE.MeshStandardMaterial());
+    const skeleton = new THREE.Skeleton(bones);
+    group.add(mesh);
+    mesh.bind(skeleton, new THREE.Matrix4());
+    group.updateMatrixWorld(true);
+    return { group, shoulder };
+  }
+
+  it('follows the shirt out when the pose takes the upper back with it', async () => {
+    const { group, shoulder } = shoulderBackRig();
+    const acc = attachJerseyDecals({ group }, { number: 7, ink: '#f4f4f6' });
+    await acc.ready;
+    const bindZ = acc.backMark.position.z;
+    expect(bindZ).toBeCloseTo(-0.19 - SURFACE_GAP_M, 6); // one depth, bind pose
+
+    // …now stand the player up: the shoulder swings the cloth 5 cm back.
+    shoulder.position.z -= 0.05;
+    group.updateMatrixWorld(true);
+    expect(acc.settle()).toBe(true);
+    expect(acc.backMark.position.z, 'the crest went with the cloth')
+      .toBeCloseTo(-0.24 - SURFACE_GAP_M, 3);
+    expect(acc.back.position.z, 'the number, on spine cloth, did not move')
+      .toBeCloseTo(-0.19 - SURFACE_GAP_M, 6);
+    acc.dispose();
+  });
+
+  it('never climbs INTO the shirt, however the pose reads', async () => {
+    // Halfway through a kick the torso is twisted far enough that the "back" of
+    // the shirt is barely behind the rig at all. A plane that followed that
+    // would sink into the shirt and take the number with it.
+    const { group, shoulder } = shoulderBackRig();
+    const acc = attachJerseyDecals({ group }, { number: 7, ink: '#f4f4f6' });
+    await acc.ready;
+    const bindBack = acc.back.position.z;
+    const bindMark = acc.backMark.position.z;
+    shoulder.position.z += 0.09;          // the cloth swings the OTHER way
+    group.updateMatrixWorld(true);
+    acc.settle(); acc.settle();
+    expect(acc.backMark.position.z).toBeLessThanOrEqual(bindMark + 1e-9);
+    expect(acc.back.position.z).toBeCloseTo(bindBack, 6);
+    acc.dispose();
+  });
+
+  it('cloth that cannot be the shirt gets no vote, and no animation drags a mark off the player', async () => {
+    const { group, shoulder } = shoulderBackRig();
+    const acc = attachJerseyDecals({ group }, { number: 7, ink: '#f4f4f6' });
+    await acc.ready;
+    const bindMark = acc.backMark.position.z;
+    shoulder.position.z -= 0.9;            // a fold no shirt ever makes
+    group.updateMatrixWorld(true);
+    acc.settle();
+    // out past CREST_WINDOW_M it stops counting as the shirt at all, so the
+    // crest falls back to the number's depth instead of chasing it…
+    expect(acc.backMark.position.z).toBeCloseTo(acc.back.position.z, 6);
+    // …and either way SETTLE_MAX_M rails how far a pose can ever move a mark
+    expect(bindMark - acc.backMark.position.z).toBeLessThanOrEqual(0.08 + 1e-9);
+    acc.dispose();
+  });
+
+  it('stops the moment the decals are disposed', async () => {
+    const { group } = shoulderBackRig();
+    const acc = attachJerseyDecals({ group }, { number: 7, ink: '#f4f4f6' });
+    await acc.ready;
+    expect(acc.settle()).toBe(true);
+    acc.dispose();
+    expect(acc.settle()).toBe(false);
   });
 });
 
