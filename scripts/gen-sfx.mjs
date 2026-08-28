@@ -41,6 +41,22 @@ const SFX = [
   { file: 'stomp.mp3',      text: 'A single person walking with a confident swagger on asphalt, heavy sneaker footsteps, steady rhythm, two seconds, dry, no music', dur: 2.0, infl: 0.7 },
   { file: 'cheer-big.mp3',  text: 'A huge street crowd erupting in a massive roaring cheer with whistles and shouts, explosive and wide, no music', dur: 3.0, infl: 0.6 },
   { file: 'boo.mp3',        text: 'A street crowd booing loudly together, deep disapproving BOOO, one collective wave, no music', dur: 1.6, infl: 0.7 },
+  // The kick is HEARD (dev, 2026-08-28: "there's no sound effect when the kick
+  // meets the ball"). ROOT CAUSE, found by measuring: kick.mp3 came back from
+  // THIS generator peaking at −23.5 dBFS — 23 dB under every other cue in this
+  // table — so the contact thump was emitted, warmed and played, and simply
+  // could not be heard under the beat. It is not a code bug.
+  //
+  // !! This generator renders short single-hit impacts VERY quiet, and does it
+  // repeatably: four takes of 'strike' came back at −50.1, −43.2, −38.5 and
+  // −16.2 dBFS peak. NEVER trust a fresh impact file — measure it, and if it
+  // peaks below about −6 dBFS, peak-normalise before shipping:
+  //   ffmpeg -i in.mp3 -af volumedetect -f null -      # read max_volume
+  //   ffmpeg -i in.mp3 -af 'volume=<-1.5 - max>dB' -b:a 128k out.mp3
+  // The shipped strike.mp3 is the 4th take (this prompt) lifted +14.7 dB that
+  // way: 0.52 s, mean −17.7 dB, peak −1.9 dB — in family with peg and swish.
+  { file: 'strike.mp3',    text: 'A powerful sneaker kick smashing a rubber ball, loud percussive thump and snap, one single hit, dry, close-up, no music', dur: 0.5, infl: 0.7 },
+  { file: 'bigwhoosh.mp3', text: 'A fast martial-arts leg whoosh cutting the air, powerful sweeping air whip, one single swing, close, dry, no music', dur: 0.6, infl: 0.7 },
 ];
 
 async function gen({ file, text, dur, infl }) {

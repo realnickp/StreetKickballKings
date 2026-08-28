@@ -12,7 +12,9 @@
 //  4. WHIFF SWING — a hopeless tap still swings the leg (no frozen kicker).
 //  5. CONTACT — a clean tap: swing sfx at clip start, kick thump at the
 //     contact frame, the kicker step-in is armed, ball goes LIVE.
-//  6. PEG PAD — no force + live runner = gold PEG; no runner = dim PEG.
+//  6. SPECIAL SWING — an armed MEIA LUA opens on 'bigwhoosh', drops 'swing'
+//     mid-wind-up, and still thumps 'strike' when the crown kick connects.
+//  7. PEG PAD — no force + live runner = gold PEG; no runner = dim PEG.
 import { webkit } from 'playwright';
 
 const BASE = process.env.SKK_URL ?? 'http://localhost:5173';
@@ -194,10 +196,62 @@ async function kickScenarios(page) {
   const sfx = await page.evaluate(() => window.__sfxLog.slice());
   ok(sfx.includes('swing'), `swing whoosh at clip start (sfx: ${sfx.join(',')})`);
   ok(sfx.includes('kick') || sfx.includes('crush'), 'kick thump at contact');
+  // THE one the dev could not hear. 'kick'/'crush' both point at kick.mp3,
+  // which peaks 23 dB under everything else in the alias table — it was emitted
+  // and inaudible. 'strike' is the cue that carries the contact now, so a
+  // contact WITHOUT it is the bug back, whatever else the log says.
+  ok(sfx.includes('strike'), `THE STRIKE lands at contact (sfx: ${sfx.join(',')})`);
+}
+
+// The LOCKER move must SOUND bigger than the everyday kick before the ball is
+// even struck: the special clip opens on the martial-arts whoosh, the lighter
+// swish arrives 60% into the wind-up, and the contact still thumps.
+async function specialSwingScenario(page) {
+  console.log('\n--- scenario 6: SPECIAL SWING ---');
+  const pitch = await poll(page, () => window.__skk.phase === 'PITCH' && !window.__skk.kicked
+    && Number.isFinite(window.__skk.pitchArrival) && window.__skk.pitchArrival !== Infinity, 30000, 'live pitch');
+  if (!ok(!!pitch, 'a live pitch to swing the crown at')) return;
+  const armed = await page.evaluate(() => {
+    const s = window.__skk;
+    // MEIA LUA: the move the dev unlocked, and the clip whose release mark this
+    // round re-cut from the plant (0.86) to the strike (0.606).
+    s.crown.gear = { id: 'kick-meia', name: 'MEIA LUA', clip: 'kickMeia', mods: { powerMult: 1.35, curl: 1.5 } };
+    s.crown.disarm(); s.special.value = 100; s.refreshHud();
+    document.querySelector('.special-btn').dispatchEvent(new Event('pointerdown'));
+    return { armed: s.crown.armed, hasClip: !!s.kicker.animator.hasClip('kickMeia') };
+  });
+  ok(armed.hasClip === true, 'the kickMeia clip is loaded on the kicker (extras pack x)');
+  if (!ok(armed.armed === true, 'the crown arms with MEIA LUA equipped')) return;
+  const fired = await poll(page, () => {
+    const s = window.__skk;
+    if (s.phase !== 'PITCH' || s.kicked || !Number.isFinite(s.pitchArrival)) return null;
+    if (!(s.ball.pos.z > -3)) return null;    // the pitch is close — the flick is real
+    s.kicker.group.position.x = s.ball.pos.x; // line him up so align never judges FOUL
+    s._kickerPrevX = s.ball.pos.x;
+    window.__sfxLog.length = 0;
+    s.attemptKick({ align: true, flick: { risePx: 120, durMs: 140, driftPx: 0 } }, s.pitchArrival);
+    return { phase: s.phase, atStart: window.__sfxLog.slice() };
+  }, 25000, 'crown swing fired');
+  ok(fired?.phase === 'KICK_ANIM', `the armed MEIA swing starts (phase ${fired?.phase})`);
+  ok(!!fired?.atStart.includes('bigwhoosh'),
+    `the special clip OPENS on the big leg whoosh (at clip start: ${fired?.atStart.join(',') || 'nothing'})`);
+  ok(!fired?.atStart.includes('swing'), 'the everyday swish does not double up at clip start');
+  // Wait on the PHASE leaving the swing beat, never on hrFired: that flag is
+  // only reset inside onKickContact, so the previous scenario's home run leaves
+  // it true and a poll that reads it returns before the swing has even started.
+  const away = await poll(page, () => (window.__skk.phase !== 'KICK_ANIM' ? window.__skk.phase : null),
+    25000, 'ball away');
+  ok(!!away, `the crown swing launches the ball (phase ${away ?? 'stuck in KICK_ANIM'})`);
+  await page.waitForTimeout(800);  // let the tail of the wind-up timer land
+  const sfx2 = await page.evaluate(() => window.__sfxLog.slice());
+  ok(sfx2.includes('strike'), `a CROWN kick thumps too (sfx: ${sfx2.join(',')})`);
+  ok(sfx2.includes('swing'), 'the swish still lands, mid-wind-up');
+  ok(sfx2.indexOf('bigwhoosh') >= 0 && sfx2.indexOf('bigwhoosh') < sfx2.indexOf('swing'),
+    'whoosh opens the move, swish follows it');
 }
 
 async function pegPadScenario(page) {
-  console.log('\n--- scenario 6: PEG pad truth ---');
+  console.log('\n--- scenario 7: PEG pad truth ---');
   const staged = await page.evaluate(() => {
     const s = window.__skk;
     s.clearTimers();
@@ -291,6 +345,7 @@ try {
   await pronounScenario(page);
   await queueScenario(page);
   await kickScenarios(page);
+  await specialSwingScenario(page);
   await pegPadScenario(page);
 } catch (e) {
   console.error('PROBE CRASH:', e.message);

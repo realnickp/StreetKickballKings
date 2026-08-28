@@ -44,6 +44,12 @@ const FILES = {
     stomp: 'assets/audio/sfx/stomp.mp3',
     'cheer-big': 'assets/audio/sfx/cheer-big.mp3',
     boo: 'assets/audio/sfx/boo.mp3',
+    // The kick is HEARD (dev, 2026-08-28). kick.mp3 ships peaking at −23.5 dBFS
+    // — 23 dB under everything else in here — so the contact thump was never
+    // audible under the beat. 'strike' is the transient that now CARRIES the
+    // moment; 'bigwhoosh' is the LOCKER special swing cutting the air.
+    strike: 'assets/audio/sfx/strike.mp3',
+    bigwhoosh: 'assets/audio/sfx/bigwhoosh.mp3',
   },
 };
 
@@ -91,6 +97,11 @@ const SFX_ALIAS = {
   'crown-tick': { file: 'crown-tick', gain: 0.7 }, 'crown-arm': { file: 'crown-arm', gain: 1.0 },
   countdown: { file: 'countdown', gain: 0.6 }, unlock: { file: 'unlock', gain: 0.9 }, stomp: { file: 'stomp', gain: 0.5 },
   'cheer-big': { file: 'cheer-big', gain: 1.1 }, boo: { file: 'boo', gain: 0.8 },
+  // THE CONTACT. 'strike' layers on top of 'kick' (which is 23 dB down and now
+  // only contributes body) and ducks the music for a quarter second so the
+  // thump lands in a hole instead of inside the beat.
+  strike: { file: 'strike', gain: 1.6, duck: true },
+  bigwhoosh: { file: 'bigwhoosh', gain: 1.0 }, // the special swing's leg
 };
 
 // Booth discipline: play CALLS may hold the mic for one beat; flavor lines are
@@ -100,6 +111,7 @@ const VO_CALLS = new Set([
   'doubleplay', 'tripleplay', 'pickle', 'walk', 'gameover', 'gametime',
 ]);
 const VO_QUEUE_FRESH_MS = 4000; // a held call older than this is stale news
+const MUSIC_LEVEL = 0.65;       // the in-match bed, and what a duck returns to
 
 // DERIVED, never hand-kept: every file an alias can reach warms up front. A
 // hand-written list silently forgot new sounds and they landed late, or never.
@@ -228,7 +240,7 @@ export class AudioBus {
         this.gains[ch] = lvl;
         this.userGains[ch] = usr;
       }
-      this.gains.music.gain.value = 0.65;
+      this.gains.music.gain.value = MUSIC_LEVEL;
       this.gains.sfx.gain.value = 0.9;
       this.gains.vo.gain.value = 1.0;
     }
@@ -297,9 +309,33 @@ export class AudioBus {
     this.ambienceSrc = await this.playBuffer(FILES.sfx['crowd-ambience'], 'sfx', { loop: true, gain: 0.35 });
   }
 
+  /** Punch a hole in the music for one beat so a transient LANDS. The contact
+   *  thump was being played inside the beat and heard as nothing (dev,
+   *  2026-08-28: "there's no sound effect when the kick meets the ball").
+   *  Down over 20 ms, hold, back over 120 ms — fast enough that the bed never
+   *  audibly dips, long enough that the thump owns its moment.
+   *  The BOOTH outranks it: while a line is live the music is already pulled to
+   *  0.16 and _playAnnouncer owns the restore ramp — a second ramp here would
+   *  fight it and leave the bed at the wrong level for the rest of the match. */
+  duck(ms = 250, db = -6) {
+    if (this._voLive) return;
+    const ctx = this.ensureCtx();
+    if (!ctx || !this.gains?.music) return;
+    const g = this.gains.music.gain;
+    const low = MUSIC_LEVEL * (10 ** (db / 20));
+    const hold = Math.max(0, ms / 1000);
+    const t = ctx.currentTime;
+    g.cancelScheduledValues(t);
+    g.setValueAtTime(g.value, t);
+    g.linearRampToValueAtTime(low, t + 0.02);
+    g.setValueAtTime(low, t + 0.02 + hold);   // the HOLD — without this anchor
+    g.linearRampToValueAtTime(MUSIC_LEVEL, t + 0.02 + hold + 0.12); // it just slides back
+  }
+
   sfx(name) {
     const def = SFX_ALIAS[name];
     if (!def) return;
+    if (def.duck) this.duck(); // the contact gets the bed out of its way
     if (def.file) {
       this.playBuffer(FILES.sfx[def.file], 'sfx', { gain: def.gain });
     } else if (def.synth) {

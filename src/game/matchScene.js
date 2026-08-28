@@ -1388,11 +1388,24 @@ export class MatchScene {
       // the body and the ball close the gap together instead of a magnet ball
       stepX: Math.max(-0.45, Math.min(0.45, this.ball.pos.x - this.kicker.group.position.x)),
     };
-    this.bus.emit('sfx', 'swing'); // the leg cutting air, before the thump lands
+    // THE SWING IS HEARD, and a LOCKER move is heard as BIGGER. A stock kick is
+    // the leg cutting air; an equipped special is a martial-arts sweep, so it
+    // opens on the heavy whoosh and the lighter swish arrives later, 60% into
+    // the wind-up — the move sounds special before the ball is even struck.
+    const specialSwing = kickClip !== 'kick';
+    this.bus.emit('sfx', specialSwing ? 'bigwhoosh' : 'swing');
     if (judged.quality === 'PERFECT' || this.kickHrEligible) {
       this.bus.emit('cine:perfect', { kicker: this.kicker, ball: this.ball, holdS });
     } else {
       this.bus.emit('cine:contact', { kicker: this.kicker, ball: this.ball, quality: judged.quality, holdS });
+    }
+    // ...scheduled AFTER the cine call, which is what puts the beat in slow-mo:
+    // timers tick in REAL seconds, so the wind-up's clip-seconds are converted
+    // against the timeScale the beat is actually running at (same basis as the
+    // safety launch below).
+    if (specialSwing) {
+      this.after(0.6 * holdS / Math.max(0.05, this.engine.timeScale ?? 1),
+        () => this.bus.emit('sfx', 'swing'));
     }
     let launched = false;
     const launchNow = () => {
@@ -1517,6 +1530,14 @@ export class MatchScene {
     if (weakContact) this.engine.shake(0.15);
     else this.engine.shake(judged.quality === 'PERFECT' ? 0.55 : 0.25);
     this.bus.emit('sfx', judged.quality === 'PERFECT' ? 'crush' : 'kick');
+    // ...and THE ONE YOU HEAR. kick.mp3 peaks at −23.5 dBFS — 23 dB under every
+    // other cue in the game and 32 dB under the beat — so the contact above was
+    // played and inaudible for the whole life of the game (dev, 2026-08-28:
+    // "there's no sound effect when the kick meets the ball"). 'strike' is the
+    // transient that carries it, and it ducks the music −6 dB for a quarter
+    // second so it lands in a hole instead of inside the beat. PERFECT/crown
+    // still adds 'fireball' from the cinematics director.
+    this.bus.emit('sfx', 'strike');
     this.field.crowdEnergy = judged.quality === 'PERFECT' ? 1 : 0.5;
 
     this.pred = Ball.predictLanding(this.ball.pos.clone(), launch.speed, launch.loftDeg, launch.directionDeg);
