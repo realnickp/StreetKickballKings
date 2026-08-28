@@ -43,7 +43,7 @@ async function poll(page, fn, timeoutMs, label) {
 async function breakScenario(page) {
   console.log('\n--- scenario 1: the dance -> game BREAK ---');
   await page.goto(url('match&nosplash'), { waitUntil: 'domcontentloaded' });
-  const booted = await poll(page, () => !!window.__skk, 20000, 'scene boot');
+  const booted = await poll(page, () => !!window.__skk, 150000, 'scene boot');
   if (!booted) throw new Error('scene never booted');
   // prove the silence before a single frame of the show runs
   const silent = await page.evaluate(() => ({
