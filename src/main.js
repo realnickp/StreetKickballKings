@@ -9,7 +9,7 @@ import { SaveManager } from './meta/save.js';
 import { buildField } from './game/field.js';
 import { buildPlayer, CLIP_NAMES } from './game/characters.js';
 import { buildTeamCharsGlb } from './game/glbCharacters.js';
-import { dressTeams } from './game/kits.js';
+import { dressTeams, groundLFor } from './game/kits.js';
 import { prewarmCharacters } from './game/prewarm.js';
 import { loadExtrasFor, DanceBag } from './game/animExtras.js';
 import { MatchScene } from './game/matchScene.js';
@@ -270,6 +270,11 @@ async function bootFlow() {
     // kit colour picked in team select; cleats tint the shoe texels; the kick
     // rides into MatchScene for the crown-meter swing.
     const gear = unlocks.equippedGear(save);
+    // Play at the HOME team's (opponent's) city field so each team's stadium
+    // shows. Resolved HERE, once: the dressing below needs this court's own
+    // lightness (through `groundLFor`, which resolves the same field and the
+    // same Blacktop fallback), and MatchScene needs the field itself.
+    const homeField = fieldsData.fields.find(f => f.id === opponentTeam.homeField) ?? blacktop;
     // DRESS THE TWO CREWS (src/game/kits.js): home dark, away light, seeded by
     // the tones you set in team select and flipped if the pair wouldn't read
     // apart on a phone. An equipped Locker kit PINS your side and the opponent
@@ -280,8 +285,9 @@ async function bootFlow() {
       gearKit: gear.uniform, tones: kits?.tone ?? null,
       // ...and the GROUND gets a vote: the court you're about to play on is as
       // much a thing to stand out from as the other crew (Winter Classic's snow
-      // ate a white kit whole). `groundL` is that field's measured lightness.
-      groundL: (fieldsData.fields.find(f => f.id === opponentTeam.homeField) ?? blacktop)?.groundL ?? null,
+      // ate a white kit whole). `groundLFor` is the SAME call GEAR UP's
+      // turntable makes, so the preview wears what walks out here.
+      groundL: groundLFor(opponentTeam),
     });
     const awayKit = dressed.away;
     const homeKit = dressed.home;
@@ -321,8 +327,6 @@ async function bootFlow() {
     await showLogoClash(playerTeam, opponentTeam);
 
     const chars = await charsPromise;
-    // Play at the HOME team's (opponent's) city field so each team's stadium shows.
-    const homeField = fieldsData.fields.find(f => f.id === opponentTeam.homeField) ?? blacktop;
     ctx.scene = new MatchScene({
       engine, input, bus, chars,
       teams: { home: opponentTeam, away: playerTeam },

@@ -253,13 +253,21 @@ export function headAxes(root, rig) {
  * forehead — which reaches further forward than any nose on these rigs (+2.7 cm
  * on arch-puff, +1.9 cm on arch-braids) — is never even looked at.
  *
+ * A PROFILE WITH NO FALL IN IT IS NOT A FACE. A flat plane, a forehead that
+ * only climbs, a fringe hanging over the whole front — none of them has a
+ * socket, and none of them has a nose tip to measure off either. The answer
+ * there is null, which sends the band to `HEAD_FRAC`: better a fraction of a
+ * head nobody could read than a landmark that isn't one. Anything this does
+ * answer is clamped inside the head it was measured on.
+ *
  * Measured against all 20 rigs shot front-on with a projected ruler
  * (`heads/probe-brow.mjs`, `heads/ruler-*.png`).
  *
  * @param {ArrayLike<number>} ys each sample's height along the head axis
  * @param {ArrayLike<number>} fs how far forward it reaches
  * @param {ArrayLike<number>} ss how far off the mid-sagittal plane it sits
- * @returns {number|null} the eye line in rig metres above the `Head` joint
+ * @returns {number|null} the eye line in rig metres above the `Head` joint,
+ *   inside `[low, rise]`, or null when this profile has no face in it
  */
 export function eyeLine(ys, fs, ss, low, rise) {
   const n = ys?.length ?? 0;
@@ -282,6 +290,16 @@ export function eyeLine(ys, fs, ss, low, rise) {
     if (w.length) med[k] = w[(w.length - 1) >> 1];
   }
   const at = (k) => low + (k + 0.5) * PROFILE_STEP_M;
+  // A face's landmarks live in the BOTTOM TWO THIRDS of a head. If the running
+  // maximum is still climbing above that, the walk is not on a nose: it is on a
+  // flat face plane, a monotone forehead, or a fringe that reaches further
+  // forward than the face does — and the `>=` below then parks `maxK` on the
+  // LAST slice, so the answer came back as the top of the head plus
+  // EYE_OVER_NOSE_M, a band 10 cm over the crown. There is no reading of that
+  // profile: say so, and let `browHeight` fall to HEAD_FRAC.
+  const FACE_TOP = N - Math.ceil(N / 3);
+  // and nothing may leave the head it was measured on
+  const inHead = (y) => Math.min(rise, Math.max(low, y));
   let max = -Infinity;
   let maxK = -1;
   let seen = 0;
@@ -290,21 +308,26 @@ export function eyeLine(ys, fs, ss, low, rise) {
     if (!Number.isFinite(f)) continue;
     // the nose has to have been climbed before its end can be found
     if (seen >= 3 && f <= max - EYE_DROP_M) {
+      if (maxK >= FACE_TOP) return null;   // whatever that was, it wasn't a face
       // A fall a long way over the nose tip is not the socket — it is the walk
       // finally coming off something else it climbed (arch-braids' hairline
       // reaches 1.2 cm further forward than her nose does). Fall back to the
       // nose itself, which is never wrong by more than the face is deep.
-      return at(k) - at(maxK) > FALL_SPAN_M
+      return inHead(at(k) - at(maxK) > FALL_SPAN_M
         ? at(maxK) + EYE_OVER_NOSE_M
-        : at(k) + EYE_OVER_FALL_M;
+        : at(k) + EYE_OVER_FALL_M);
     }
     // `>=`, not `>`: a nose peaks over two or three slices on a low-poly head
     // and it is the LAST of them the face falls off, not the first
     if (f >= max) { max = f; maxK = k; }
     seen++;
   }
-  // no fall at all: a face too shallow to leave one
-  return maxK >= 0 ? at(maxK) + EYE_OVER_NOSE_M : null;
+  // NO FALL AT ALL. A profile that only ever climbs has no socket in it, so
+  // there is no nose tip to measure from either — the "max" is just the highest
+  // thing on the head. Answering with it put the band above the hairline on
+  // every flat and fringe-covered profile; null is the honest answer and
+  // HEAD_FRAC is the rule for a head nobody can read.
+  return null;
 }
 
 /**

@@ -12,8 +12,10 @@
 // a white player, on white snow. Two crews can clear ΔL* 25 from each other and
 // still both vanish, because the pairing rule had never heard of the court.
 // `dressTeams` now takes the field's own `groundL` (the L* the lit court
-// actually renders at — measured headless, `src/data/fields.json`) and PREFERS
-// the pairing whose worse kit stands furthest off it.
+// actually renders at — measured headless, `src/data/fields.json`, resolved for
+// a crew by `groundLFor`) and PREFERS the pairing whose worse kit stands
+// furthest off it — but it never re-dresses a tone you actually TAPPED for a
+// gain under `GROUND_GAIN_L`, because the swatch has to mean something.
 //
 // Pure + data-driven on purpose: the screens (team select swatches, the Locker
 // chips, GEAR UP's "what you're wearing" line) and the 3D recolour all read the
@@ -21,6 +23,7 @@
 // `ink` is the number/decal colour, `logo` the mark FILE (no extension) — a
 // bright kit asks for the light cut, and gets it only where the crew actually
 // ships one (see LIGHT_LOGOS/markFor); otherwise it wears the base mark.
+import fields from '../data/fields.json';
 
 /** Two crews closer than this in Lab lightness read as one team at phone size.
  *  The same number is what a kit has to clear against the GROUND to count as
@@ -148,6 +151,31 @@ export function groundDeltaL(hex, groundL) {
   return Number.isFinite(groundL) ? Math.abs(labL(hex) - groundL) : Infinity;
 }
 
+/** The lightness of the court a crew hosts on — `fields.json`'s measured
+ *  `groundL` for `team.homeField`, with the Blacktop's number for a crew whose
+ *  field can't be found, because that is the field `main.js` puts the match on
+ *  in the same case.
+ *
+ *  ONE lookup, so the Locker/GEAR UP preview and the field cannot disagree.
+ *  They did: the preview dressed with no ground at all and the match dressed
+ *  with one, so on 25 of the 90 reachable matchups the turntable showed you a
+ *  kit you were never going to wear — and "see it on the player before you
+ *  play" is the whole point of that screen. */
+export function groundLFor(team) {
+  const list = fields?.fields ?? [];
+  const f = list.find((x) => x.id === team?.homeField) ?? list.find((x) => x.id === 'blacktop');
+  return Number.isFinite(f?.groundL) ? f.groundL : null;
+}
+
+/** How far off the court an alternative pairing has to move the WORSE-off crew
+ *  before it may overrule the tone you tapped in team select. 10 L* is a step
+ *  you can see on a phone; under it the swatch you tapped would be getting
+ *  thrown away for a difference nobody can point at, and the DARK/LIGHT chip
+ *  would be decoration. (Blacktop, Brooklyn v Baltimore: the worse crew gains
+ *  30 off the asphalt — the flip is right, and it fires. Blacktop, Brooklyn v
+ *  Memphis: 8.9 — your pick holds and you wear what the chip promised.) */
+export const GROUND_GAIN_L = 10;
+
 /** Rank one dressed pair. Bigger is better, compared left to right:
  *   1. the two CREWS separate (ΔL* 25) — the hard one, and unchanged: a rule
  *      about the floor must never make the two teams look like one team;
@@ -193,14 +221,21 @@ export function dressTeams({ home, away, playerSide = 'away', gearKit = null, to
     const mine = resolveGearKit(gearKit, crew[mineSide]);
     // widest gap from YOUR pinned kit first; where two of their kits both clear
     // it, the one that also stands off the COURT wins the tie (a Locker kit
-    // can pin you into white, but it can't pin your opponent into the snow)
+    // can pin you into white, but it can't pin your opponent into the snow).
+    // THE GROUND HAS TO BE THERE FOR THAT TIE-BREAK TO EXIST: with no `groundL`
+    // both kits answer Infinity and `Infinity - Infinity` is NaN — not a
+    // comparator, so the sort goes implementation-defined and the opponent
+    // takes whichever tone array order handed it. That is what the Locker and
+    // GEAR UP were doing (Maryland came out DARK against Brooklyn at ΔL 39.8
+    // where the widest-gap rule gives 88.1), and it is the last place a rule
+    // about the floor should be allowed to speak, since there is no floor.
     const byGap = ['dark', 'light']
       .map((t) => dress(crew[theirSide], t))
       .sort((a, b) => {
         const da = contrastDeltaL(a.hex, mine.hex);
         const db = contrastDeltaL(b.hex, mine.hex);
         const bothClear = Math.min(da, db) >= CLASH_DELTA_L;
-        if (bothClear) return groundDeltaL(b.hex, groundL) - groundDeltaL(a.hex, groundL);
+        if (bothClear && Number.isFinite(groundL)) return groundDeltaL(b.hex, groundL) - groundDeltaL(a.hex, groundL);
         return db - da;
       });
     let theirs = byGap[0];
@@ -213,18 +248,33 @@ export function dressTeams({ home, away, playerSide = 'away', gearKit = null, to
   // which is a choice you can make there. If that pair doesn't separate, fall
   // through the two proper pairings and take the first that clears; if none
   // does, keep the widest gap and shift the NON-player side to finish it.
+  //
+  // YOUR PICK IS A CHOICE, NOT A SUGGESTION. `tones` is the DARK/LIGHT swatch
+  // you TAPPED, and the court may only overrule it for something you can see:
+  // the pair has to fail the crew gate (two crews reading as one team is not a
+  // taste question), or the alternative has to leave the worse-off crew at
+  // least GROUND_GAIN_L further off the ground. Anything smaller and the chip
+  // in team select is lying about what you'll be wearing.
+  // With NO `tones` there is no pick to keep — `seed` is only spec §3's default
+  // ordering — so the ground maximises freely, which is the contract the
+  // ten-field sweep in `tests/fieldsGround.test.js` holds.
   const options = [seed, ...PAIRINGS.filter((p) => !same(p, seed))];
   let out = null;
   if (Number.isFinite(groundL)) {
     // THE GROUND IS IN THE ROOM: score every option rather than taking the
     // first that separates the crews. Seed order still wins ties, so a field
     // whose court has no opinion about either kit dresses exactly as before.
-    let bestScore = null;
-    for (const o of options) {
+    const rows = options.map((o) => {
       const pair = { home: dress(home, o.home), away: dress(away, o.away) };
-      const score = groundScore(pair, groundL);
-      if (!out || better(score, bestScore)) { out = pair; bestScore = score; }
-    }
+      return { pair, score: groundScore(pair, groundL) };
+    });
+    const bestOf = (list) => list.reduce((b, r) => (b && !better(r.score, b.score) ? b : r), null);
+    const seedRow = rows[0];
+    const alt = bestOf(rows.slice(1));
+    const seedClears = seedRow.score[0] === 1;
+    out = (!tones || !seedClears) ? bestOf(rows).pair
+      : (alt && alt.score[0] === 1 && alt.score[1] >= seedRow.score[1] + GROUND_GAIN_L) ? alt.pair
+        : seedRow.pair;
   } else {
     let bestD = -1;
     for (const o of options) {

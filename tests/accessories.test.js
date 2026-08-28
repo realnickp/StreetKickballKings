@@ -315,14 +315,68 @@ describe('eyeLine — the rule, on a profile with nothing else in it', () => {
     }
     expect(eyeLine(ys, fs, ss, -0.06, 0.20)).toBeCloseTo(dip + EYE_OVER_FALL_M, 2);
   });
+  it('the ordinary nose is untouched by the guards — and its band is 0.103', () => {
+    // THE PIN. Everything below this line is about profiles that are NOT faces;
+    // this is the one that is, and the number it answers must not move: the
+    // fall lands in the slice at 0.033, the eye line is 0.055 and the band
+    // centre 0.103 — 4.8 cm over the eyes, where the dev's screenshot wanted it.
+    const { ys, fs, ss, low, high } = face((y) => 0.09 + (y < 0.03 ? 0.03 : 0));
+    const eye = eyeLine(ys, fs, ss, low, high);
+    expect(eye).toBeCloseTo(0.055, 3);
+    expect(browHeight({ eyeY: eye }, new THREE.Vector3(0, 0.23, 0))).toBeCloseTo(0.103, 3);
+  });
+
   // a 4 mm nose on a 26 cm head: its peak is a PLATEAU two or three slices
   // wide, so the answer is only ever accurate to the slices it is read in
   const nearly = (got, want) => expect(Math.abs(got - want)).toBeLessThanOrEqual(2 * PROFILE_STEP_M);
-  it('falls back to the NOSE TIP on a face too shallow to fall off', () => {
+
+  // ---- NOT A FACE ---------------------------------------------------------
+  // A profile with no FALL in it has no socket, and therefore no nose tip to
+  // measure from either — the running maximum is just the highest thing on the
+  // head, and `>=` parks it on the LAST slice. Answering with it put the band
+  // at top-of-head + 4.3 cm, which is 10 cm ABOVE the crown, on exactly the
+  // rigs whose faces are hardest to read. null is the honest answer, and
+  // `browHeight` has a rule for it (HEAD_FRAC).
+  const band = (eye, up = 0.23) => browHeight({ eyeY: eye }, new THREE.Vector3(0, up, 0));
+  it('a face too shallow to fall off has no eye line — HEAD_FRAC takes it', () => {
     const nose = 0.02;
     const { ys, fs, ss, low, high } = face((y) => 0.09 + 0.004 * Math.exp(-(((y - nose) / 0.02) ** 2)));
-    nearly(eyeLine(ys, fs, ss, low, high), nose + EYE_OVER_NOSE_M);
+    expect(eyeLine(ys, fs, ss, low, high)).toBe(null);
+    // and the band it gets is ON the head, which the old nose fallback wasn't
+    expect(band(null)).toBeLessThan(high);
+    expect(band(null)).toBeGreaterThan(low);
   });
+  it('a FLAT face plane is not a face', () => {
+    const { ys, fs, ss, low, high } = face(() => 0.09);
+    expect(eyeLine(ys, fs, ss, low, high)).toBe(null);
+  });
+  it('a MONOTONE forehead is not a face', () => {
+    const { ys, fs, ss, low, high } = face((y) => 0.09 + 0.2 * (y - (-0.06)));
+    expect(eyeLine(ys, fs, ss, low, high)).toBe(null);
+  });
+  it('a FRINGE hanging over the whole front is not a face', () => {
+    // the nose reaches 0.12 at y=0, the hair in front of the brow reaches 0.13
+    // and keeps reaching it to the crown: the profile never falls
+    const { ys, fs, ss, low, high } = face((y) => (y < -0.02 ? 0.09 : y < 0.01 ? 0.12 : 0.13));
+    expect(eyeLine(ys, fs, ss, low, high)).toBe(null);
+  });
+  it('a maximum in the TOP THIRD is not a nose, even when the profile does fall', () => {
+    // a front that climbs all the way to 0.15 (top of the head on a 26 cm
+    // profile) and only then drops away — a hat brim, a fringe, a bad normal
+    const { ys, fs, ss, low, high } = face((y) => (y < 0.15 ? 0.09 + 0.2 * (y + 0.06) : 0.05));
+    expect(eyeLine(ys, fs, ss, low, high)).toBe(null);
+  });
+  it('never answers outside the head it measured', () => {
+    // a short profile whose fall sits 2.5 cm under the crown: the eye line the
+    // rule computes (0.047) is off the top of a head that ends at 0.03
+    const { ys, fs, ss, low, high } = face((y) => (y < -0.008 ? 0.11 : y < 0.02 ? 0.098 : 0.09), { low: -0.02, high: 0.03 });
+    const eye = eyeLine(ys, fs, ss, low, high);
+    expect(eye).not.toBe(null);
+    expect(eye).toBeLessThanOrEqual(high);
+    expect(eye).toBeGreaterThanOrEqual(low);
+    expect(eye).toBeCloseTo(high, 6);   // clamped to the crown, not 1.7 cm over it
+  });
+
   it('will not take a fall a long way over the nose — that is the hairline', () => {
     // the nose peaks at 0.00 and the profile only leaves the HAIR at 0.13
     const nose = 0.0;
@@ -620,3 +674,4 @@ describe('bandHexFor — a band you cannot see is not a band', () => {
     expect(bandHexFor({ colors: {} })).toBe(null);
   });
 });
+
