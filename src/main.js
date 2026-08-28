@@ -9,6 +9,7 @@ import { SaveManager } from './meta/save.js';
 import { buildField } from './game/field.js';
 import { buildPlayer, CLIP_NAMES } from './game/characters.js';
 import { buildTeamCharsGlb } from './game/glbCharacters.js';
+import { dressTeams } from './game/kits.js';
 import { loadExtrasFor, DanceBag } from './game/animExtras.js';
 import { MatchScene } from './game/matchScene.js';
 import { CinematicDirector } from './cinematics/director.js';
@@ -26,15 +27,6 @@ import { cityTrackId } from './engine/audioTracks.js';
 import fieldsData from './data/fields.json';
 import teamsData from './data/teams.json';
 import tuning from './data/tuning.json';
-
-// ---------- uniform colour helpers (light/dark kits so teams don't clash) ----------
-const hexToRgb = (h) => { h = h.replace('#', ''); return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]; };
-const rgbToHex = (r, g, b) => '#' + [r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
-const lum = (hex) => { const [r, g, b] = hexToRgb(hex); return (0.299 * r + 0.587 * g + 0.114 * b) / 255; };
-const mix = (hex, target, t) => { const [r, g, b] = hexToRgb(hex); return rgbToHex(r + (target[0] - r) * t, g + (target[1] - g) * t, b + (target[2] - b) * t); };
-/** A uniform for `hex` that contrasts in brightness with `vsHex`, keeping its hue. */
-const contrastUniform = (hex, vsHex) =>
-  lum(vsHex) < 0.5 ? mix(hex, [255, 255, 255], 0.6) : mix(hex, [12, 14, 20], 0.55);
 
 const canvas = document.getElementById('game-canvas');
 const uiRoot = document.getElementById('ui-root');
@@ -277,14 +269,23 @@ async function bootFlow() {
     // kit colour picked in team select; cleats tint the shoe texels; the kick
     // rides into MatchScene for the crown-meter swing.
     const gear = unlocks.equippedGear(save);
-    // Use the kits chosen in team select; otherwise default to contrasting kits so
-    // the two teams never clash (player keeps their colour, opponent gets a variant).
-    const awayColor = gear.uniform?.hex ?? kits?.away ?? playerTeam.colors.primary;
-    const homeColor = kits?.home ?? contrastUniform(opponentTeam.colors.primary, awayColor);
+    // DRESS THE TWO CREWS (src/game/kits.js): home dark, away light, seeded by
+    // the tones you set in team select and flipped if the pair wouldn't read
+    // apart on a phone. An equipped Locker kit PINS your side and the opponent
+    // dresses against it — clash handling, including the last-resort shift,
+    // lives in dressTeams so GEAR UP's caption sees the SAME answer as the field.
+    const dressed = dressTeams({
+      home: opponentTeam, away: playerTeam, playerSide: 'away',
+      gearKit: gear.uniform, tones: kits?.tone ?? null,
+    });
+    const awayKit = dressed.away;
+    const homeKit = dressed.home;
+    const awayColor = awayKit.hex;
+    const homeColor = homeKit.hex;
     const charsPromise = (async () => {
       const c = {
-        home: await buildTeamCharsGlb(opponentTeam, homeColor),
-        away: await buildTeamCharsGlb(playerTeam, awayColor, gear),
+        home: await buildTeamCharsGlb(opponentTeam, homeColor, null, { kit: homeKit }),
+        away: await buildTeamCharsGlb(playerTeam, awayColor, gear, { kit: awayKit }),
       };
       // dances/special-kicks extras pack rides the intro-video dead time;
       // nothing gates on it — the HR dance bag and the walk-up taunts use
@@ -374,12 +375,25 @@ async function bootFlow() {
     black.style.cssText = 'background:#050308;position:absolute;inset:0;z-index:1;';
     uiRoot.appendChild(black);
 
+    // ...and SAY SO. Dressing two crews is seconds of GLB load + atlas recolour
+    // on a phone, and a bare black rectangle for that long reads as a hang. The
+    // title screen's own type, no new CSS — `margin:auto` is the only thing the
+    // line needs that `.screen` doesn't already give it.
+    const loading = document.createElement('div');
+    loading.className = 'tap-start bounce-beat';
+    loading.style.margin = 'auto';
+    loading.textContent = 'LOADING DRILLS…';
+    black.appendChild(loading);
+
     if (ctx.scene) ctx.scene.destroy();
     const player = teamsData.teams.find((t) => t.id === 'monarchs') ?? teamsData.teams[0];
     const opp = teamsData.teams.find((t) => t.id === 'snappers') ?? teamsData.teams[1];
+    // the drills dress through the same path as a match — kit object and all —
+    // so the numbers/decals a lesson teaches are the ones you'll wear out there
+    const drillKits = dressTeams({ home: opp, away: player, playerSide: 'away' });
     const chars = {
-      home: await buildTeamCharsGlb(opp, contrastUniform(opp.colors.primary, player.colors.primary)),
-      away: await buildTeamCharsGlb(player, player.colors.primary),
+      home: await buildTeamCharsGlb(opp, drillKits.home.hex, null, { kit: drillKits.home }),
+      away: await buildTeamCharsGlb(player, drillKits.away.hex, null, { kit: drillKits.away }),
     };
     loadExtrasFor([...chars.home, ...chars.away]);
     // endless half: outs never roll the inning, drills own the flow
@@ -394,6 +408,8 @@ async function bootFlow() {
       playerSide: 'away',
       hudRoot,
       autoStart: false,
+      // no starting lineups before a lesson — the drills open on the plate
+      noIntro: true,
       danceBag: new DanceBag({ recent: save.get('dance.recent', []), onDraw: (r) => save.set('dance.recent', r) }),
     });
     window.__skk = ctx.scene;

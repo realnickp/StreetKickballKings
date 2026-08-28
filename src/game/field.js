@@ -3,6 +3,7 @@
 // Coordinates: home plate at origin, field extends toward -Z, Y up.
 // Bases: 1st (+X,-Z), 2nd (0,-2Z), 3rd (-X,-Z). Pitcher on the home→2nd line.
 import * as THREE from 'three';
+import { overlapArcs, seamAlphaData, seamWrap } from './backdropSeam.js';
 
 export const FIELD_LAYOUT = {
   home: new THREE.Vector3(0, 0, 0),
@@ -196,8 +197,18 @@ export function buildField(fieldData, scene) {
       // far curb so the scene's street sits AT ground level, not above it),
       // ry = how much of the image height to show (rest of the sky included).
       const w = fieldData.backdropWindow ?? {};
-      t.repeat.set(splitRing ? rx / 2 : rx, w.ry ?? 0.82); t.offset.y = w.oy ?? 0.18;
-      if (splitRing) t.offset.x = offX;
+      if (splitRing) {
+        // Each half now OVERRUNS the join by SEAM_EDGE_DEG so the two can
+        // cross-fade (backdropSeam.js). seamWrap widens the repeat by the same
+        // factor and backs the offset up by the flap it added, so the painting
+        // keeps its scale AND every texel stays at the world angle this field
+        // was framed on — only the two flaps are new content.
+        const s = seamWrap(rx / 2, offX);
+        t.repeat.set(s.repeat, w.ry ?? 0.82);
+        t.offset.set(s.offset, w.oy ?? 0.18);
+      } else {
+        t.repeat.set(rx, w.ry ?? 0.82); t.offset.y = w.oy ?? 0.18;
+      }
     };
     // WEBKIT/iOS RULES (learned the hard way, keep both):
     // 1) never construct a material with a still-loading texture — WebKit
@@ -207,8 +218,15 @@ export function buildField(fieldData, scene) {
     //    Two presented frames + a real-pixel watchdog, else the poster stays.
     // Full-bright materials: the sky dome + cap sample these images' top pixels
     // at full brightness, so dimming here desyncs the sky join.
-    const buildBackdropMat = (texUrl, videoUrl, tune) => {
-      const bmat = new THREE.MeshBasicMaterial({ side: THREE.BackSide, fog: false, color: '#0f1420' });
+    const buildBackdropMat = (texUrl, videoUrl, tune, alphaMap = null) => {
+      // `alphaMap` (the home half only) turns the material transparent so its
+      // two arc ends fade into the outfield half instead of butting against it.
+      // depthWrite off: a transparent ring must not punch a hole in the depth
+      // buffer for whatever draws after it.
+      const bmat = new THREE.MeshBasicMaterial({
+        side: THREE.BackSide, fog: false, color: '#0f1420',
+        ...(alphaMap ? { alphaMap, transparent: true, depthWrite: false } : null),
+      });
       let posterTex = null;
       if (texUrl) {
         new THREE.TextureLoader().load(texUrl, (t) => {
@@ -274,10 +292,17 @@ export function buildField(fieldData, scene) {
     if (splitRing) {
       // outfield half (animated scene center) + home half (static edge slice)
       backdrop = new THREE.Group();
+      // THE CORNER SEAM (dev, 2026-08-27): the two halves used to butt at
+      // theta = +-90 deg (world x = +-R, z = 0) — right behind the side fences,
+      // in frame, two different paintings meeting at a hard vertical edge. Now
+      // each half overruns BOTH joins by SEAM_EDGE_DEG and the home half fades
+      // across those bands, so the change of scene is a ~10 m soft blend.
+      const arcs = overlapArcs();
       const front = new THREE.Mesh(
-        new THREE.CylinderGeometry(bdR, bdR, bdH, 48, 1, true, Math.PI / 2, Math.PI),
+        new THREE.CylinderGeometry(bdR, bdR, bdH, 56, 1, true, arcs.front.start, arcs.front.length),
         mat,
       );
+      front.renderOrder = -2;
       // The home half is its OWN generated scene per city (reverse angle: the
       // other side of the neighborhood), with the same poster→video pipeline
       // as the front. Falls back to an edge-slice of the front painting until
@@ -297,22 +322,37 @@ export function buildField(fieldData, scene) {
       const tuneBack = (t) => {
         t.colorSpace = THREE.SRGBColorSpace;
         t.wrapS = THREE.MirroredRepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
-        if (bk.tex) {
-          // own scene: center content faces home, own measured ground line
-          t.repeat.set(tilesB, bk.ry ?? w.ry ?? 0.82);
-          t.offset.set(0, bk.oy ?? w.oy ?? 0.18);
-        } else {
-          // fallback: right-side slice of the front painting
-          t.repeat.set(tilesB, bk.ry ?? w.ry ?? 0.82);
-          t.offset.set(bk.offX ?? 0.25, bk.oy ?? w.oy ?? 0.18);
-        }
+        // own scene: center content faces home, own measured ground line.
+        // fallback (no bk.tex): a right-side slice of the front painting.
+        const s = seamWrap(tilesB, bk.tex ? 0 : (bk.offX ?? 0.25));
+        t.repeat.set(s.repeat, bk.ry ?? w.ry ?? 0.82);
+        t.offset.set(s.offset, bk.oy ?? w.oy ?? 0.18);
       };
-      const backBuild = buildBackdropMat(bk.tex ?? fieldData.textures?.backdrop, bk.video ?? null, tuneBack);
+      // 256x1 ramp: opaque across the middle, 1 -> 0 through the two overlap
+      // bands. three samples alphaMap's GREEN channel; Linear + ClampToEdge so
+      // the fade is smooth and neither end wraps back to the far edge.
+      const seamRamp = new THREE.DataTexture(seamAlphaData(256), 256, 1, THREE.RGBAFormat);
+      seamRamp.wrapS = THREE.ClampToEdgeWrapping;
+      seamRamp.wrapT = THREE.ClampToEdgeWrapping;
+      seamRamp.minFilter = THREE.LinearFilter;
+      seamRamp.magFilter = THREE.LinearFilter;
+      seamRamp.generateMipmaps = false;
+      seamRamp.needsUpdate = true;
+      const backBuild = buildBackdropMat(bk.tex ?? fieldData.textures?.backdrop, bk.video ?? null, tuneBack, seamRamp);
       if (backBuild.video) handles.backdropVideoBack = backBuild.video;
+      // The two halves are CO-RADIAL in every shipped field, so the overlap
+      // bands would z-fight. 5 cm of inward bias (0.1 % of the radius — no
+      // visible scale change) puts the fading half reliably NEARER the camera,
+      // which is inside the ring, so its depth test always wins over the half
+      // it is blending onto. Players still occlude it: opaque draws first and
+      // writes depth, the transparent ring only tests.
+      const rBack = Math.min(rB, bdR - 0.05);
       const back = new THREE.Mesh(
-        new THREE.CylinderGeometry(rB, rB, bdH, 48, 1, true, -Math.PI / 2, Math.PI),
+        new THREE.CylinderGeometry(rBack, rBack, bdH, 56, 1, true, arcs.back.start, arcs.back.length),
         backBuild.mat,
       );
+      back.renderOrder = -1;
+      handles.backdropRBack = rBack;
       backdrop.add(front, back);
     } else {
       backdrop = new THREE.Mesh(
@@ -393,8 +433,11 @@ export function buildField(fieldData, scene) {
     // City scenes carry a real outpainted sky band sized in meters; legacy fan
     // backdrops keep the tall gradient cap.
     const capH = fieldData.backdropSkyH ?? 220;
+    // ...at the radius of the WIDER half: a cap tucked inside the home half
+    // would cut its top off with a hard ring of sky.
+    const capR = Math.max(handles.backdropR, handles.backdropRBack ?? 0) + 0.4;
     skyCap = new THREE.Mesh(
-      new THREE.CylinderGeometry(handles.backdropR + 0.4, handles.backdropR + 0.4, capH, 64, 1, true, 0, Math.PI * 2),
+      new THREE.CylinderGeometry(capR, capR, capH, 64, 1, true, 0, Math.PI * 2),
       new THREE.MeshBasicMaterial({ map: skyMap, side: THREE.BackSide, fog: false }),
     );
     skyCap.position.set(0, handles.backdropTopY - 1 + capH / 2, 0); // overlaps the backdrop top a hair

@@ -41,7 +41,9 @@ export class Hud {
       </div>
       <div class="action-hint"></div>
       <svg class="pattern-pad" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <polyline class="pat-ref-halo" />
         <polyline class="pat-ref" />
+        <polyline class="pat-trace-halo" />
         <polyline class="pat-trace" />
         <circle class="pat-start" r="3.4" />
         <circle class="pat-end" r="3.0" />
@@ -108,7 +110,9 @@ export class Hud {
     this.traceTimerFill = this.traceTimer.querySelector('.tt-fill');
     // pattern pad (reference shape + live trace)
     this.patternPad = this.el.querySelector('.pattern-pad');
+    this.patRefHalo = this.patternPad.querySelector('.pat-ref-halo');
     this.patRef = this.patternPad.querySelector('.pat-ref');
+    this.patTraceHalo = this.patternPad.querySelector('.pat-trace-halo');
     this.patTrace = this.patternPad.querySelector('.pat-trace');
     this.patStart = this.patternPad.querySelector('.pat-start');
     this.patEnd = this.patternPad.querySelector('.pat-end');
@@ -714,7 +718,9 @@ export class Hud {
    */
   showPattern(points) {
     const ref = points.map(p => `${(p.x * 100).toFixed(1)},${((1 - p.y) * 100).toFixed(1)}`).join(' ');
+    this.patRefHalo.setAttribute('points', ref);
     this.patRef.setAttribute('points', ref);
+    this.patTraceHalo.setAttribute('points', '');
     this.patTrace.setAttribute('points', '');
     const s = points[0], e = points[points.length - 1];
     this.patStart.setAttribute('cx', (s.x * 100).toFixed(1)); this.patStart.setAttribute('cy', ((1 - s.y) * 100).toFixed(1));
@@ -729,12 +735,15 @@ export class Hud {
     const pts = screenPoints
       .map(p => `${(((p.x - r.left) / r.width) * 100).toFixed(1)},${(((p.y - r.top) / r.height) * 100).toFixed(1)}`)
       .join(' ');
+    this.patTraceHalo.setAttribute('points', pts);
     this.patTrace.setAttribute('points', pts);
   }
 
   hidePattern() {
     this.patternPad.classList.remove('show');
+    this.patRefHalo.setAttribute('points', '');
     this.patRef.setAttribute('points', '');
+    this.patTraceHalo.setAttribute('points', '');
     this.patTrace.setAttribute('points', '');
   }
 

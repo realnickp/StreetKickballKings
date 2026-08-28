@@ -27,6 +27,36 @@ export const SHOTS = {
     return { pos: V(k.x + 0.9, 1.35, k.z + 3.2 - 0.8 * t), look: V(k.x, 1.25, k.z), fovScale: 0.7, stiffness: 20 };
   },
 
+  // STARTING LINEUPS WALK-OUT (dev, 2026-08-27: "different cinematic angles of
+  // the teams walking out to the field"). Three shots, cut on the beat, all
+  // driven through the director so clampNearHome still guards the backstop.
+  // ctx: `lead` = the captain leading the file, `side` = ±1 (his gate),
+  // `walkoutT` = 0→1 across the crane beat.
+  //  1. GATE DOLLY (0-3.0 s): low and tight beside the lead, FRONT-quarter —
+  //     the file walks INTO the lens. The offset is -side (the crew crosses
+  //     toward the far side of the diamond, so +side trails them: eight backs
+  //     walking away, verified by screenshot).
+  walkoutGate: (c) => {
+    const lead = c.lead ?? V(-8, 0, -6);
+    const s = c.side ?? -1;
+    return { pos: V(lead.x - s * 2.6, 1.15, lead.z + 3.6), look: V(lead.x, 1.2, lead.z), fovScale: 0.85, stiffness: 45 };
+  },
+  //  2. SIDE STEADICAM (3.0-5.6 s): off the foul line, the whole file streaming
+  //     across frame into the wedge.
+  walkoutSide: (c) => ({ pos: V((c.side ?? -1) * 9, 1.4, -9.5), look: V(0, 1.1, -10), fovScale: 0.85, stiffness: 12 }),
+  //  3. CRANE REVEAL (5.6-8.0 s): pull back and up off the captain until ALL
+  //     EIGHT are in frame (the dev asked to see the crew, "all of them"), and
+  //     it has to be WIDE before the crest card lands over the last beat — so
+  //     the move starts further back than a face close-up and finishes on the
+  //     kick framing, letting the GAME TIME break settle instead of jump.
+  //     It also DRIFTS x 1.6 -> 0: dead on the centre line the wedge's middle
+  //     column stacks into one silhouette, so the crane starts off-axis (the
+  //     rows separate) and settles onto x 0 for the kick framing.
+  walkoutCrane: (c) => {
+    const t = Math.max(0, Math.min(1, c.walkoutT ?? 0));
+    return { pos: V(1.6 - 1.6 * t, 2.4 + 2.2 * t, 6.5 * t), look: V(0, 1.05, -10), fovScale: 0.9, stiffness: 22 };
+  },
+
   // hard CUT on contact: low hero cam beside the plate, looking up the lane.
   // TIGHTER than it was (dev, 2026-08-27: the camera "films the kicker from
   // behind the fence") — +2.2/+3.2 put the lens out past the side-fence panel,

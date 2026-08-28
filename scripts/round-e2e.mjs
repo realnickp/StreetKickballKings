@@ -43,6 +43,9 @@
 //  15. FENCE CAM   — every frame of a full at-bat (walk-up, taunt, the
 //                    camera-LOCKED contact beat, the live shots) sits inside
 //                    fenceMaxX(z) — both pull directions.
+//  16. SEAM        — the backdrop's two halves CROSS-FADE at the corner join
+//                    instead of butting: a 120 px strip read straight through
+//                    the left seam has no hard luminance cliff.
 import { webkit } from 'playwright';
 
 const BASE = process.env.SKK_URL ?? 'http://localhost:5173';
@@ -100,6 +103,9 @@ async function boot(page, q) {
     window.__stamps = [];    // every stamp band that appeared, in order
     window.__splashes = [];  // every team-splash crew word, in order
     window.__walk = [];      // [elapsed, kicker x, walk-up phase, clip] per frame
+    window.__shots = [];     // every camera shot the director cut to, in order
+    window.__wo = [];        // walk-out samples: [side, t, arrived, visible, plate]
+    window.__pg = {};        // wall-clock bounds of the whole pre-game
     window.__skk.engine.onFrame(() => {
       for (const el of document.querySelectorAll('.stamp span')) {
         if (window.__stamps[window.__stamps.length - 1] !== el.textContent) window.__stamps.push(el.textContent);
@@ -107,6 +113,20 @@ async function boot(page, q) {
       const crew = document.querySelector('.team-splash .ts-crew')?.textContent;
       if (crew && window.__splashes[window.__splashes.length - 1] !== crew) window.__splashes.push(crew);
       if (s.walkup) window.__walk.push([s.elapsed, s.kicker.group.position.x, s.walkup.phase, s.kicker.animator.name]);
+      const shot = s.camDir?.shot;
+      if (shot && window.__shots[window.__shots.length - 1] !== shot) window.__shots.push(shot);
+      // STARTING LINEUPS: who is on the field, who has planted, is the plate up
+      const w = s.walkoutRun;
+      if (w) {
+        window.__wo.push([w.side, +(s.elapsed - w.t0).toFixed(2), w.arrived.size,
+          w.chars.filter((c) => c.group.visible).length,
+          !!document.querySelector('.walkout-card'),
+          // EVERY body on the stage, both crews — the one-crew-at-a-time
+          // invariant is about the whole field, not this crew's own squad
+          [...s.chars.home, ...s.chars.away].filter((c) => c.group.visible).length]);
+      }
+      if (s.walkoutActive && window.__pg.t0 == null) { window.__pg.t0 = performance.now(); window.__pg.e0 = s.elapsed; }
+      if (!s.walkoutActive && window.__pg.t0 != null && window.__pg.t1 == null) { window.__pg.t1 = performance.now(); window.__pg.e1 = s.elapsed; }
     });
     const snap = {
       phase: s.phase,
@@ -152,10 +172,58 @@ async function pregameScenario(page) {
   await page.evaluate(() => window.__skk.onTap({ x: 200, y: 500 }));
   await page.waitForTimeout(400);
   ok(await page.evaluate(() => window.__skk.walkoutActive === true), 'a stray tap is inert during the pre-game');
-  const splashes = await poll(page, () => (window.__splashes.length >= 2 ? window.__splashes : null), 8000, 'both splashes');
+
+  // ---- THE WALK-OUT (dev, 2026-08-27: "different cinematic angles of the
+  // teams walking out to the field, all of them for starting lineups")
+  ok(!!(await poll(page, () => window.__skk.walkoutRun?.side === 'away', 8000, 'away walk-out')),
+    'the AWAY crew walks out first');
+  // only the crew whose segment it is may be on the field
+  const alone = await poll(page, () => {
+    const s = window.__skk;
+    if (s.walkoutRun?.side !== 'away' || s.walkoutRun.arrived.size < 1) return null;
+    return { away: s.chars.away.filter((c) => c.group.visible).length, home: s.chars.home.filter((c) => c.group.visible).length };
+  }, 10000, 'away on the field');
+  ok(alone?.away === 8, `all 8 away players are on the field (${alone?.away})`);
+  ok(alone?.home === 0, `the home crew is still off stage (${alone?.home} visible)`);
+  ok(!!(await poll(page, () => window.__skk.walkoutRun?.side === 'home', 20000, 'home walk-out')),
+    'the HOME crew walks out second');
+  const alone2 = await poll(page, () => {
+    const s = window.__skk;
+    if (s.walkoutRun?.side !== 'home' || s.walkoutRun.arrived.size < 1) return null;
+    return { away: s.chars.away.filter((c) => c.group.visible).length, home: s.chars.home.filter((c) => c.group.visible).length };
+  }, 10000, 'home on the field');
+  ok(alone2?.home === 8, `all 8 home players are on the field (${alone2?.home})`);
+  ok(alone2?.away === 0, `the away crew has cleared off (${alone2?.away} visible)`);
+
+  const splashes = await poll(page, () => (window.__splashes.length >= 2 ? window.__splashes : null), 25000, 'both splashes');
   ok(splashes?.[0] === 'MONARCHS', `away crest splashes first (${splashes?.[0]})`);
   ok(splashes?.[1] === 'SNAPPERS', `home crest splashes second (${splashes?.[1]})`);
-  ok(!!(await poll(page, () => !window.__skk.walkoutActive, 10000, 'pre-game end')), 'pre-game ends on its own');
+  ok(!!(await poll(page, () => !window.__skk.walkoutActive, 15000, 'pre-game end')), 'pre-game ends on its own');
+
+  // three angles, cut in order, once per crew
+  const shots = (await page.evaluate(() => window.__shots.slice())).filter((n) => /^walkout/.test(n));
+  ok(shots.slice(0, 3).join(',') === 'walkoutGate,walkoutSide,walkoutCrane',
+    `gate dolly → side steadicam → crane reveal (${shots.join(' → ') || 'no walk-out shots'})`);
+  ok(shots.length >= 6, `both crews get the full three-shot package (${shots.length} cuts)`);
+  const wo = await page.evaluate(() => window.__wo.slice());
+  for (const side of ['away', 'home']) {
+    const seg = wo.filter((r) => r[0] === side);
+    const capAt = seg.find((r) => r[2] >= 1)?.[1];
+    ok(capAt != null && capAt <= 6.0, `${side}: the captain plants inside 6 s (${capAt ?? 'never'} s)`);
+    const planted = seg.find((r) => r[2] === 8)?.[1];
+    // the crest wash lands at 7.0 s — the wedge has to be finished, and READ,
+    // before it covers the field
+    // (6.3, not 5.95: this is the first SAMPLED frame, and headless WebKit's
+    // software renderer can be a fat frame behind the arrival itself)
+    ok(planted != null && planted <= 6.3, `${side}: the whole wedge is planted well before the 7.0 s crest (${planted ?? 'never'} s)`);
+    const plateEarly = seg.some((r) => r[1] <= 3.0 && r[4]);
+    const plateLate = seg.some((r) => r[1] >= 3.4 && r[4]);
+    ok(plateEarly, `${side}: the captain's plate rides the gate dolly`);
+    ok(!plateLate, `${side}: the plate is gone by the second shot`);
+  }
+  const crowded = wo.filter((r) => r[5] > 8);
+  ok(wo.length > 0 && crowded.length === 0,
+    `never more than one crew on the field at a time (peak ${Math.max(0, ...wo.map((r) => r[5]))} bodies over ${wo.length} frames)`);
   const stamps = await page.evaluate(() => window.__stamps);
   ok(/GAME TIME/i.test(stamps[stamps.length - 1] ?? ''), `GAME TIME! is the break stamp (${stamps.join(' | ')})`);
   const sfx = await page.evaluate(() => window.__sfxLog.slice());
@@ -173,16 +241,50 @@ async function pregameScenario(page) {
   // serializer for minutes.
   ok(!!(await poll(page, () => !!window.__skk.walkup || ['PITCH', 'PITCH_SELECT'].includes(window.__skk.phase), 20000, 'first at-bat')),
     'the first at-bat follows the break');
+  // The show's own clock is the gate (that is what a phone at 60 fps spends);
+  // the wall clock carries this software-rendered WebKit's frame slop, so it
+  // only gets a sanity ceiling.
+  const pg = await page.evaluate(() => window.__pg);
+  const pgS = pg.e1 != null ? pg.e1 - pg.e0 : null;
+  const wallS = pg.t1 != null ? (pg.t1 - pg.t0) / 1000 : null;
+  ok(pgS != null && pgS <= 20 && wallS <= 40,
+    `the whole pre-game runs inside 20 s of show (${pgS?.toFixed(1)} s show / ${wallS?.toFixed(1)} s wall in headless WebKit)`);
+
+  // ---- SKIP: one chip press ends the show THAT INSTANT and hands the game a
+  // clean stage (the walk-out must never leave a body standing in the wedge)
+  await boot(page, 'match&nosplash');
+  ok(!!(await poll(page, () => window.__skk.walkoutRun?.side === 'away', 10000, 'away walk-out')), 'skip test starts mid walk-out');
+  await page.waitForTimeout(1000);
+  const cut = await page.evaluate(() => {
+    const s = window.__skk;
+    document.querySelector('.skip-chip')?.dispatchEvent(new Event('pointerdown'));
+    return {                                     // read back in the SAME turn: the skip is synchronous
+      active: s.walkoutActive, run: !!s.walkoutRun, cam: !!s.walkoutCam,
+      onField: [...s.chars.home, ...s.chars.away].filter((c) => c.group.visible).length,
+    };
+  });
+  ok(cut.active === false, 'the chip ends the walk-out on the spot (0 frames, not 2)');
+  ok(cut.run === false && cut.cam === false, 'the mover and the walk-out camera are torn down with it');
+  ok(cut.onField === 0, `the stage is cleared by the skip (${cut.onField} still on the field)`);
+  const back = await poll(page, () => {
+    const s = window.__skk;
+    if (!s.walkup && !['PITCH', 'PITCH_SELECT'].includes(s.phase)) return null;
+    return { x: +(s.kicker?.group.position.x ?? 99).toFixed(2), lock: s.cinematicLock, locked: s.engine.cameraLock };
+  }, 12000, 'play positions');
+  ok(back?.x === -3.4, `a skipped walk-out still puts the kicker on his mark (x ${back?.x})`);
+  ok(back?.lock === false && back?.locked === false, 'the lens is handed back to the game (no cinematic lock left on)');
 }
 
 // --------------------------------------------------------------- 2. SKIP CHIP
 async function skipChipScenario(page) {
   console.log('\n--- 2: SKIP CHIP ---');
-  // The pre-game runs ~4.3s on its own (pregame.js: 0.2 + 0.3 + 1.9 + 1.9).
-  // Press the chip while the FIRST crest is still up, then demand the show be
-  // over inside 1.5s — a pass here cannot be the show ending by itself.
+  // The pre-game runs 17.2s on its own (pregame.js: 0.2 open + 0.6 lead + two
+  // 8.0s walk-outs with a 0.2s gap each). The first crest is up at 7.8s, so the
+  // poll has to outwait that. Press the chip while it is still up, then demand
+  // the show be over inside 1.5s — a pass here cannot be the show ending by
+  // itself, with 9+ seconds still to run.
   await boot(page, 'match&nosplash');
-  if (!ok(!!(await poll(page, () => window.__splashes.length >= 1 && window.__skk.walkoutActive, 10000, 'first crest')), 'chip test starts mid-show')) return;
+  if (!ok(!!(await poll(page, () => window.__splashes.length >= 1 && window.__skk.walkoutActive, 15000, 'first crest')), 'chip test starts mid-show')) return;
   const pressed = await page.evaluate(() => {
     const chip = document.querySelector('.skip-chip');
     if (!chip) return null;
@@ -190,7 +292,7 @@ async function skipChipScenario(page) {
     return true;
   });
   ok(!!pressed, 'the SKIP chip is on screen mid-show');
-  ok(!!(await poll(page, () => !window.__skk.walkoutActive, 1500, 'skip ends the show')), 'the chip ends the pre-game inside 1.5s (it runs 4.3s on its own)');
+  ok(!!(await poll(page, () => !window.__skk.walkoutActive, 1500, 'skip ends the show')), 'the chip ends the pre-game inside 1.5s (it runs 17.2s on its own)');
   ok(!!(await poll(page, () => window.__stamps.some((t) => /GAME TIME/i.test(t)), 2000, 'GAME TIME')), 'the skip still gets the GAME TIME break');
   ok(await page.evaluate(() => !document.querySelector('.skip-chip') && !document.querySelector('.team-splash')),
     'the chip and the crest clear with the show');
@@ -1122,6 +1224,163 @@ async function fenceCamScenario(page) {
   await page.evaluate(() => { window.__skk.playerSide = 'away'; });
 }
 
+// ------------------------------------------------------------------- 16. SEAM
+// THE FIELD CORNER (dev, 2026-08-27: "the 2 sides of the field meet at the
+// corner"). The backdrop is two half-cylinders that used to BUTT at
+// theta = +-90 deg — world x = +-R, z = 0, right behind the side fences, in
+// frame on the low shots — two different paintings meeting at a hard vertical
+// edge. field.js now overruns both halves 12 deg past each join and fades the
+// home half out across the overlap (backdropSeam.js), and fields.json carries
+// a per-field back-window that puts the two horizons at the same world height.
+//
+// The probe parks the camera on the LEFT join, hides everything but the
+// backdrop (the chain-link fence is a wall of hard vertical edges of its own —
+// the assertion is about the JOIN, not about wire), renders once and reads a
+// 120 px strip straight through it off the drawing buffer. A butted seam is a
+// 0.5-0.9 luminance cliff; a cross-fade leaves nothing above the painting's own
+// contrast.
+async function seamScenario(page) {
+  console.log('\n--- 16: SEAM ---');
+  // A BUTTED seam is a full-HEIGHT cliff: the same hard step in every row at
+  // the same column. So the number to judge is not one pixel pair (a painting
+  // can put a lamp post or a pier piling right on the join by luck — Phoenix
+  // does) but the join column's edge energy AVERAGED DOWN the whole wall.
+  // Measured on the shipped art at this exact camera: butted halves read
+  // 0.041-0.470 across the ten fields (0.13-0.16 on these two), the cross-fade
+  // reads 0.004-0.049 on all of them. 0.06 sits in the gap.
+  const JOIN_EDGE_MAX = 0.06;
+  for (const id of ['scorchyard', 'boardwalk-kings']) {
+    await boot(page, `match&nosplash&nointro&e2e&field=${id}`);
+    await page.evaluate(() => {
+      const s = window.__skk;
+      for (const el of [document.getElementById('ui-root'), document.getElementById('hud-root')]) {
+        if (el) el.style.display = 'none';
+      }
+      // a LOCKED camera is the director's own hands-off flag (matchScene only
+      // drives camDir when cameraLock is false), so this shot holds. The fov is
+      // re-pinned too: the lock freezes whatever shot scale was live when it
+      // landed, and the strip has to frame the same wall every run.
+      s.engine.cameraLock = true;
+      const park = () => {
+        const c = s.engine.camera;
+        c.position.set(-3.2, 1.2, 1.0);
+        c.lookAt(-40, 3, -2);
+        c.fov = s.engine.baseFov ?? 58;
+        c.updateProjectionMatrix();
+      };
+      park();
+      s.engine.onFrame(park);
+      // The chain-link fence is a wall of hard vertical edges of its own and it
+      // stands right in front of this join. The assertion is about the JOIN.
+      const keep = new Set();
+      for (const o of [s.field.backdrop, s.field.sky, s.field.skyCap]) o?.traverse((x) => keep.add(x));
+      s.engine.scene.traverse((o) => { if (o.isMesh && !keep.has(o)) o.visible = false; });
+    });
+    const ready = await poll(page, () => {
+      const b = window.__skk.field.backdrop;
+      return b?.children?.length === 2 && b.children[0].material.map && b.children[1].material.map
+        ? { backAlpha: !!b.children[1].material.alphaMap, backFade: !!b.children[1].material.transparent }
+        : null;
+    }, 25000, `${id} backdrop halves`);
+    if (!ok(!!ready, `${id}: both backdrop halves have their painting on`)) continue;
+    ok(ready.backAlpha === true && ready.backFade === true,
+      `${id}: the home half is transparent and carries the cross-fade alphaMap`);
+
+    const W = 120, ROWS = 5;
+    const readStrip = async () => {
+      // geometry off the LIVE camera every time, so the strip can never drift
+      // from the join it is guarding
+      const geo = await page.evaluate(() => {
+        const s = window.__skk;
+        const cam = s.engine.camera;
+        cam.updateMatrixWorld(); cam.updateProjectionMatrix();
+        const R = s.field.backdropR;
+        const V = cam.position.constructor;
+        const c = s.engine.renderer.domElement.getBoundingClientRect();
+        const proj = (x, y, z) => {
+          const v = new V(x, y, z).project(cam);
+          return { x: c.left + (v.x * 0.5 + 0.5) * c.width, y: c.top + (1 - (v.y * 0.5 + 0.5)) * c.height };
+        };
+        // the LEFT join sits at theta = -90 deg -> world (-R, y, 0)
+        return {
+          seamX: proj(-R, 2, 0).x,
+          top: proj(-R, s.field.backdropTopY, 0).y,
+          bot: proj(-R, 0, 0).y,
+          vw: window.innerWidth, vh: window.innerHeight, R, fov: +cam.fov.toFixed(1),
+        };
+      });
+      const x0 = Math.max(0, Math.min(geo.vw - W, Math.round(geo.seamX) - W / 2));
+      const y0 = Math.max(0, Math.round(Math.min(geo.top, geo.bot)));
+      const y1 = Math.min(geo.vh, Math.round(Math.max(geo.top, geo.bot)));
+      // The main renderer has no preserveDrawingBuffer (only the Locker preview
+      // has), and WebKit hands a CLEARED buffer to a readPixels after the fact —
+      // so the strip comes off a clipped screenshot, decoded in the page.
+      const shot = await page.screenshot({ clip: { x: x0, y: y0, width: W, height: y1 - y0 } });
+      const m = await page.evaluate(async ({ b64, w, h, jx, rows }) => {
+        const img = new Image();
+        await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = `data:image/png;base64,${b64}`; });
+        const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+        const g = cv.getContext('2d');
+        g.drawImage(img, 0, 0, w, h);
+        const d = g.getImageData(0, 0, w, h).data;
+        const lum = (i) => (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255;
+        let lit = 0;
+        for (let i = 0; i < d.length; i += 4) if (d[i] + d[i + 1] + d[i + 2] > 24) lit += 1;
+        // vertical `rows`-row average kills single-pixel noise, then the MEAN
+        // horizontal step per column, down the whole wall
+        const col = new Array(w).fill(0);
+        let n = 0, peak = 0;
+        for (let r = 0; r + rows <= h; r++) {
+          const a = [];
+          for (let x = 0; x < w; x++) { let s = 0; for (let k = 0; k < rows; k++) s += lum(((r + k) * w + x) * 4); a.push(s / rows); }
+          for (let x = 1; x < w; x++) {
+            const dl = Math.abs(a[x] - a[x - 1]);
+            col[x] += dl;
+            if (dl > peak) peak = dl;
+          }
+          n += 1;
+        }
+        for (let x = 0; x < w; x++) col[x] /= (n || 1);
+        const j = Math.round(jx);
+        const joinEdge = Math.max(col[j - 1] ?? 0, col[j] ?? 0, col[j + 1] ?? 0);
+        const sorted = [...col.slice(1)].sort((a, b) => a - b);
+        return {
+          j,
+          joinEdge: +joinEdge.toFixed(4),
+          med: +sorted[Math.floor(sorted.length / 2)].toFixed(4),
+          worstCol: +sorted[sorted.length - 1].toFixed(4),
+          peakStep: +peak.toFixed(3),
+          litFrac: +(lit / (w * h)).toFixed(2),
+        };
+      }, { b64: shot.toString('base64'), w: W, h: y1 - y0, jx: geo.seamX - x0, rows: ROWS });
+      return { ...m, x0, y0, y1, seamX: Math.round(geo.seamX), R: geo.R, fov: geo.fov };
+    };
+    // A field's <video> half swaps in AHEAD of its first decoded frame on WebKit
+    // and paints BLACK for up to the 1.5 s field.js gives its watchdog before it
+    // falls back to the poster. Wait for real paint, then let that watchdog
+    // finish — otherwise this measures a black wall and calls it seamless.
+    let probe = await readStrip();
+    for (let i = 0; i < 14 && probe.litFrac <= 0.5; i++) {
+      await page.waitForTimeout(500);
+      probe = await readStrip();
+    }
+    if (probe.litFrac > 0.5) { await page.waitForTimeout(2200); probe = await readStrip(); }
+    if (!ok(probe.litFrac > 0.5,
+      `${id}: the strip really read the painted wall (${(probe.litFrac * 100).toFixed(0)} % lit px over rows ${probe.y0}-${probe.y1}, join at x ${probe.seamX}, wall r ${probe.R} m, fov ${probe.fov})`)) continue;
+    // ...AND THE JOIN IS IN IT. `x0` is CLAMPED to the viewport, so a join that
+    // drifts off screen leaves the strip sampling clean wall somewhere else and
+    // `col[j-1..j+1]` reading `undefined` — joinEdge falls out as 0 and the
+    // assertion below passes having measured nothing. A vacuous pass on the one
+    // check standing between the shipped art and a hard vertical seam is worse
+    // than a failure, so the column has to have both neighbours inside the strip.
+    if (!ok(probe.j >= 1 && probe.j < W - 1,
+      `${id}: the join is inside the sampled strip (column ${probe.j} of ${W}, strip from x ${probe.x0})`)) continue;
+    ok(probe.joinEdge < JOIN_EDGE_MAX,
+      `${id}: the corner join CROSS-FADES — the join column's mean neighbour step down the whole wall is ${probe.joinEdge} (needs < ${JOIN_EDGE_MAX}; butted it read 0.13-0.16 right here), against ${probe.med} for a typical column and ${probe.worstCol} for the strip's busiest; sharpest single pair anywhere in the strip ${probe.peakStep}`);
+  }
+}
+
+
 // fail FAST and legibly when the dev server isn't up, instead of ten scenarios
 // each grinding through a 30s boot timeout
 try {
@@ -1180,6 +1439,7 @@ const scenarios = [
   ['KICK CONTACT', kickContactScenario],
   ['WALK-UP CAM', walkupCamScenario],
   ['FENCE CAM', fenceCamScenario],
+  ['SEAM', seamScenario],
 ];
 // SKK_ONLY="KICK CONTACT,WALK-UP CAM" runs a subset while iterating on one
 // scenario (the full pass is ~8 min). CI/verification always runs them all.

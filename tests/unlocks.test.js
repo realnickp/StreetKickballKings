@@ -134,5 +134,10 @@ it('THE FLAIR and FIRE REDS are free from day one and fielded by default', () =>
   expect(equippedGear(s).kick.id).toBe('kick-flair');
   expect(equippedGear(s).cleats.id).toBe('cleats-fire');
   expect(checkUnlocks(s).map((g) => g.id)).not.toContain('kick-flair');
-  expect(GEAR.filter((g) => g.stock).map((g) => g.id).sort()).toEqual(['cleats-fire', 'kick-flair', 'taunt-point']);
+  // your crew's own LIGHT and DARK kits joined the free day-one set (spec §3);
+  // unlike the other three they are NOT the empty-slot fallback — a bare
+  // uniform slot still means "let the match dress me" (see kits.test.js).
+  expect(GEAR.filter((g) => g.stock).map((g) => g.id).sort())
+    .toEqual(['cleats-fire', 'kick-flair', 'kit-team-dark', 'kit-team-light', 'taunt-point']);
+  expect(equippedGear(s).uniform).toBe(null);
 });

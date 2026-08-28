@@ -10,6 +10,17 @@
 import { LockerPreview } from '../lockerPreview.js';
 import { lockerTabs } from '../lockerModel.js';
 import { gearLine } from '../../meta/gearLine.js';
+import { dressTeams } from '../../game/kits.js';
+
+// THE LOCKER has no opponent, but the captain must be the SAME colour on both
+// screens — it read as a bug that the menu showed the crew's signature primary
+// and GEAR UP showed the dressed kit. So the menu dresses him through the same
+// path against this stand-in crew, seeded so his own DARK kit is the default
+// look; anything equipped still pins his side and wins.
+const NEUTRAL_CREW = { id: '', colors: { primary: '#8a8a92' }, kits: {
+  dark: { hex: '#23232a', ink: '#f4f4f6', logo: '', img: '' },
+  light: { hex: '#f2f2f4', ink: '#0b0c10', logo: '', img: '' },
+} };
 
 function el(html) { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; }
 
@@ -26,7 +37,7 @@ const isDarkHex = (hex) => {
 /** One component, two modes: the menu's Locker (MAIN MENU) and the pre-game
  *  GEAR UP (PLAY). Turntable pinned on top, one tab's chips at a time; every
  *  tap re-renders the captain in place — no remount, no context churn. */
-export function buildLocker(ctx, { mode, team, onPlay = null, onBack = null }) {
+export function buildLocker(ctx, { mode, team, opponent = null, tones = null, onPlay = null, onBack = null }) {
   const save = ctx.save;
   const { GEAR, isUnlocked, equipGear, equippedGear, careerGet } = ctx.unlocks;
   const career = careerGet(save);
@@ -54,10 +65,22 @@ export function buildLocker(ctx, { mode, team, onPlay = null, onBack = null }) {
   let preview = null;
   let freeTimer = null;
   const cap = root.querySelector('.locker-stage-cap');
+  const sub = root.querySelector('.map-sub');
+  // GEAR UP names the kit you'll ACTUALLY wear out there: the match dressing
+  // (home dark / away light, flipped if the pair clashes) with your equipped
+  // kit layered on top — so the turntable, this line and the field agree.
+  const dressed = () => dressTeams({
+    home: opponent ?? NEUTRAL_CREW, away: team, playerSide: 'away',
+    gearKit: equippedGear(save).uniform,
+    tones: opponent ? tones : { home: 'dark', away: 'light' },
+  });
   const refreshPreview = () => {
     const eq = equippedGear(save);
+    const d = dressed();
     cap.textContent = `${(team.roster?.[0]?.nick ?? 'YOUR CAPTAIN').toUpperCase()} — ${gearLine(eq)}`;
-    preview?.show({ team, uniformHex: eq.uniform?.hex ?? null, gear: eq }).catch((e) => console.warn('[skk] locker preview failed:', e));
+    if (opponent && sub) sub.textContent = `WEARING: ${d.away.tone.toUpperCase()} vs ${opponent.name.toUpperCase()} ${d.home.tone.toUpperCase()}`;
+    const hex = d.away.hex;
+    preview?.show({ team, uniformHex: hex, gear: eq }).catch((e) => console.warn('[skk] locker preview failed:', e));
   };
   // The model sorts equipped-first, so an equip would RE-SORT the row under the
   // thumb: the chip you just tapped jumps to the head of a horizontally
@@ -68,7 +91,7 @@ export function buildLocker(ctx, { mode, team, onPlay = null, onBack = null }) {
   const openTab = (cat) => { tab = cat; delete orderByCat[cat]; render(); };
   const render = () => {
     const eq = equippedGear(save);
-    const tabs = lockerTabs({ GEAR, isUnlocked: (id) => isUnlocked(save, id), eq });
+    const tabs = lockerTabs({ GEAR, isUnlocked: (id) => isUnlocked(save, id), eq, team });
     const bar = root.querySelector('.locker-tabs');
     bar.replaceChildren(...tabs.map((t) => {
       const b = el(`<button class="locker-tab ${t.cat === tab ? 'on' : ''}">${t.label}<small>${t.owned}/${t.total}</small></button>`);
@@ -179,7 +202,7 @@ export function GearUpScreen(ctx) {
       const [away, home, kits] = gearUpArgs(params);
       const pick = params.pick ?? null; // team select's cursor, so ← TEAMS restores it
       this.locker = buildLocker(ctx, {
-        mode: 'gearUp', team: away,
+        mode: 'gearUp', team: away, opponent: home, tones: kits?.tone ?? null,
         // startMatchFlow (main.js) tears down #ui-root itself instead of going
         // through router.go(), so the router never calls our unmount() — kill
         // the preview's WebGL context/rAF loop HERE, before handoff, or it

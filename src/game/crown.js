@@ -4,12 +4,17 @@
 // and power. Consuming it empties the meter. No charges, no minting.
 const OFFENSE = new Set(['hit', 'run', 'steal', 'PERFECT', 'homerun', 'pickleEscape', 'shutout']);
 export class Crown {
-  constructor({ meter, gear = null }) { this.meter = meter; this.gear = gear ?? null; this.armed = false; }
+  constructor({ meter, gear = null }) { this.meter = meter; this.gear = gear ?? null; this.armed = false; this.play = false; }
   get name() { return this.gear?.name ?? 'CROWN KICK'; }
   get fill() { return (this.meter.value / this.meter.tuning.special.meterMax) * 100; }
   get ready() { return this.meter.ready; }
-  /** @returns {boolean} true the moment the crown becomes full */
+  /** @returns {boolean} true the moment the crown becomes full. Gated while
+   *  `play` is true: the crown swing's own play (its hit/run/homerun events,
+   *  fired synchronously off the SAME applyOutcome that just consumed the
+   *  crown) must never refill the meter it just emptied — that read as
+   *  "back to back crowns" (dev, 2026-08-27). */
   feed(event) {
+    if (this.play && event !== 'shutout') return false; // a shutout is a HALF event, never part of the swing's play
     if (!OFFENSE.has(event)) return false;
     const was = this.meter.ready;
     this.meter.add(event);
@@ -19,9 +24,13 @@ export class Crown {
   disarm() { this.armed = false; }
   consume() {
     if (!this.armed || !this.ready) { this.armed = false; return null; }
-    this.armed = false; this.meter.value = 0;
+    this.armed = false; this.meter.value = 0; this.play = true;
     return { gear: this.gear, powerMult: this.gear?.mods?.powerMult ?? this.meter.tuning.special.powerMult, label: this.gear?.name ?? this.meter.team.special.label };
   }
+  /** Close out the crown swing's play — feeds are un-gated again. Call this
+   *  AFTER the play's applyOutcome (and any of its synchronous 'score'
+   *  listeners) has fully run. */
+  endPlay() { this.play = false; }
   hudState() { return { name: this.name, fill: this.fill, ready: this.ready, armed: this.armed }; }
 }
 /** Does the match END after this half? Mirrors MatchState.endHalf(): the game

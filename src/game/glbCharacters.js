@@ -14,51 +14,209 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { MocapAnimator, loadMocapClips } from './mocapAnimator.js';
 // no cycle: animExtras imports mocapAnimator only, never this module
 import { loadExtrasFor } from './animExtras.js';
+// leaf modules: jerseyDecals imports three + kits, kits imports nothing
+import { attachJerseyDecals } from './jerseyDecals.js';
+import { inkFor, logoFor, markFor } from './kits.js';
+// leaf modules: skinTint is pure maths, accessories imports three and nothing else
+import { recolorPixels, kitTintPixel, inkKitPanels, rasterizeUvMask, dilateMask } from './skinTint.js';
+import { attachAccessory } from './accessories.js';
+import castsData from '../data/casts.json';
 
 const loader = new GLTFLoader();
 const gltfCache = new Map();
 
-function hexToRgb(h) { const n = parseInt(h.replace('#', ''), 16); return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 }; }
-
 /**
- * Recolor an archetype's neutral-grey kit to a team colour. Targets only
- * low-saturation, mid/high-brightness pixels (the grey tank + light sneaker
- * accents) and tints them by the team primary, preserving the baked shading.
- * Skin (saturated), shorts (dark), and hair (dark) are left untouched.
+ * Recolor an archetype's atlas: the neutral-grey kit takes the crew's colour,
+ * and — when the cast asks for one — the baked skin moves to this player's
+ * tone. Both rules live in skinTint.js and are unit-tested there; `recolorPixels`
+ * is their allocation-free form (the pure pair costs 4.1 s on a 2048² atlas,
+ * this costs ~80 ms). Shorts, hair and any authored colour are left alone.
+ *
+ * The SKIN pass is what stops arch-shaggy and arch-stache walking out looking
+ * like chalk statues (their baked skin is near-white; the kit under it always
+ * recoloured fine — casts/probe-white-jersey.mjs, turntable-arch12/19-*.png).
+ *
  * LOCKER cleats are tinted separately by GEOMETRY (applyCleatVertexTint) —
  * texel-space painting bled across shared UV islands.
  * @returns {THREE.CanvasTexture} a NEW texture (caller owns it)
  */
-function recolorKitTexture(srcTex, primaryHex) {
+function recolorKitTexture(srcTex, primaryHex, { skinTone = null, mesh = null } = {}) {
   const img = srcTex.image;
   if (!img || !img.width) return srcTex;
+  const key = `${srcTex.uuid}|${primaryHex}|${skinTone ?? ''}`;
+  const hit = recolorCache.get(key);
+  if (hit) { recolorCache.delete(key); recolorCache.set(key, hit); return hit; } // LRU touch
   const c = document.createElement('canvas');
   c.width = img.width; c.height = img.height;
   const ctx = c.getContext('2d');
   ctx.drawImage(img, 0, 0);
   const data = ctx.getImageData(0, 0, c.width, c.height);
-  const px = data.data;
-  const prim = hexToRgb(primaryHex);
-  for (let i = 0; i < px.length; i += 4) {
-    const r = px[i], g = px[i + 1], b = px[i + 2];
-    const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
-    const v = mx / 255;
-    const s = mx === 0 ? 0 : (mx - mn) / mx;
-    if (s < 0.17 && v > 0.52) { // grey/white kit pixel → team-coloured, shaded
-      const k = Math.min(1.0, v * 1.12);
-      px[i] = prim.r * k; px[i + 1] = prim.g * k; px[i + 2] = prim.b * k;
-    }
+  // width/height let the pass hand the anti-aliased kit/skin seam back to the
+  // kit — without them it left a warm speckled outline round every neckline.
+  const { mask } = recolorPixels(data.data, {
+    kit: primaryHex, tone: skinTone, width: c.width, height: c.height,
+  });
+  // Carry the colour past the kit rule's brightness cliff: the dark plate baked
+  // behind the number, and the shaded middle of the shorts. It runs on the mask
+  // the recolour measured on the ORIGINAL atlas (rebuilding it here reads a
+  // buffer with no neutral kit left in it), fenced off the hair and the shoes
+  // by the MESH — see inkKitPanels and hairShoeFence.
+  //
+  // NO FENCE, NO PASS. Without the mesh's fence the flood walks straight off the
+  // vest onto the hair — that is the white wig, measured at 71 892 texels on
+  // arch-locs — so a rig the fence cannot be drawn for (an unskinned mesh, or a
+  // geometry that throws) gets the recolour alone rather than a coloured scalp.
+  const fence = hairShoeFence(mesh, c.width, c.height);
+  if (fence) {
+    inkKitPanels(data.data, {
+      width: c.width, height: c.height, kit: primaryHex, mask, forbid: fence,
+    });
   }
   ctx.putImageData(data, 0, 0);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = srcTex.colorSpace;
   tex.flipY = srcTex.flipY;
   tex.wrapS = srcTex.wrapS; tex.wrapT = srcTex.wrapT;
-  // owned = allocated FOR THIS CHARACTER, so disposeCharacter() may free it.
-  // The early-out above hands back the SHARED gltf texture — never tagged.
-  tex.userData.owned = true;
   tex.needsUpdate = true;
+  // NOT userData.owned: the cache SHARES this texture with every character in
+  // the same kit and tone, so disposeCharacter() must leave it alone. (The
+  // early-out above hands back the shared gltf texture, also never tagged.)
+  recolorCache.set(key, tex);
+  while (recolorCache.size > RECOLOR_CACHE_MAX) {
+    const oldest = recolorCache.keys().next().value;
+    const dead = recolorCache.get(oldest);
+    recolorCache.delete(oldest);
+    try { dead?.dispose?.(); } catch { /* already gone */ }
+  }
   return tex;
+}
+
+// ---- the recolour cache ---------------------------------------------------
+// A 2048² atlas costs 130-400 ms to walk (recolour + seam sweep + panel pass),
+// and the LOCKER rebuilds the captain on EVERY equip — a tap used to buy a
+// second of pixel work on the phone for a texture identical to the one just
+// thrown away. Keyed on what the result depends on and nothing else: the source
+// texture, the crew hex and the skin tone. Bounded, LRU, disposed on eviction.
+//
+// WHY SIXTEEN — A MATCH'S WORKING SET. Round-4 review got the arithmetic
+// backwards and set this to four "to save memory". Eviction saves NO memory
+// here: the entry's pixels live in a <canvas> that the LIVE material still
+// holds through `map.image`, so dropping the Map entry frees nothing on the CPU
+// — all `dispose()` releases is the GL handle of a texture still bound to a
+// character standing on the field, and three re-uploads it from that same
+// canvas on the very next frame it renders. A match fields sixteen players
+// across sixteen archetypes: sixteen distinct keys, so a bound of four evicted
+// twelve textures mid-build and bought the walk-out ~96 MB of re-uploads for
+// nothing.
+//
+// So the bound is a WORKING SET, not a memory cap: hold the sixteen a match is
+// actually using (the Locker's repeat-key pattern — the SAME key on every
+// cleat/taunt/kick equip, one more per kit toggle — fits inside that with room
+// to spare). It only ever climbs above the live set when a SECOND match dresses
+// different crews, and then eviction is real: the old characters are gone, the
+// canvas goes with the entry, and the GL handle is genuinely freed.
+const RECOLOR_CACHE_MAX = 16;
+const recolorCache = new Map();
+
+// ---- the hair/shoe fence --------------------------------------------------
+// The panel pass claims dark texels NEXT TO the kit. On these atlases nothing
+// in texel space separates the vest island from the hair: triangles cover only
+// 55-69 % of the sheet and every gap is OPAQUE padding, so a dilation walks
+// straight across it (casts/probe-atlasmap.mjs). Only the mesh knows which
+// texels the hair and the shoes sample, so the mesh draws the fence — the same
+// move applyCleatVertexTint makes for the boots, one dimension down.
+//
+// THE BOOTS ARE IN THE SET, and until fix round 2 they were not: the bone test
+// read `/Head|Neck/` while three comments claimed it fenced the shoes too, and
+// the flood re-inked 63 077 shoe texels on arch-bald (the monarchs captain's
+// sneakers came out gold, casts/back-monarchs-light.png). The cleats carry the
+// LOCKER's own colour through applyCleatVertexTint, so the flood must leave
+// them alone.
+//
+// Cached per (archetype geometry, atlas size): SkeletonUtils.clone SHARES the
+// geometry, so this is measured once per archetype, not once per character.
+// Held as a BITSET — a 2048² mask is 4 MB as bytes and a match fields sixteen
+// archetypes, so the byte form would retain 16-30 MB for nothing. LRU-bounded
+// like the recolour cache.
+const fenceCache = new Map();
+const FENCE_CACHE_MAX = 8;
+const packBits = (m) => {
+  const out = new Uint8Array((m.length + 7) >> 3);
+  for (let i = 0; i < m.length; i++) if (m[i]) out[i >> 3] |= 1 << (i & 7);
+  return out;
+};
+// ...and unpacked into a SCRATCH buffer, one per atlas size. A fresh 4 MB
+// Uint8Array on every cache HIT is the whole cost the bitset existed to save —
+// sixteen of them a match, thrown straight at the GC on the frame the walk-out
+// wants. Every byte is written before the buffer is handed back, so there is no
+// stale data to clear; the caller (recolorKitTexture) reads it inside ONE
+// synchronous call and never keeps it, which is what makes sharing safe.
+const fenceScratch = new Map();
+const unpackBits = (bits, n) => {
+  let out = fenceScratch.get(n);
+  if (!out) { out = new Uint8Array(n); fenceScratch.set(n, out); }
+  for (let i = 0; i < n; i++) out[i] = (bits[i >> 3] >> (i & 7)) & 1;
+  return out;
+};
+// The fence is grown by ONE texel so an island's own colour bleed goes with it,
+// and no further: it is subtracted again wherever the body samples (dilated to
+// match), because on these atlases a shorts triangle and a shoe triangle can
+// land on the SAME texels, and a fence that wins those ties leaves a grey patch
+// on the front of the shorts (casts/dump-waves-final.png).
+const FENCE_DILATE_PX = 1;
+// ...and the body's claim is grown by three, because a triangle smaller than a
+// texel still SAMPLES the atlas while covering no texel centre, so a body claim
+// rasterized 1:1 has pinholes in it. The fence loses every tie.
+const BODY_REACH_PX = 3;
+function hairShoeFence(mesh, width, height) {
+  if (!mesh?.isSkinnedMesh || !mesh.geometry || !mesh.skeleton) return null;
+  const key = `${mesh.geometry.uuid}|${width}x${height}`;
+  const hit = fenceCache.get(key);
+  if (hit) { fenceCache.delete(key); fenceCache.set(key, hit); return unpackBits(hit, width * height); }
+  let fence = null;
+  try {
+    const geo = mesh.geometry;
+    const uvAttr = geo.getAttribute('uv');
+    const ji = geo.getAttribute('skinIndex');
+    const sw = geo.getAttribute('skinWeight');
+    if (uvAttr && ji && sw) {
+      const bones = mesh.skeleton.bones;
+      const off = new Set(bones.map((b, i) => (/Head|Neck|Foot|ToeBase/i.test(b.name) ? i : -1)).filter((i) => i >= 0));
+      if (off.size) {
+        const keep = new Uint8Array(uvAttr.count);
+        const rest = new Uint8Array(uvAttr.count);
+        for (let v = 0; v < uvAttr.count; v++) {
+          let best = -1, bw = -1;
+          for (let k = 0; k < 4; k++) {
+            const w = sw.getComponent(v, k);
+            if (w > bw) { bw = w; best = ji.getComponent(v, k); }
+          }
+          keep[v] = off.has(best) ? 1 : 0;   // the bone that OWNS the vertex
+          rest[v] = keep[v] ? 0 : 1;
+        }
+        // PACK the UVs: these attributes are interleaved on most archetypes,
+        // so `uvAttr.array` is the whole vertex buffer, not a u,v list.
+        const uv = new Float32Array(uvAttr.count * 2);
+        for (let v = 0; v < uvAttr.count; v++) { uv[v * 2] = uvAttr.getX(v); uv[v * 2 + 1] = uvAttr.getY(v); }
+        const index = geo.index?.array ?? null;
+        const raw = rasterizeUvMask({ uv, index, keep, count: uvAttr.count, width, height });
+        // ...and what the REST of the body samples. The fence must never cover
+        // one of those: these atlases re-use texels across UV islands (3-14 %
+        // of the hair/shoe mask is also body), and the 3-texel bleed reaches
+        // further still, so an unsubtracted fence left a white patch on the
+        // front of every monarchs captain's shorts.
+        const bodyMask = rasterizeUvMask({ uv, index, keep: rest, count: uvAttr.count, width, height });
+        const bodyNear = dilateMask(bodyMask, width, height, BODY_REACH_PX);
+        fence = dilateMask(raw, width, height, FENCE_DILATE_PX);
+        for (let i = 0; i < fence.length; i++) if (bodyNear[i]) fence[i] = 0;
+      }
+    }
+  } catch { return null; /* NOT cached: a throw is a one-off, and a cached null
+                            would disable the fence for this rig for good */ }
+  if (!fence) return null;
+  fenceCache.set(key, packBits(fence));
+  while (fenceCache.size > FENCE_CACHE_MAX) fenceCache.delete(fenceCache.keys().next().value);
+  return fence;
 }
 
 // ---- LOCKER cleats: tint the FOOT GEOMETRY --------------------------------
@@ -120,12 +278,22 @@ function applyCleatVertexTint(mesh, cleatHex) {
 
 /**
  * Free everything a character build ALLOCATED — and nothing it borrowed.
- * buildGlbCharacter clones the material per character, may hand it a fresh
- * 2048² recoloured CanvasTexture, and clones the geometry for cleats; the
- * GLTF's own geometry/textures are SHARED by every clone and must survive.
- * `userData.owned` is the tag the builder leaves on what it made.
+ * buildGlbCharacter clones the material per character and clones the geometry
+ * for cleats; the GLTF's own geometry/textures are SHARED by every clone and
+ * must survive, and so is the recoloured atlas, which now lives in
+ * `recolorCache` and is handed to every character in the same kit and tone.
+ * `userData.owned` is the tag the builder leaves on what it made — the
+ * recoloured texture deliberately does NOT carry it.
  */
 export function disposeCharacter(char) {
+  // The jersey decals own two plane geometries + two materials per character
+  // and BORROW their texture from the shared decal cache — their own dispose()
+  // knows the difference, so let it go first (the traverse below would free the
+  // same geometry/material anyway, but never the rig group's parenting).
+  try { char?.decals?.dispose?.(); } catch { /* cosmetic */ }
+  // the headband / wristbands / shades own their geometry + material and hang
+  // off a rig group on a bone — same deal, let them let go first
+  try { char?.accessories?.dispose?.(); } catch { /* cosmetic */ }
   char?.group?.traverse((o) => {
     if (!o.isMesh || !o.material) return;
     if (o.geometry?.userData?.owned) o.geometry.dispose();
@@ -409,6 +577,24 @@ class GlbCodeAnimator {
   }
 }
 
+/** Lateral (x/z) bone scales for a cast slot's `build`. See the call site for
+ *  why lateral-only is the safe axis on these rigs, and why the SPINE is not
+ *  on this list. */
+function applyBuildScale(bones, build) {
+  if (!build || build === 1) return;
+  const lateral = (re, k) => {
+    for (const name in bones) {
+      if (!re.test(name)) continue;
+      bones[name].scale.x *= k;
+      bones[name].scale.z *= k;
+    }
+  };
+  // shoulders carry the whole arm chain, so the arms thicken with them (scaling
+  // both would square the effect); the up-legs carry the whole leg
+  lateral(/^(mixamorig:)?(Left|Right)Shoulder$/i, build);
+  lateral(/^(mixamorig:)?(Left|Right)Up(per)?Leg$|^thigh\.[lr]$/i, build);
+}
+
 /** Which animator a character gets. Pure — unit-tested. */
 export function chooseAnimator({ clips, forceCode }) {
   return clips && !forceCode ? 'mocap' : 'code';
@@ -436,12 +622,25 @@ export async function buildGlbCharacter(def, { heightM = 2.05, clips = null } = 
         // and aim the self-illumination at the same (recoloured) texture.
         o.material.metalness = 0.0;
         o.material.roughness = 0.7;
+        const skinTone = def.cast?.skin ?? null;
         if (def.teamColor && o.material.map) {
-          const recol = recolorKitTexture(o.material.map, def.teamColor);
+          const recol = recolorKitTexture(o.material.map, def.teamColor, { skinTone, mesh: o });
           o.material.map = recol;
           if (o.material.emissiveMap) o.material.emissiveMap = recol;
           o.material.emissiveIntensity = 0.4;
         } else {
+          // No map to paint. Every archetype and the fallback model DO have one
+          // (casts/probe-white-jersey.mjs checked all 20), but a bare material
+          // would otherwise take the field in whatever colour it was authored,
+          // so put the same kit rule over its flat colour.
+          if (def.teamColor && !o.material.map && o.material.color) {
+            const c = o.material.color;
+            const tinted = kitTintPixel(
+              [Math.round(c.r * 255), Math.round(c.g * 255), Math.round(c.b * 255)],
+              def.teamColor,
+            );
+            c.setRGB(tinted[0] / 255, tinted[1] / 255, tinted[2] / 255);
+          }
           o.material.emissiveIntensity = 0.4;
         }
         // LOCKER cleats tint by GEOMETRY, not texels: the atlases re-use
@@ -465,6 +664,11 @@ export async function buildGlbCharacter(def, { heightM = 2.05, clips = null } = 
   inner.rotation.y = def.faceOffset ?? 0;
   inner.add(root);
 
+  // CAST (spec §4): this player's own frame. HEIGHT rides the character root,
+  // which scales about the FEET — they stay on the ground and every world
+  // position the match reads off this rig (kickFootPos above all) stays true.
+  const castH = def.cast?.height ?? 1;
+
   if (clips) {
     // MOCAP path: size from the HIPS BONE, not a Box3. The clips drive
     // Hips.position in the rig's native node units (~0.98 world after the
@@ -474,12 +678,12 @@ export async function buildGlbCharacter(def, { heightM = 2.05, clips = null } = 
     root.updateMatrixWorld(true);
     const hips = root.getObjectByName('Hips');
     const hipsY = hips ? hips.getWorldPosition(new THREE.Vector3()).y : 1;
-    inner.scale.setScalar((heightM * 0.51) / (hipsY || 1));
+    inner.scale.setScalar((heightM * castH * 0.51) / (hipsY || 1));
   } else {
     // legacy code-animator path: scale to target height + drop feet to y=0
     const box = new THREE.Box3().setFromObject(inner);
     const size = new THREE.Vector3(); box.getSize(size);
-    inner.scale.setScalar(heightM / (size.y || 1));
+    inner.scale.setScalar((heightM * castH) / (size.y || 1));
     const box2 = new THREE.Box3().setFromObject(inner);
     inner.position.y -= box2.min.y;
   }
@@ -489,6 +693,21 @@ export async function buildGlbCharacter(def, { heightM = 2.05, clips = null } = 
 
   const bones = {};
   root.traverse((o) => { if (o.isBone) bones[o.name] = o; });
+
+  // BUILD: a LATERAL scale, never a uniform one. Every bone on these rigs runs
+  // along its own local Y (measured, casts/probe-bones.mjs: each child sits at
+  // (0, +len, 0)), so scaling x/z thickens the limb and moves NO joint — the
+  // knee, the striking foot and the hands stay exactly where the animator put
+  // them (the harness's striking-foot assertion is the guard).
+  //
+  // The SPINE is deliberately not on the list. A lateral spine scale is the
+  // strongest build signal there is — it widens the torso and swings the whole
+  // arm chain out with it — but it also makes the chest bone's world scale
+  // ANISOTROPIC (x,z scaled, y not), and the jersey decal hangs off that bone
+  // through a rig that cancels it with ONE uniform factor. Widening the torso
+  // therefore drags the crew mark up the shirt and squashes it. Shoulders and
+  // up-legs buy most of the look and leave the decal's maths untouched.
+  applyBuildScale(bones, def.cast?.build ?? 1);
 
   const which = chooseAnimator({ clips, forceCode: def.forceCode ?? false });
   const animator = which === 'mocap'
@@ -540,22 +759,63 @@ const BENCHED = new Map([[17, 5]]);
  *  the SAME first eight faces. Hashing the team id slides each crew to its own
  *  slice, so Philly's people aren't Brooklyn's people. Deterministic — a team
  *  always fields the same folks. Shared by the match roster and the Locker
- *  preview, so the captain you dress IS the captain you field. */
+ *  preview, so the captain you dress IS the captain you field.
+ *
+ *  casts.json comes FIRST: every crew was cast off its own intro video, and
+ *  that casting is what stops two squads walking out as each other's twins
+ *  (8 different archetypes per crew, and no two crews sharing one in the same
+ *  slot — tests/casts.test.js). The roster's own `archetype` and the id-hash
+ *  stay as the fallbacks for anything the cast doesn't name. */
 function archIdxFor(team, i) {
   const teamOffset = [...(team.id ?? '')].reduce((a, c) => a + c.charCodeAt(0), 0) % ARCHETYPES.length;
-  const archIdx = (team.roster?.[i]?.archetype ?? (teamOffset + i)) % ARCHETYPES.length;
+  const cast = castSlotFor(team, i);
+  const archIdx = (cast?.archetype ?? team.roster?.[i]?.archetype ?? (teamOffset + i)) % ARCHETYPES.length;
   return BENCHED.get(archIdx) ?? archIdx;
 }
+
+/** This crew's cast for roster slot `i` — `{archetype, skin, height, build,
+ *  accessory}` — or null for a crew nobody cast. */
+export function castSlotFor(team, i) {
+  return castsData.casts?.[team?.id ?? '']?.[i] ?? null;
+}
+
+/** The kit a colour belongs to — the crew's own data when the hex IS one of
+ *  their two kits, derived the same way kits.js derives it otherwise (a Locker
+ *  BLACKOUT/GOLD is a loose colour with no kit block of its own). Gives the
+ *  decals the right ink and the right mark variant without a call-site change. */
+function kitOf(team, hex) {
+  const k = team?.kits;
+  // CASE-INSENSITIVE, because teams.json is not internally consistent about it:
+  // `colors.primary` is written "#F5B312" and `kits.light.hex` "#f5b312". The
+  // default match path hands this the team's own primary, so a `===` compare
+  // MISSED the crew's authored kit for every team and silently fell through to
+  // the derived branch — losing the data's `img` and re-deriving an ink the
+  // artist had already chosen.
+  const h0 = String(hex ?? '').toLowerCase();
+  const eq = (a) => !!h0 && String(a ?? '').toLowerCase() === h0;
+  if (eq(k?.dark?.hex)) return k.dark;
+  if (eq(k?.light?.hex)) return k.light;
+  const h = hex ?? team?.colors?.primary ?? '#8a8a92';
+  return { hex: h, ink: inkFor(h), logo: logoFor(team ?? { id: '' }, h) };
+}
+
+// `markFor` because `kitOf` can hand back a RAW teams.json kit, whose `logo`
+// still names the `<id>-light` hook. Only marks that exist reach the shirt.
+const logoUrlFor = (kit) => (kit?.logo ? `/assets/logos/${markFor(kit.logo)}.png` : '');
 
 /** Build a full team of detailed GLB characters, recolored to a uniform colour
  *  (defaults to the team's primary; pass `uniformColor` for a light/dark kit so
  *  two teams don't clash). `gear` (THE LOCKER, player team only) applies the
  *  equipped cleats' foot tint — the uniform override happens at the call site
- *  by passing its hex as `uniformColor`. */
-export async function buildTeamCharsGlb(team, uniformColor, gear = null) {
+ *  by passing its hex as `uniformColor`. `opts.kit` is the dressed kit from
+ *  kits.js (`{ hex, ink, logo, img }`): it decides the jersey decals' ink and
+ *  which mark variant goes on the shirt. */
+export async function buildTeamCharsGlb(team, uniformColor, gear = null, opts = {}) {
   const roster = team.roster ?? [];
   const primary = uniformColor ?? team.colors?.primary;
   const cleatHex = gear?.cleats?.hex ?? null;
+  const kit = opts.kit ?? kitOf(team, primary);
+  const logoUrl = logoUrlFor(kit);
   // Per-archetype mocap clips (each Meshy rig has its own rest pose, so each
   // gets its own bake); loadMocapClips caches per URL — 6 fetches total across
   // ALL teams. Missing bakes (or ?codeanim=1) fall back to the legacy code
@@ -572,19 +832,26 @@ export async function buildTeamCharsGlb(team, uniformColor, gear = null) {
   for (let i = 0; i < roster.length; i++) {
     const p = roster[i];
     const archIdx = archIdxFor(team, i); // shared with the Locker preview
+    const cast = castSlotFor(team, i);
     const clips = await clipsFor(archIdx);
     let char;
     try {
-      char = await buildGlbCharacter({ model: ARCHETYPES[archIdx], teamColor: primary, cleatHex }, { heightM: 2.05, clips });
+      char = await buildGlbCharacter({ model: ARCHETYPES[archIdx], teamColor: primary, cleatHex, cast }, { heightM: 2.05, clips });
     } catch {
       // fallback model has a DIFFERENT rig — no baked set; use the code animator
       char = await buildGlbCharacter({ model: FALLBACK_MODEL }, { heightM: 2.05, clips: null });
     }
+    char.cast = cast;
+    // headband / wristbands / shades in the crew's accent, scaled with the body
+    char.accessories = attachAccessory(char, cast?.accessory, team.colors?.accent, { scale: cast?.height ?? 1 });
     char.data = p;
     char.number = p.number ?? JERSEY_NUMBERS[i % JERSEY_NUMBERS.length];
     char.gender = FEMALE_ARCHETYPES.has(archIdx) ? 'she' : 'he'; // for the announcer's he/she calls
     char.hasBall = false;
     char.archKey = clips ? archKeyOf(archIdx) : null; // which extras packs (mocap-<pack>-*) fit this rig
+    // crew mark front and back + this player's number (spec §2). Never awaited:
+    // the mark streams in behind the character, which is on the field either way.
+    char.decals = attachJerseyDecals(char, { logoUrl, number: char.number, ink: kit.ink });
     out.push(char);
   }
   return out;
@@ -595,11 +862,23 @@ export async function buildTeamCharsGlb(team, uniformColor, gear = null) {
  *  what you field. */
 export async function buildCaptainPreview(team, uniformHex, gear = null) {
   const idx = archIdxFor(team, 0);
+  const cast = castSlotFor(team, 0);
   const archKey = ARCHETYPES[idx].match(/arch-(\w+)\.glb/)?.[1];
   let clips = null;
   try { clips = await loadMocapClips(`/assets/anims/mocap-${archKey}.glb`); } catch { clips = null; }
-  const char = await buildGlbCharacter({ model: ARCHETYPES[idx], teamColor: uniformHex ?? team.colors?.primary, cleatHex: gear?.cleats?.hex ?? null }, { heightM: 2.05, clips });
+  const char = await buildGlbCharacter({ model: ARCHETYPES[idx], teamColor: uniformHex ?? team.colors?.primary, cleatHex: gear?.cleats?.hex ?? null, cast }, { heightM: 2.05, clips });
+  char.cast = cast;
+  // the turntable is where the dev SEES the crew — so the captain wears the
+  // frame, the tone and the gear he takes onto the field
+  char.accessories = attachAccessory(char, cast?.accessory, team.colors?.accent, { scale: cast?.height ?? 1 });
   char.data = team.roster?.[0] ?? null;
+  char.number = char.data?.number ?? JERSEY_NUMBERS[0];
+  // The turntable is where the dev SEES the kit, so the captain wears the same
+  // mark and number he takes out there. The equipped Locker uniform arrives as
+  // a hex (lockerScreen resolves it through dressTeams/resolveGearKit), so the
+  // ink + mark variant are recovered from the crew's own kit data.
+  const kit = kitOf(team, uniformHex ?? team.colors?.primary);
+  char.decals = attachJerseyDecals(char, { logoUrl: logoUrlFor(kit), number: char.number, ink: kit.ink });
   // The Locker plays the EQUIPPED kick/taunt on the turntable, and those clips
   // live in the extras packs (x, k) — not the base bake. Fire-and-forget so the
   // captain is on screen immediately; hasClip() gates playback until they land.
@@ -607,3 +886,7 @@ export async function buildCaptainPreview(team, uniformHex, gear = null) {
   if (char.archKey) loadExtrasFor([char]);
   return char;
 }
+
+// test-only exports: the fence bitset + the fence builder (round 4 re-review),
+// and the kit lookup whose hex compare has to stay case-blind (final round)
+export { packBits, unpackBits, hairShoeFence, kitOf };

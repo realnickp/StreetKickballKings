@@ -40,7 +40,16 @@ export const GEAR = [
   { id: 'cleats-royal', cat: 'cleats', name: 'ROYALS', hex: '#8a4dff', speedMult: 1.08, play: '+8% speed on the bases', unlock: { stat: 'crews', n: 5 }, hint: 'Beat 5 crews on their turf' },
   { id: 'cleats-black', cat: 'cleats', name: 'BLACKOUTS', hex: '#15151a', speedMult: 1.10, play: '+10% speed on the bases', unlock: { stat: 'runs', n: 25 }, hint: '25 career runs' },
   { id: 'cleats-gold', cat: 'cleats', name: 'GOLD CROWNS', hex: '#f5c518', speedMult: 1.12, play: '+12% speed on the bases', unlock: { stat: 'king', n: 1 }, hint: 'Become King of the Streets' },
-  // ---- uniforms: whole-kit tint override for YOUR squad
+  // ---- uniforms: whole-kit tint override for YOUR squad.
+  //      The first two are YOUR CREW'S OWN light and dark kits (spec §3) — free,
+  //      always owned, and team-dependent: `teamKit` names the tone and the real
+  //      colour comes from `teams.json` kits (see src/game/kits.js resolveGearKit).
+  //      The `hex` here is only the fallback swatch when no team is in hand.
+  //      They are deliberately NOT the empty-slot fallback in equippedGear: a
+  //      bare uniform slot means "let the match dress me", which is how the
+  //      home-dark/away-light rule keeps two crews apart.
+  { id: 'kit-team-light', cat: 'uniform', name: 'LIGHT KIT', teamKit: 'light', hex: '#f2f2f4', play: "your crew's light kit", stock: true, unlock: null, hint: "FREE · your crew's own colours" },
+  { id: 'kit-team-dark', cat: 'uniform', name: 'DARK KIT', teamKit: 'dark', hex: '#1b1b22', play: "your crew's dark kit", stock: true, unlock: null, hint: "FREE · your crew's own colours" },
   { id: 'kit-blackout', cat: 'uniform', name: 'BLACKOUT KIT', hex: '#1b1b22', play: "your crew's kit", unlock: { stat: 'wins', n: 3 }, hint: '3 career wins' },
   { id: 'kit-whiteout', cat: 'uniform', name: 'WHITEOUT KIT', hex: '#f2f2f4', play: "your crew's kit", unlock: { stat: 'blowouts', n: 1 }, hint: 'Win by 5 or more' },
   { id: 'kit-gold', cat: 'uniform', name: 'GOLD RUSH KIT', hex: '#f5c518', play: "your crew's kit", unlock: { stat: 'king', n: 1 }, hint: 'Become King of the Streets' },
@@ -99,13 +108,15 @@ export function equipGear(save, cat, id) {
 /** Resolve the equip slots to catalog entries: {kick, cleats, uniform, taunt}.
  *  A category with a stock item (kick = THE FLAIR, cleats = FIRE REDS,
  *  taunt = THE POINT) falls back to it when nothing's equipped or the equipped
- *  piece isn't owned; the rest (uniform) fall back to null (bare). */
+ *  piece isn't owned; the rest (uniform) fall back to null (bare) — the team
+ *  kits are stock CHIPS, not a silent default, so an untouched uniform slot
+ *  still lets dressTeams pick the tone that separates the two crews. */
 export function equippedGear(save) {
   const eq = save.get('gear.equip', {}) ?? {};
   const pick = (cat) => {
     const g = eq[cat] != null ? gearById(eq[cat]) : null;
     if (g && isUnlocked(save, g.id)) return g;
-    return GEAR.find((x) => x.cat === cat && x.stock) ?? null;
+    return GEAR.find((x) => x.cat === cat && x.stock && !x.teamKit) ?? null;
   };
   return { kick: pick('kick'), cleats: pick('cleats'), uniform: pick('uniform'), taunt: pick('taunt') };
 }

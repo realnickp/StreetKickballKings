@@ -30,7 +30,9 @@ import { SpeedTrail } from './fx/speedTrail.js';
 import { Hud } from '../ui/screens/hud.js';
 import { markerClamp } from '../ui/runnerArrows.js';
 import { gearLine } from '../meta/gearLine.js';
-import { pregameTimeline } from './pregame.js';
+import { PREGAME, pregameTimeline, walkoutPregame } from './pregame.js';
+import { WALKOUT_SHOW, walkoutTimeline, walkoutShotAt, craneT } from './walkoutShow.js';
+import { disposeCharacter } from './glbCharacters.js';
 
 // fallback facing for a trail update on a runner who never got a live `dir`
 // this game (defensive only — every runner passes through the running branch
@@ -86,8 +88,13 @@ export function chooseLiveShot({ phase, kickingIsPlayer, trailBall, deepBall, ru
 }
 
 export class MatchScene {
-  constructor({ engine, input, bus, teams, chars, fieldData, tuning, difficulty = 'Street', playerSide = 'away', firstKick = 'away', hudRoot, autoStart = true, gear = null, danceBag = null }) {
+  constructor({ engine, input, bus, teams, chars, fieldData, tuning, difficulty = 'Street', playerSide = 'away', firstKick = 'away', hudRoot, autoStart = true, gear = null, danceBag = null, noIntro = false }) {
     this.engine = engine;
+    // NO WALK-OUT for this scene, whatever the URL says — the drills are a
+    // lesson, not a broadcast, and 17 s of starting lineups before drill one is
+    // dead air. `?nointro`/`?drill` still work for everyone else; this is the
+    // same door, opened from code instead of the query string.
+    this.noIntro = !!noIntro;
     this.input = input;
     this.bus = bus;
     this.teams = teams;
@@ -354,32 +361,46 @@ export class MatchScene {
     this.lineupIntro(begin);
   }
 
-  // ---------- STARTING LINEUPS: splash cards only (dev, 2026-08-25: the
-  // choreographed walkout dance number is gone — per-kicker walk-up taunts
-  // replace it, a later task). STARTING LINEUPS stamp, then the away crest
-  // splash, then the home crest splash, then the GAME TIME break. Tap
+  // ---------- STARTING LINEUPS: both crews WALK OUT (dev, 2026-08-27: "we need
+  // to see different cinematic angles of the teams walking out to the field,
+  // all of them for starting lineups"). STARTING LINEUPS stamp → the away crew
+  // walks out of its gate under three broadcast angles + a crest card → the
+  // home crew does the same → the GAME TIME break. A WALK, not a dance. Tap
   // anywhere is inert here — the skip chip is the only way out (the
   // cinematicLock tap route emits cine:skip; walkoutActive gates it).
   lineupIntro(done) {
+    if (this.noIntro) return done();
     const url = new URLSearchParams(location.search);
     if (url.has('nointro') || url.has('drill')) return done();
 
     this.walkoutActive = true;
     this.cinematicLock = true;
-    this.engine.cameraLock = true;
+    // The walk-out is DIRECTED, not hand-flown: cameraLock stays OFF so every
+    // shot goes through CameraDirector and clampNearHome keeps the lens out of
+    // the backstop. walkoutCam names the live shot; update() requests it.
+    this.engine.cameraLock = false;
+    this.walkoutCam = null;
+    this.walkoutRun = null;
     this.hud.setLetterbox(true);
     this.hud.hint('');
     // skipping the lineup is a DELIBERATE act — the chip, not any stray tap
     // coming off the coin toss (dev: "I don't always see the starting lineup")
     this.hud.showSkipChip(() => this.bus.emit('cine:skip'));
-    // empty stage: everyone hides, stars appear one at a time
+    // empty stage: everyone hides, each crew appears for its own segment only
     for (const c of [...this.chars.home, ...this.chars.away]) c.group.visible = false;
 
     const cleanup = () => {
       if (!this.walkoutActive) return;
       this.walkoutActive = false;
-      // back to the empty-stage invariant — nextAtBat unhides who it needs
+      this.walkoutRun = null;
+      this.walkoutCam = null;
+      // back to the empty-stage invariant — nextAtBat unhides who it needs.
+      // Eight bodies blinking out mid-shot is a POP, so it goes under a
+      // broadcast CUT: the lens snaps to the kick framing on the SAME frame the
+      // wedge is hidden (and the scratch + GAME TIME stamp land on it too).
+      // Cheapest cover that reads — no fade state, no extra frame of bookkeeping.
       for (const c of [...this.chars.home, ...this.chars.away]) c.group.visible = false;
+      if (!this.engine.cameraLock) this.camDir.request('kick', this.camCtx(), { cut: true });
       offSkip?.();
       this.hud.walkoutHide();
       this.hud.teamSplashHide();
@@ -406,24 +427,125 @@ export class MatchScene {
 
     // full-screen crest splash introducing a side (dev: "a cool splash
     // animation in between... with the logos of the teams")
+    const showSplash = (team, durS) => {
+      this.hud.walkoutHide();
+      this.hud.teamSplash({
+        name: team.name, city: team.city, logo: team.logo,
+        color: team.colors?.primary,
+      }, durS);
+    };
     const splash = (team, t) => {
-      this.after(t, () => {
+      this.after(t, () => { if (this.walkoutActive) showSplash(team, PREGAME.splashS); });
+    };
+
+    // ===== ONE CREW'S WALK-OUT. Eight bodies out of the side gate in a
+    // staggered file, captain on point, planting in a wedge in front of the
+    // plate; three shots cut on the beat over them; the captain's lower-third
+    // rides the first shot; the crest card lands on the crane.
+    const runWalkout = (side, at) => {
+      this.after(at, () => {
         if (!this.walkoutActive) return;
-        this.hud.walkoutHide();
-        this.hud.teamSplash({
-          name: team.name, city: team.city, logo: team.logo,
-          color: team.colors?.primary,
-        }, 1.9);
+        const squad = this.walkoutSquad(side);
+        if (!squad.length) return showSplash(this.teams[side], PREGAME.splashS);
+        // the stage is this crew's alone — the side that just walked clears off
+        for (const c of [...this.chars.home, ...this.chars.away]) c.group.visible = false;
+        const tl = walkoutTimeline(side);
+        squad.forEach((c, i) => {
+          const ln = tl.lines[i % tl.lines.length];
+          c.group.visible = false; // each man appears as he steps off, not stacked at the gate
+          c.group.position.set(ln.from.x, 0, ln.from.z);
+          this.faceTo(c, new THREE.Vector3(ln.to.x, 0, ln.to.z), true);
+          // feet match ground speed — a time-scaled walk, never a slide
+          c.animator.play('walk', { speedFactor: WALKOUT_SHOW.mps / WALKOUT_SHOW.walkClipMps });
+        });
+        this.walkoutRun = { side, chars: squad, tl, t0: this.elapsed, arrived: new Set() };
+        this.walkoutCam = { shot: walkoutShotAt(0), cut: true };
+        this.bus.emit('sfx', 'crowd-cheer');
+        this.field.crowdEnergy = 1;
+        // the captain's plate, over the gate dolly only
+        const cap = squad[0]?.data;
+        if (cap?.nick) {
+          this.after(WALKOUT_SHOW.plateInS, () => {
+            if (this.walkoutRun?.side !== side) return;
+            this.hud.walkoutShow({   // mini plate: no tag row, so no `label`
+              nick: cap.nick, number: cap.number ?? squad[0].number, pos: cap.pos,
+              stats: cap.stats, color: this.teams[side].colors?.primary,
+              mini: true,
+            });
+          });
+          this.after(WALKOUT_SHOW.plateOutS, () => { if (this.walkoutRun?.side === side) this.hud.walkoutHide(); });
+        }
+        // the cuts (shot 1 is already live from the cut above)
+        for (let i = 1; i < tl.cuts.length; i++) {
+          this.after(tl.cuts[i], () => {
+            if (this.walkoutRun?.side !== side) return;
+            this.walkoutCam = { shot: walkoutShotAt(tl.cuts[i]), cut: true };
+          });
+        }
+        this.after(tl.splashAt, () => {
+          if (this.walkoutRun?.side !== side) return;
+          showSplash(this.teams[side], WALKOUT_SHOW.splashS);
+          // the crew's own intro sting UNDER its crest — the mic is free here
+          // (lineups at 0.2 s, walkout-captain at ~3.0 s, and GAME TIME's
+          // 'gametime' is a CALL that queues behind whatever is playing)
+          this.bus.emit('vo', { event: 'nowkicking', team: this.teams[side].id });
+          // the crest sting IS this crew's "now kicking" — don't let the first at-bat repeat it 3 s later
+          if (side === this.match.kickingSide()) this._lastKickSide = side;
+        });
       });
     };
 
-    for (const e of pregameTimeline().events) {
+    // both crews have bodies -> the walk-out; otherwise the splash-only open
+    // (the lineup must ALWAYS show, even for a squad we can't walk)
+    const canWalk = this.walkoutSquad('away').length >= 1 && this.walkoutSquad('home').length >= 1;
+    for (const e of (canWalk ? walkoutPregame() : pregameTimeline()).events) {
       switch (e.kind) {
         case 'open': this.after(e.t, () => { if (this.walkoutActive) { this.bus.emit('vo', 'lineups'); this.hud.stamp('STARTING LINEUPS', 'crowned'); } }); break;
+        case 'walkout': runWalkout(e.side, e.t); break;
         case 'splash': splash(this.teams[e.side], e.t); break;
         case 'cleanup': this.after(e.t, cleanup); break;
       }
     }
+  }
+
+  /** The crew that walks out, CAPTAIN FIRST — he leads the file and takes the
+   *  point of the wedge (slot 0), so the roster order never buries him. Capped
+   *  at the eight wedge slots: a ninth body would double up on slot 0 and walk
+   *  through the captain. */
+  walkoutSquad(side) {
+    const chars = this.chars[side] ?? [];
+    const cap = chars.findIndex((c) => /captain/i.test(c.data?.pos ?? ''));
+    const roster = cap <= 0 ? [...chars] : [chars[cap], ...chars.filter((_, i) => i !== cap)];
+    return roster.slice(0, WALKOUT_SHOW.slots.length);
+  }
+
+  /** Per-frame walk-out mover: every player rides his own straight line from
+   *  the gate to his wedge slot at his own pace. Arrival plants him facing the
+   *  plate; the captain's arrival is the booth's cue. */
+  squadWalk() {
+    const w = this.walkoutRun;
+    if (!w) return;
+    const t = this.elapsed - w.t0;
+    w.chars.forEach((c, i) => {
+      const ln = w.tl.lines[i % w.tl.lines.length];
+      if (t < ln.start) { c.group.visible = false; return; }
+      c.group.visible = true;
+      const k = Math.min(1, (t - ln.start) / Math.max(0.001, ln.arriveAt - ln.start));
+      c.group.position.set(
+        ln.from.x + (ln.to.x - ln.from.x) * k, 0,
+        ln.from.z + (ln.to.z - ln.from.z) * k,
+      );
+      if (k < 1 || w.arrived.has(i)) return;
+      w.arrived.add(i);
+      this.faceTo(c, FIELD_LAYOUT.home); // planted: square up to the plate (and the crane)
+      const flex = i === 0 && c.animator.hasClip?.('tauntChest');
+      c.animator.play(flex ? 'tauntChest' : 'idle', flex ? { onDone: () => c.animator.play('idle') } : {});
+      if (i === 0) {
+        this.bus.emit('vo', 'walkout-captain');
+        this.bus.emit('sfx', 'crowd-cheer');
+        this.field.crowdEnergy = 1;
+      }
+    });
   }
 
   /** GAME OVER hand-off, shared by every GAME_END site: wait out any running
@@ -659,6 +781,11 @@ export class MatchScene {
       pickleB: this.pickleCam ? this.bagPos(this.pickleCam.targetBase) : null,
       pickleRunnerPos: this.pickleCam ? this.pickleCam.char.group.position : null,
       walkupT: this.walkup?.phase === 'taunt' ? Math.max(0, Math.min(1, 1 - (this.walkup.until - this.elapsed) / WALKUP.tauntS)) : 0,
+      // STARTING LINEUPS: the captain leading the file, his gate's side, and
+      // the crane's own 0→1 dolly parameter
+      lead: this.walkoutRun?.chars[0]?.group.position ?? null,
+      side: this.walkoutRun ? this.walkoutRun.tl.sign : -1,
+      walkoutT: this.walkoutRun ? craneT(this.elapsed - this.walkoutRun.t0) : 0,
     };
   }
 
@@ -710,6 +837,7 @@ export class MatchScene {
     this.runners = [];
     for (const t of this.trailPool) { t.hide(); t.busy = false; }
     this.crown.disarm(); // an armed-but-unkicked crown stays banked, full
+    this.crown.endPlay(); // safety: never enter a new at-bat still gated
     if (this.kickingIsPlayer() && this.playerGear && !this._gearToasted) {
       this._gearToasted = true;
       this.after(0.8, () => this.hud.gearToast(gearLine(this.playerGear)));
@@ -2187,6 +2315,10 @@ export class MatchScene {
       this.bus.emit('vo', { event: 'safe', gender: this.kicker?.gender });
       if (this.kickingIsPlayer()) this.crownFeed('hit'); // base hits build the crown
     }
+    // the crown swing's own play is over — un-gate feeds for whatever comes
+    // next (dev bug: consume() zeroed the meter, then this SAME play's score
+    // listener + hit/homerun feed refilled it — "back to back crowns")
+    this.crown.endPlay();
     this.pendingRuns = 0;
     this.refreshHud();
 
@@ -3848,6 +3980,7 @@ export class MatchScene {
     this.playFinalized = true;
     this.phase = 'RESOLVE';
     this.match.applyOutcome({ outsAdded: 0, runs, finalBases: [null, null, null], label: 'homerun' });
+    this.crown.endPlay(); // see finalizePlay: the crown swing's own play never refills the crown
     this.refreshHud();
     if (this.match.state.phase === 'GAME_END') {
       this.fireMatchOver();
@@ -4037,6 +4170,7 @@ export class MatchScene {
     // live-play tally must be discarded, not added on top.
     this.pendingRuns = 0;
     this.match.applyPlay({ type: 'double' });
+    this.crown.endPlay(); // the crown feed reopens on EVERY play end, this one included
     this.refreshHud();
     if (this.match.state.phase === 'GAME_END') {
       this.fireMatchOver();
@@ -4059,6 +4193,7 @@ export class MatchScene {
       this.bus.emit('sfx', 'juke');
     }
     this.updateWalkup(dt);
+    if (this.walkoutRun) this.squadWalk();
     // a flick the player never released still fires (finger held after the snap)
     if (this.pendingFlick && this.elapsed > this.pendingFlick.tCross + 0.22) this.fireFlick();
     // city element procs (el-train pass / motorcade sweep): flash the HUD, rattle the camera
@@ -4356,7 +4491,7 @@ export class MatchScene {
     // CameraDirector spring-damps toward it (and handles the contact CUT).
     if (!this.engine.cameraLock) {
       this.camDir.setBaseFov(this.engine.baseFov ?? 58);
-      const pkR = this.duel?.r ?? null;
+      const pkR = this.walkoutCam ? null : (this.duel?.r ?? null);
       this.pickleCam = (pkR && pkR.state === 'running' && (this.phase === 'LIVE' || this.phase === 'RESOLVE')) ? pkR : null;
       if (this.pickleCam) {
         this.camDir.request('pickle', this.camCtx(), { cut: !this._pkCamOn });
@@ -4364,7 +4499,11 @@ export class MatchScene {
       } else if (this._pkCamOn) {
         this._pkCamOn = false;
       }
-      if (this.pickleCam) {
+      if (this.walkoutCam) {
+        // STARTING LINEUPS owns the lens: gate dolly → side steadicam → crane
+        this.camDir.request(this.walkoutCam.shot, this.camCtx(), { cut: this.walkoutCam.cut });
+        this.walkoutCam.cut = false;
+      } else if (this.pickleCam) {
         // the PICKLE STAGE owns the lens
       } else if (this.phase === 'LIVE' || this.phase === 'RESOLVE' || this.phase === 'FOUL') {
         const trailBall = this.ball.mode === 'flying' && this.elapsed < (this.ballCamUntil ?? 0);
@@ -4410,7 +4549,21 @@ export class MatchScene {
     this.clearTimers();
     this.hud.destroy();
     this.engine.scene.remove(this.field.root, this.ball.mesh);
-    for (const c of [...this.chars.home, ...this.chars.away]) this.engine.scene.remove(c.group);
+    // THE SIXTEEN GO WITH THE SCENE. Taking a character off the graph is not
+    // letting go of it: its decals keep a rAF settler beating in jerseyDecals'
+    // module-level Set for the life of the tab (menu → match → menu → match used
+    // to leave sixteen dead drivers running per match, forever), and its cloned
+    // materials, per-character geometries, skeleton bone textures and accessory
+    // meshes stay on the GPU. `disposeCharacter` frees exactly what the build
+    // ALLOCATED — the shared GLTF geometry and the recoloured atlas out of
+    // `recolorCache` are borrowed, carry no `userData.owned`, and survive for
+    // the next match. Safe here because a rematch reuses this scene through
+    // startMatch() (which rebuilds only the MatchEngine) — nothing but a real
+    // teardown reaches this line, and the next match builds its own crews.
+    for (const c of [...this.chars.home, ...this.chars.away]) {
+      this.engine.scene.remove(c.group);
+      try { disposeCharacter(c); } catch { /* cosmetic — never block a teardown */ }
+    }
     // every mesh this scene OWNS: off the graph and its GPU buffers freed —
     // a rematch builds a fresh scene, so leaked geo/materials just pile up
     const drop = (m) => {

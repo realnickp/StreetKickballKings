@@ -15,6 +15,8 @@ it('four tabs, owned chips first, stock marked, counts honest', () => {
   expect(kicks.chips.slice(kicks.chips.findIndex((c) => !c.owned)).every((c) => !c.owned)).toBe(true);
   expect(kicks.owned).toBe(1); expect(kicks.total).toBe(14);
   const kits = tabs.find((t) => t.cat === 'uniform');
-  expect(kits.chips[0]).toMatchObject({ id: null, name: 'CLASSIC', on: true });   // bare entry when no stock kit
+  // AUTO leads the KITS row and is what a fresh save wears: bare = "let the
+  // match dress me", a choice no LIGHT/DARK chip can express
+  expect(kits.chips[0]).toMatchObject({ id: null, name: 'AUTO', on: true, owned: true });
   expect(tabs.find((t) => t.cat === 'taunt').chips.some((c) => c.id === null)).toBe(false);
 });

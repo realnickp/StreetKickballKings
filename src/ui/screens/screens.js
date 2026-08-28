@@ -15,28 +15,14 @@ const statBar = (label, v) => `
   </div>`;
 
 // ---- per-team kits ----------------------------------------------------------
-// Every team has a DARK and a LIGHT uniform, and each is a REAL generated image
-// (the signature colour + a contrasting alt), so teams never clash. The toggle
-// just swaps which image is shown — NO runtime canvas tinting. `img` is the
-// filename suffix ('' = base signature image, '-alt' = the generated contrast
-// kit); `hex` drives the in-game 3D uniform so the preview matches the match.
-const KITS = {
-  monarchs:  { dark: { hex: '#16161A', img: '-alt' }, light: { hex: '#F5B312', img: '' } },
-  snappers:  { dark: { hex: '#2E5944', img: '' }, light: { hex: '#ECE5D2', img: '-alt' } },
-  bullies:   { dark: { hex: '#D7263D', img: '' }, light: { hex: '#F2F2F2', img: '-alt' } },
-  funk:      { dark: { hex: '#1B2553', img: '' }, light: { hex: '#F4E3B2', img: '-alt' } },
-  marauders: { dark: { hex: '#1C1C1C', img: '-alt' }, light: { hex: '#E0701A', img: '' } },
-  metros:    { dark: { hex: '#2B2D4F', img: '' }, light: { hex: '#F4F4F0', img: '-alt' } },
-  kestrals:  { dark: { hex: '#2C3035', img: '-alt' }, light: { hex: '#A8D8EA', img: '' } },
-  gilas:     { dark: { hex: '#5A2A1F', img: '-alt' }, light: { hex: '#E8772E', img: '' } },
-  hustlers:  { dark: { hex: '#1D8AC4', img: '' }, light: { hex: '#F1F4F8', img: '-alt' } },
-  threshers: { dark: { hex: '#7A2417', img: '' }, light: { hex: '#EAD9A6', img: '-alt' } },
-};
-/** Resolve a team's kit for a tone ('dark'|'light'), falling back to the team's
- *  signature colour + base image for any team missing from the map. */
-export function kitFor(team, tone) {
-  return KITS[team.id]?.[tone] ?? { hex: team.colors.primary, img: '' };
-}
+// The kits are DATA now (`teams.json` -> `kits.dark` / `kits.light`, each
+// `{ hex, ink, logo, img }`) — the 3D recolour, the jersey decals and these
+// screens all read the same object, so the swatch you tap IS the uniform that
+// takes the field. `img` stays the portrait sprite suffix ('' = base signature
+// image, '-alt' = the generated contrast kit): the toggle swaps a REAL image,
+// no runtime canvas tinting. See src/game/kits.js for the dressing rule.
+import { kitFor } from '../../game/kits.js';
+export { kitFor };
 
 // ---------- TITLE ----------
 export function TitleScreen(ctx) {
@@ -191,7 +177,9 @@ export function TeamSelectScreen(ctx) {
     mount(root, params = {}) {
       const ready = ctx.data.teams.filter(t => t.status === 'ready');
       const sel = { away: 0, home: Math.min(1, ready.length - 1) }; // away = you, home = their field
-      const kit = { away: 'dark', home: 'light' }; // default contrasting kits (one dark, one light)
+      // HOME wears dark, the visitors wear light (spec §3) — the same seed the
+      // match dressing uses, so the swatch here is the kit that takes the field.
+      const kit = { away: 'light', home: 'dark' };
       // ← TEAMS from GEAR UP hands the cursor back: cycling to the matchup you
       // want and then checking your gear must not throw the matchup away.
       if (params.pick) {
@@ -308,10 +296,11 @@ export function TeamSelectScreen(ctx) {
         b.addEventListener('pointerdown', () => playVideo(ready[sel[b.dataset.side]].introVideo)));
       s.querySelector('.m-start').addEventListener('pointerdown', () => {
         ctx.bus.emit('sfx', 'bassdrop');
-        const kits = {
-          away: kitFor(ready[sel.away], kit.away).hex,
-          home: kitFor(ready[sel.home], kit.home).hex,
-        };
+        // ONLY the tones ride along. A hex picked here would be a stale copy:
+        // the match dressing re-checks the pair for a clash and can flip both
+        // sides (dressTeams), and an equipped Locker kit pins yours — so every
+        // consumer resolves the colour from the tone, never from a payload.
+        const kits = { tone: { away: kit.away, home: kit.home } };
         // `pick` is the cursor, not a match arg (gearUpArgs ignores it): GEAR
         // UP carries it so ← TEAMS can put this exact matchup back on screen.
         ctx.router.go('gearUp', { away: ready[sel.away], home: ready[sel.home], kits, pick: { sel: { ...sel }, kit: { ...kit } } }); // away = you, home = opponent (their field)
