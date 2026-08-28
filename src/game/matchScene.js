@@ -32,6 +32,7 @@ import { markerClamp } from '../ui/runnerArrows.js';
 import { gearLine } from '../meta/gearLine.js';
 import { PREGAME, pregameTimeline, walkoutPregame } from './pregame.js';
 import { WALKOUT_SHOW, walkoutTimeline, walkoutShotAt, walkoutPosAt, craneT } from './walkoutShow.js';
+import { prewarmCharacters } from './prewarm.js';
 import { disposeCharacter } from './glbCharacters.js';
 import { cityTrackId } from '../engine/audioTracks.js';
 import teamsData from '../data/teams.json';
@@ -165,6 +166,15 @@ export class MatchScene {
         engine.scene.add(c.group);
       }
     }
+    // PRE-WARM, RIGHT HERE — the field (and therefore the lights the shader
+    // programs are keyed on) is built, the sixteen are on the graph, and NOBODY
+    // IS LOOKING: the real flow builds this scene behind the coin toss and only
+    // then walks anyone out. So every character's shader link, atlas upload,
+    // decal canvas and skeleton bone texture is paid now, off screen, instead of
+    // on the frame he is first drawn (dev, on his phone, 2026-08-28: "all
+    // characters should render before we see them"). lineupIntro waits on this
+    // promise before the show opens; see src/game/prewarm.js.
+    this.prewarm = prewarmCharacters(engine, this.chars);
 
     // instant-replay capture: the last ~6s of every character's skeleton + ball
     this.replayChars = [...this.chars.home, ...this.chars.away];
@@ -382,7 +392,9 @@ export class MatchScene {
     const url = new URLSearchParams(location.search);
     if (url.has('nointro') || url.has('drill')) return done();
 
-    this.walkoutActive = true;
+    // The stage closes NOW — the lens and the taps belong to the show from the
+    // instant the coin toss hands over, even though the show itself waits for
+    // the pre-warm below.
     this.cinematicLock = true;
     // The walk-out is DIRECTED, not hand-flown: cameraLock stays OFF so every
     // shot goes through CameraDirector and clampNearHome keeps the lens out of
@@ -392,9 +404,6 @@ export class MatchScene {
     this.walkoutRun = null;
     this.hud.setLetterbox(true);
     this.hud.hint('');
-    // skipping the lineup is a DELIBERATE act — the chip, not any stray tap
-    // coming off the coin toss (dev: "I don't always see the starting lineup")
-    this.hud.showSkipChip(() => this.bus.emit('cine:skip'));
     // empty stage: everyone hides, each crew appears for its own segment only
     for (const c of [...this.chars.home, ...this.chars.away]) c.group.visible = false;
 
@@ -510,17 +519,40 @@ export class MatchScene {
       });
     };
 
-    // both crews have bodies -> the walk-out; otherwise the splash-only open
-    // (the lineup must ALWAYS show, even for a squad we can't walk)
-    const canWalk = this.walkoutSquad('away').length >= 1 && this.walkoutSquad('home').length >= 1;
-    for (const e of (canWalk ? walkoutPregame() : pregameTimeline()).events) {
-      switch (e.kind) {
-        case 'open': this.after(e.t, () => { if (this.walkoutActive) { this.bus.emit('vo', 'lineups'); this.hud.stamp('STARTING LINEUPS', 'crowned'); } }); break;
-        case 'walkout': runWalkout(e.side, e.t); break;
-        case 'splash': splash(this.teams[e.side], e.t); break;
-        case 'cleanup': this.after(e.t, cleanup); break;
+    // ===== NOBODY WALKS OUT UNTIL EVERY BODY IS COMPILED, UPLOADED AND PRINTED.
+    // Dev, on his phone, 2026-08-28: "when the team walks out ... they don't
+    // appear or render all at once ... all characters should render before we
+    // see them." All eight ARE visible from t = 0 — what he is watching is the
+    // GPU meeting each one for the first time on the frame it is first drawn
+    // (shader link + atlas/decal/bone-texture upload), so the file materialises
+    // man by man. `prewarmCharacters` pays all sixteen of those first draws
+    // HERE, off screen, against this scene's own lights and the composer's own
+    // render target — see src/game/prewarm.js. The show is scheduled only once
+    // it resolves (it never rejects, and it opens the gate even if it broke:
+    // a warm that failed must not cost the player his match).
+    const gen = this.introGen = (this.introGen ?? 0) + 1;
+    const open = () => {
+      if (this.introGen !== gen) return;   // a rematch/teardown overtook this warm
+      this.walkoutActive = true;
+      // skipping the lineup is a DELIBERATE act — the chip, not any stray tap
+      // coming off the coin toss (dev: "I don't always see the starting lineup")
+      this.hud.showSkipChip(() => this.bus.emit('cine:skip'));
+      // both crews have bodies -> the walk-out; otherwise the splash-only open
+      // (the lineup must ALWAYS show, even for a squad we can't walk)
+      const canWalk = this.walkoutSquad('away').length >= 1 && this.walkoutSquad('home').length >= 1;
+      for (const e of (canWalk ? walkoutPregame() : pregameTimeline()).events) {
+        switch (e.kind) {
+          case 'open': this.after(e.t, () => { if (this.walkoutActive) { this.bus.emit('vo', 'lineups'); this.hud.stamp('STARTING LINEUPS', 'crowned'); } }); break;
+          case 'walkout': runWalkout(e.side, e.t); break;
+          case 'splash': splash(this.teams[e.side], e.t); break;
+          case 'cleanup': this.after(e.t, cleanup); break;
+        }
       }
-    }
+    };
+    // the ctor's warm normally landed long ago (it rides the coin toss); the
+    // `??` is for a scene built some other way — the gate is the promise, not
+    // where it was started
+    (this.prewarm ?? prewarmCharacters(this.engine, this.chars)).then(open, open);
   }
 
   /** The crew that walks out, CAPTAIN FIRST — he leads the file and takes the
@@ -4594,6 +4626,8 @@ export class MatchScene {
   }
 
   destroy() {
+    // a pre-warm still in flight must never open a show on a dead scene
+    this.introGen = (this.introGen ?? 0) + 1;
     this.offTap?.();
     this.offSwipe?.();
     this.offDrag?.();

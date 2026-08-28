@@ -10,6 +10,7 @@ import { buildField } from './game/field.js';
 import { buildPlayer, CLIP_NAMES } from './game/characters.js';
 import { buildTeamCharsGlb } from './game/glbCharacters.js';
 import { dressTeams } from './game/kits.js';
+import { prewarmCharacters } from './game/prewarm.js';
 import { loadExtrasFor, DanceBag } from './game/animExtras.js';
 import { MatchScene } from './game/matchScene.js';
 import { CinematicDirector } from './cinematics/director.js';
@@ -295,6 +296,16 @@ async function bootFlow() {
       // nothing gates on it — the HR dance bag and the walk-up taunts use
       // clips as they land, and every other consumer has its base-pack fallback
       void loadExtrasFor([...c.home, ...c.away]);
+      // PRINT AND UPLOAD BEHIND THE VIDEOS (src/game/prewarm.js). Every crest +
+      // number is painted onto all sixteen vests and every recoloured atlas and
+      // decal canvas is pushed to the GPU while the intro clips are still on
+      // screen — the half of a character's first-draw cost that needs nothing
+      // but the character. (The SHADER half is keyed on the scene's LIGHTS,
+      // which don't exist until MatchScene builds the field, so its ctor
+      // finishes the warm behind the coin toss and lineupIntro holds the
+      // walk-out until it resolves. Dev, on his phone, 2026-08-28: "all
+      // characters should render before we see them.")
+      await prewarmCharacters(engine, c, { compile: false });
       return c;
     })();
 

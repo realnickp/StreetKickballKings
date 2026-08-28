@@ -106,6 +106,51 @@ async function boot(page, q) {
     window.__shots = [];     // every camera shot the director cut to, in order
     window.__wo = [];        // walk-out samples: [side, t, arrived, visible, plate]
     window.__pg = {};        // wall-clock bounds of the whole pre-game
+    // THE GPU BOOK over the show: [side, t, textures uploaded, programs linked].
+    // A pre-warmed crew NEVER moves either number once the walk-out is running —
+    // if it does, the player is watching the GPU meet a character for the first
+    // time, which is the "they render one by one" the dev sees on his phone.
+    window.__gpu = [];
+    // and the PRINT: how many vests were painted (decals.ready) by the time the
+    // show opened. A blank vest becoming printed mid-walk is the same bug.
+    window.__print = { crew: 0, done: 0, atOpen: null };
+    {
+      const crew = [...s.chars.home, ...s.chars.away].filter((c) => c.decals?.ready);
+      window.__print.crew = crew.length;
+      const tick = () => { window.__print.done += 1; };
+      for (const c of crew) c.decals.ready.then(tick, tick);
+    }
+    // THE COLD-DRAW LEDGER, read off three's OWN per-object bookkeeping — the
+    // only reading that can't be muddied by the composer re-allocating its
+    // targets. A material with no `currentProgram` has never been linked; a
+    // texture with no `__webglTexture` has never been uploaded; a skeleton with
+    // no `boneTexture` has never been DRAWN (three makes it inside setProgram).
+    // Any of those still owed when a crew steps off = a first draw the player
+    // is about to watch happen.
+    window.__cold = {};
+    const coldOf = (chars) => {
+      const props = s.engine.renderer.properties;
+      const mats = new Set(); const texes = new Set();
+      let noProgram = 0; let noUpload = 0; let noBones = 0;
+      for (const c of chars) {
+        c.group.traverse((o) => {
+          const ms = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+          for (const m of ms) {
+            if (!m || mats.has(m.uuid)) continue;
+            mats.add(m.uuid);
+            if (!props.get(m).currentProgram) noProgram += 1;
+            for (const k of Object.keys(m)) {
+              const t = m[k];
+              if (!t || !t.isTexture || texes.has(t.uuid)) continue;
+              texes.add(t.uuid);
+              if (!props.get(t).__webglTexture) noUpload += 1;
+            }
+          }
+          if (o.isSkinnedMesh && o.skeleton && !o.skeleton.boneTexture) noBones += 1;
+        });
+      }
+      return { mats: mats.size, texes: texes.size, noProgram, noUpload, noBones };
+    };
     window.__skk.engine.onFrame(() => {
       for (const el of document.querySelectorAll('.stamp span')) {
         if (window.__stamps[window.__stamps.length - 1] !== el.textContent) window.__stamps.push(el.textContent);
@@ -135,7 +180,13 @@ async function boot(page, q) {
           // invariant is about the whole field, not this crew's own squad
           [...s.chars.home, ...s.chars.away].filter((c) => c.group.visible).length,
           +minD.toFixed(3)]);
+        const inf = s.engine.renderer?.info;
+        const dt = s.elapsed - w.t0;
+        if (inf) window.__gpu.push([w.side, +dt.toFixed(2), inf.memory.textures, inf.programs.length]);
+        const key = `${w.side}@${dt >= 2 ? '2s' : '0s'}`;
+        if (!window.__cold[key]) window.__cold[key] = coldOf(w.chars);
       }
+      if (s.walkoutActive && window.__print.atOpen == null) window.__print.atOpen = window.__print.done;
       if (s.walkoutActive && window.__pg.t0 == null) { window.__pg.t0 = performance.now(); window.__pg.e0 = s.elapsed; }
       if (!s.walkoutActive && window.__pg.t0 != null && window.__pg.t1 == null) { window.__pg.t1 = performance.now(); window.__pg.e1 = s.elapsed; }
     });
@@ -155,7 +206,12 @@ async function boot(page, q) {
 // ---------------------------------------------------------------- 1. PRE-GAME
 async function pregameScenario(page) {
   console.log('\n--- 1: PRE-GAME ---');
-  await boot(page, 'match&nosplash');
+  // ?msaa=0 pins the composer for this run. It is not a rendering assertion —
+  // it takes the PerfWatchdog's MSAA step-down (which disposes and re-allocates
+  // BOTH composer targets mid-show, moving renderer.info all by itself) out of
+  // the GPU-book readings below, and it is the fastest software path for a
+  // 17 s show.
+  await boot(page, 'match&nosplash&msaa=0');
   // ---- SILENCE FIRST. The dev shares this machine with the agent browsers:
   // the run has to be provably mute before the show (music, booth, crowd) runs.
   const silent = await page.evaluate(() => ({
@@ -247,18 +303,73 @@ async function pregameScenario(page) {
   const crowded = wo.filter((r) => r[5] > 8);
   ok(wo.length > 0 && crowded.length === 0,
     `never more than one crew on the field at a time (peak ${Math.max(0, ...wo.map((r) => r[5]))} bodies over ${wo.length} frames)`);
+
+  // ---- EVERY PLAYER IS COMPILED, UPLOADED AND PRINTED BEFORE WE SEE HIM
+  // (dev, on his phone, 2026-08-28: "when the team walks out ... they don't
+  // appear or render all at once ... all characters should render before we
+  // see them"). All eight were already `visible` — what he was watching was the
+  // GPU meeting each body on the frame it was FIRST DRAWN: a shader link plus
+  // the recoloured atlas, the two decal canvases and the skeleton's bone
+  // texture. prewarmCharacters pays all of that off screen, so the show's GPU
+  // book has to be FLAT: not one upload, not one compile, start to finish.
+  //
+  // The ledger first, because it is the one that names the CREW: not one
+  // material, map or skeleton may still be owed a first draw when a crew steps
+  // out of the gate — nor 2 s later, which is the frame the dev watched them
+  // materialise on.
+  const cold = await page.evaluate(() => window.__cold);
+  for (const side of ['away', 'home']) {
+    for (const at of ['0s', '2s']) {
+      const c = cold[`${side}@${at}`];
+      ok(!!c && c.noProgram === 0 && c.noUpload === 0 && c.noBones === 0,
+        `${side} @${at}: every material linked, every map uploaded, every skeleton already drawn (${c ? `${c.mats} materials / ${c.texes} textures; owed ${c.noProgram} links, ${c.noUpload} uploads, ${c.noBones} skeletons` : 'never sampled'})`);
+    }
+  }
+  // ...and the whole renderer's book on top. Read it the way it can actually be
+  // read: a RISE is an upload/compile (what we came to kill); a FALL is
+  // something else in the scene freeing GPU memory, which no player ever sees.
+  // NB the page is booted `?msaa=0` for this scenario — the PerfWatchdog's
+  // 4->2->0 step disposes and re-allocates BOTH composer targets mid-show,
+  // which moves these counters all by itself and has nothing to do with a crew.
+  const gpu = await page.evaluate(() => window.__gpu.slice());
+  const away0 = gpu.find((r) => r[0] === 'away');
+  const away2 = [...gpu].reverse().find((r) => r[0] === 'away' && r[1] <= 2.0);
+  ok(!!away0 && !!away2 && away2[2] <= away0[2],
+    `no texture is uploaded over the walk-out's first 2 s (${away0?.[2]} at t ${away0?.[1]}s -> ${away2?.[2]} at t ${away2?.[1]}s)`);
+  const texPeak = Math.max(...gpu.map((r) => r[2]));
+  ok(gpu.length > 0 && texPeak === gpu[0][2],
+    `and the whole show never uploads one (textures start ${gpu[0]?.[2]}, peak ${texPeak}, end ${gpu[gpu.length - 1]?.[2]} over ${gpu.length} frames, both crews)`);
+  // PROGRAMS. The crew's are covered above, exactly — this line is the rest of
+  // the scene, and it is reported rather than pinned: field.js streams the CITY
+  // WORLD's glb in asynchronously (`import('./world/blacktop.js')`), so on a
+  // slow load its material can link after the pre-warm and inside the show.
+  // Nothing in prewarm.js can compile a mesh that is not in the scene yet.
+  const progRise = Math.max(...gpu.map((r) => r[3])) - gpu[0][3];
+  console.log(`NOTE  programs over the show: ${gpu[0]?.[3]} -> ${Math.max(...gpu.map((r) => r[3]))}` +
+    `${progRise ? ' (the late city-world glb — the crew ledger above is empty)' : ''}`);
+  const print = await page.evaluate(() => window.__print);
+  ok(print.crew > 0 && print.atOpen === print.crew,
+    `every vest is PRINTED before the show opens (${print.atOpen}/${print.crew} crests + numbers painted when walkoutActive flipped)`);
+  const warm = await page.evaluate(() => window.__skk.engine.prewarmStats ?? null);
+  ok(!!warm && warm.compiled === true && warm.players === 16,
+    `the pre-warm ran first (${warm ? `${warm.players} players, ${warm.textures.warmed} textures uploaded, ${warm.programs.before}->${warm.programs.after} programs, ${warm.decalMs} ms print + ${warm.warmMs} ms warm` : 'never ran'})`);
+  ok(await page.evaluate(() => window.__skk.engine.prewarmed === true), 'the engine is flagged pre-warmed for the show');
   const stamps = await page.evaluate(() => window.__stamps);
   ok(/GAME TIME/i.test(stamps[stamps.length - 1] ?? ''), `GAME TIME! is the break stamp (${stamps.join(' | ')})`);
   const sfx = await page.evaluate(() => window.__sfxLog.slice());
   ok(sfx.includes('scratch'), `a record scratch closes the pre-game (${sfx.slice(0, 6).join(',')})`);
-  // the beat is deliberately held 1.6s behind the stop (the BREAK) — poll it out
+  // The in-match track is deliberately held 1.6s behind the stop (the BREAK) —
+  // poll it out. WHICH track it is belongs to the sound round, not this one:
+  // the field now scores the match with its OWN city's dialect and only falls
+  // back to the generic 'beat' pool for a city with no cut, so either name
+  // satisfies "the break hands over to the in-match groove".
   const music = await poll(page, () => {
     const log = window.__musicLog;
     const stopI = log.findIndex((m) => m?.stop);
-    const beatI = log.findIndex((m) => m?.name === 'beat');
-    return stopI >= 0 && beatI > stopI ? log.map((m) => (m?.stop ? 'stop' : m?.name)) : null;
-  }, 6000, 'music stop -> beat');
-  ok(!!music, `music stops at the break, the in-match beat starts after it (${music?.join(' -> ') ?? 'never'})`);
+    const backI = log.findIndex((m) => m?.name === 'beat' || /^city-/.test(m?.name ?? ''));
+    return stopI >= 0 && backI > stopI ? log.map((m) => (m?.stop ? 'stop' : m?.name)) : null;
+  }, 6000, 'music stop -> in-match track');
+  ok(!!music, `music stops at the break, the in-match track starts after it (${music?.join(' -> ') ?? 'never'})`);
   // NB: every poll predicate must return a PLAIN value — handing Playwright a
   // live scene object (walkup.char is a whole three.js character) wedges the
   // serializer for minutes.
