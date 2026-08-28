@@ -118,12 +118,23 @@ async function boot(page, q) {
       // STARTING LINEUPS: who is on the field, who has planted, is the plate up
       const w = s.walkoutRun;
       if (w) {
+        // NO GHOSTS (dev, 2026-08-28: "they walk through each other"): the
+        // tightest pair of bodies on this frame, measured off the LIVE scene
+        const P = w.chars.map((c) => c.group.position);
+        let minD = 99;
+        for (let i = 0; i < P.length; i++) {
+          for (let j = i + 1; j < P.length; j++) {
+            const d = Math.hypot(P[i].x - P[j].x, P[i].z - P[j].z);
+            if (d < minD) minD = d;
+          }
+        }
         window.__wo.push([w.side, +(s.elapsed - w.t0).toFixed(2), w.arrived.size,
           w.chars.filter((c) => c.group.visible).length,
           !!document.querySelector('.walkout-card'),
           // EVERY body on the stage, both crews — the one-crew-at-a-time
           // invariant is about the whole field, not this crew's own squad
-          [...s.chars.home, ...s.chars.away].filter((c) => c.group.visible).length]);
+          [...s.chars.home, ...s.chars.away].filter((c) => c.group.visible).length,
+          +minD.toFixed(3)]);
       }
       if (s.walkoutActive && window.__pg.t0 == null) { window.__pg.t0 = performance.now(); window.__pg.e0 = s.elapsed; }
       if (!s.walkoutActive && window.__pg.t0 != null && window.__pg.t1 == null) { window.__pg.t1 = performance.now(); window.__pg.e1 = s.elapsed; }
@@ -208,6 +219,18 @@ async function pregameScenario(page) {
   const wo = await page.evaluate(() => window.__wo.slice());
   for (const side of ['away', 'home']) {
     const seg = wo.filter((r) => r[0] === side);
+    // ---- THE WHOLE CREW, FROM FRAME ONE (dev, 2026-08-28: "every character
+    // just appears randomly instead of them all just walking out ... the whole
+    // team at the same time"). Not "8 by the time he plants" — 8 at 0.1 s.
+    const opening = seg.filter((r) => r[1] <= 0.1);
+    ok(opening.length > 0 && opening.every((r) => r[3] === 8),
+      `${side}: all 8 bodies are on screen at t 0.1 s (${opening.map((r) => `${r[1]}s:${r[3]}`).join(' ') || 'no frame sampled that early'})`);
+    ok(seg.every((r) => r[3] === 8), `${side}: and nobody pops in or out for the rest of the show (${new Set(seg.map((r) => r[3])).size} distinct counts)`);
+    // ---- AND NOBODY WALKS THROUGH ANYBODY ("they walk through each other ...
+    // like ghosts"): the tightest pair over every frame of the walk
+    const gap = Math.min(...seg.map((r) => r[6]));
+    const tight = seg.find((r) => r[6] === gap);
+    ok(gap >= 0.5, `${side}: no two players ever come within 0.5 m (tightest ${gap.toFixed(2)} m at t ${tight?.[1]}s over ${seg.length} frames)`);
     const capAt = seg.find((r) => r[2] >= 1)?.[1];
     ok(capAt != null && capAt <= 6.0, `${side}: the captain plants inside 6 s (${capAt ?? 'never'} s)`);
     const planted = seg.find((r) => r[2] === 8)?.[1];

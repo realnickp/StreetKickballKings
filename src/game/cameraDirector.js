@@ -6,6 +6,7 @@
 // the camera moves. fovScale multiplies the aspect-derived base FOV so portrait
 // framing survives (74 narrow / 58 wide, set by renderer resize).
 import * as THREE from 'three';
+import { WALKOUT_SHOW } from './walkoutShow.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 
@@ -31,15 +32,28 @@ export const SHOTS = {
   // the teams walking out to the field"). Three shots, cut on the beat, all
   // driven through the director so clampNearHome still guards the backstop.
   // ctx: `lead` = the captain leading the file, `side` = ±1 (his gate),
+  // `fileMid` = the file's centre of mass, `walkoutGateT` = s into the show,
   // `walkoutT` = 0→1 across the crane beat.
-  //  1. GATE DOLLY (0-3.0 s): low and tight beside the lead, FRONT-quarter —
-  //     the file walks INTO the lens. The offset is -side (the crew crosses
-  //     toward the far side of the diamond, so +side trails them: eight backs
-  //     walking away, verified by screenshot).
+  //  1. GATE DOLLY (0-3.0 s): low, FRONT-quarter, and now standing far enough
+  //     DOWN THE LINE OF THE FILE to hold all eight bodies at once (dev,
+  //     2026-08-28: they must all be "rendered when the camera hits them").
+  //     The crew queues 1 m apart along the gate lane behind the captain — a
+  //     6.7 m line — and a portrait phone at fovScale 0.85 only has ~15.7° of
+  //     HALF-width to spend. The old (-side·2.6, +3.6) offset stood 4.4 m off
+  //     the captain and threw the tail 33° off axis; from (-side·6.4, +2.8)
+  //     the captain sits 10° off and the tail 2°, so the whole file is in the
+  //     frame with a body's width to spare. For the first second the lens
+  //     LOOKS at the file's midpoint (the shot is the CREW, not the captain),
+  //     then hands off to the lead as the line strings out down the flank.
   walkoutGate: (c) => {
     const lead = c.lead ?? V(-8, 0, -6);
     const s = c.side ?? -1;
-    return { pos: V(lead.x - s * 2.6, 1.15, lead.z + 3.6), look: V(lead.x, 1.2, lead.z), fovScale: 0.85, stiffness: 45 };
+    const held = V(lead.x, 1.2, lead.z);
+    const mid = c.fileMid;
+    const t = c.walkoutGateT ?? 99;
+    const k = Math.max(0, Math.min(1, (t - WALKOUT_SHOW.gateLookHoldS) / WALKOUT_SHOW.gateLookBlendS));
+    const look = mid ? V(mid.x, 1.2, mid.z).lerp(held, k) : held;
+    return { pos: V(lead.x - s * 6.4, 1.55, lead.z + 2.8), look, fovScale: 0.85, stiffness: 45 };
   },
   //  2. SIDE STEADICAM (3.0-5.6 s): off the foul line, the whole file streaming
   //     across frame into the wedge.
