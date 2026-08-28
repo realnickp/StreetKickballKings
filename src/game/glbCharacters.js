@@ -17,22 +17,30 @@ import { loadExtrasFor } from './animExtras.js';
 // leaf modules: jerseyDecals imports three + kits, kits imports nothing
 import { attachJerseyDecals } from './jerseyDecals.js';
 import { inkFor, logoFor } from './kits.js';
+// leaf modules: skinTint is pure maths, accessories imports three and nothing else
+import { recolorPixels, kitTintPixel, inkKitPanels } from './skinTint.js';
+import { attachAccessory } from './accessories.js';
+import castsData from '../data/casts.json';
 
 const loader = new GLTFLoader();
 const gltfCache = new Map();
 
-function hexToRgb(h) { const n = parseInt(h.replace('#', ''), 16); return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 }; }
-
 /**
- * Recolor an archetype's neutral-grey kit to a team colour. Targets only
- * low-saturation, mid/high-brightness pixels (the grey tank + light sneaker
- * accents) and tints them by the team primary, preserving the baked shading.
- * Skin (saturated), shorts (dark), and hair (dark) are left untouched.
+ * Recolor an archetype's atlas: the neutral-grey kit takes the crew's colour,
+ * and — when the cast asks for one — the baked skin moves to this player's
+ * tone. Both rules live in skinTint.js and are unit-tested there; `recolorPixels`
+ * is their allocation-free form (the pure pair costs 4.1 s on a 2048² atlas,
+ * this costs ~80 ms). Shorts, hair and any authored colour are left alone.
+ *
+ * The SKIN pass is what stops arch-shaggy and arch-stache walking out looking
+ * like chalk statues (their baked skin is near-white; the kit under it always
+ * recoloured fine — casts/probe-white-jersey.mjs, turntable-arch12/19-*.png).
+ *
  * LOCKER cleats are tinted separately by GEOMETRY (applyCleatVertexTint) —
  * texel-space painting bled across shared UV islands.
  * @returns {THREE.CanvasTexture} a NEW texture (caller owns it)
  */
-function recolorKitTexture(srcTex, primaryHex) {
+function recolorKitTexture(srcTex, primaryHex, { skinTone = null } = {}) {
   const img = srcTex.image;
   if (!img || !img.width) return srcTex;
   const c = document.createElement('canvas');
@@ -40,18 +48,11 @@ function recolorKitTexture(srcTex, primaryHex) {
   const ctx = c.getContext('2d');
   ctx.drawImage(img, 0, 0);
   const data = ctx.getImageData(0, 0, c.width, c.height);
-  const px = data.data;
-  const prim = hexToRgb(primaryHex);
-  for (let i = 0; i < px.length; i += 4) {
-    const r = px[i], g = px[i + 1], b = px[i + 2];
-    const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
-    const v = mx / 255;
-    const s = mx === 0 ? 0 : (mx - mn) / mx;
-    if (s < 0.17 && v > 0.52) { // grey/white kit pixel → team-coloured, shaded
-      const k = Math.min(1.0, v * 1.12);
-      px[i] = prim.r * k; px[i + 1] = prim.g * k; px[i + 2] = prim.b * k;
-    }
-  }
+  recolorPixels(data.data, { kit: primaryHex, tone: skinTone });
+  // the dark number plate baked onto the back of the vest: it is printed ON
+  // the kit, so it is re-inked by ADJACENCY to it (see inkKitPanels). Left
+  // black it showed as a slab behind the jersey number on every light kit.
+  inkKitPanels(data.data, { width: c.width, height: c.height, kit: primaryHex });
   ctx.putImageData(data, 0, 0);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = srcTex.colorSpace;
@@ -134,6 +135,9 @@ export function disposeCharacter(char) {
   // knows the difference, so let it go first (the traverse below would free the
   // same geometry/material anyway, but never the rig group's parenting).
   try { char?.decals?.dispose?.(); } catch { /* cosmetic */ }
+  // the headband / wristbands / shades own their geometry + material and hang
+  // off a rig group on a bone — same deal, let them let go first
+  try { char?.accessories?.dispose?.(); } catch { /* cosmetic */ }
   char?.group?.traverse((o) => {
     if (!o.isMesh || !o.material) return;
     if (o.geometry?.userData?.owned) o.geometry.dispose();
@@ -417,6 +421,24 @@ class GlbCodeAnimator {
   }
 }
 
+/** Lateral (x/z) bone scales for a cast slot's `build`. See the call site for
+ *  why lateral-only is the safe axis on these rigs, and why the SPINE is not
+ *  on this list. */
+function applyBuildScale(bones, build) {
+  if (!build || build === 1) return;
+  const lateral = (re, k) => {
+    for (const name in bones) {
+      if (!re.test(name)) continue;
+      bones[name].scale.x *= k;
+      bones[name].scale.z *= k;
+    }
+  };
+  // shoulders carry the whole arm chain, so the arms thicken with them (scaling
+  // both would square the effect); the up-legs carry the whole leg
+  lateral(/^(mixamorig:)?(Left|Right)Shoulder$/i, build);
+  lateral(/^(mixamorig:)?(Left|Right)Up(per)?Leg$|^thigh\.[lr]$/i, build);
+}
+
 /** Which animator a character gets. Pure — unit-tested. */
 export function chooseAnimator({ clips, forceCode }) {
   return clips && !forceCode ? 'mocap' : 'code';
@@ -444,12 +466,25 @@ export async function buildGlbCharacter(def, { heightM = 2.05, clips = null } = 
         // and aim the self-illumination at the same (recoloured) texture.
         o.material.metalness = 0.0;
         o.material.roughness = 0.7;
+        const skinTone = def.cast?.skin ?? null;
         if (def.teamColor && o.material.map) {
-          const recol = recolorKitTexture(o.material.map, def.teamColor);
+          const recol = recolorKitTexture(o.material.map, def.teamColor, { skinTone });
           o.material.map = recol;
           if (o.material.emissiveMap) o.material.emissiveMap = recol;
           o.material.emissiveIntensity = 0.4;
         } else {
+          // No map to paint. Every archetype and the fallback model DO have one
+          // (casts/probe-white-jersey.mjs checked all 20), but a bare material
+          // would otherwise take the field in whatever colour it was authored,
+          // so put the same kit rule over its flat colour.
+          if (def.teamColor && !o.material.map && o.material.color) {
+            const c = o.material.color;
+            const tinted = kitTintPixel(
+              [Math.round(c.r * 255), Math.round(c.g * 255), Math.round(c.b * 255)],
+              def.teamColor,
+            );
+            c.setRGB(tinted[0] / 255, tinted[1] / 255, tinted[2] / 255);
+          }
           o.material.emissiveIntensity = 0.4;
         }
         // LOCKER cleats tint by GEOMETRY, not texels: the atlases re-use
@@ -473,6 +508,11 @@ export async function buildGlbCharacter(def, { heightM = 2.05, clips = null } = 
   inner.rotation.y = def.faceOffset ?? 0;
   inner.add(root);
 
+  // CAST (spec §4): this player's own frame. HEIGHT rides the character root,
+  // which scales about the FEET — they stay on the ground and every world
+  // position the match reads off this rig (kickFootPos above all) stays true.
+  const castH = def.cast?.height ?? 1;
+
   if (clips) {
     // MOCAP path: size from the HIPS BONE, not a Box3. The clips drive
     // Hips.position in the rig's native node units (~0.98 world after the
@@ -482,12 +522,12 @@ export async function buildGlbCharacter(def, { heightM = 2.05, clips = null } = 
     root.updateMatrixWorld(true);
     const hips = root.getObjectByName('Hips');
     const hipsY = hips ? hips.getWorldPosition(new THREE.Vector3()).y : 1;
-    inner.scale.setScalar((heightM * 0.51) / (hipsY || 1));
+    inner.scale.setScalar((heightM * castH * 0.51) / (hipsY || 1));
   } else {
     // legacy code-animator path: scale to target height + drop feet to y=0
     const box = new THREE.Box3().setFromObject(inner);
     const size = new THREE.Vector3(); box.getSize(size);
-    inner.scale.setScalar(heightM / (size.y || 1));
+    inner.scale.setScalar((heightM * castH) / (size.y || 1));
     const box2 = new THREE.Box3().setFromObject(inner);
     inner.position.y -= box2.min.y;
   }
@@ -497,6 +537,21 @@ export async function buildGlbCharacter(def, { heightM = 2.05, clips = null } = 
 
   const bones = {};
   root.traverse((o) => { if (o.isBone) bones[o.name] = o; });
+
+  // BUILD: a LATERAL scale, never a uniform one. Every bone on these rigs runs
+  // along its own local Y (measured, casts/probe-bones.mjs: each child sits at
+  // (0, +len, 0)), so scaling x/z thickens the limb and moves NO joint — the
+  // knee, the striking foot and the hands stay exactly where the animator put
+  // them (the harness's striking-foot assertion is the guard).
+  //
+  // The SPINE is deliberately not on the list. A lateral spine scale is the
+  // strongest build signal there is — it widens the torso and swings the whole
+  // arm chain out with it — but it also makes the chest bone's world scale
+  // ANISOTROPIC (x,z scaled, y not), and the jersey decal hangs off that bone
+  // through a rig that cancels it with ONE uniform factor. Widening the torso
+  // therefore drags the crew mark up the shirt and squashes it. Shoulders and
+  // up-legs buy most of the look and leave the decal's maths untouched.
+  applyBuildScale(bones, def.cast?.build ?? 1);
 
   const which = chooseAnimator({ clips, forceCode: def.forceCode ?? false });
   const animator = which === 'mocap'
@@ -548,11 +603,24 @@ const BENCHED = new Map([[17, 5]]);
  *  the SAME first eight faces. Hashing the team id slides each crew to its own
  *  slice, so Philly's people aren't Brooklyn's people. Deterministic — a team
  *  always fields the same folks. Shared by the match roster and the Locker
- *  preview, so the captain you dress IS the captain you field. */
+ *  preview, so the captain you dress IS the captain you field.
+ *
+ *  casts.json comes FIRST: every crew was cast off its own intro video, and
+ *  that casting is what stops two squads walking out as each other's twins
+ *  (8 different archetypes per crew, and no two crews sharing one in the same
+ *  slot — tests/casts.test.js). The roster's own `archetype` and the id-hash
+ *  stay as the fallbacks for anything the cast doesn't name. */
 function archIdxFor(team, i) {
   const teamOffset = [...(team.id ?? '')].reduce((a, c) => a + c.charCodeAt(0), 0) % ARCHETYPES.length;
-  const archIdx = (team.roster?.[i]?.archetype ?? (teamOffset + i)) % ARCHETYPES.length;
+  const cast = castSlotFor(team, i);
+  const archIdx = (cast?.archetype ?? team.roster?.[i]?.archetype ?? (teamOffset + i)) % ARCHETYPES.length;
   return BENCHED.get(archIdx) ?? archIdx;
+}
+
+/** This crew's cast for roster slot `i` — `{archetype, skin, height, build,
+ *  accessory}` — or null for a crew nobody cast. */
+export function castSlotFor(team, i) {
+  return castsData.casts?.[team?.id ?? '']?.[i] ?? null;
 }
 
 /** The kit a colour belongs to — the crew's own data when the hex IS one of
@@ -598,14 +666,18 @@ export async function buildTeamCharsGlb(team, uniformColor, gear = null, opts = 
   for (let i = 0; i < roster.length; i++) {
     const p = roster[i];
     const archIdx = archIdxFor(team, i); // shared with the Locker preview
+    const cast = castSlotFor(team, i);
     const clips = await clipsFor(archIdx);
     let char;
     try {
-      char = await buildGlbCharacter({ model: ARCHETYPES[archIdx], teamColor: primary, cleatHex }, { heightM: 2.05, clips });
+      char = await buildGlbCharacter({ model: ARCHETYPES[archIdx], teamColor: primary, cleatHex, cast }, { heightM: 2.05, clips });
     } catch {
       // fallback model has a DIFFERENT rig — no baked set; use the code animator
       char = await buildGlbCharacter({ model: FALLBACK_MODEL }, { heightM: 2.05, clips: null });
     }
+    char.cast = cast;
+    // headband / wristbands / shades in the crew's accent, scaled with the body
+    char.accessories = attachAccessory(char, cast?.accessory, team.colors?.accent, { scale: cast?.height ?? 1 });
     char.data = p;
     char.number = p.number ?? JERSEY_NUMBERS[i % JERSEY_NUMBERS.length];
     char.gender = FEMALE_ARCHETYPES.has(archIdx) ? 'she' : 'he'; // for the announcer's he/she calls
@@ -613,7 +685,7 @@ export async function buildTeamCharsGlb(team, uniformColor, gear = null, opts = 
     char.archKey = clips ? archKeyOf(archIdx) : null; // which extras packs (mocap-<pack>-*) fit this rig
     // crew mark front and back + this player's number (spec §2). Never awaited:
     // the mark streams in behind the character, which is on the field either way.
-    char.decals = attachJerseyDecals(char, { logoUrl, number: char.number, ink: kit.ink, hex: kit.hex ?? primary });
+    char.decals = attachJerseyDecals(char, { logoUrl, number: char.number, ink: kit.ink });
     out.push(char);
   }
   return out;
@@ -624,10 +696,15 @@ export async function buildTeamCharsGlb(team, uniformColor, gear = null, opts = 
  *  what you field. */
 export async function buildCaptainPreview(team, uniformHex, gear = null) {
   const idx = archIdxFor(team, 0);
+  const cast = castSlotFor(team, 0);
   const archKey = ARCHETYPES[idx].match(/arch-(\w+)\.glb/)?.[1];
   let clips = null;
   try { clips = await loadMocapClips(`/assets/anims/mocap-${archKey}.glb`); } catch { clips = null; }
-  const char = await buildGlbCharacter({ model: ARCHETYPES[idx], teamColor: uniformHex ?? team.colors?.primary, cleatHex: gear?.cleats?.hex ?? null }, { heightM: 2.05, clips });
+  const char = await buildGlbCharacter({ model: ARCHETYPES[idx], teamColor: uniformHex ?? team.colors?.primary, cleatHex: gear?.cleats?.hex ?? null, cast }, { heightM: 2.05, clips });
+  char.cast = cast;
+  // the turntable is where the dev SEES the crew — so the captain wears the
+  // frame, the tone and the gear he takes onto the field
+  char.accessories = attachAccessory(char, cast?.accessory, team.colors?.accent, { scale: cast?.height ?? 1 });
   char.data = team.roster?.[0] ?? null;
   char.number = char.data?.number ?? JERSEY_NUMBERS[0];
   // The turntable is where the dev SEES the kit, so the captain wears the same
@@ -635,9 +712,7 @@ export async function buildCaptainPreview(team, uniformHex, gear = null) {
   // a hex (lockerScreen resolves it through dressTeams/resolveGearKit), so the
   // ink + mark variant are recovered from the crew's own kit data.
   const kit = kitOf(team, uniformHex ?? team.colors?.primary);
-  char.decals = attachJerseyDecals(char, {
-    logoUrl: logoUrlFor(kit), number: char.number, ink: kit.ink, hex: kit.hex,
-  });
+  char.decals = attachJerseyDecals(char, { logoUrl: logoUrlFor(kit), number: char.number, ink: kit.ink });
   // The Locker plays the EQUIPPED kick/taunt on the turntable, and those clips
   // live in the extras packs (x, k) — not the base bake. Fire-and-forget so the
   // captain is on screen immediately; hasClip() gates playback until they land.

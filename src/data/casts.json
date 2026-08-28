@@ -1,0 +1,584 @@
+{
+  "casts": {
+    "monarchs": [
+      {
+        "archetype": 10,
+        "skin": "brown",
+        "height": 1.02,
+        "build": 1,
+        "accessory": "none"
+      },
+      {
+        "archetype": 6,
+        "skin": "deep",
+        "height": 1.04,
+        "build": 0.96,
+        "accessory": "wristbands"
+      },
+      {
+        "archetype": 1,
+        "skin": "deep",
+        "height": 1.01,
+        "build": 1.05,
+        "accessory": "none"
+      },
+      {
+        "archetype": 19,
+        "skin": "deep",
+        "height": 1.03,
+        "build": 1.09,
+        "accessory": "none"
+      },
+      {
+        "archetype": 14,
+        "skin": "tan",
+        "height": 1.06,
+        "build": 0.94,
+        "accessory": "wristbands"
+      },
+      {
+        "archetype": 4,
+        "skin": "brown",
+        "height": 0.99,
+        "build": 0.97,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 0,
+        "skin": "deep",
+        "height": 1,
+        "build": 1.02,
+        "accessory": "none"
+      },
+      {
+        "archetype": 3,
+        "skin": "brown",
+        "height": 0.96,
+        "build": 1.04,
+        "accessory": "shades"
+      }
+    ],
+    "snappers": [
+      {
+        "archetype": 9,
+        "skin": "tan",
+        "height": 0.97,
+        "build": 0.94,
+        "accessory": "none"
+      },
+      {
+        "archetype": 7,
+        "skin": "brown",
+        "height": 1.06,
+        "build": 0.93,
+        "accessory": "wristbands"
+      },
+      {
+        "archetype": 2,
+        "skin": "deep",
+        "height": 0.99,
+        "build": 0.96,
+        "accessory": "none"
+      },
+      {
+        "archetype": 12,
+        "skin": "light",
+        "height": 1.06,
+        "build": 0.96,
+        "accessory": "shades"
+      },
+      {
+        "archetype": 10,
+        "skin": "tan",
+        "height": 0.98,
+        "build": 1.04,
+        "accessory": "none"
+      },
+      {
+        "archetype": 15,
+        "skin": "brown",
+        "height": 0.95,
+        "build": 0.97,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 1,
+        "skin": "deep",
+        "height": 1.05,
+        "build": 1.07,
+        "accessory": "none"
+      },
+      {
+        "archetype": 4,
+        "skin": "deep",
+        "height": 1,
+        "build": 1.02,
+        "accessory": "none"
+      }
+    ],
+    "bullies": [
+      {
+        "archetype": 3,
+        "skin": "deep",
+        "height": 1.06,
+        "build": 1.07,
+        "accessory": "none"
+      },
+      {
+        "archetype": 14,
+        "skin": "tan",
+        "height": 1.05,
+        "build": 0.96,
+        "accessory": "none"
+      },
+      {
+        "archetype": 7,
+        "skin": "tan",
+        "height": 1.03,
+        "build": 0.94,
+        "accessory": "none"
+      },
+      {
+        "archetype": 6,
+        "skin": "deep",
+        "height": 1.04,
+        "build": 1.08,
+        "accessory": "none"
+      },
+      {
+        "archetype": 11,
+        "skin": "brown",
+        "height": 0.97,
+        "build": 0.98,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 1,
+        "skin": "deep",
+        "height": 1,
+        "build": 1.06,
+        "accessory": "shades"
+      },
+      {
+        "archetype": 5,
+        "skin": "deep",
+        "height": 0.99,
+        "build": 0.95,
+        "accessory": "wristbands"
+      },
+      {
+        "archetype": 13,
+        "skin": "light",
+        "height": 0.96,
+        "build": 1.03,
+        "accessory": "none"
+      }
+    ],
+    "funk": [
+      {
+        "archetype": 4,
+        "skin": "deep",
+        "height": 1.02,
+        "build": 1.02,
+        "accessory": "none"
+      },
+      {
+        "archetype": 2,
+        "skin": "deep",
+        "height": 1.01,
+        "build": 0.94,
+        "accessory": "wristbands"
+      },
+      {
+        "archetype": 10,
+        "skin": "brown",
+        "height": 1.05,
+        "build": 0.95,
+        "accessory": "none"
+      },
+      {
+        "archetype": 0,
+        "skin": "deep",
+        "height": 1,
+        "build": 1.08,
+        "accessory": "none"
+      },
+      {
+        "archetype": 3,
+        "skin": "deep",
+        "height": 1.03,
+        "build": 1.05,
+        "accessory": "shades"
+      },
+      {
+        "archetype": 5,
+        "skin": "brown",
+        "height": 0.98,
+        "build": 0.96,
+        "accessory": "none"
+      },
+      {
+        "archetype": 15,
+        "skin": "brown",
+        "height": 0.95,
+        "build": 0.97,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 16,
+        "skin": "deep",
+        "height": 0.99,
+        "build": 1.06,
+        "accessory": "none"
+      }
+    ],
+    "marauders": [
+      {
+        "archetype": 19,
+        "skin": "tan",
+        "height": 1.04,
+        "build": 1.1,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 9,
+        "skin": "tan",
+        "height": 0.98,
+        "build": 0.95,
+        "accessory": "wristbands"
+      },
+      {
+        "archetype": 6,
+        "skin": "deep",
+        "height": 1.06,
+        "build": 0.98,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 3,
+        "skin": "light",
+        "height": 1.02,
+        "build": 1.05,
+        "accessory": "none"
+      },
+      {
+        "archetype": 8,
+        "skin": "tan",
+        "height": 1,
+        "build": 1.08,
+        "accessory": "none"
+      },
+      {
+        "archetype": 13,
+        "skin": "light",
+        "height": 0.97,
+        "build": 1,
+        "accessory": "none"
+      },
+      {
+        "archetype": 16,
+        "skin": "tan",
+        "height": 1.01,
+        "build": 1.03,
+        "accessory": "shades"
+      },
+      {
+        "archetype": 12,
+        "skin": "light",
+        "height": 0.93,
+        "build": 0.94,
+        "accessory": "headband"
+      }
+    ],
+    "metros": [
+      {
+        "archetype": 16,
+        "skin": "deep",
+        "height": 1.03,
+        "build": 1.06,
+        "accessory": "none"
+      },
+      {
+        "archetype": 10,
+        "skin": "deep",
+        "height": 1.01,
+        "build": 0.95,
+        "accessory": "none"
+      },
+      {
+        "archetype": 12,
+        "skin": "tan",
+        "height": 1.04,
+        "build": 0.96,
+        "accessory": "shades"
+      },
+      {
+        "archetype": 4,
+        "skin": "deep",
+        "height": 1.05,
+        "build": 1,
+        "accessory": "wristbands"
+      },
+      {
+        "archetype": 9,
+        "skin": "tan",
+        "height": 0.97,
+        "build": 0.95,
+        "accessory": "none"
+      },
+      {
+        "archetype": 6,
+        "skin": "deep",
+        "height": 1,
+        "build": 1.08,
+        "accessory": "none"
+      },
+      {
+        "archetype": 11,
+        "skin": "brown",
+        "height": 0.96,
+        "build": 0.99,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 0,
+        "skin": "deep",
+        "height": 1.02,
+        "build": 1.07,
+        "accessory": "none"
+      }
+    ],
+    "kestrals": [
+      {
+        "archetype": 11,
+        "skin": "brown",
+        "height": 0.98,
+        "build": 0.97,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 15,
+        "skin": "brown",
+        "height": 0.95,
+        "build": 0.96,
+        "accessory": "none"
+      },
+      {
+        "archetype": 4,
+        "skin": "deep",
+        "height": 1.02,
+        "build": 0.98,
+        "accessory": "none"
+      },
+      {
+        "archetype": 1,
+        "skin": "deep",
+        "height": 1.04,
+        "build": 1.08,
+        "accessory": "none"
+      },
+      {
+        "archetype": 0,
+        "skin": "deep",
+        "height": 1.01,
+        "build": 1.06,
+        "accessory": "none"
+      },
+      {
+        "archetype": 12,
+        "skin": "tan",
+        "height": 1.06,
+        "build": 0.94,
+        "accessory": "none"
+      },
+      {
+        "archetype": 13,
+        "skin": "light",
+        "height": 0.99,
+        "build": 1,
+        "accessory": "shades"
+      },
+      {
+        "archetype": 14,
+        "skin": "tan",
+        "height": 0.96,
+        "build": 0.99,
+        "accessory": "wristbands"
+      }
+    ],
+    "gilas": [
+      {
+        "archetype": 8,
+        "skin": "tan",
+        "height": 1.02,
+        "build": 1.08,
+        "accessory": "none"
+      },
+      {
+        "archetype": 0,
+        "skin": "deep",
+        "height": 1,
+        "build": 0.96,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 3,
+        "skin": "deep",
+        "height": 1.05,
+        "build": 1.09,
+        "accessory": "none"
+      },
+      {
+        "archetype": 14,
+        "skin": "tan",
+        "height": 1.03,
+        "build": 1.01,
+        "accessory": "wristbands"
+      },
+      {
+        "archetype": 19,
+        "skin": "tan",
+        "height": 0.98,
+        "build": 1.07,
+        "accessory": "none"
+      },
+      {
+        "archetype": 18,
+        "skin": "tan",
+        "height": 1.01,
+        "build": 0.97,
+        "accessory": "shades"
+      },
+      {
+        "archetype": 4,
+        "skin": "deep",
+        "height": 0.99,
+        "build": 0.98,
+        "accessory": "none"
+      },
+      {
+        "archetype": 1,
+        "skin": "brown",
+        "height": 0.96,
+        "build": 0.94,
+        "accessory": "none"
+      }
+    ],
+    "hustlers": [
+      {
+        "archetype": 0,
+        "skin": "deep",
+        "height": 1.02,
+        "build": 1.03,
+        "accessory": "none"
+      },
+      {
+        "archetype": 3,
+        "skin": "deep",
+        "height": 1.01,
+        "build": 1.09,
+        "accessory": "none"
+      },
+      {
+        "archetype": 5,
+        "skin": "brown",
+        "height": 0.99,
+        "build": 0.95,
+        "accessory": "wristbands"
+      },
+      {
+        "archetype": 13,
+        "skin": "light",
+        "height": 0.97,
+        "build": 0.98,
+        "accessory": "none"
+      },
+      {
+        "archetype": 16,
+        "skin": "brown",
+        "height": 1.03,
+        "build": 1,
+        "accessory": "shades"
+      },
+      {
+        "archetype": 10,
+        "skin": "brown",
+        "height": 0.98,
+        "build": 1.05,
+        "accessory": "none"
+      },
+      {
+        "archetype": 2,
+        "skin": "deep",
+        "height": 1,
+        "build": 0.94,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 6,
+        "skin": "deep",
+        "height": 1.05,
+        "build": 0.96,
+        "accessory": "none"
+      }
+    ],
+    "threshers": [
+      {
+        "archetype": 14,
+        "skin": "tan",
+        "height": 1.02,
+        "build": 1,
+        "accessory": "none"
+      },
+      {
+        "archetype": 1,
+        "skin": "deep",
+        "height": 0.99,
+        "build": 1.02,
+        "accessory": "none"
+      },
+      {
+        "archetype": 16,
+        "skin": "tan",
+        "height": 1.05,
+        "build": 0.96,
+        "accessory": "none"
+      },
+      {
+        "archetype": 8,
+        "skin": "tan",
+        "height": 1,
+        "build": 1.09,
+        "accessory": "none"
+      },
+      {
+        "archetype": 6,
+        "skin": "deep",
+        "height": 1.04,
+        "build": 0.97,
+        "accessory": "none"
+      },
+      {
+        "archetype": 19,
+        "skin": "tan",
+        "height": 0.97,
+        "build": 1.06,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 10,
+        "skin": "brown",
+        "height": 0.96,
+        "build": 0.95,
+        "accessory": "wristbands"
+      },
+      {
+        "archetype": 18,
+        "skin": "tan",
+        "height": 1.01,
+        "build": 0.98,
+        "accessory": "shades"
+      }
+    ]
+  }
+}
