@@ -61,8 +61,32 @@ const CURVE_MAX = 2.25;
 const CURVE_DEFAULT = 1.4;
 /** Where the flank is sampled to solve that fall-off, metres off centre. */
 const RIB_X = 0.10;
+/** THE BACK'S OWN FALL-OFF POINT — bug fix, 2026-08-28. Fitting the parabola at
+ *  RIB_X and then reading it out at the back number's real edge over-solves on
+ *  a broad back: on arch-bald (bullies) the rib sample clamped to CURVE_MAX and,
+ *  extrapolated to the number's own half-width, put the plane's edge 3.8 cm
+ *  behind centre while the real shirt there only falls off 1–2 cm — enough to
+ *  bury everything off-centre and leave a sliver of the number showing
+ *  (`.superpowers/sdd/2026-08-27-crews-kits-walkout/casts/back-bullies-dark.png`,
+ *  task-6 report §7). A parabola fit at 0.10 and evaluated at 0.13 is pure
+ *  extrapolation — real anatomy DECELERATES toward the flank instead of
+ *  continuing to accelerate the way x² does. Sampling the shirt again, right at
+ *  the number's own edge, removes the extrapolation entirely: the curve is
+ *  solved to match the shirt exactly where the number needs it to, not 30 %
+ *  further out than where it was measured. `layoutBack().num.w / 2` is 0.13.
+ *  Exported so the fix has a unit test pinned to the actual constant. */
+export const BACK_HALF_W = 0.13;
+/** Tolerance either side of BACK_HALF_W for that second sample, metres — same
+ *  width as the RIB_X window below. */
+const RIB_BACK_WINDOW = 0.025;
 /** Half-width of the band we measure the shirt in — the trunk, not the arms. */
 const TORSO_HALF_W = 0.12;
+/** The outer cutoff actually used while walking vertices. BACK_HALF_W's own
+ *  sample window reaches past TORSO_HALF_W (0.155 > 0.12), so the trunk cutoff
+ *  has to widen enough to let it through. It only widens the FIRST gate —
+ *  the mid/near/rib columns below keep their original, tighter thresholds, so
+ *  this changes nothing for the front or for the existing rib sample. */
+const TRUNK_SAMPLE_HALF_W = Math.max(TORSO_HALF_W, BACK_HALF_W + RIB_BACK_WINDOW);
 /** Half-width of the CENTRE column, metres. 0.03 left the whole front/back read
  *  resting on a handful of vertices — one stray one and the plane moved a
  *  centimetre. 0.05 is still flat chest (the bow is solved off the ribs). */
@@ -468,11 +492,26 @@ export function percentile(values, p) {
  * floating mark is exactly what the turntable shows off at 45°.
  *
  * In BIND POSE `bone.matrixWorld · boneInverse` IS the geometry→world map for
- * every vertex, whatever the rig did with node transforms (these GLBs park the
- * whole armature at scale 0.01), so this needs no assumptions about units.
+ * a vertex RIGIDLY WELDED to that bone, whatever the rig did with node
+ * transforms (these GLBs park the whole armature at scale 0.01), so this needs
+ * no assumptions about units. But a shirt vertex is skinned, not welded — bug,
+ * 2026-08-28: reading EVERY vertex through the CHEST bone's transform alone
+ * (as if the whole shirt were rigidly bolted to it) is only correct where a
+ * vertex's own weights happen to agree with the chest bone's own motion. They
+ * don't have to: build scaling bakes a different accumulated scale into each
+ * link of the spine, so a back vertex split nearly evenly across
+ * Spine/Spine1/Spine2/Hips reads its OWN blended transform as much as 5 cm
+ * deeper than "borrow the chest bone's transform" gives it — measured on
+ * arch-bald, whose back decal that shallow reading buried clean out of sight
+ * behind the real (deeper) cloth
+ * (`.superpowers/sdd/2026-08-27-crews-kits-walkout/casts/back-bullies-dark.png`).
+ * Every vertex is now placed with its OWN proper linear-blend transform — the
+ * same weighted sum of joint transforms the GPU itself skins with — falling
+ * back to the chest bone's transform only where a vertex has no usable weights
+ * at all (a "statue" mesh with no JOINTS_0/WEIGHTS_0, or a degenerate one).
  *
- * Two things keep the read honest, both of them fixes to a first pass that put
- * the back mark a hand's width behind arch-braids' shirt:
+ * Two more things keep the read honest, both of them fixes to a first pass
+ * that put the back mark a hand's width behind arch-braids' shirt:
  *  - only vertices whose DOMINANT skin joint is a shirt bone count, so hair
  *    never votes (see `isShirtBone`);
  *  - the columns are read at the 2nd/98th percentile over EVERY vertex, not the
@@ -486,40 +525,74 @@ function measureShirt(root, bone, rig, dropM) {
     const bi = idx >= 0 ? skinned.skeleton.boneInverses?.[idx] : null;
     const pos = skinned?.geometry?.getAttribute?.('position');
     if (!bi || !pos) return FALLBACK_DEPTH;
-    const m = new THREE.Matrix4().copy(rig.matrixWorld).invert()
-      .multiply(new THREE.Matrix4().multiplyMatrices(bone.matrixWorld, bi));
+    const rigInv = new THREE.Matrix4().copy(rig.matrixWorld).invert();
+    const worldXform = (b, biMat) => new THREE.Matrix4()
+      .multiplyMatrices(rigInv, new THREE.Matrix4().multiplyMatrices(b.matrixWorld, biMat));
+    // The CHEST bone's own transform — the fallback for a vertex with no
+    // usable skin weights, and the shape EVERY vertex used to be forced into.
+    const chestXform = worldXform(bone, bi);
 
     // Which skeleton slots are shirt. No JOINTS_0/WEIGHTS_0 (or no names) means
     // no filter — a statue rig still gets a measured, if hairier, shirt.
     const si = skinned.geometry.getAttribute?.('skinIndex');
     const sw = skinned.geometry.getAttribute?.('skinWeight');
-    const shirtSlot = (skinned.skeleton.bones ?? []).map((b) => isShirtBone(b?.name));
+    const bones = skinned.skeleton.bones ?? [];
+    const boneInverses = skinned.skeleton.boneInverses ?? [];
+    const shirtSlot = bones.map((b) => isShirtBone(b?.name));
     const filtering = !!(si && sw && shirtSlot.some(Boolean));
-    const dominantIsShirt = (i) => {
-      const w = [sw.getX(i), sw.getY(i), sw.getZ(i), sw.getW(i)];
-      const j = w.indexOf(Math.max(...w));
-      if (!(w[j] > 0)) return false;
-      const slot = [si.getX(i), si.getY(i), si.getZ(i), si.getW(i)][j];
-      return shirtSlot[slot] === true;
-    };
+    // One world*inverse per joint, in RIG-local space — every vertex blends
+    // across ITS OWN up-to-four of these, instead of borrowing the chest
+    // bone's alone. Only built when there is skin data to blend with.
+    const boneXform = (si && sw)
+      ? bones.map((b, i) => (boneInverses[i] ? worldXform(b, boneInverses[i]) : null))
+      : null;
 
-    // The shirt is sampled in three x columns: dead centre, and out at ±RIB_X
-    // on each flank. Centre gives the depth, the pair gives the FALL-OFF —
-    // how fast the chest turns away — which is what the decal has to follow.
+    // The shirt is sampled in x columns: dead centre, out at ±RIB_X on each
+    // flank, and — for the back only — again at ±BACK_HALF_W, the number's
+    // own edge. Centre gives the depth, RIB_X gives the FRONT its fall-off,
+    // and BACK_HALF_W gives the BACK its fall-off measured where it actually
+    // needs to be right, instead of extrapolated from RIB_X (see BACK_HALF_W).
     const v = new THREE.Vector3();
-    const mid = []; const near = []; const rib = [];
+    const blended = new THREE.Vector3();
+    const tmp = new THREE.Vector3();
+    const mid = []; const near = []; const rib = []; const ribBack = [];
     for (let i = 0; i < pos.count; i++) {   // EVERY vertex — no stride to alias
-      v.fromBufferAttribute(pos, i).applyMatrix4(m);
-      const ax = Math.abs(v.x);
-      if (ax > TORSO_HALF_W) continue;                     // trunk, not arms
-      if (Math.abs(v.y + dropM) > PLANE_M / 2) continue;   // the band the decal covers
-      const column = ax < CENTRE_WIDE_W ? 'mid'
-        : (ax > RIB_X - 0.025 && ax < RIB_X + 0.025 ? 'rib' : null);
-      if (!column) continue;
-      if (filtering && !dominantIsShirt(i)) continue;      // hair doesn't vote
-      if (column === 'rib') { rib.push(v.z); continue; }
-      near.push(v.z);
-      if (ax < CENTRE_HALF_W) mid.push(v.z);
+      v.fromBufferAttribute(pos, i);
+      let domSlot = -1;
+      if (boneXform) {
+        const idxs = [si.getX(i), si.getY(i), si.getZ(i), si.getW(i)];
+        const w = [sw.getX(i), sw.getY(i), sw.getZ(i), sw.getW(i)];
+        const domIdx = w.indexOf(Math.max(...w));
+        if (w[domIdx] > 0) domSlot = idxs[domIdx];
+        let usedW = 0;
+        blended.set(0, 0, 0);
+        for (let k = 0; k < 4; k++) {
+          if (!(w[k] > 0)) continue;
+          const xf = boneXform[idxs[k]];
+          if (!xf) continue;
+          tmp.copy(v).applyMatrix4(xf);
+          blended.addScaledVector(tmp, w[k]);
+          usedW += w[k];
+        }
+        if (usedW > 0) blended.multiplyScalar(1 / usedW);
+        else blended.copy(v).applyMatrix4(chestXform); // no bone had a usable transform
+      } else {
+        blended.copy(v).applyMatrix4(chestXform);       // no JOINTS_0/WEIGHTS_0 at all
+      }
+      const ax = Math.abs(blended.x);
+      if (ax > TRUNK_SAMPLE_HALF_W) continue;               // trunk, not arms
+      if (Math.abs(blended.y + dropM) > PLANE_M / 2) continue; // the band the decal covers
+      const isMid = ax < CENTRE_WIDE_W;
+      const isRib = !isMid && ax > RIB_X - 0.025 && ax < RIB_X + 0.025;
+      const isRibBack = ax > BACK_HALF_W - RIB_BACK_WINDOW && ax < BACK_HALF_W + RIB_BACK_WINDOW;
+      if (!isMid && !isRib && !isRibBack) continue;
+      if (filtering && !(domSlot >= 0 && shirtSlot[domSlot])) continue; // hair doesn't vote
+      if (isRib) rib.push(blended.z);
+      if (isRibBack) ribBack.push(blended.z);
+      if (isMid) {
+        near.push(blended.z);
+        if (ax < CENTRE_HALF_W) mid.push(blended.z);
+      }
     }
     // the tight column when it has the numbers, the wide one when it doesn't
     const col = mid.length >= MIN_SAMPLES ? mid : near;
@@ -529,22 +602,30 @@ function measureShirt(root, bone, rig, dropM) {
     const enough = rib.length >= MIN_SAMPLES_HARD;
     const ribF = enough ? percentile(rib, SHIRT_P_HI) : NaN;
     const ribB = enough ? percentile(rib, SHIRT_P_LO) : NaN;
+    // The back's own fall-off point. Falls back to the RIB_X sample — same as
+    // before this fix — only when the narrower BACK_HALF_W band came up dry.
+    const ribBackEnough = ribBack.length >= MIN_SAMPLES_HARD;
+    const ribBackB = ribBackEnough ? percentile(ribBack, SHIRT_P_LO) : NaN;
     if (!Number.isFinite(front) || !Number.isFinite(back)) return FALLBACK_DEPTH;
     return {
       front,
       back,
       curveFront: fallOff(front, ribF),
-      curveBack: fallOff(-back, -ribB),
+      curveBack: Number.isFinite(ribBackB)
+        ? fallOff(-back, -ribBackB, BACK_HALF_W)
+        : fallOff(-back, -ribB),
     };
   } catch { return FALLBACK_DEPTH; }
 }
 
-/** z = centre − c·x². Solve c from the rib sample, then clamp it: a flat card
- *  stands 8 cm proud of its own edges on a 0.35 m chest, a c that ran away
- *  would curl the mark round the ribs and out of sight. */
-export function fallOff(centre, rib) {
+/** z = centre − c·x². Solve c from a shirt sample taken at `x` metres off
+ *  centre (RIB_X unless the caller solves it somewhere else — the back solves
+ *  it at the number's own half-width, see BACK_HALF_W above), then clamp it: a
+ *  flat card stands 8 cm proud of its own edges on a 0.35 m chest, a c that ran
+ *  away would curl the mark round the ribs and out of sight. */
+export function fallOff(centre, rib, x = RIB_X) {
   if (!Number.isFinite(centre) || !Number.isFinite(rib)) return CURVE_DEFAULT;
-  const c = (centre - rib) / (RIB_X * RIB_X);
+  const c = (centre - rib) / (x * x);
   return Math.min(CURVE_MAX, Math.max(CURVE_MIN, c));
 }
 

@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import * as THREE from 'three';
 import {
   layoutFront, layoutBack, faceBoxes, stackFace, fitBox, decalKey, decalTexture,
   findChestBone, clearDecalCache, decalCacheSize, loadLogoImage, oppositeInk, fallOff,
-  isShirtBone, percentile,
-  DECAL_CACHE_MAX, DECAL_PX, PLANE_M, OUTLINE_RATIO, NUM_EDGE_RATIO,
+  isShirtBone, percentile, attachJerseyDecals,
+  DECAL_CACHE_MAX, DECAL_PX, PLANE_M, OUTLINE_RATIO, NUM_EDGE_RATIO, CHEST_DROP_M, BACK_HALF_W,
 } from '../src/game/jerseyDecals.js';
 
 // The decal canvas is the ONLY DOM this module touches. vitest runs in node,
@@ -368,6 +369,100 @@ describe('fallOff — how hard the decal bows onto the chest', () => {
     const d = edgeDrop(fallOff(0.16, NaN));
     expect(d).toBeGreaterThan(0.015);
     expect(d).toBeLessThan(0.10);
+  });
+  it('solves at a caller-given x, not just RIB_X — the back samples its own half-width', () => {
+    // same 3 cm centre-to-rib gap, but read at the number's own edge (0.13)
+    // instead of the fixed 0.10 sample: a gentler curve, because x² grows
+    // faster than a real chest's fall-off actually does past the rib sample.
+    expect(fallOff(0.19, 0.16, 0.13)).toBeCloseTo(0.03 / (0.13 * 0.13), 6);
+    expect(fallOff(0.19, 0.16, 0.13)).toBeLessThan(fallOff(0.19, 0.16)); // vs the RIB_X default
+    expect(fallOff(0.19, 0.16)).toBeCloseTo(fallOff(0.19, 0.16, undefined), 9); // RIB_X is still the default
+  });
+});
+
+describe('the back solves its fall-off at its OWN half-width, not RIB_X extrapolated', () => {
+  // Bug: the back plane was bowed by a curve fit at RIB_X (0.10) and then read
+  // out at the number's real half-width (0.13, BACK_HALF_W) — pure
+  // extrapolation, and on a broad back (arch-bald/bullies) it clamped to
+  // CURVE_MAX and buried the number 2+ cm deeper than the real shirt
+  // (`.superpowers/sdd/2026-08-27-crews-kits-walkout/casts/back-bullies-dark.png`).
+  // This stands up a synthetic shirt — a real THREE skeleton + skinned mesh,
+  // not a stand-in — with a "strongly curved back": 3 cm behind centre at
+  // ±0.10 (the OLD sample point), but only 1.5 cm behind centre at ±0.13 (the
+  // NEW one, and the number's actual edge) — a broad back that decelerates
+  // toward the flank instead of digging in harder, which is what real
+  // anatomy does and a fixed-x² extrapolation cannot capture.
+  function syntheticShirtRig() {
+    const group = new THREE.Group();
+    const hips = new THREE.Bone(); hips.name = 'Hips'; hips.position.set(0, 1.0, 0);
+    group.add(hips);
+    const spine = new THREE.Bone(); spine.name = 'Spine'; spine.position.set(0, 0.2, 0);
+    hips.add(spine);
+    const spine1 = new THREE.Bone(); spine1.name = 'Spine1'; spine1.position.set(0, 0.15, 0);
+    spine.add(spine1);
+    const chest = new THREE.Bone(); chest.name = 'Spine2'; chest.position.set(0, 0.15, 0);
+    spine1.add(chest);
+    group.updateMatrixWorld(true);
+
+    const bones = []; group.traverse((o) => { if (o.isBone) bones.push(o); });
+    const chestIdx = bones.indexOf(chest);
+    const chestWorldY = 1.0 + 0.2 + 0.15 + 0.15; // 1.5
+
+    // Every point sits at chestWorldY − CHEST_DROP_M, dead centre of the band
+    // `measureShirt` reads, so only x (the flank) and z (the depth) matter.
+    const Y = chestWorldY - CHEST_DROP_M;
+    const pts = [];
+    const band = (x, z, n) => { for (let i = 0; i < n; i++) pts.push(x, Y, z); };
+    band(0, 0.16, 30);           // front, centre
+    band(0, -0.19, 30);          // back, centre — the deepest point
+    band(0.10, 0.14, 30);        // front, RIB_X
+    band(0.10, -0.16, 30);       // back, RIB_X — 3 cm shallower than centre
+    band(BACK_HALF_W, -0.175, 30); // back, the number's real edge — only
+                                    // 1.5 cm shallower than centre
+
+    const n = pts.length / 3;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(
+      new Uint16Array(n * 4).map((_, i) => (i % 4 === 0 ? chestIdx : 0)), 4));
+    geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(
+      new Float32Array(n * 4).map((_, i) => (i % 4 === 0 ? 1 : 0)), 4));
+    const mesh = new THREE.SkinnedMesh(geo, new THREE.MeshStandardMaterial());
+    const skeleton = new THREE.Skeleton(bones);
+    group.add(mesh);
+    mesh.bind(skeleton, new THREE.Matrix4());
+    group.updateMatrixWorld(true);
+    return group;
+  }
+
+  it('produces a plane whose edge at ±0.13 is within 1 cm of the measured shirt there, never behind it', async () => {
+    const group = syntheticShirtRig();
+    const acc = attachJerseyDecals({ group }, { number: 7, ink: '#f4f4f6' });
+    expect(acc).toBeTruthy();
+    await acc.ready;
+
+    // Read the decal's own bow straight off its geometry: z = −curve·x² in the
+    // plane's own local space, untouched by the mesh's own 180° rotation.
+    const pos = acc.back.geometry.attributes.position;
+    let curve = null;
+    for (let i = 0; i < pos.count; i++) {
+      if (Math.abs(pos.getX(i) - 0.125) < 1e-6) { curve = -pos.getZ(i) / (0.125 * 0.125); break; }
+    }
+    expect(curve, 'a vertex at x=0.125 (a grid point on the 16-segment plane)').not.toBe(null);
+
+    const predictedDrop = curve * BACK_HALF_W * BACK_HALF_W;
+    const trueDrop = 0.015; // -0.19 → -0.175 measured directly off the synthetic shirt
+    expect(Math.abs(predictedDrop - trueDrop), 'within 1 cm of the real shirt at 0.13').toBeLessThanOrEqual(0.01);
+    expect(predictedDrop, 'never MORE recessed than the real shirt — never behind it')
+      .toBeLessThanOrEqual(trueDrop + 1e-6);
+
+    // The OLD behaviour (fit at RIB_X, read out at 0.13) is what broke this:
+    // it clamps to CURVE_MAX and overshoots the real shirt by well over 1 cm.
+    const oldCurve = fallOff(0.19, 0.16); // the RIB_X-only read of this same shirt
+    const oldPredictedDrop = oldCurve * BACK_HALF_W * BACK_HALF_W;
+    expect(oldPredictedDrop - trueDrop, 'the bug this test guards against').toBeGreaterThan(0.01);
+
+    acc.dispose();
   });
 });
 
