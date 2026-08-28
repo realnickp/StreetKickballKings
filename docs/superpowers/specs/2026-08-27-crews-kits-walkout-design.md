@@ -136,3 +136,22 @@ All 16 characters are visible for their own team's segment only; the kicking-sid
 
 New character meshes; jersey pattern textures (stripes/chevrons — the kit stays a solid colour
 + decals this round); new intro videos.
+
+## As-shipped deviations (2026-08-28)
+
+- §1 seam: both halves overlap 12° and the home half cross-fades (alpha ramp); back windows re-solved per field (worst gap 8.4 % → ≤ 0.9 %); back half biased 5 cm inward to win the z-fight. The join is now a soft double-exposure haze at the corner (visible nose-to-fence, compressed in play).
+- §2 decals: chest bone is plain `Spine` (these rigs number the spine downward); planes are measured to the shirt (blend-skinned, joint-filtered percentiles, long hair excluded) and bowed; every mark wears an ink outline (no filled patch); the back is two planes (number + crest) that track the live pose through a shared 200 ms settler (8-phase, zero-alloc, clearance-only); front number on the wearer's left; mark 0.34 m kept.
+- §3 kits: an equipped kit PINS your side and the opponent picks whichever of its designed kits reads furthest (fallback re-derives ink/logo); AUTO chip; hustlers dark deepened to `#155f8c`; `-light.png` are copies for now (the ink outline carries legibility); Philadelphia re-drawn (nano_banana_pro, reference) + hard-keyed.
+- §4 casting: height on the character root, build on shoulders/upper legs (not the spine); skin tint referenced to the atlas's own skin luminance (the spec formula was a no-op); kit recolour labels from the ORIGINAL atlas, seed-and-flood re-ink of neutral texels touching the kit (team-coloured shorts as in the intros) walled by a mesh-rasterized hair/foot fence; baked number plates = enclosed components painted at the kit's median lift; recolour LRU 4, fence bitset LRU 8. The Monarchs captain is cast from the intro's hero (short fade, lean) — not the old locs.
+- §5 walk-out: gate `x ±6.5` (the spec's ±14 contradicted its own prose), `mps 2.3` (clip 1.44×), `stagger 0.20`, `trail 0.14`; gate dolly on the front-quarter (`−side`); crane `(1.6,2.4,0) → (0,4.6,6.5)`; crest card at 7.0 s for 1.0 s; slot 4 at `[0.6,−10.6]`; the crest sting is the crew's `nowkicking` (the first at-bat does not repeat it). Stamp → first pitch ≈ 22 s with the walk-up; the skip chip is the mitigation.
+- Pre-game harness: the show clock (≤ 20 s) is the gate; the wall ceiling is 40 s.
+
+## Real-play pass results (2026-08-28)
+
+Controller, headless muted chromium (swiftshader; the game clock runs 2–3× slow there) + the muted WebKit harnesses:
+- vitest 56 files / 479; verify-anims 19 × 3 ALL GOOD; round-e2e 209/209 (one wall-clock flake under load fixed by the 40 s ceiling); booth ALL GREEN.
+- Walk-out: the away crew files in from the gate under the front-quarter dolly with the captain's plate; all 8 read in the crane frame (`walkout/walkout-4-lineup-hold.png`).
+- Crown: harness scenario 4 — a crown HR leaves the meter at 0 (no refill), shutout still +25.
+- Seams: both boardwalk-kings corners are a soft blend, no hard edge (`realplay/r4-06/07`).
+- Locker: KITS tab reads AUTO · LIGHT KIT · DARK KIT · 🔒 BLACKOUT…; the captain wears the crest + number (`decals/`), ten distinct captains (`casts/contact-sheet-captains-fix2.png`).
+- Not verifiable locally: phone FPS with 16 dressed players + the settler, first-match build stall, the double-exposure haze at the corner in real play.
