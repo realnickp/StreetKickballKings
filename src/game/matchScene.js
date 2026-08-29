@@ -474,8 +474,10 @@ export class MatchScene {
       // Existing aliases only — and none of them carries `duck`, so the crest
       // sting the booth fires under this card ('nowkicking') keeps the mic.
       this.bus.emit('sfx', 'bassdrop');
-      this.after(0.22, () => this.bus.emit('sfx', 'scratch'));
-      this.after(0.34, () => this.bus.emit('sfx', 'crowd-cheer'));
+      // guarded like the card itself: a skip mid-card must not throw a scratch
+      // into the break's own scratch
+      this.after(0.22, () => { if (this.walkoutActive) this.bus.emit('sfx', 'scratch'); });
+      this.after(0.34, () => { if (this.walkoutActive) this.bus.emit('sfx', 'crowd-cheer'); });
     };
     const splash = (team, t) => {
       this.after(t, () => { if (this.walkoutActive) showSplash(team, PREGAME.splashS); });
@@ -632,7 +634,11 @@ export class MatchScene {
     if (this._matchOverFired) return; // one box score per match, whoever spots the end first
     this._matchOverFired = true;
     const fire = () => {
-      if (this.cinematicLock) return this.after(0.3, fire);
+      // a walk-off can land MID-PITCH (a steal of home, ball four): the dance
+      // party must not drop on top of a live ball, a kick ring and a `TOO LATE!`
+      // stamp. Wait out the cinematic AND whatever is still in the air.
+      if (this.cinematicLock || this.phase === 'PITCH' || this.phase === 'KICK_ANIM'
+          || this.phase === 'LIVE' || this.phase === 'RESOLVE') return this.after(0.3, fire);
       this.victoryLap(() => this.bus.emit('matchOver', {
         winner: this.match.winner(), score: this.match.state.score, stats: this.matchStats,
       }));

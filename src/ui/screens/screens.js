@@ -69,7 +69,7 @@ export function MenuScreen(ctx) {
           <button class="big-play bounce-beat">PLAY 1v1<small>VS AI · THE BLACKTOP</small></button>
           <div class="mode-cards">
             <div class="mode-card map-card">RUN THE MAP<small>${save.get('kingOfStreets', false) ? '👑 KING OF THE STREETS' : `${save.get('unlocks.crews', []).length}/9 CROWNS CLAIMED`}</small></div>
-            <div class="mode-card locker-card">THE LOCKER<small>${save.get('gear.unlocked', []).length}/${ctx.unlocks.GEAR.filter((g) => !g.stock).length} EARNED</small></div>
+            <div class="mode-card locker-card">THE LOCKER<small>${save.get('gear.unlocked', []).filter((id) => !ctx.unlocks.gearById(id)?.stock).length}/${ctx.unlocks.GEAR.filter((g) => !g.stock).length} EARNED</small></div>
             <div class="mode-card locked">DERBY<small>COMING SOON</small></div>
           </div>
           <div class="daily-card">DAILY CHALLENGE<small>Kick 3 home runs — 0/3</small><b>+500 XP</b></div>
