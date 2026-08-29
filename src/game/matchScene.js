@@ -5,7 +5,7 @@
 // exact field outcome via applyOutcome().
 import * as THREE from 'three';
 import { MatchEngine } from './matchState.js';
-import { judgeKick, crownJudge, launchParams, weakContactLaunch, powerFromError, isHrEligible, flickShape, flickSteerDeg, FLICK, aiSwingStartS, safetyLaunchDelayS, footBoneRegex, clampCrownDirection } from './kickTiming.js';
+import { judgeKick, crownJudge, launchParams, weakContactLaunch, powerFromError, isHrEligible, capSpeedForCarry, flickShape, flickSteerDeg, FLICK, aiSwingStartS, safetyLaunchDelayS, footBoneRegex, clampCrownDirection } from './kickTiming.js';
 import { mashSpeed, humanRunSpeed, RunnerSim } from './baseRunning.js';
 import { resolveBaseThrow, resolvePeg } from './throwing.js';
 import { SpecialMeter } from './specialMoves.js';
@@ -1353,16 +1353,24 @@ export class MatchScene {
     // (dev: "more control of where the ball goes"). AI/no-metrics kicks keep
     // the quality-table loft.
     const shape = flickShape(aimSpec.flick);
-    // HR gate: a player kick leaves the park on a sweet-zone meter lock AND a lined-up
-    // kicker — OR a consumed crown super-kick (kept as a bonus path). A deliberate
-    // LOW flick is a liner by intent — it can scream, not clear the fence.
-    this.kickHrEligible = isPlayerKick && (
-      isHrEligible({ power01, alignErrM }, this.tuning) || this.kickWasSpecial
-    ) && (!shape || shape.loftDeg >= FLICK.hrMinLoftDeg);
-    // Not every perfect is a bomb (dev): ~45% become a SCREAMING gap shot —
-    // aimed at the widest hole in the defense, dying at the track instead of
-    // clearing it. Crown super-kicks always leave the yard (their identity).
-    if (this.kickHrEligible && !this.kickWasSpecial && Math.random() < 0.45) {
+    // HR gate: this is now the ONLY way a ball leaves the yard (dev, 2026-08-28:
+    // "its really easy to kick homers" — the physics used to decide, and it sent
+    // better than half of all decent contact out). A player kick needs the
+    // PERFECT stamp, a meter locked at the top and a kicker under the ball; the
+    // CPU needs PERFECT (or the meatball path below); a consumed crown keeps its
+    // bonus path. A deliberate LOW flick is a liner by intent — it can scream,
+    // not clear the fence. Everything this rejects is capped short of the wall.
+    this.kickHrEligible = (!shape || shape.loftDeg >= FLICK.hrMinLoftDeg) && (
+      this.kickWasSpecial || (isPlayerKick
+        ? isHrEligible({ quality: judged.quality, power01, alignErrM, loftDeg: shape?.loftDeg }, this.tuning)
+        : judged.quality === 'PERFECT')
+    );
+    // Not every earned bomb IS a bomb (dev): a share of them become a SCREAMING
+    // gap shot — aimed at the widest hole in the defense, dying at the track
+    // instead of clearing it. Crown super-kicks always leave (their identity).
+    // The roll now has real teeth (a gap shot is CAPPED, where before it usually
+    // still flew out), which is why the rate lives in tuning at `hr.gapShot`.
+    if (this.kickHrEligible && !this.kickWasSpecial && Math.random() < this.tuning.kick.hr.gapShot) {
       this.kickHrEligible = false;
       aimDeg = this.widestGapDeg();
       powerMult *= 0.93;
@@ -1399,6 +1407,28 @@ export class MatchScene {
     const gm = this.specialKickGear?.mods;
     if (gm?.speed) launch.speed *= gm.speed;
     if (gm?.loftDeg) launch.loftDeg = Math.max(10, Math.min(60, launch.loftDeg + gm.loftDeg));
+    // Where the foot actually meets the ball (the approach glides it here) —
+    // the origin the flight and the fence radius are both measured from.
+    const kickOrigin = new THREE.Vector3(this.ball.pos.x, 0.22, this.kicker.group.position.z - 0.5);
+    // THE TRACK IS THE CEILING for anything that didn't earn the fence (dev,
+    // 2026-08-28). Cap the speed so the predicted landing dies `hr.trackM` short
+    // of the wall: a deep fly to the warning track or a ball off the chain link,
+    // both live. AFTER every other modifier (carry scale, gear) has spoken and
+    // BEFORE the crown guarantee, which is exempt — a consumed crown always
+    // leaves. Direction and loft are untouched: the kick keeps its shape.
+    if (!this.kickHrEligible && !this.kickWasSpecial) {
+      launch.speed = capSpeedForCarry(
+        {
+          loftDeg: launch.loftDeg,
+          carryM: Math.max(6, this.fenceM - (this.tuning.kick.hr?.trackM ?? 3)),
+          speed: launch.speed,
+        },
+        (speed, loftDeg) => {
+          const p = Ball.predictLanding(kickOrigin, speed, loftDeg, launch.directionDeg).point;
+          return Math.hypot(p.x, p.z);
+        },
+      );
+    }
     // CROWN GUARANTEE (dev, 2026-08-05): an armed super-kick timed inside the
     // OK window ALWAYS leaves the yard — floor the arc at a fence-clearing
     // trajectory AFTER every other modifier (humidity included) has spoken.
@@ -1433,7 +1463,7 @@ export class MatchScene {
       t: 0,
       dur: holdS,
       from: this.ball.pos.clone(),
-      to: new THREE.Vector3(this.ball.pos.x, 0.22, this.kicker.group.position.z - 0.5),
+      to: kickOrigin.clone(),
       // capped side-step INTO the ball (visual only — the judge already ran):
       // the body and the ball close the gap together instead of a magnet ball
       stepX: Math.max(-0.45, Math.min(0.45, this.ball.pos.x - this.kicker.group.position.x)),

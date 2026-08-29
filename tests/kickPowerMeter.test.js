@@ -30,14 +30,19 @@ describe('launchParams speed scales with power01', () => {
   });
 });
 
+// The meter and alignment axes are still both required — but a homer now also
+// needs the PERFECT stamp and air under the flick (2026-08-28), so the full
+// truth table + the cap that holds everything else in the park live in
+// tests/homers.test.js. This block keeps the meter/alignment pair honest.
 describe('isHrEligible', () => {
+  const kick = { quality: 'PERFECT', power01: 0.95, alignErrM: 0.3, loftDeg: 42 };
   it('true only when both the meter is in the sweet zone AND the kicker is aligned', () => {
-    expect(isHrEligible({ power01: 0.95, alignErrM: 0.3 }, tuning)).toBe(true);
+    expect(isHrEligible(kick, tuning)).toBe(true);
   });
   it('false when power is below the sweet zone', () => {
-    expect(isHrEligible({ power01: 0.85, alignErrM: 0.1 }, tuning)).toBe(false);
+    expect(isHrEligible({ ...kick, power01: 0.85, alignErrM: 0.1 }, tuning)).toBe(false);
   });
   it('false when the kicker is not lined up', () => {
-    expect(isHrEligible({ power01: 1.0, alignErrM: 1.2 }, tuning)).toBe(false);
+    expect(isHrEligible({ ...kick, power01: 1.0, alignErrM: 1.2 }, tuning)).toBe(false);
   });
 });
