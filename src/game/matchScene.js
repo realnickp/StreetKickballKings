@@ -1009,7 +1009,7 @@ export class MatchScene {
     if (this.halfJustEnded) {
       this.halfJustEnded = false;
       const fielding = !this.kickingIsPlayer();
-      this.hud.stamp(fielding ? 'SWITCH! GLOVE UP!' : "SWITCH! YOU'RE UP!", fielding ? 'robbed' : 'crowned');
+      this.hud.stamp(fielding ? 'SWITCH! LOCK IT DOWN!' : "SWITCH! YOU'RE UP!", fielding ? 'robbed' : 'crowned');
       this.bus.emit('sfx', 'scratch');
     }
 
