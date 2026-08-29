@@ -53,3 +53,44 @@ a kick. Changes:
 ## Testing & verification
 vitest (helpers, simulation, language audit); harness (HR-rate scenario; booth VO manifest
 still resolves every line); the dev's phone for feel.
+
+## 3. The game ends when it's won (walk-off) — dev, 2026-08-28
+
+Today `endHalf` only ends the game after the BOTTOM of the last inning completes
+(`matchState.js:145-155`). Two rules, both classic and both missing:
+- **No bottom needed:** at the end of the TOP of the final inning, if the home side leads,
+  the game ends there (they don't need to kick).
+- **Walk-off:** during the bottom of the final inning (or any extra inning), the moment the
+  home side takes the lead the game ends immediately — on the run that does it, not at the
+  end of the half. `MatchState.applyOutcome`/`applyPlay` check after every score: if
+  `half === 'bottom' && inning >= innings && home > away` → `GAME_END` + `gameEnd` (the scene
+  plays its win beat on `gameEnd` as today; a walk-off HR still finishes its trot — the beat
+  runs on the existing cinematic, the STATE ends).
+Pure helpers in `matchState.js`; tests: leading home at the end of the top of the last inning
+ends the game; a bottom-inning run that takes the lead ends it on that run; a tie stays live
+(extra innings); the away side leading at the end of the bottom ends it as today.
+
+## 4. Every player has their own taunt; taunts aren't locked — dev, 2026-08-28
+
+"Every player should use a different taunt. I don't think taunts should be unlocked because if
+every taunt is the same when kicking, it gets redundant."
+- The five taunt clips (`walkup.js TAUNTS`) become **free** (`stock: true`, `unlock: null` in
+  `unlocks.js`) — nothing gates a taunt any more; the menu's unlock count drops to the
+  non-taunt gear.
+- **Per-slot assignment:** `tauntForSlot(team, i)` — a deterministic, crew-specific
+  permutation so each of a crew's 8 kickers uses a DIFFERENT taunt (5 clips over 8 slots: the
+  first five are a shuffled permutation seeded by team id, the last three repeat the
+  least-recently-used, never adjacent). Both crews, CPU and player.
+- **Your pick still matters:** the Locker TAUNTS tab sets YOUR CAPTAIN's taunt (all five
+  selectable, none locked); the other seven keep their assigned ones. `pickTaunt` takes
+  `{ isPlayer, slot, team, equipped }`.
+- Tests: 8 slots per crew → ≥ 5 distinct clips and no two adjacent slots equal; the same crew
+  always gets the same assignment; two crews differ; the equipped taunt wins for slot 0 only.
+
+## 5. The team splash has sound — dev, 2026-08-28
+
+The pre-game team cards (`hud.teamSplash`, shown from `matchScene showSplash`) land silently.
+Each card: `bassdrop` on the slam + `scratch` on the band wipe + a short `crowd-cheer` swell
+(existing aliases, no new assets), the away card and the home card each firing their own set;
+volume sits under the booth (the VO queue owns the mic). Booth harness: the sfx log during the
+pre-game contains the slam set twice (once per crew).
