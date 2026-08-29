@@ -2,11 +2,12 @@
 
 > **Purpose:** Complete snapshot of this build so a fresh session gets up to speed instantly.
 > **To resume:** "Read SESSION_LOG.md to get up to speed."
-> Last updated: 2026-08-28 (session 27 — the look/gear/crown/crews run: MSAA +
-> light lift, unlocks that matter, walk-ups, GEAR UP + Locker turntable, the
-> crown, premium PS4 pass, per-crew casting, jersey prints, light/dark kits,
-> starting-lineup walk-out, seam/trace/sound fixes. PRs #104-#110 all merged.
-> Current state: §27.)
+> Last updated: 2026-08-29 (sessions 27-28 — the look/gear/crown/crews run and
+> the rules pass: MSAA + light lift, unlocks that matter, walk-ups, GEAR UP +
+> Locker turntable, the crown, premium PS4 pass, per-crew casting, jersey
+> prints, light/dark kits, starting-lineup walk-out, seam/trace/sound fixes,
+> then earned homers, street language, walk-off rules, per-kicker taunts.
+> PRs #104-#111 all merged. Current state: §28.)
 
 This is the **browser/Three.js** rebuild of *Street Kickball Kings*. (There is an
 earlier **Unity** version at `C:\Unity Projects\KickballGame\` — its
@@ -1481,3 +1482,64 @@ conversation); two low-poly caps (durag, bald) wear a patchy band; the
 corner seam is now a soft double-exposure haze; ~22 s stamp → first pitch
 (skip chip); King Reese is cast from the Monarchs intro (short fade, no
 locs) — say if the locs should come back.
+
+
+## 28) Session 28 (2026-08-28 → 08-29) — THE RULES PASS (PR #111, merged)
+
+Dev's phone verdict after §27: *"its really easy to kick homers and ditch the
+baseball language... glove up and shit like that"*, then *"if you're winning in
+the bottom of the last inning, the game should end. Every player should use a
+different taunt. I dont think taunts should be unlocked... also on the splash
+screen that shows both teams before the game starts, we need sound effects."*
+Spec: `docs/superpowers/specs/2026-08-28-homers-and-language-design.md`; ledger
+`.superpowers/sdd/2026-08-28-homers-language/progress.md`.
+
+- **Homers are EARNED.** They were decided by physics alone — `kickHrEligible`
+  only drove the impact cam, so any GOOD-timed full flick (~39 m at 38°) cleared
+  a 36-42 m fence. Now: `tuning.kick.hr = { quality PERFECT, power .92,
+  alignM .35, trackM 3, gapShot .25 }` + `isHrEligible` (quality/power/align/
+  loft) — or a consumed crown; every other kick has its launch speed capped by
+  `capSpeedForCarry` (12-step bisection over `Ball.predictLanding`) so it dies
+  on the track, with `softCapCarry`'s knee compressing the last metres so deep
+  kicks spread instead of stacking on one spot. **The predictor flies the field's
+  WIND** — `sea-breeze` (always straight out) and `the-hawk` blew 22 of 28
+  capped test kicks over the wall before the fix. Seeded 1 000-kick simulation of
+  a decent player (σ 90 ms timing, σ 0.35 m alignment): **55.0 % → 5.5 %**, zero
+  homers from GOOD/OK/FOUL. Harness scenario 17 HOMERS: 20 GOOD full flicks → 0
+  (windy and calm), 10 PERFECT → 9. Watch-out found in review: capping made the
+  **ROB IT!** call extinct for a day (its gate wanted `kickHrEligible &&
+  landDist > fenceM-2`, both impossible after the cap) — it now triggers on
+  distance alone.
+- **Street language.** GLOVE → HANDS (stat label `HND`, Locker line, `SWITCH!
+  LOCK IT DOWN!`), Slugger → Big Boot (×10 rosters), "Gila Gloves" → "Gila
+  Hands", hits → kicks (daily card, drills, a director line), the booth's
+  "best glove on the block" line re-cut for both voices.
+  `tests/streetLanguage.test.js` extracts string literals from every
+  user-facing source and fails the build on any baseball word — it must list
+  `hud.call` (44 sites vs 2 `showCall`) or it audits almost nothing.
+- **The game ends when it's won.** `matchState.js` `isWalkOff` / `topEndsGame` /
+  `lastKickSide`, checked after EVERY score mutation (four sites): home ahead
+  after the top of the final inning ends it (no bottom); a go-ahead run in the
+  bottom of the final-or-later inning ends it on that run. Ties stay live. The
+  box score hangs off the engine's `gameEnd` with an idempotent `fireMatchOver`
+  that waits out both `cinematicLock` and a live ball, so a walk-off HR finishes
+  its trot and the victory lap never lands on a pitch in flight.
+- **Taunts.** All five are free (`stock: true`); `tauntForSlot(team, i)` deals a
+  crew-specific order — 8 slots, ≥ 5 distinct, no adjacent repeat (wrap
+  included) — so no two kickers in a row taunt the same. The Locker chip sets
+  YOUR CAPTAIN's taunt only (`isPlayer && slot === 0`).
+- **The splash slams:** `bassdrop` → `scratch` (+0.22 s) → `crowd-cheer`
+  (+0.34 s) per crest card, guarded so a skip can't fire them into the break.
+- **Two silent-audio bugs:** the loudness gates in `gen-sfx.mjs` /
+  `gen-announcer.mjs` read `execFileSync().toString()` (stdout) while ffmpeg
+  writes `volumedetect` to **stderr** — they never fired. Fixed with
+  `spawnSync` and proved against `kick.mp3` (-23.5 dBFS). Also the Locker's
+  `EARNED` counter counted free gear (a returning save read `25/21`).
+
+**Current state**: all of the above LIVE on prod (main `3fce2b8`). Tests
+644/644 (62 files); `round-e2e.mjs` and `booth-sound-e2e.mjs` both green and
+both muted. Open threads for the dev's phone pass: homer feel (`kick.hr.power` /
+`alignM` are the knobs; `gapShot` stays 0.25 — 0.45 drops the rate under the
+4 % floor), rob-call frequency (extinct → common, may now be too common), short
+parks play like big ones (`trackM` is a flat 3 m), and the sea-breeze GUST never
+reaches `ball.wind` (the prompt is currently cosmetic).
