@@ -27,12 +27,18 @@ export const GEAR = [
   { id: 'kick-flip', cat: 'kick', name: 'FLIP KICK', clip: 'kickFlip', mods: { powerMult: 1.42, curl: -1.3 }, unlock: { stat: 'blowouts', n: 3 }, hint: 'Win 3 games by 5+', play: 'your crown swing · ×1.42 power, reverse curl' },
   // kick-bicycle: source clip is a 0.67 s fragment — re-add when a full Flying Bicycle Kick lands (bake name kickBicycle)
   { id: 'kick-kipup', cat: 'kick', name: 'KIP-UP DOUBLE', clip: 'kickKipUp', mods: { powerMult: 1.5 }, unlock: { stat: 'hr', n: 25 }, hint: '25 career home runs', play: 'your crown swing · ×1.5 power — the biggest boot in the game' },
-  // ---- taunts: the walk-up move before every kick
+  // ---- taunts: the walk-up move before every kick. NOTHING GATES A TAUNT
+  //      (dev, 2026-08-28: "I dont think taunts should be unlocked because if
+  //      every taunt is the same when kicking, it gets redundant"). All five are
+  //      stock, and walkup.js hands every kicker in a crew a DIFFERENT one — the
+  //      chip you equip here dresses YOUR CAPTAIN (slot 0) only.
+  //      NOTE (copy pass): the `hint` strings below still read as unlock
+  //      conditions for gear that is now free — street-language round, Task B.
   { id: 'taunt-point', cat: 'taunt', name: 'THE POINT', clip: 'tauntPoint', stock: true, unlock: null, hint: 'Yours from day one', play: 'your walk-up taunt' },
-  { id: 'taunt-cry', cat: 'taunt', name: 'BATTLE CRY', clip: 'tauntCry', unlock: { stat: 'wins', n: 1 }, hint: 'Win your first game', play: 'your walk-up taunt' },
-  { id: 'taunt-chest', cat: 'taunt', name: 'CHEST THUMP', clip: 'tauntChest', unlock: { stat: 'hr', n: 5 }, hint: '5 career home runs', play: 'your walk-up taunt' },
-  { id: 'taunt-gesture', cat: 'taunt', name: 'COME AT ME', clip: 'tauntGesture', unlock: { stat: 'games', n: 10 }, hint: 'Play 10 games', play: 'your walk-up taunt' },
-  { id: 'taunt-loser', cat: 'taunt', name: 'THE L', clip: 'tauntLoser', unlock: { stat: 'crews', n: 3 }, hint: 'Beat 3 crews on their turf', play: 'your walk-up taunt' },
+  { id: 'taunt-cry', cat: 'taunt', name: 'BATTLE CRY', clip: 'tauntCry', stock: true, unlock: null, hint: 'Win your first game', play: 'your walk-up taunt' },
+  { id: 'taunt-chest', cat: 'taunt', name: 'CHEST THUMP', clip: 'tauntChest', stock: true, unlock: null, hint: '5 career home runs', play: 'your walk-up taunt' },
+  { id: 'taunt-gesture', cat: 'taunt', name: 'COME AT ME', clip: 'tauntGesture', stock: true, unlock: null, hint: 'Play 10 games', play: 'your walk-up taunt' },
+  { id: 'taunt-loser', cat: 'taunt', name: 'THE L', clip: 'tauntLoser', stock: true, unlock: null, hint: 'Beat 3 crews on their turf', play: 'your walk-up taunt' },
   // ---- cleats: foot-region tint on the kit texture + a real leg on the bases
   { id: 'cleats-fire', cat: 'cleats', name: 'FIRE REDS', hex: '#ff3b1f', speedMult: 1.06, play: '+6% speed on the bases', stock: true, unlock: null, hint: 'FREE · yours from day one' },
   { id: 'cleats-ice', cat: 'cleats', name: 'ICE KICKS', hex: '#7fe7ff', speedMult: 1.06, stealMult: 1.1, play: '+6% speed · +10% steal jump', unlock: { stat: 'wins', n: 2 }, hint: 'Win 2 games' },
