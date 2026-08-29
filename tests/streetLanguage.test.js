@@ -16,28 +16,29 @@ const BANNED_WORDS = [
   'glv', // the old on-screen glove-stat abbreviation (spec: GLV -> HND)
 ];
 
-// Explicitly kept per spec, even though they contain "hr"/"run".
-const ALLOW_PHRASES = ['home run', 'home runs', 'hr'];
-
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 const BANNED_RES = BANNED_WORDS.map((w) => ({ word: w, re: new RegExp(`\\b${escapeRe(w)}\\b`, 'i') }));
 
-function stripAllowed(text) {
-  let t = text;
-  for (const phrase of ALLOW_PHRASES) t = t.replace(new RegExp(escapeRe(phrase), 'gi'), ' ');
-  return t;
-}
+// (There is deliberately NO "allowed phrase" pre-strip here. The kept phrases
+// — "home run", "hr" — contain no banned word, so stripping them could never
+// clear a hit; all it could do is SPLICE two halves of an innocent word into a
+// banned one, e.g. "bathrobe" -> "bat robe" -> a false "bat". It was removed
+// 2026-08-28 for exactly that reason.)
 
 // Exact-match exceptions for internal (never displayed) identifiers that
-// legitimately still spell a banned word, per spec: the `glove` stat DATA
-// KEY stays unchanged (only its on-screen label became HANDS/HND) — e.g.
-// `avg('glove')` in screens.js. The `walkout-glove` VO pool id also stays
-// unchanged (only its spoken text changed) — e.g. the EVENTS object key in
-// gen-announcer.mjs and the matching key in manifest.json. This is an
-// intentionally short, explicit list (not a blanket "looks like an
-// identifier" filter) so a real short banned display token — e.g. the old
-// `GLV` label — still gets caught.
-const ALLOWED_LITERALS = new Set(['glove', 'walkout-glove']);
+// legitimately still spell a banned word, per spec — scoped BY FILE, not
+// global. The `glove` stat DATA KEY stays unchanged (only its on-screen label
+// became HANDS/HND), and it is a key in exactly one place: `avg('glove')` in
+// screens.js. The `walkout-glove` VO pool id also stays unchanged (only its
+// spoken text changed): the EVENTS object key in gen-announcer.mjs. Scoping
+// matters — a GLOBAL allowance for `'glove'` would also excuse a literal
+// `hud.stamp('GLOVE')` in matchScene, which is the exact thing this audit
+// exists to catch. Anything not listed here is audited everywhere.
+const ALLOWED_LITERALS_BY_FILE = {
+  'src/ui/screens/screens.js': new Set(['glove']),
+  'scripts/gen-announcer.mjs': new Set(['walkout-glove']),
+};
+const NO_ALLOWANCE = new Set();
 
 // Hand-rolled scanner (not a blind regex): JS template literals can nest
 // arbitrarily (`${ `${x}` }`) and can contain comments/strings inside their
@@ -89,7 +90,7 @@ function scanTemplate(src, start) {
   return { chunks, endIndex: i };
 }
 
-function literalsFrom(src) {
+function literalsFrom(src, allowed = NO_ALLOWANCE) {
   const out = [];
   const n = src.length;
   let i = 0;
@@ -100,13 +101,13 @@ function literalsFrom(src) {
     if (c === '/' && c2 === '*') { i += 2; while (i < n && !(src[i] === '*' && src[i + 1] === '/')) i++; i += 2; continue; }
     if (c === "'" || c === '"') {
       const r = scanSingleQuoted(src, i, c);
-      if (!ALLOWED_LITERALS.has(r.content.toLowerCase())) out.push(r.content);
+      if (!allowed.has(r.content.toLowerCase())) out.push(r.content);
       i = r.endIndex;
       continue;
     }
     if (c === '`') {
       const r = scanTemplate(src, i);
-      for (const chunk of r.chunks) if (!ALLOWED_LITERALS.has(chunk.toLowerCase())) out.push(chunk);
+      for (const chunk of r.chunks) if (!allowed.has(chunk.toLowerCase())) out.push(chunk);
       i = r.endIndex;
       continue;
     }
@@ -120,7 +121,13 @@ function literalsFrom(src) {
 // stamps/calls/hints are audited — not every string literal in the file
 // (e.g. crownFeed('hit') and `char.data.stats.glove` are internal, not
 // displayed). Extract only the argument list of each HUD display call.
-const HUD_CALL_METHODS = ['stamp', 'hint', 'showCall', 'goalPop', 'callout', 'showGo', 'showDuel', 'gearToast'];
+// EVERY method that puts words on the screen (widened 2026-08-28: the list
+// carried `showCall` — 2 sites — but not `call`, the workhorse with 44 sites,
+// so the biggest source of on-screen prose in the game was never audited).
+const HUD_CALL_METHODS = [
+  'stamp', 'hint', 'call', 'showCall', 'goalPop', 'callout', 'showGo', 'showDuel',
+  'gearToast', 'showSpecial', 'elementIntro', 'heatFloat', 'pitchGrade', 'fireBadge', 'showReverse',
+];
 const HUD_CALL_RE = new RegExp(`\\.(?:${HUD_CALL_METHODS.join('|')})\\(`, 'g');
 
 function matchSceneDisplayLiterals(src) {
@@ -138,16 +145,16 @@ function matchSceneDisplayLiterals(src) {
 }
 
 function auditText(text, label, hits) {
-  const stripped = stripAllowed(text);
   for (const { word, re } of BANNED_RES) {
-    if (re.test(stripped)) hits.push(`${label}: banned "${word}" in ${JSON.stringify(text)}`);
+    if (re.test(text)) hits.push(`${label}: banned "${word}" in ${JSON.stringify(text)}`);
   }
 }
 
 function auditGenericJsFile(relPath, hits) {
   const url = new URL(`../${relPath}`, import.meta.url);
   const src = fs.readFileSync(url, 'utf8');
-  for (const lit of literalsFrom(src)) auditText(lit, relPath, hits);
+  const allowed = ALLOWED_LITERALS_BY_FILE[relPath] ?? NO_ALLOWANCE;
+  for (const lit of literalsFrom(src, allowed)) auditText(lit, relPath, hits);
 }
 
 function auditMatchScene(relPath, hits) {

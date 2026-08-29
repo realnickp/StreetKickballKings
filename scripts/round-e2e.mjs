@@ -1679,6 +1679,35 @@ async function homersScenario(page) {
   const perfect = await series(10, 0, 'PERFECT');
   ok(perfect.fired >= 9, `PERFECT full flicks actually got kicked — ${perfect.fired} of 10 reached the foot`);
   ok(perfect.homers >= 4, `an EARNED kick still pays — ${perfect.homers} homers out of ${perfect.fired} PERFECT, lined-up full flicks (needs >= 4; the gap-shot roll eats ~1 in 4)`);
+
+  // ...AND THE WIND CANNOT SMUGGLE ONE PAST IT (fix, 2026-08-28). The cap used
+  // to solve against a predictor that modelled NO wind while `ball.update`
+  // integrates `ball.wind` every frame — so on a blow-out field every capped
+  // kick still cleared the wall (a 36 m cap measured up to 51 m). Put the
+  // STRONGEST wind the game can produce on the live scene — the Hawk at full
+  // intensity inside a gust (4.6 m/s² x 1.0 x 1.8), windDirDeg 180 = straight
+  // out to centre — and fire the same twenty GOOD kicks into it.
+  const wind = await page.evaluate(() => {
+    const s = window.__skk;
+    const w = { x: 0, z: -(4.6 * 1.0 * 1.8) }; // cityElements.windAccel() at its ceiling
+    s.elements.windAccel = () => w;
+    // ball.wind is only assigned at an INNING roll (applyElementRoll), so the
+    // live ball has to be handed the same vector the stub now reports.
+    s.ball.wind = w;
+    window.__land = [];
+    return w;
+  });
+  console.log(`  · wind now ${wind.z.toFixed(2)} m/s² straight out (the Hawk, full intensity, gusting)`);
+  const windEarly = await series(10, 45, 'WIND GOOD(+45ms)');
+  const windLate = await series(10, 90, 'WIND GOOD(+90ms)');
+  const windFired = windEarly.fired + windLate.fired;
+  const windHomers = windEarly.homers + windLate.homers;
+  ok(windFired >= 18, `the wind series actually got kicked — ${windFired} of 20 reached the foot`);
+  ok(windHomers === 0, `NOT ONE of ${windFired} GOOD-timed full flicks blew out of the yard (${windHomers} homers)`);
+  const windLand = await page.evaluate(() => window.__land);
+  const windDeepest = windLand.reduce((m, r) => Math.max(m, r[1]), 0);
+  ok(windLand.length > 0 && windDeepest <= cap + 1.5 && windDeepest < park.fenceM - 1,
+    `and the cap held IN THE WIND — deepest landing ${windDeepest.toFixed(1)} m against a ${cap} m ceiling (${park.fenceM} m fence)`);
 }
 
 

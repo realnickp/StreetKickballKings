@@ -4,7 +4,9 @@
 // block below is the one that actually answers the dev: a thousand kicks by a
 // decent player through the REAL judge, counted.
 import { describe, it, expect } from 'vitest';
+import * as THREE from 'three';
 import { judgeKick, powerFromError, launchParams, flickShape, isHrEligible, capSpeedForCarry, FLICK } from '../src/game/kickTiming.js';
+import { Ball, BALL_RADIUS } from '../src/game/ball.js';
 import tuning from '../src/data/tuning.json';
 
 const HR = tuning.kick.hr;
@@ -82,6 +84,91 @@ describe('capSpeedForCarry — the track is the ceiling', () => {
 });
 
 // ---------------------------------------------------------------------------
+// THE WIND IS PART OF THE CARRY (fix, 2026-08-28). `capSpeedForCarry` solved
+// against `Ball.predictLanding`, which modelled NO wind — while `Ball.update`
+// integrates `ball.wind` every single frame. On a blow-out field that gap was
+// the whole rule: a kick capped to 36 m measured 38-51 m and left the yard.
+// These run the REAL integration loop, not a closed form, so nothing here can
+// agree with a predictor that has drifted from the physics.
+describe('the carry cap holds in the wind', () => {
+  const scene = { add() {} };                       // Ball only ever calls scene.add
+  const origin = () => new THREE.Vector3(0, 0.22, -0.5); // matchScene's kickOrigin
+  const shape = flickShape({ risePx: 232, durMs: 200, driftPx: 0 }); // a FULL flick: 42°
+
+  /** Fly a capped GOOD-timed full flick through the actual ball physics. */
+  const flyCapped = ({ fenceM, wind, errMs, windAwareCap = true }) => {
+    const judged = judgeKick(errMs, tuning);
+    const power01 = powerFromError(errMs, tuning);
+    const launch = launchParams(judged, { aimDeg: 0, power01, shape }, tuning);
+    expect(isHrEligible({ quality: judged.quality, power01, alignErrM: 0, loftDeg: shape.loftDeg }, tuning)).toBe(false);
+    launch.speed = capSpeedForCarry(
+      { loftDeg: launch.loftDeg, carryM: fenceM - HR.trackM, speed: launch.speed },
+      (speed, loftDeg) => {
+        const p = Ball.predictLanding(origin(), speed, loftDeg, launch.directionDeg, windAwareCap ? wind : null).point;
+        return Math.hypot(p.x, p.z);
+      },
+    );
+    const ball = new Ball(scene);
+    ball.wind = wind;
+    ball.place(origin());
+    ball.launch(launch.speed, launch.loftDeg, launch.directionDeg);
+    for (let i = 0; i < 2000; i += 1) {
+      ball.update(1 / 60);
+      if (ball.pos.y <= BALL_RADIUS + 1e-9) return Math.hypot(ball.pos.x, ball.pos.z);
+    }
+    throw new Error('the ball never came down');
+  };
+
+  it('predictLanding carries the wind — the same ½·w·t² the update loop integrates', () => {
+    const calm = Ball.predictLanding(origin(), 22, 42, 0);
+    const blown = Ball.predictLanding(origin(), 22, 42, 0, { x: 0, z: -3 });
+    const drift = 0.5 * 3 * calm.t * calm.t;
+    expect(blown.t).toBeCloseTo(calm.t, 6);                       // wind has no vertical term
+    expect(calm.point.z - blown.point.z).toBeCloseTo(drift, 6);   // ...and pure horizontal drift
+    // and the closed form still agrees with the real integration loop
+    const ball = new Ball(scene);
+    ball.wind = { x: 0, z: -3 };
+    ball.place(origin());
+    ball.launch(22, 42, 0);
+    let flown = null;
+    for (let i = 0; i < 2000 && flown === null; i += 1) {
+      ball.update(1 / 60);
+      if (ball.pos.y <= BALL_RADIUS + 1e-9) flown = Math.hypot(ball.pos.x, ball.pos.z);
+    }
+    expect(flown).toBeCloseTo(Math.hypot(blown.point.x, blown.point.z), 0);
+  });
+
+  // sea-breeze (3.0 m/s² base) and the-hawk (4.6) both blow straight out at
+  // windDirDeg 180 -> (0, −mag); intensity rolls 0.3-1.0 and the gust is ×1.8.
+  const FIELDS = [
+    ['boardwalk-kings / sea-breeze', 39, 3.0],
+    ['winter-classic / the-hawk', 38, 4.6],
+  ];
+  for (const [label, fenceM, base] of FIELDS) {
+    for (const intensity of [0.3, 0.65, 1.0]) {
+      for (const gust of [1, 1.8]) {
+        const wind = { x: 0, z: -base * intensity * gust };
+        it(`${label} @ intensity ${intensity}${gust > 1 ? ' + GUST' : ''}: a capped kick dies inside the ${fenceM} m fence`, () => {
+          for (const errMs of [45, 90]) {
+            const land = flyCapped({ fenceM, wind, errMs });
+            expect(land).toBeLessThan(fenceM);
+            // ...and it dies ON the track, not in the infield: the wind must not
+            // over-cap it either. This is also the band the ROB call lives in.
+            expect(land).toBeGreaterThan(fenceM - 4);
+          }
+        });
+      }
+    }
+  }
+
+  it('the OLD windless cap let a full-strength blow-out kick straight out', () => {
+    const wind = { x: 0, z: -3.0 }; // sea-breeze at full intensity, no gust
+    expect(flyCapped({ fenceM: 39, wind, errMs: 45, windAwareCap: false })).toBeGreaterThan(39);
+    expect(flyCapped({ fenceM: 39, wind, errMs: 45, windAwareCap: true })).toBeLessThan(39);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 1 000 KICKS BY A DECENT PLAYER, through the real judge + the real launch math.
 // Error model: timing σ 90 ms, alignment σ 0.35 m, full flick (42°) every time.
 // Seeded, so this is a fixed regression gate, not a coin flip.
@@ -111,6 +198,13 @@ describe('1 000-kick simulation: how often does a decent player go deep', () => 
     const tally = { PERFECT: { n: 0, hr: 0 }, GOOD: { n: 0, hr: 0 }, OK: { n: 0, hr: 0 }, FOUL: { n: 0, hr: 0 }, WHIFF: { n: 0, hr: 0 } };
     let homers = 0;
     let uncapped = 0; // what the SAME thousand kicks did under the old physics-decides rule
+    // THE ROB CALL, before and after this round's gate fix. The old gate wanted
+    // `kickHrEligible && landDist > fence - 2`; the cap made those two mutually
+    // exclusive for everything but a ball already leaving the yard (where the
+    // window is a ~0.3 s flicker before it clears). The new gate is distance
+    // alone — a ball dying on the track is the ball the rob is for.
+    let robBefore = 0;
+    let robAfter = 0;
 
     for (let i = 0; i < N; i += 1) {
       const errMs = gauss(90);
@@ -132,6 +226,8 @@ describe('1 000-kick simulation: how often does a decent player go deep', () => 
       const flew = carryM(speed, launch.loftDeg);
 
       if (carryM(launch.speed, launch.loftDeg) > FENCE_M) uncapped += 1;
+      if (eligible && flew > FENCE_M - 2) robBefore += 1;
+      if (flew > FENCE_M - 4) robAfter += 1;
       const t = tally[judged.quality];
       t.n += 1;
       if (flew > FENCE_M) { t.hr += 1; homers += 1; }
@@ -144,6 +240,8 @@ describe('1 000-kick simulation: how often does a decent player go deep', () => 
       console.log(`    ${q.padEnd(8)} ${String(tally[q].n).padStart(4)} kicks  ${String(tally[q].hr).padStart(3)} homers`);
     }
 
+    console.log(`  ROB IT! window opens on: ${pct(robBefore)} of kicks (old gate) -> ${pct(robAfter)} (distance alone)`);
+
     expect(homers / N).toBeGreaterThanOrEqual(0.04);
     expect(homers / N).toBeLessThanOrEqual(0.12);
     expect(tally.GOOD.hr).toBe(0);
@@ -151,5 +249,8 @@ describe('1 000-kick simulation: how often does a decent player go deep', () => 
     expect(tally.FOUL.hr).toBe(0);
     // and the round earned its name: the old rule sent most of them out
     expect(uncapped / N).toBeGreaterThan(0.4);
+    // the rob is a real call again: it now opens on every ball that reaches the
+    // track, not only on one already clearing the wall
+    expect(robAfter).toBeGreaterThan(robBefore * 2);
   });
 });

@@ -177,21 +177,35 @@ export class Ball {
     }
   }
 
-  /** Predict where a freshly-launched ball first lands (ignores bounces). */
-  static predictLanding(origin, speed, loftDeg, directionDeg) {
+  /**
+   * Predict where a freshly-launched ball first lands (ignores bounces).
+   *
+   * ONE FLIGHT MODEL, WIND INCLUDED (dev round 2026-08-28). `update` integrates
+   * `this.wind` every frame, so a predictor that ignored it was a different
+   * physics: on a blow-out field (`sea-breeze`, `the-hawk` pointing out) the
+   * carry cap solved against a windless flight and every capped kick still
+   * cleared the wall. Wind is a constant acceleration with no vertical
+   * component, so the closed form just gains the `½·w·t²` drift term and the
+   * hang time is unchanged.
+   * @param {{x:number,z:number}} [wind] element wind accel in m/s² — the SAME
+   *   vector `update` adds to the velocity (pass `ball.wind`). Omitted = calm.
+   */
+  static predictLanding(origin, speed, loftDeg, directionDeg, wind = null) {
     const loft = THREE.MathUtils.degToRad(loftDeg);
     const dir = THREE.MathUtils.degToRad(directionDeg);
     const vy = speed * Math.sin(loft);
     const horiz = speed * Math.cos(loft);
+    const wx = wind?.x ?? 0;
+    const wz = wind?.z ?? 0;
     // time until y returns to ball radius height
     const t = (vy + Math.sqrt(vy * vy + 2 * G * (origin.y - BALL_R))) / G;
     return {
       t,
       apex: origin.y + (vy * vy) / (2 * G),
       point: new THREE.Vector3(
-        origin.x + Math.sin(dir) * horiz * t,
+        origin.x + Math.sin(dir) * horiz * t + 0.5 * wx * t * t,
         BALL_R,
-        origin.z - Math.cos(dir) * horiz * t,
+        origin.z - Math.cos(dir) * horiz * t + 0.5 * wz * t * t,
       ),
     };
   }

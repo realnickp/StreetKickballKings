@@ -1448,9 +1448,22 @@ export class MatchScene {
     // 2026-08-28). Cap the speed so the predicted landing dies `hr.trackM` short
     // of the wall: a deep fly to the warning track or a ball off the chain link,
     // both live. AFTER every other modifier (carry scale, gear) has spoken and
-    // BEFORE the crown guarantee, which is exempt — a consumed crown always
+    // BEFORE the crown guarantee, which is exempt — a guaranteed crown always
     // leaves. Direction and loft are untouched: the kick keeps its shape.
-    if (!this.kickHrEligible && !this.kickWasSpecial) {
+    //
+    // THE EXEMPTION IS THE GUARANTEE, NOT THE CROWN (fix, 2026-08-28): a crowned
+    // swing with a LOW flick is not HR-eligible (the loft axis rejects it) and
+    // used to skip the cap on `kickWasSpecial` alone — so when the timing also
+    // missed the OK window the guarantee never ran either and a ~27° crown kick
+    // carried ~42 m out of the park through both gates. Only the swing that
+    // actually earns the guarantee below is exempt.
+    //
+    // ...and THE WIND IS PART OF THE FLIGHT (fix, 2026-08-28): `ball.update`
+    // integrates `ball.wind` every frame, so a windless predictor let a blow-out
+    // field (`sea-breeze`, `the-hawk` pointing out) carry every capped kick over
+    // the wall anyway. The predictor now runs the same wind the ball will fly in.
+    const crownGuaranteed = this.kickWasSpecial && Math.abs(errMs) <= this.tuning.kick.okWindowMs;
+    if (!this.kickHrEligible && !crownGuaranteed) {
       launch.speed = capSpeedForCarry(
         {
           loftDeg: launch.loftDeg,
@@ -1458,7 +1471,7 @@ export class MatchScene {
           speed: launch.speed,
         },
         (speed, loftDeg) => {
-          const p = Ball.predictLanding(kickOrigin, speed, loftDeg, launch.directionDeg).point;
+          const p = Ball.predictLanding(kickOrigin, speed, loftDeg, launch.directionDeg, this.ball.wind).point;
           return Math.hypot(p.x, p.z);
         },
       );
@@ -1466,7 +1479,7 @@ export class MatchScene {
     // CROWN GUARANTEE (dev, 2026-08-05): an armed super-kick timed inside the
     // OK window ALWAYS leaves the yard — floor the arc at a fence-clearing
     // trajectory AFTER every other modifier (humidity included) has spoken.
-    if (this.kickWasSpecial && Math.abs(errMs) <= this.tuning.kick.okWindowMs) {
+    if (crownGuaranteed) {
       this.kickHrEligible = true;
       launch.loftDeg = Math.max(launch.loftDeg, 34);
       // ...and it must stay FAIR: a floored arc pulled past the wedge was a
@@ -1654,7 +1667,12 @@ export class MatchScene {
     this.bus.emit('sfx', 'strike');
     this.field.crowdEnergy = judged.quality === 'PERFECT' ? 1 : 0.5;
 
-    this.pred = Ball.predictLanding(this.ball.pos.clone(), launch.speed, launch.loftDeg, launch.directionDeg);
+    // ...with the wind in it, same as the cap above and same as the flight the
+    // ball is about to fly: this prediction is what the fielders chase, what the
+    // foul line is measured against and what `landDist` (the rob window) reads.
+    // A windless one on a blow-out field put the chase — and the rob call — up
+    // to ten metres in front of the ball.
+    this.pred = Ball.predictLanding(this.ball.pos.clone(), launch.speed, launch.loftDeg, launch.directionDeg, this.ball.wind);
     const lp = this.pred.point;
     // The ONLY foul call: behind the plate line, or outside the 45° foul lines
     // (see src/game/foulRule.js — a dribbler that dies fair stays in play).
@@ -4157,10 +4175,17 @@ export class MatchScene {
     if (this.phase !== 'LIVE') { if (this.call) this.closeCall(); return; }
     const defIsPlayer = !this.kickingIsPlayer();
 
-    // FENCE ROB: an HR-bound ball entering the final stretch to the wall
-    if (!this.call && !this.robbing && this.kickHrEligible && !this.hrFired && !this.grdFired
+    // FENCE ROB: any deep fly entering the final stretch to the wall.
+    // DISTANCE ALONE DECIDES (fix, 2026-08-28). This used to also require
+    // `kickHrEligible`, which the earned-homer round turned into a contradiction:
+    // an eligible kick clears by 6-12 m (nothing to rob) while everything else is
+    // CAPPED to `fenceM - trackM`, so it can never be eligible — the call went
+    // extinct the day the cap landed. A capped kick dying on the track is exactly
+    // the ball the rob is for, so the gate is the landing distance and nothing
+    // else. The CPU path keeps its own difficulty roll below.
+    if (!this.call && !this.robbing && !this.hrFired && !this.grdFired
         && this.ball.mode === 'flying' && this.ball.bounces === 0
-        && this.landDist > this.fenceM - 2) {
+        && this.landDist > this.fenceM - 4) {
       const d = Math.hypot(this.ball.pos.x, this.ball.pos.z);
       // heavy-air showcase (Play It): dead bombs hang at the track — the rob
       // window opens EARLY on this field
