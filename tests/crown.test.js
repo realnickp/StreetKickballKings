@@ -75,11 +75,18 @@ it('a shutout is a half-level event: it passes the crown play gate either way', 
   expect(c.fill).toBe(50);
 });
 
-it('isFinalHalf gates the last half: the game ends after the bottom of the last inning unless it is tied', () => {
+it('isFinalHalf gates the last half: the bottom of the last inning, or a top the leader never has to answer', () => {
   const N = 5; // cfg.innings
   expect(isFinalHalf({ inning: 5, half: 'bottom' }, { home: 5, away: 2 }, N)).toBe(true);  // last half, somebody ahead
   expect(isFinalHalf({ inning: 5, half: 'bottom' }, { home: 3, away: 3 }, N)).toBe(false); // tied -> extra innings
-  expect(isFinalHalf({ inning: 5, half: 'top' }, { home: 5, away: 2 }, N)).toBe(false);    // the bottom is still to come
   expect(isFinalHalf({ inning: 4, half: 'bottom' }, { home: 5, away: 2 }, N)).toBe(false); // earlier inning
   expect(isFinalHalf({ inning: 7, half: 'bottom' }, { home: 6, away: 5 }, N)).toBe(true);  // extra innings still end on a lead
+  // 2026-08-28: last licks ahead at the end of the TOP of the last inning end
+  // the game there — no bottom, so that top IS the final half (no +25 stamp).
+  expect(isFinalHalf({ inning: 5, half: 'top' }, { home: 5, away: 2 }, N)).toBe(true);
+  expect(isFinalHalf({ inning: 5, half: 'top' }, { home: 2, away: 5 }, N)).toBe(false);    // they still get to kick
+  expect(isFinalHalf({ inning: 5, half: 'top' }, { home: 3, away: 3 }, N)).toBe(false);    // tied -> the bottom happens
+  expect(isFinalHalf({ inning: 4, half: 'top' }, { home: 5, away: 2 }, N)).toBe(false);
+  // the toss can hand last licks to the away crew — then a home lead settles nothing
+  expect(isFinalHalf({ inning: 5, half: 'top' }, { home: 5, away: 2 }, N, 'home')).toBe(false);
 });

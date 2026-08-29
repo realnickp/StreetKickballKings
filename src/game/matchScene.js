@@ -312,6 +312,15 @@ export class MatchScene {
       { firstKick },
     );
     this.match.bus.on('halfEnd', () => { this.halfJustEnded = true; });
+    // THE GAME CAN NOW END ON ANY RUN (walk-off, matchState.js): the state ends
+    // where the winning run crossed, which may be mid-at-bat, mid-steal or on
+    // ball four — half of those paths never reach one of the `phase ===
+    // 'GAME_END'` checks the play resolvers do, and a missed one STALLS the
+    // match with no box score (nextAtBat early-returns on GAME_END). So the box
+    // score hangs off the ENGINE's own gameEnd; fireMatchOver is idempotent, so
+    // the existing explicit calls are harmless belt-and-braces.
+    this._matchOverFired = false; // a rematch reuses the scene
+    this.match.bus.on('gameEnd', () => this.fireMatchOver());
     // the OFFENSE builds the crown: every run the player's side scores feeds
     // the meter (dev, 2026-08-04: "a meter... based on base hits, runs etc").
     // Registered HERE, not in the ctor: startMatch swaps in a fresh MatchEngine,
@@ -334,7 +343,7 @@ export class MatchScene {
       // is noise for a crown nobody will ever swing. The score is FINAL at emit
       // time, so decide it right here from the event (state.phase has not
       // flipped yet, and deferring the read would bind us to endHalf's timing).
-      if (isFinalHalf(e, this.match.state.score, this.match.cfg.innings)) return;
+      if (isFinalHalf(e, this.match.state.score, this.match.cfg.innings, this.match.firstKick)) return;
       this.crownFeed('shutout');
       this.hud.callout('SHUTOUT! +25 CROWN', {
         x: window.innerWidth / 2, y: window.innerHeight * 0.3, ttl: 1600, key: 'shutout',
@@ -458,6 +467,15 @@ export class MatchScene {
         name: team.name, city: team.city, logo: team.logo,
         color: team.colors?.primary,
       }, durS);
+      // THE CARD SLAMS (dev, 2026-08-28: "on the splash screen that shows both
+      // teams before the game starts, we need sound effects"). Cut to the CSS:
+      // the crest lands on 'bassdrop' (tsSlam, 0.45s), the colour band wipes
+      // across under the scratch (tsBand, 0.38s), and the block picks it up.
+      // Existing aliases only — and none of them carries `duck`, so the crest
+      // sting the booth fires under this card ('nowkicking') keeps the mic.
+      this.bus.emit('sfx', 'bassdrop');
+      this.after(0.22, () => this.bus.emit('sfx', 'scratch'));
+      this.after(0.34, () => this.bus.emit('sfx', 'crowd-cheer'));
     };
     const splash = (team, t) => {
       this.after(t, () => { if (this.walkoutActive) showSplash(team, PREGAME.splashS); });
@@ -611,6 +629,8 @@ export class MatchScene {
    *  cinematic, throw the winners a ~2.8s on-field dance party (dev, 2026-08-03:
    *  dances in celebrations), then emit matchOver for the box score. */
   fireMatchOver() {
+    if (this._matchOverFired) return; // one box score per match, whoever spots the end first
+    this._matchOverFired = true;
     const fire = () => {
       if (this.cinematicLock) return this.after(0.3, fire);
       this.victoryLap(() => this.bus.emit('matchOver', {
@@ -1051,7 +1071,15 @@ export class MatchScene {
     k.group.position.set(WALKUP.startX, 0, WALKUP.z);
     this.faceTo(k, new THREE.Vector3(WALKUP.plateX, 0, WALKUP.z), true);
     k.animator.play('walk', { speedFactor: 1 });
-    const taunt = pickTaunt({ isPlayer, equipped: this.playerGear?.taunt ?? null });
+    // his OWN taunt: the kicking slot picks it out of this crew's dealt order,
+    // so eight kickers never repeat one back to back (dev, 2026-08-28). Your
+    // Locker chip still dresses YOUR captain — slot 0, and only slot 0.
+    const taunt = pickTaunt({
+      isPlayer,
+      slot: this.match.currentKickerIdx(),
+      team: this.teams[this.match.kickingSide()],
+      equipped: this.playerGear?.taunt ?? null,
+    });
     this.walkup = { char: k, phase: 'walk', until: this.elapsed + walkS(), taunt: k.animator.hasClip?.(taunt) ? taunt : null, isPlayer, cut: true };
     this.bus.emit('sfx', 'stomp');
     if (this.cleatRing && isPlayer) { this.cleatRing.visible = true; }

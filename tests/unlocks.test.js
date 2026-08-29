@@ -29,9 +29,9 @@ it('crews/king derive from the trophy save keys', () => {
 it('checkUnlocks fires each item once at its threshold', () => {
   const s = mem();
   expect(checkUnlocks(s)).toEqual([]);
-  careerAdd(s, { hr: 2, wins: 1 });
+  careerAdd(s, { hr: 2, wins: 2 });
   const fresh = checkUnlocks(s).map((g) => g.id);
-  expect(fresh).toContain('taunt-cry');          // first win
+  expect(fresh).toContain('cleats-ice');         // 2 wins
   expect(fresh).not.toContain('kick-hurricane'); // needs 3 HR
   expect(checkUnlocks(s)).toEqual([]); // no re-fire
   careerAdd(s, { hr: 1 });
@@ -40,14 +40,14 @@ it('checkUnlocks fires each item once at its threshold', () => {
 });
 
 it('one checkUnlocks call can fire across TWO categories at once', () => {
-  // the crossing case: three home runs and a first win banked in the same
-  // match must hand back the kick AND the taunt on a single sweep, not one
+  // the crossing case: three home runs and a second win banked in the same
+  // match must hand back the kick AND the cleats on a single sweep, not one
   // per call (regression — the sweep used to stop at the first category).
   const s = mem();
-  careerAdd(s, { hr: 3, wins: 1 });
+  careerAdd(s, { hr: 3, wins: 2 });
   const fresh = checkUnlocks(s).map((g) => g.id);
   expect(fresh).toContain('kick-hurricane');
-  expect(fresh).toContain('taunt-cry');
+  expect(fresh).toContain('cleats-ice');
   expect(checkUnlocks(s)).toEqual([]); // and both stay fired
 });
 
@@ -109,13 +109,30 @@ it('stock items are owned from day one, never toast, and fill an empty slot', ()
   expect(isUnlocked(s, 'taunt-point')).toBe(true);
   expect(checkUnlocks(s).map((g) => g.id)).not.toContain('taunt-point');
   expect(equippedGear(s).taunt?.id).toBe('taunt-point');
-  expect(equipGear(s, 'taunt', 'taunt-cry')).toBe(false);          // not earned
-  careerAdd(s, { wins: 1 }); checkUnlocks(s);
+  // NOTHING GATES A TAUNT any more (spec §4): the chip you wear is a CHOICE on
+  // a fresh save, not a prize — and it dresses your captain alone.
   expect(equipGear(s, 'taunt', 'taunt-cry')).toBe(true);
   expect(equippedGear(s).taunt.id).toBe('taunt-cry');
+  expect(equipGear(s, 'taunt', 'taunt-loser')).toBe(true);
 });
 
-it('the new kicks and taunts unlock on realistic career marks', () => {
+it('no taunt is earnable — the menu counts only gear you can still win', () => {
+  const s = mem();
+  const earnable = GEAR.filter((g) => !g.stock);
+  // the MODE screen prints `unlocked/earnable EARNED` (screens.js) — five taunts
+  // left that denominator when they went stock, and none can ever toast again
+  expect(earnable).toHaveLength(21);
+  expect(earnable.some((g) => g.cat === 'taunt')).toBe(false);
+  for (const g of GEAR.filter((g) => g.cat === 'taunt')) {
+    expect(g.stock).toBe(true);
+    expect(g.unlock).toBe(null);
+    expect(isUnlocked(s, g.id)).toBe(true);
+  }
+  careerAdd(s, { wins: 99, hr: 99, games: 99, runs: 99, steals: 99, defOuts: 99, perfects: 99, blowouts: 99, pickleEscapes: 99 });
+  expect(checkUnlocks(s).some((g) => g.cat === 'taunt')).toBe(false);
+});
+
+it('the new kicks unlock on realistic career marks', () => {
   const s = mem();
   careerAdd(s, { games: 5, runs: 20 });
   expect(checkUnlocks(s).map((g) => g.id).sort()).toEqual(['kick-armada', 'kick-martelo']);
@@ -123,7 +140,7 @@ it('the new kicks and taunts unlock on realistic career marks', () => {
   const ids = checkUnlocks(s).map((g) => g.id);
   // kick-bicycle stays out of the catalog (0.67s fragment clip — see unlocks.js);
   // its trigger (runs >= 50) is still reached here, but no such GEAR entry exists.
-  for (const id of ['kick-punt', 'kick-kipup', 'kick-flip', 'kick-scissor', 'taunt-gesture', 'taunt-chest', 'taunt-cry']) expect(ids).toContain(id);
+  for (const id of ['kick-punt', 'kick-kipup', 'kick-flip', 'kick-scissor']) expect(ids).toContain(id);
   expect(careerGet(s).games).toBe(10);
 });
 
@@ -138,6 +155,7 @@ it('THE FLAIR and FIRE REDS are free from day one and fielded by default', () =>
   // unlike the other three they are NOT the empty-slot fallback — a bare
   // uniform slot still means "let the match dress me" (see kits.test.js).
   expect(GEAR.filter((g) => g.stock).map((g) => g.id).sort())
-    .toEqual(['cleats-fire', 'kick-flair', 'kit-team-dark', 'kit-team-light', 'taunt-point']);
+    .toEqual(['cleats-fire', 'kick-flair', 'kit-team-dark', 'kit-team-light',
+      'taunt-chest', 'taunt-cry', 'taunt-gesture', 'taunt-loser', 'taunt-point']);
   expect(equippedGear(s).uniform).toBe(null);
 });
