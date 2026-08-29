@@ -34,11 +34,11 @@ export const GEAR = [
   //      chip you equip here dresses YOUR CAPTAIN (slot 0) only.
   //      NOTE (copy pass): the `hint` strings below still read as unlock
   //      conditions for gear that is now free — street-language round, Task B.
-  { id: 'taunt-point', cat: 'taunt', name: 'THE POINT', clip: 'tauntPoint', stock: true, unlock: null, hint: 'Yours from day one', play: 'your walk-up taunt' },
-  { id: 'taunt-cry', cat: 'taunt', name: 'BATTLE CRY', clip: 'tauntCry', stock: true, unlock: null, hint: 'Win your first game', play: 'your walk-up taunt' },
-  { id: 'taunt-chest', cat: 'taunt', name: 'CHEST THUMP', clip: 'tauntChest', stock: true, unlock: null, hint: '5 career home runs', play: 'your walk-up taunt' },
-  { id: 'taunt-gesture', cat: 'taunt', name: 'COME AT ME', clip: 'tauntGesture', stock: true, unlock: null, hint: 'Play 10 games', play: 'your walk-up taunt' },
-  { id: 'taunt-loser', cat: 'taunt', name: 'THE L', clip: 'tauntLoser', stock: true, unlock: null, hint: 'Beat 3 crews on their turf', play: 'your walk-up taunt' },
+  { id: 'taunt-point', cat: 'taunt', name: 'THE POINT', clip: 'tauntPoint', stock: true, unlock: null, hint: 'Free — your crew all taunt different', play: "your captain's walk-up taunt" },
+  { id: 'taunt-cry', cat: 'taunt', name: 'BATTLE CRY', clip: 'tauntCry', stock: true, unlock: null, hint: 'Free — your crew all taunt different', play: "your captain's walk-up taunt" },
+  { id: 'taunt-chest', cat: 'taunt', name: 'CHEST THUMP', clip: 'tauntChest', stock: true, unlock: null, hint: 'Free — your crew all taunt different', play: "your captain's walk-up taunt" },
+  { id: 'taunt-gesture', cat: 'taunt', name: 'COME AT ME', clip: 'tauntGesture', stock: true, unlock: null, hint: 'Free — your crew all taunt different', play: "your captain's walk-up taunt" },
+  { id: 'taunt-loser', cat: 'taunt', name: 'THE L', clip: 'tauntLoser', stock: true, unlock: null, hint: 'Free — your crew all taunt different', play: "your captain's walk-up taunt" },
   // ---- cleats: foot-region tint on the kit texture + a real leg on the bases
   { id: 'cleats-fire', cat: 'cleats', name: 'FIRE REDS', hex: '#ff3b1f', speedMult: 1.06, play: '+6% speed on the bases', stock: true, unlock: null, hint: 'FREE · yours from day one' },
   { id: 'cleats-ice', cat: 'cleats', name: 'ICE KICKS', hex: '#7fe7ff', speedMult: 1.06, stealMult: 1.1, play: '+6% speed · +10% steal jump', unlock: { stat: 'wins', n: 2 }, hint: 'Win 2 games' },
