@@ -2,10 +2,11 @@
 
 > **Purpose:** Complete snapshot of this build so a fresh session gets up to speed instantly.
 > **To resume:** "Read SESSION_LOG.md to get up to speed."
-> Last updated: 2026-07-26 (session 26 — the graphics marathon: grounds from
-> backdrops, scene-lit players, 9 frontal wall remakes, world scale, visible
-> el-train, kick flick control, 20-person diverse character pool. PRs #85-#92
-> all merged. Current state: §26.)
+> Last updated: 2026-08-28 (session 27 — the look/gear/crown/crews run: MSAA +
+> light lift, unlocks that matter, walk-ups, GEAR UP + Locker turntable, the
+> crown, premium PS4 pass, per-crew casting, jersey prints, light/dark kits,
+> starting-lineup walk-out, seam/trace/sound fixes. PRs #104-#110 all merged.
+> Current state: §27.)
 
 This is the **browser/Three.js** rebuild of *Street Kickball Kings*. (There is an
 earlier **Unity** version at `C:\Unity Projects\KickballGame\` — its
@@ -1385,3 +1386,98 @@ credits (needs refill before new generation work). Tests 175/175. Open
 threads: dev phone verdict on the new cast + flick feel (FLICK block is
 the tuning surface); two dropped character designs banked in the session
 ledger; mirror-flipped sign text on Baltimore's back wall if it bugs him.
+
+
+## 27) Session 27 (2026-08-25 → 08-28) — LOOK, GEAR, CROWN, CREWS (PRs #104-#110, all merged)
+
+Six rounds off the dev's phone punch lists, every one built by the
+subagent-driven-development loop (spec → plan → implementer per task →
+task review → fix rounds → final whole-branch review → PR → "push").
+Specs + plans in `docs/superpowers/{specs,plans}/2026-08-2*`; each round's
+ledger (every ruling, every measured number) in the git-ignored
+`.superpowers/sdd/<plan>/progress.md`.
+
+- **#104 look / gear / sound / walk-up / runners** (2026-08-26): MSAA on the
+  composer (HalfFloat target, `samples: 4`, `PerfWatchdog` 24 ms/3 s → 4→2→0)
+  + `LIGHT_LIFT`; unlocks that MATTER in-game (POWER KICK charges, cleat
+  speed + trail, YOUR GEAR strip, Locker turntable, pack-k kicks/taunts with
+  realistic unlocks); SFX for every button (ElevenLabs `gen-sfx.mjs`); the
+  lineup dance REMOVED (client dislikes it) → per-kicker walk-up + taunt
+  every at-bat with tap-skip; HR dance no-repeat bag; runner edge arrows +
+  live diamond.
+- **#105 Locker / GEAR UP / walk-up cam** (2026-08-27): tabbed Locker with an
+  in-place turntable (moves play on tap, luminance cleat tint), GEAR UP
+  before every game, THE FLAIR + FIRE REDS stock, kicks re-timed so the foot
+  meets the ball (`safetyLaunchDelayS` on the clip's clock, per-clip striking
+  `foot`), cinematic walk-up (side dolly → taunt push-in → cut to the
+  input-critical kick cam).
+- **#106 premium pass + crown rules** (2026-08-27): ONE crown (offense-only
+  meter, resets on use, +25 shutout, no free charges; the equipped Locker
+  kick is the crown swing); acrobatic kicks release when the move lands;
+  fielders face the ball; the camera never films through the backstop — the
+  real culprit was the camera-locked contact beat sitting outside the fence
+  line `|x| = 4.22 + 0.668·(z+1.66)` (`fenceMaxX`, applied to every shot AND
+  the cinematic beats); NOW KICKING lower-third + icon runner markers with
+  SAFE insets; the PS4-broadcast-clean HUD/menus/Locker pass; a mistimed
+  short kick is LIVE (foul only past the lines / behind the plate; a crown
+  swing is never a dribbler); `?mute` flag — the harnesses run silent.
+- **#107 crews, kits & walk-out** (2026-08-28): every crew cast from its
+  intro video (`src/data/casts.json`: archetype/height/build/skin tone/
+  accessory per slot, no two crews share a look in a slot); crest + number
+  on every jersey; light + dark kits as data (`teams.json.kits`,
+  `dressTeams` pins an equipped kit and dresses the opponent against it,
+  ΔL ≥ 25 on all 90 matchups); Brooklyn cut out, Philadelphia re-drawn;
+  starting-lineup walk-out (gate dolly → side steadicam → crane reveal);
+  crown no longer refills from its own homer; backdrop corner seam gone
+  (the two half-cylinders cross-fade + per-field horizons re-solved);
+  pitch trace white on a dark halo. Recolour truths: label bitmap from the
+  ORIGINAL atlas, mesh-rasterized hair/foot fence, baked number plates
+  painted at the kit's median lift, skin tint referenced to the atlas's own
+  luminance; 13/20 rigs ship INTERLEAVED UVs; hair is skinned to the
+  shoulders.
+- **#108 decals are part of the shirt** (2026-08-28): the bone-parented
+  decal cards floated on the phone → replaced by SKINNED PATCHES cut from the
+  body's own chest/back triangles (same skeleton/weights, 4 mm along the
+  normal, decal projected as UV). Never ship a rigid card on a deforming
+  mesh again.
+- **#109 walk-out together, bands on the body, the kick is heard, Meia apex**
+  (2026-08-28): all 8 queued at the gate from t 0 on one shared lane (wedge
+  fills by lane length, 2.4 m/s, min spacing 0.71 m); wristbands/headbands =
+  skinned rings (near-black accents fall back to the secondary); the kick was
+  inaudible because `kick.mp3` shipped at −23.5 dBFS (ElevenLabs renders
+  single impacts near-silent — `gen-sfx.mjs` now has a loudness gate;
+  `ui-tap`/`scratch` were −51/−35) → normalised `strike` + `bigwhoosh` +
+  a 250 ms music duck; Meia Lua marks re-derived by FK in node (apex
+  0.618/0.760 — the old 0.86 fired with the foot BEHIND the kicker).
+- **#110 brow rule, Chicago glare, pre-warm, city music** (2026-08-28): the
+  headband sits at the brow on all 20 rigs (eye line from the face's own
+  front profile + 4.8 cm, `HEAD_FRAC` fallback); Winter Classic gets a
+  per-preset light lift (snow 0.89 → 0.80) and every field carries its
+  RENDERED ground L* (`fields.json groundL`) so the dressing never puts a
+  crew into the snow when a legal pairing avoids it — preview, drills and
+  match all dress alike, the team-select tone tap holds; walk-out
+  pre-warm (`src/game/prewarm.js`: compile + initTexture + one real draw,
+  waits for the printed decals AND the field's IBL — `engine.envReady`,
+  both PMREMs pinned to cube 64 so the swap can't re-key programs → 0
+  links/uploads during the show, first frame 940 ms → 4.8 ms); the match
+  plays the field's city track after GAME TIME (all ten existed; it emitted
+  `beat`).
+
+**Hard-won rules**: verify by real play, muted — headless chromium
+(`--mute-audio --enable-unsafe-swiftshader --use-gl=angle
+--use-angle=swiftshader`, URL `&mute`) for screenshots/state (its game clock
+runs 2–3× slow), the muted WebKit harnesses (`round-e2e.mjs` 232 asserts,
+`booth-sound-e2e.mjs`) for timing; NEVER Chrome MCP tabs for game checks
+(they open inside the dev's own Chrome and play the soundtrack — three
+incidents). Never trust a kick mark without an FK table; never trust a
+generated SFX without `ffmpeg volumedetect`; "pop-in" on a phone can be
+GPU first-draw, not visibility.
+
+**Current state**: all of the above LIVE on prod (main `9112699`). Tests
+581/581 (60 files). Open threads for the dev's next phone pass: Memphis
+still wears white at Winter Classic (best legal pairing; a chroma-aware
+crew gate would legalise dark/dark on 6/9 winter matchups — a bigger
+conversation); two low-poly caps (durag, bald) wear a patchy band; the
+corner seam is now a soft double-exposure haze; ~22 s stamp → first pitch
+(skip chip); King Reese is cast from the Monarchs intro (short fade, no
+locs) — say if the locs should come back.
