@@ -5,7 +5,7 @@
 // exact field outcome via applyOutcome().
 import * as THREE from 'three';
 import { MatchEngine } from './matchState.js';
-import { judgeKick, crownJudge, launchParams, weakContactLaunch, powerFromError, isHrEligible, capSpeedForCarry, flickShape, flickSteerDeg, FLICK, aiSwingStartS, safetyLaunchDelayS, footBoneRegex, clampCrownDirection } from './kickTiming.js';
+import { judgeKick, crownJudge, launchParams, weakContactLaunch, powerFromError, isHrEligible, capSpeedForCarry, softCapCarry, flickShape, flickSteerDeg, FLICK, aiSwingStartS, safetyLaunchDelayS, footBoneRegex, clampCrownDirection } from './kickTiming.js';
 import { mashSpeed, humanRunSpeed, RunnerSim } from './baseRunning.js';
 import { resolveBaseThrow, resolvePeg } from './throwing.js';
 import { SpecialMeter } from './specialMoves.js';
@@ -1464,16 +1464,19 @@ export class MatchScene {
     // the wall anyway. The predictor now runs the same wind the ball will fly in.
     const crownGuaranteed = this.kickWasSpecial && Math.abs(errMs) <= this.tuning.kick.okWindowMs;
     if (!this.kickHrEligible && !crownGuaranteed) {
+      const carryOf = (speed, loftDeg) => {
+        const p = Ball.predictLanding(kickOrigin, speed, loftDeg, launch.directionDeg, this.ball.wind).point;
+        return Math.hypot(p.x, p.z);
+      };
+      // SOFT KNEE: a hard clamp put every over-hit kick on the same square metre
+      // of the track (and tripped the rob window on all of them). Compress the
+      // last few metres instead — a marginal kick dies well short of the wall,
+      // only a monster reaches the warning track.
+      const ceiling = Math.max(6, this.fenceM - (this.tuning.kick.hr?.trackM ?? 3));
+      const target = softCapCarry(carryOf(launch.speed, launch.loftDeg), ceiling);
       launch.speed = capSpeedForCarry(
-        {
-          loftDeg: launch.loftDeg,
-          carryM: Math.max(6, this.fenceM - (this.tuning.kick.hr?.trackM ?? 3)),
-          speed: launch.speed,
-        },
-        (speed, loftDeg) => {
-          const p = Ball.predictLanding(kickOrigin, speed, loftDeg, launch.directionDeg, this.ball.wind).point;
-          return Math.hypot(p.x, p.z);
-        },
+        { loftDeg: launch.loftDeg, carryM: target, speed: launch.speed },
+        carryOf,
       );
     }
     // CROWN GUARANTEE (dev, 2026-08-05): an armed super-kick timed inside the

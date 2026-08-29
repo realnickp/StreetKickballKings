@@ -5,7 +5,7 @@
 // decent player through the REAL judge, counted.
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { judgeKick, powerFromError, launchParams, flickShape, isHrEligible, capSpeedForCarry, FLICK } from '../src/game/kickTiming.js';
+import { judgeKick, powerFromError, launchParams, flickShape, isHrEligible, capSpeedForCarry, FLICK, softCapCarry } from '../src/game/kickTiming.js';
 import { Ball, BALL_RADIUS } from '../src/game/ball.js';
 import tuning from '../src/data/tuning.json';
 
@@ -252,5 +252,30 @@ describe('1 000-kick simulation: how often does a decent player go deep', () => 
     // the rob is a real call again: it now opens on every ball that reaches the
     // track, not only on one already clearing the wall
     expect(robAfter).toBeGreaterThan(robBefore * 2);
+  });
+});
+
+describe('softCapCarry — deep kicks compress, they do not stack on one spot', () => {
+  const CEIL = 36; // a 39 m park, trackM 3
+  it('leaves a kick that dies short of the knee alone', () => {
+    expect(softCapCarry(28, CEIL)).toBe(28);
+    expect(softCapCarry(30, CEIL)).toBe(30);
+  });
+  it('spreads the over-hits instead of clamping them together', () => {
+    const marginal = softCapCarry(39, CEIL);
+    const monster = softCapCarry(55, CEIL);
+    expect(marginal).toBeGreaterThan(30);
+    expect(marginal).toBeLessThan(35);          // dies WELL short of the wall
+    expect(monster).toBeGreaterThan(marginal + 1); // and a monster still reads bigger
+    expect(monster).toBeLessThan(CEIL);         // but never reaches the ceiling
+  });
+  it('is monotone and never exceeds the ceiling', () => {
+    let prev = 0;
+    for (let c = 5; c <= 80; c += 0.5) {
+      const out = softCapCarry(c, CEIL);
+      expect(out).toBeLessThan(CEIL);
+      expect(out).toBeGreaterThanOrEqual(prev - 1e-9);
+      prev = out;
+    }
   });
 });

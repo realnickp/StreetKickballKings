@@ -183,6 +183,23 @@ export function isHrEligible({ quality, power01, alignErrM, loftDeg }, tuning) {
  * @param {(speed:number, loftDeg:number) => number} predict
  * @returns {number} metres per second
  */
+/** SOFT KNEE for the cap (fix, 2026-08-28). A hard clamp landed EVERY over-hit
+ *  kick on exactly `ceiling`, so every deep ball died on the same square metre
+ *  and every one of them tripped the rob window. The last `knee` metres are a
+ *  compressor instead: a kick that only just over-carries lands just past the
+ *  knee, a monster asymptotes toward the ceiling and never reaches it.
+ *  @param {number} carryM the kick's own predicted carry
+ *  @param {number} ceiling the deepest it may land (`fenceM - trackM`)
+ *  @param {number} knee width of the compressed band, metres
+ *  @returns {number} the carry it is allowed to keep */
+export function softCapCarry(carryM, ceiling, knee = 6) {
+  if (!(carryM > 0) || !(ceiling > 0)) return carryM;
+  const foot = Math.max(0, ceiling - knee);
+  if (carryM <= foot) return carryM;                    // dies short on its own
+  const over = carryM - foot;
+  return foot + knee * (1 - Math.exp(-over / knee));    // asymptote: `ceiling`
+}
+
 export function capSpeedForCarry({ loftDeg, carryM, speed }, predict) {
   if (typeof predict !== 'function' || !(speed > 0) || !(carryM > 0)) return speed;
   if (predict(speed, loftDeg) <= carryM) return speed; // already dying short
