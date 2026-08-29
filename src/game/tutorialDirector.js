@@ -103,7 +103,7 @@ export const DRILLS = [
       </div>`,
     title: 'EXTRA BASES & THE DUEL',
     objective: 'SURVIVE THE PICKLE — SMASH GO!',
-    detail: 'Kick, take first, hit GO FOR 2! You WILL get trapped — the DUEL starts. Your man runs HIMSELF. When the ball flies between fielders, SMASH the gold GO! button. Tagger lunges or winds up a peg? SWIPE UP to spin.',
+    detail: 'Kick, take first, smash GO FOR 2! You WILL get trapped — the DUEL starts. Your man runs HIMSELF. When the ball flies between fielders, SMASH the gold GO! button. Tagger lunges or winds up a peg? SWIPE UP to spin.',
     target: 1,
     setup(s) {
       s.match.state.bases = [null, null, null]; // clean diamond for the lesson
@@ -135,13 +135,13 @@ export const DRILLS = [
     },
     coach(s, st, say) {
       if (s.goOffer && !st.sent) {
-        say('HIT IT!', { el: s.hud.goBtn, dir: 'down', key: 'go-hit', ttl: 1400 });
+        say('SMASH IT!', { el: s.hud.goBtn, dir: 'down', key: 'go-tap', ttl: 1400 });
       }
       if (s.duel && s.kickingIsPlayer()) {
         // teach each verb AT its moment — never all at once
         if (s.duel.throwInfo && s.duel.throwInfo.toEnd !== -1 && !st.taughtGo) {
           st.taughtGo = true;
-          say("BALL'S UP — HIT GO!", { el: s.hud.duelBtn, dir: 'up', key: 'duel-go', ttl: 2200 });
+          say("BALL'S UP — SMASH GO!", { el: s.hud.duelBtn, dir: 'up', key: 'duel-go', ttl: 2200 });
         }
         const holder = s.fieldingChars().find((c) => c.hasBall);
         const close = holder && s.duel.r?.char && holder.group.position.distanceTo(s.duel.r.char.group.position) < 3.0;
@@ -188,7 +188,7 @@ export const DRILLS = [
       </div>`,
     title: 'FIELDING',
     objective: 'GET AN OUT',
-    detail: 'DRAG steers your glowing fielder, TAP a teammate to switch. Ball in hand → hit the GOLD bag. Trap a runner between bags and the DUEL flips: time THROW! to catch him leaning — or SWIPE at him to PEG.',
+    detail: 'DRAG steers your glowing fielder, TAP a teammate to switch. Ball in hand → tap the GOLD bag. Trap a runner between bags and the DUEL flips: time THROW! to catch him leaning — or SWIPE at him to PEG.',
     target: 1,
     setup(s, st) { st.base = outsNow(s); },
     tick(s, st) {

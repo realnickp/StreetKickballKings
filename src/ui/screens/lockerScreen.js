@@ -49,7 +49,7 @@ export function buildLocker(ctx, { mode, team, opponent = null, tones = null, on
       <div class="locker-stage"><canvas class="locker-preview" width="440" height="520"></canvas><p class="locker-stage-cap"></p><div class="locker-free hidden">FREE — YOUR STARTER GEAR</div></div>
       <div class="locker-tabs"></div>
       <div class="locker-chips"></div>
-      <p class="locker-career">W ${career.wins} · HR ${career.hr} · STEALS ${career.steals} · GLOVE ${career.defOuts} · CREWS ${career.crews}/9</p>
+      <p class="locker-career">W ${career.wins} · HR ${career.hr} · STEALS ${career.steals} · HANDS ${career.defOuts} · CREWS ${career.crews}/9</p>
       <div class="locker-actions"></div>
     </div>`);
   const actions = root.querySelector('.locker-actions');

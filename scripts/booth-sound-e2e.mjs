@@ -3,8 +3,9 @@
 // Run: node scripts/booth-sound-e2e.mjs   (dev server must be up on :5173)
 //
 // Scenarios:
-//  1. BREAK — skip the walkout: GAME TIME stamp, music stop -> the FIELD's
-//     city track restart (never the generic 'beat'), game reaches a live pitch.
+//  1. BREAK — the two crest cards SLAM (bassdrop -> scratch -> crowd), then
+//     skip the walkout: GAME TIME stamp, music stop -> the FIELD's city track
+//     restart (never the generic 'beat'), game reaches a live pitch.
 //  2. PRONOUNS — vo({event,gender}) never picks a cross-gender line; bare
 //     events stay neutral-only.
 //  3. VO QUEUE — a second call HOLDS while a line is live (flavor drops),
@@ -71,7 +72,31 @@ async function breakScenario(page) {
   });
   const walkout = await poll(page, () => window.__skk.walkoutActive === true, 10000, 'walkout active');
   ok(!!walkout, 'walkout show started');
-  await page.waitForTimeout(1200);
+
+  // ---- THE PRE-GAME SLAM (spec §5; dev, 2026-08-28: "on the splash screen
+  // that shows both teams before the game starts, we need sound effects").
+  // Each crest card fires its own set — crest slam, band wipe, the block — so
+  // the pre-game log must carry the set TWICE, once per crew. The show runs
+  // un-skipped to the home card (~16 s) to see both.
+  const slamLog = await poll(page, () => {
+    const log = window.__sfxLog;
+    const at = log.reduce((n, x, i) => (x === 'bassdrop' ? [...n, i] : n), []);
+    // the SECOND card's whole set, not just its opening slam: the tail lands
+    // ~0.34 s after the drop and a poll that returns on the drop reads half of it
+    return at.length >= 2 && log.slice(at[1]).includes('crowd-cheer') ? log.slice() : null;
+  }, 45000, 'both crest slams');
+  const drops = slamLog ? slamLog.reduce((n, x, i) => (x === 'bassdrop' ? [...n, i] : n), []) : [];
+  ok(drops.length === 2, `both crest cards SLAM, once each (${drops.length} bassdrop(s) in the pre-game)`);
+  const sets = drops.map((i) => slamLog.slice(i, i + 4));
+  ok(sets.every((set) => {
+    const sc = set.indexOf('scratch');
+    const ch = set.indexOf('crowd-cheer');
+    return sc > 0 && ch > sc;
+  }), `each card lands bassdrop -> scratch -> crowd-cheer (${sets.map((x) => x.join('>')).join(' | ') || 'no sets'})`);
+
+  // everything from HERE on is the BREAK's own tail — the splash sets above
+  // also emit a scratch, so the break assertion has to look past them.
+  const mark = await page.evaluate(() => window.__sfxLog.length);
   await page.evaluate(() => window.__bus.emit('cine:skip'));
   const stamped = await poll(page, () =>
     [...document.querySelectorAll('.stamp span')].some((s) => /GAME TIME/i.test(s.textContent)), 3000, 'GAME TIME stamp');
@@ -90,7 +115,8 @@ async function breakScenario(page) {
   ok(!!music, "music STOPS with the dance, the BLACKTOP's own city-brooklyn track resumes after the break (not the generic beat)");
   ok(!(await page.evaluate(() => window.__musicLog.some((m) => m?.name === 'beat'))),
     'the generic beat pool never plays once the field is a known city');
-  ok((await page.evaluate(() => window.__sfxLog.includes('scratch'))), 'record scratch closed the dance number');
+  ok((await page.evaluate((i) => window.__sfxLog.slice(i).includes('scratch'), mark)),
+    'record scratch closed the dance number (after the crest cards, not one of them)');
   const live = await poll(page, () => !window.__skk.walkoutActive && window.__skk.phase === 'PITCH', 25000, 'first pitch after break');
   ok(!!live, 'game reached a live pitch after the break');
 }

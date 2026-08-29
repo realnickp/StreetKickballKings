@@ -5,7 +5,7 @@
 // exact field outcome via applyOutcome().
 import * as THREE from 'three';
 import { MatchEngine } from './matchState.js';
-import { judgeKick, crownJudge, launchParams, weakContactLaunch, powerFromError, isHrEligible, flickShape, flickSteerDeg, FLICK, aiSwingStartS, safetyLaunchDelayS, footBoneRegex, clampCrownDirection } from './kickTiming.js';
+import { judgeKick, crownJudge, launchParams, weakContactLaunch, powerFromError, isHrEligible, capSpeedForCarry, softCapCarry, flickShape, flickSteerDeg, FLICK, aiSwingStartS, safetyLaunchDelayS, footBoneRegex, clampCrownDirection } from './kickTiming.js';
 import { mashSpeed, humanRunSpeed, RunnerSim } from './baseRunning.js';
 import { resolveBaseThrow, resolvePeg } from './throwing.js';
 import { SpecialMeter } from './specialMoves.js';
@@ -312,6 +312,15 @@ export class MatchScene {
       { firstKick },
     );
     this.match.bus.on('halfEnd', () => { this.halfJustEnded = true; });
+    // THE GAME CAN NOW END ON ANY RUN (walk-off, matchState.js): the state ends
+    // where the winning run crossed, which may be mid-at-bat, mid-steal or on
+    // ball four — half of those paths never reach one of the `phase ===
+    // 'GAME_END'` checks the play resolvers do, and a missed one STALLS the
+    // match with no box score (nextAtBat early-returns on GAME_END). So the box
+    // score hangs off the ENGINE's own gameEnd; fireMatchOver is idempotent, so
+    // the existing explicit calls are harmless belt-and-braces.
+    this._matchOverFired = false; // a rematch reuses the scene
+    this.match.bus.on('gameEnd', () => this.fireMatchOver());
     // the OFFENSE builds the crown: every run the player's side scores feeds
     // the meter (dev, 2026-08-04: "a meter... based on base hits, runs etc").
     // Registered HERE, not in the ctor: startMatch swaps in a fresh MatchEngine,
@@ -334,7 +343,7 @@ export class MatchScene {
       // is noise for a crown nobody will ever swing. The score is FINAL at emit
       // time, so decide it right here from the event (state.phase has not
       // flipped yet, and deferring the read would bind us to endHalf's timing).
-      if (isFinalHalf(e, this.match.state.score, this.match.cfg.innings)) return;
+      if (isFinalHalf(e, this.match.state.score, this.match.cfg.innings, this.match.firstKick)) return;
       this.crownFeed('shutout');
       this.hud.callout('SHUTOUT! +25 CROWN', {
         x: window.innerWidth / 2, y: window.innerHeight * 0.3, ttl: 1600, key: 'shutout',
@@ -458,6 +467,17 @@ export class MatchScene {
         name: team.name, city: team.city, logo: team.logo,
         color: team.colors?.primary,
       }, durS);
+      // THE CARD SLAMS (dev, 2026-08-28: "on the splash screen that shows both
+      // teams before the game starts, we need sound effects"). Cut to the CSS:
+      // the crest lands on 'bassdrop' (tsSlam, 0.45s), the colour band wipes
+      // across under the scratch (tsBand, 0.38s), and the block picks it up.
+      // Existing aliases only — and none of them carries `duck`, so the crest
+      // sting the booth fires under this card ('nowkicking') keeps the mic.
+      this.bus.emit('sfx', 'bassdrop');
+      // guarded like the card itself: a skip mid-card must not throw a scratch
+      // into the break's own scratch
+      this.after(0.22, () => { if (this.walkoutActive) this.bus.emit('sfx', 'scratch'); });
+      this.after(0.34, () => { if (this.walkoutActive) this.bus.emit('sfx', 'crowd-cheer'); });
     };
     const splash = (team, t) => {
       this.after(t, () => { if (this.walkoutActive) showSplash(team, PREGAME.splashS); });
@@ -611,8 +631,14 @@ export class MatchScene {
    *  cinematic, throw the winners a ~2.8s on-field dance party (dev, 2026-08-03:
    *  dances in celebrations), then emit matchOver for the box score. */
   fireMatchOver() {
+    if (this._matchOverFired) return; // one box score per match, whoever spots the end first
+    this._matchOverFired = true;
     const fire = () => {
-      if (this.cinematicLock) return this.after(0.3, fire);
+      // a walk-off can land MID-PITCH (a steal of home, ball four): the dance
+      // party must not drop on top of a live ball, a kick ring and a `TOO LATE!`
+      // stamp. Wait out the cinematic AND whatever is still in the air.
+      if (this.cinematicLock || this.phase === 'PITCH' || this.phase === 'KICK_ANIM'
+          || this.phase === 'LIVE' || this.phase === 'RESOLVE') return this.after(0.3, fire);
       this.victoryLap(() => this.bus.emit('matchOver', {
         winner: this.match.winner(), score: this.match.state.score, stats: this.matchStats,
       }));
@@ -1009,7 +1035,7 @@ export class MatchScene {
     if (this.halfJustEnded) {
       this.halfJustEnded = false;
       const fielding = !this.kickingIsPlayer();
-      this.hud.stamp(fielding ? 'SWITCH! GLOVE UP!' : "SWITCH! YOU'RE UP!", fielding ? 'robbed' : 'crowned');
+      this.hud.stamp(fielding ? 'SWITCH! LOCK IT DOWN!' : "SWITCH! YOU'RE UP!", fielding ? 'robbed' : 'crowned');
       this.bus.emit('sfx', 'scratch');
     }
 
@@ -1051,7 +1077,15 @@ export class MatchScene {
     k.group.position.set(WALKUP.startX, 0, WALKUP.z);
     this.faceTo(k, new THREE.Vector3(WALKUP.plateX, 0, WALKUP.z), true);
     k.animator.play('walk', { speedFactor: 1 });
-    const taunt = pickTaunt({ isPlayer, equipped: this.playerGear?.taunt ?? null });
+    // his OWN taunt: the kicking slot picks it out of this crew's dealt order,
+    // so eight kickers never repeat one back to back (dev, 2026-08-28). Your
+    // Locker chip still dresses YOUR captain — slot 0, and only slot 0.
+    const taunt = pickTaunt({
+      isPlayer,
+      slot: this.match.currentKickerIdx(),
+      team: this.teams[this.match.kickingSide()],
+      equipped: this.playerGear?.taunt ?? null,
+    });
     this.walkup = { char: k, phase: 'walk', until: this.elapsed + walkS(), taunt: k.animator.hasClip?.(taunt) ? taunt : null, isPlayer, cut: true };
     this.bus.emit('sfx', 'stomp');
     if (this.cleatRing && isPlayer) { this.cleatRing.visible = true; }
@@ -1353,16 +1387,24 @@ export class MatchScene {
     // (dev: "more control of where the ball goes"). AI/no-metrics kicks keep
     // the quality-table loft.
     const shape = flickShape(aimSpec.flick);
-    // HR gate: a player kick leaves the park on a sweet-zone meter lock AND a lined-up
-    // kicker — OR a consumed crown super-kick (kept as a bonus path). A deliberate
-    // LOW flick is a liner by intent — it can scream, not clear the fence.
-    this.kickHrEligible = isPlayerKick && (
-      isHrEligible({ power01, alignErrM }, this.tuning) || this.kickWasSpecial
-    ) && (!shape || shape.loftDeg >= FLICK.hrMinLoftDeg);
-    // Not every perfect is a bomb (dev): ~45% become a SCREAMING gap shot —
-    // aimed at the widest hole in the defense, dying at the track instead of
-    // clearing it. Crown super-kicks always leave the yard (their identity).
-    if (this.kickHrEligible && !this.kickWasSpecial && Math.random() < 0.45) {
+    // HR gate: this is now the ONLY way a ball leaves the yard (dev, 2026-08-28:
+    // "its really easy to kick homers" — the physics used to decide, and it sent
+    // better than half of all decent contact out). A player kick needs the
+    // PERFECT stamp, a meter locked at the top and a kicker under the ball; the
+    // CPU needs PERFECT (or the meatball path below); a consumed crown keeps its
+    // bonus path. A deliberate LOW flick is a liner by intent — it can scream,
+    // not clear the fence. Everything this rejects is capped short of the wall.
+    this.kickHrEligible = (!shape || shape.loftDeg >= FLICK.hrMinLoftDeg) && (
+      this.kickWasSpecial || (isPlayerKick
+        ? isHrEligible({ quality: judged.quality, power01, alignErrM, loftDeg: shape?.loftDeg }, this.tuning)
+        : judged.quality === 'PERFECT')
+    );
+    // Not every earned bomb IS a bomb (dev): a share of them become a SCREAMING
+    // gap shot — aimed at the widest hole in the defense, dying at the track
+    // instead of clearing it. Crown super-kicks always leave (their identity).
+    // The roll now has real teeth (a gap shot is CAPPED, where before it usually
+    // still flew out), which is why the rate lives in tuning at `hr.gapShot`.
+    if (this.kickHrEligible && !this.kickWasSpecial && Math.random() < this.tuning.kick.hr.gapShot) {
       this.kickHrEligible = false;
       aimDeg = this.widestGapDeg();
       powerMult *= 0.93;
@@ -1399,10 +1441,48 @@ export class MatchScene {
     const gm = this.specialKickGear?.mods;
     if (gm?.speed) launch.speed *= gm.speed;
     if (gm?.loftDeg) launch.loftDeg = Math.max(10, Math.min(60, launch.loftDeg + gm.loftDeg));
+    // Where the foot actually meets the ball (the approach glides it here) —
+    // the origin the flight and the fence radius are both measured from.
+    const kickOrigin = new THREE.Vector3(this.ball.pos.x, 0.22, this.kicker.group.position.z - 0.5);
+    // THE TRACK IS THE CEILING for anything that didn't earn the fence (dev,
+    // 2026-08-28). Cap the speed so the predicted landing dies `hr.trackM` short
+    // of the wall: a deep fly to the warning track or a ball off the chain link,
+    // both live. AFTER every other modifier (carry scale, gear) has spoken and
+    // BEFORE the crown guarantee, which is exempt — a guaranteed crown always
+    // leaves. Direction and loft are untouched: the kick keeps its shape.
+    //
+    // THE EXEMPTION IS THE GUARANTEE, NOT THE CROWN (fix, 2026-08-28): a crowned
+    // swing with a LOW flick is not HR-eligible (the loft axis rejects it) and
+    // used to skip the cap on `kickWasSpecial` alone — so when the timing also
+    // missed the OK window the guarantee never ran either and a ~27° crown kick
+    // carried ~42 m out of the park through both gates. Only the swing that
+    // actually earns the guarantee below is exempt.
+    //
+    // ...and THE WIND IS PART OF THE FLIGHT (fix, 2026-08-28): `ball.update`
+    // integrates `ball.wind` every frame, so a windless predictor let a blow-out
+    // field (`sea-breeze`, `the-hawk` pointing out) carry every capped kick over
+    // the wall anyway. The predictor now runs the same wind the ball will fly in.
+    const crownGuaranteed = this.kickWasSpecial && Math.abs(errMs) <= this.tuning.kick.okWindowMs;
+    if (!this.kickHrEligible && !crownGuaranteed) {
+      const carryOf = (speed, loftDeg) => {
+        const p = Ball.predictLanding(kickOrigin, speed, loftDeg, launch.directionDeg, this.ball.wind).point;
+        return Math.hypot(p.x, p.z);
+      };
+      // SOFT KNEE: a hard clamp put every over-hit kick on the same square metre
+      // of the track (and tripped the rob window on all of them). Compress the
+      // last few metres instead — a marginal kick dies well short of the wall,
+      // only a monster reaches the warning track.
+      const ceiling = Math.max(6, this.fenceM - (this.tuning.kick.hr?.trackM ?? 3));
+      const target = softCapCarry(carryOf(launch.speed, launch.loftDeg), ceiling);
+      launch.speed = capSpeedForCarry(
+        { loftDeg: launch.loftDeg, carryM: target, speed: launch.speed },
+        carryOf,
+      );
+    }
     // CROWN GUARANTEE (dev, 2026-08-05): an armed super-kick timed inside the
     // OK window ALWAYS leaves the yard — floor the arc at a fence-clearing
     // trajectory AFTER every other modifier (humidity included) has spoken.
-    if (this.kickWasSpecial && Math.abs(errMs) <= this.tuning.kick.okWindowMs) {
+    if (crownGuaranteed) {
       this.kickHrEligible = true;
       launch.loftDeg = Math.max(launch.loftDeg, 34);
       // ...and it must stay FAIR: a floored arc pulled past the wedge was a
@@ -1433,7 +1513,7 @@ export class MatchScene {
       t: 0,
       dur: holdS,
       from: this.ball.pos.clone(),
-      to: new THREE.Vector3(this.ball.pos.x, 0.22, this.kicker.group.position.z - 0.5),
+      to: kickOrigin.clone(),
       // capped side-step INTO the ball (visual only — the judge already ran):
       // the body and the ball close the gap together instead of a magnet ball
       stepX: Math.max(-0.45, Math.min(0.45, this.ball.pos.x - this.kicker.group.position.x)),
@@ -1590,7 +1670,12 @@ export class MatchScene {
     this.bus.emit('sfx', 'strike');
     this.field.crowdEnergy = judged.quality === 'PERFECT' ? 1 : 0.5;
 
-    this.pred = Ball.predictLanding(this.ball.pos.clone(), launch.speed, launch.loftDeg, launch.directionDeg);
+    // ...with the wind in it, same as the cap above and same as the flight the
+    // ball is about to fly: this prediction is what the fielders chase, what the
+    // foul line is measured against and what `landDist` (the rob window) reads.
+    // A windless one on a blow-out field put the chase — and the rob call — up
+    // to ten metres in front of the ball.
+    this.pred = Ball.predictLanding(this.ball.pos.clone(), launch.speed, launch.loftDeg, launch.directionDeg, this.ball.wind);
     const lp = this.pred.point;
     // The ONLY foul call: behind the plate line, or outside the 45° foul lines
     // (see src/game/foulRule.js — a dribbler that dies fair stays in play).
@@ -4093,10 +4178,17 @@ export class MatchScene {
     if (this.phase !== 'LIVE') { if (this.call) this.closeCall(); return; }
     const defIsPlayer = !this.kickingIsPlayer();
 
-    // FENCE ROB: an HR-bound ball entering the final stretch to the wall
-    if (!this.call && !this.robbing && this.kickHrEligible && !this.hrFired && !this.grdFired
+    // FENCE ROB: any deep fly entering the final stretch to the wall.
+    // DISTANCE ALONE DECIDES (fix, 2026-08-28). This used to also require
+    // `kickHrEligible`, which the earned-homer round turned into a contradiction:
+    // an eligible kick clears by 6-12 m (nothing to rob) while everything else is
+    // CAPPED to `fenceM - trackM`, so it can never be eligible — the call went
+    // extinct the day the cap landed. A capped kick dying on the track is exactly
+    // the ball the rob is for, so the gate is the landing distance and nothing
+    // else. The CPU path keeps its own difficulty roll below.
+    if (!this.call && !this.robbing && !this.hrFired && !this.grdFired
         && this.ball.mode === 'flying' && this.ball.bounces === 0
-        && this.landDist > this.fenceM - 2) {
+        && this.landDist > this.fenceM - 4) {
       const d = Math.hypot(this.ball.pos.x, this.ball.pos.z);
       // heavy-air showcase (Play It): dead bombs hang at the track — the rob
       // window opens EARLY on this field

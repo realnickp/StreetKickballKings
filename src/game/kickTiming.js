@@ -146,14 +146,71 @@ export function launchParams(judged, opts, tuning) {
 }
 
 /**
- * A player kick can leave the park only when the power meter is locked in the
- * sweet zone AND the kicker was lined up under the ball. Both axes required.
- * @param {{power01:number, alignErrM:number}} k
+ * HOMERS ARE EARNED (dev, 2026-08-28: "its really easy to kick homers"). Until
+ * this round the gate below only picked the impact cam — the PHYSICS decided
+ * the homer, and a GOOD-timed full flick already carried ~39 m into a 36-42 m
+ * fence, so better than half of all decent contact left the yard. Now this gate
+ * decides, and everything it rejects is capped short of the wall
+ * (`capSpeedForCarry`). All four axes are required: the judge's own PERFECT
+ * stamp (its error folds alignment in), a meter locked at the top, a kicker
+ * genuinely under the ball, and a flick with air under it — a deliberate liner
+ * is a liner by intent.
+ * @param {{quality:string, power01:number, alignErrM:number, loftDeg?:number}} k
+ *   `loftDeg` omitted (AI kicks, buttons — no flick metrics) skips the loft axis.
  * @returns {boolean}
  */
-export function isHrEligible({ power01, alignErrM }, tuning) {
-  const c = tuning.kick;
-  return power01 >= c.hrPower && alignErrM <= c.hrAlignM;
+export function isHrEligible({ quality, power01, alignErrM, loftDeg }, tuning) {
+  const hr = tuning.kick.hr;
+  if (quality !== hr.quality) return false;
+  if (!(power01 >= hr.power)) return false;
+  if (!(alignErrM <= hr.alignM)) return false;
+  return !(Number.isFinite(loftDeg) && loftDeg < FLICK.hrMinLoftDeg);
+}
+
+/**
+ * THE TRACK IS THE CEILING for a kick that didn't earn the fence. Returns the
+ * largest speed <= `speed` whose predicted carry is at most `carryM` — the kick
+ * keeps its shape (loft and direction untouched), it just dies in front of the
+ * wall as a deep fly or off the chain link, both live balls.
+ *
+ * `predict(speed, loftDeg) -> metres` is injected so the caller can hand in the
+ * REAL flight model (`Ball.predictLanding` from the actual kick origin, which is
+ * what the fence radius is measured against) while tests hand in a closed form.
+ * Bisection, not algebra: the ball model can grow drag or wind without this
+ * going stale, and it only has to be monotone in speed over the range that
+ * matters.
+ * @param {{loftDeg:number, carryM:number, speed:number}} k
+ * @param {(speed:number, loftDeg:number) => number} predict
+ * @returns {number} metres per second
+ */
+/** SOFT KNEE for the cap (fix, 2026-08-28). A hard clamp landed EVERY over-hit
+ *  kick on exactly `ceiling`, so every deep ball died on the same square metre
+ *  and every one of them tripped the rob window. The last `knee` metres are a
+ *  compressor instead: a kick that only just over-carries lands just past the
+ *  knee, a monster asymptotes toward the ceiling and never reaches it.
+ *  @param {number} carryM the kick's own predicted carry
+ *  @param {number} ceiling the deepest it may land (`fenceM - trackM`)
+ *  @param {number} knee width of the compressed band, metres
+ *  @returns {number} the carry it is allowed to keep */
+export function softCapCarry(carryM, ceiling, knee = 6) {
+  if (!(carryM > 0) || !(ceiling > 0)) return carryM;
+  const foot = Math.max(0, ceiling - knee);
+  if (carryM <= foot) return carryM;                    // dies short on its own
+  const over = carryM - foot;
+  return foot + knee * (1 - Math.exp(-over / knee));    // asymptote: `ceiling`
+}
+
+export function capSpeedForCarry({ loftDeg, carryM, speed }, predict) {
+  if (typeof predict !== 'function' || !(speed > 0) || !(carryM > 0)) return speed;
+  if (predict(speed, loftDeg) <= carryM) return speed; // already dying short
+  let lo = 0;          // invariant: carry(lo) <= carryM
+  let hi = speed;      // invariant: carry(hi) >  carryM
+  for (let i = 0; i < 12; i += 1) {
+    const mid = (lo + hi) / 2;
+    if (predict(mid, loftDeg) <= carryM) lo = mid;
+    else hi = mid;
+  }
+  return lo;
 }
 
 /**

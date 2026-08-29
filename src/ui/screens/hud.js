@@ -553,7 +553,7 @@ export class Hud {
     if (color) card.style.setProperty('--c1', color);
     const best = Object.entries(stats ?? {})
       .sort((a, b) => b[1] - a[1]).slice(0, 2);
-    const STAT_LABEL = { power: 'PWR', speed: 'SPD', arm: 'ARM', glove: 'GLV' };
+    const STAT_LABEL = { power: 'PWR', speed: 'SPD', arm: 'ARM', glove: 'HND' };
     const sub = `<span class="wo-sub">${number != null ? `#${number} · ` : ''}${(pos ?? '').toUpperCase()}</span>`;
     card.innerHTML = mini
       ? `<h2 class="wo-nick"></h2>` + sub + (gear ? `<div class="wo-gear">YOUR GEAR — ${gear}</div>` : '')

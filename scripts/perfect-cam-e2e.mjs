@@ -16,7 +16,18 @@ const browser = await webkit.launch();
 const page = await browser.newPage({ viewport: { width: 470, height: 880 } });
 page.on('console', (m) => { if (/\[skk\]/i.test(m.text())) console.log('CONSOLE', m.text()); });
 
-await page.goto(`${BASE}/?match&nosplash&nointro`, { waitUntil: 'domcontentloaded' });
+// SILENT RUN (2026-08-28): this probe drives the REAL game with real music, the
+// booth and the crowd, and the dev sits at the machine it runs on. `?mute` pins
+// the master gain at 0 for the whole session (audio.js), and the net below
+// mutes every media element the page ever plays — including a <video> that is
+// never attached to the document, which querySelectorAll would never see.
+await page.addInitScript(() => {
+  const m = HTMLMediaElement.prototype;
+  const play = m.play;
+  m.play = function mutedPlay() { this.muted = true; return play.call(this); };
+});
+
+await page.goto(`${BASE}/?match&nosplash&nointro&mute`, { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => !!(window.__skk && window.__skk.phase !== 'IDLE'), null, { timeout: 20000 });
 await page.waitForTimeout(800);
 
@@ -91,11 +102,18 @@ const closed = await (async () => {
 })();
 ok(closed, 'play resolved and the next at-bat arrived');
 
-// --- scenario 2: HR-ELIGIBLE but NOT perfect (dev's homer had no cinematic) ---
-// sharp timing (20ms -> meter 0.94 >= hrPower) but 0.35m off-line: alignment
-// folds into the quality judge (effErr ~81ms = GOOD) while the HR gate checks
-// it separately (0.35 <= hrAlignM 0.6). The impact cam must STILL fire.
-console.log('\n--- scenario 2: HR-eligible GOOD kick gets the cam ---');
+// --- scenario 2: the EARNED bomb gets the cam, on a second at-bat ---
+// RE-TIMED 2026-08-28. This used to stage an "HR-eligible but NOT PERFECT"
+// kick -- sharp timing, 0.35 m off-line -- and assert the cam fired on it. The
+// earned-homers round made that case impossible BY CONSTRUCTION: `isHrEligible`
+// now requires the judge's own PERFECT stamp, so `quality !== 'PERFECT'` and
+// `kickHrEligible` can never both hold, and the scenario asserted a
+// contradiction. What is still worth proving is that the impact beat RE-ARMS:
+// a second perfect, lined-up kick an at-bat later gets the same cut and
+// slow-mo as the first. HR eligibility itself is only LOGGED, never asserted --
+// the gap-shot roll clears a quarter of earned bombs by design, and
+// tests/homers.test.js owns that gate.
+console.log('\n--- scenario 2: a second EARNED kick re-arms the cam ---');
 const hrKick = await (async () => {
   const t0 = Date.now();
   while (Date.now() - t0 < 40000) {
@@ -103,8 +121,8 @@ const hrKick = await (async () => {
       const s = window.__skk;
       if (s.phase !== 'PITCH' || s.kicked || !isFinite(s.pitchArrival)) return false;
       if (s.pitchArrival - s.elapsed > 0.06) return false;
-      s.kicker.group.position.x = s.ball.pos.x + 0.35; // slightly off-line
-      s.attemptKick({ align: true }, s.pitchArrival + 0.02); // 20ms late
+      s.kicker.group.position.x = s.ball.pos.x;      // lined up under it
+      s.attemptKick({ align: true }, s.pitchArrival); // zero-error release
       return { quality: s.judged?.quality, hr: s.kickHrEligible };
     });
     if (did) return did;
@@ -112,8 +130,8 @@ const hrKick = await (async () => {
   }
   return null;
 })();
-ok(hrKick && hrKick.quality !== 'PERFECT' && hrKick.hr === true,
-  `staged the gap case: quality=${hrKick?.quality}, hrEligible=${hrKick?.hr}`);
+ok(hrKick?.quality === 'PERFECT',
+  `second real kick judged PERFECT (got ${hrKick?.quality}; hrEligible=${hrKick?.hr} -- the gap-shot roll may clear it)`);
 const hrEngaged = await (async () => {
   const t0 = Date.now();
   while (Date.now() - t0 < 1500) {
@@ -125,7 +143,7 @@ const hrEngaged = await (async () => {
   }
   return null;
 })();
-ok(!!hrEngaged, `impact cam fired on the HR-eligible GOOD kick (timeScale ${hrEngaged?.ts})`);
+ok(!!hrEngaged, `impact cam re-armed on the second earned kick (timeScale ${hrEngaged?.ts})`);
 
 await browser.close();
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);

@@ -35,8 +35,7 @@
     "baseBallSpeedMs": 9,
     "maxBallSpeedMs": 24,
     "meterWindowMs": 320,
-    "hrPower": 0.9,
-    "hrAlignM": 0.6,
+    "hr": { "quality": "PERFECT", "power": 0.92, "alignM": 0.35, "trackM": 3, "gapShot": 0.25 },
     "aimSpreadDeg": 52,
     "aiAimDeg": 26
   },

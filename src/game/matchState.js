@@ -4,6 +4,48 @@ import { EventBus } from '../engine/events.js';
 
 const ADVANCE = { single: 1, double: 2, triple: 3, homerun: 4 };
 
+// ---------- THE GAME ENDS WHEN IT'S WON (dev, 2026-08-28: "if you're winning
+// in the bottom of the last inning, the game should end"). Two rules, both
+// classic, both missing until now: the crew with LAST LICKS never has to kick a
+// half it is already ahead in, and the run that puts them ahead in that half
+// ends the game where it crosses — not at the end of the half.
+//
+// Sides, not halves: `firstKick` comes off the coin toss, so the bottom half is
+// NOT always the home crew's. Whoever kicks in the BOTTOM has last licks, and
+// the walk-off is theirs. With the default toss (away kicks first) that crew is
+// 'home' and both rules read exactly as the book says.
+
+/** The crew with LAST LICKS — whoever kicks in the bottom half. */
+export const lastKickSide = (firstKick = 'away') => (firstKick === 'away' ? 'home' : 'away');
+
+/** Is the last-licks crew AHEAD on this score? */
+const lastLicksLead = (score = {}, firstKick = 'away') => {
+  const last = lastKickSide(firstKick);
+  const other = last === 'home' ? 'away' : 'home';
+  return (score[last] ?? 0) > (score[other] ?? 0);
+};
+
+/** WALK-OFF: the bottom of the last (or any extra) inning and the last-licks
+ *  crew is now ahead — over, on the run that did it. Pure; call after EVERY
+ *  score. A tie stays live (extra innings); a lead they carried INTO the half
+ *  can't walk off, which is what `topEndsGame` catches half an inning earlier. */
+export function isWalkOff(state, cfg, firstKick = 'away') {
+  if (!state || state.phase === 'GAME_END') return false;
+  return state.half === 'bottom'
+    && (state.inning ?? 0) >= (cfg?.innings ?? Infinity)
+    && lastLicksLead(state.score, firstKick);
+}
+
+/** NO BOTTOM NEEDED: the top of the last inning is done and the last-licks crew
+ *  is already ahead — they don't have to kick. A tie or a deficit sends the
+ *  bottom half out as usual. */
+export function topEndsGame(state, cfg, firstKick = 'away') {
+  if (!state) return false;
+  return state.half === 'top'
+    && (state.inning ?? 0) >= (cfg?.innings ?? Infinity)
+    && lastLicksLead(state.score, firstKick);
+}
+
 export class MatchEngine {
   /**
    * @param {{home: string, away: string}} sides team ids
@@ -52,6 +94,7 @@ export class MatchEngine {
     }
     this.advanceKicker(side);
     this.bus.emit('play', { type: 'walk', side });
+    this.checkWalkOff(); // ball four can force in the winner
   }
 
   kickingSide() {
@@ -83,6 +126,7 @@ export class MatchEngine {
     }
     this.advanceKicker(side);
     this.bus.emit('play', { type: o.label ?? (o.outsAdded ? 'out' : 'advance'), side });
+    if (this.checkWalkOff()) return; // the winning run beat the third out
     if (this.state.outs >= this.cfg.outsPerHalf) this.endHalf();
   }
 
@@ -101,6 +145,7 @@ export class MatchEngine {
       this.bus.emit('score', { side, runs, score: { ...this.state.score } });
     }
     this.bus.emit('play', { type: outsAdded ? 'caught-stealing' : 'steal', side });
+    if (this.checkWalkOff()) return; // stealing home can win it
     if (this.state.outs >= this.cfg.outsPerHalf) this.endHalf();
   }
 
@@ -134,7 +179,17 @@ export class MatchEngine {
     this.advanceKicker(side);
     this.bus.emit('play', { ...play, side });
 
+    if (this.checkWalkOff()) return;
     if (this.state.outs >= this.cfg.outsPerHalf) this.endHalf();
+  }
+
+  /** End the game ON the run that won it. Called after every score; returns
+   *  true when it fired, so the caller stops — there is no half left to end. */
+  checkWalkOff() {
+    if (!isWalkOff(this.state, this.cfg, this.firstKick)) return false;
+    this.state.phase = 'GAME_END';
+    this.bus.emit('gameEnd', { winner: this.winner(), score: { ...this.state.score }, walkOff: true });
+    return true;
   }
 
   advanceKicker(side) {
@@ -146,6 +201,12 @@ export class MatchEngine {
     const finishedBottom = this.state.half === 'bottom';
     this.bus.emit('halfEnd', { inning: this.state.inning, half: this.state.half });
 
+    // NO BOTTOM NEEDED: last licks are already ahead, so they never come up.
+    if (!finishedBottom && topEndsGame(this.state, this.cfg, this.firstKick)) {
+      this.state.phase = 'GAME_END';
+      this.bus.emit('gameEnd', { winner: this.winner(), score: { ...this.state.score } });
+      return;
+    }
     if (finishedBottom) {
       const { home, away } = this.state.score;
       if (this.state.inning >= this.cfg.innings && home !== away) {

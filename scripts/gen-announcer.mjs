@@ -8,6 +8,8 @@
 // their files and become the HE pools; SHE variants + new neutral lines generate
 // fresh. EVENTS holds only pronoun-free lines; GENDERED holds he/she pairs.
 import fs from 'fs';
+import { execFileSync, spawnSync } from 'child_process';
+import { fileURLToPath } from 'url';
 
 const ROOT = new URL('..', import.meta.url);
 const key = fs.readFileSync(new URL('.env.local', ROOT), 'utf8').match(/ELEVENLABS_API_KEY=(.+)/)?.[1]?.trim();
@@ -140,7 +142,7 @@ const EVENTS = {
   ],
   'walkout-glove': [
     L('walkout-glove_0', 'Nothing drops in — them hands are MONEY!'),
-    L('walkout-glove_1', 'Best glove on the block, walking out COOL as ever!'),
+    L('walkout-glove_1', 'Best HANDS on the block, walking out COOL as ever!'),
   ],
   'walkout-home': [
     L('walkout-home_0', 'And NOW — your HOME crew, make some NOISE!'),
@@ -236,6 +238,33 @@ const GENDERED = {
 
 const nowKicking = (name) => [`Now kicking — the ${name}, let us GO!`, `Up next, it is the ${name}!`];
 
+// LOUDNESS GATE (2026-08-28, same rule as gen-sfx.mjs): every freshly-rendered
+// take is measured; anything peaking under -6 dBFS is peak-normalised to
+// -1.9 dBFS in place. Needs ffmpeg on PATH; if it is missing the take ships
+// as-is and the gate is silently skipped.
+function loudnessGate(outURL) {
+  const path = fileURLToPath(outURL);
+  const peak = () => {
+    // volumedetect prints to STDERR, not stdout — execFileSync only returns
+    // stdout, so spawnSync (which exposes both) is required here.
+    const r = spawnSync('ffmpeg', ['-hide_banner', '-i', path, '-af', 'volumedetect', '-f', 'null', '-'], { encoding: 'utf8' });
+    const log = `${r.stdout ?? ''}${r.stderr ?? ''}`;
+    const m = /max_volume:\s*(-?[\d.]+) dB/.exec(log);
+    return m ? parseFloat(m[1]) : null;
+  };
+  try {
+    const before = peak();
+    if (before == null) return '(peak unknown)';
+    if (before >= -6) return `(peak ${before} dBFS ok)`;
+    const tmp = path.replace(/\.mp3$/, '.norm.mp3');
+    execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-i', path, '-af', `volume=${(-1.9 - before).toFixed(2)}dB`, '-codec:a', 'libmp3lame', '-q:a', '2', tmp], { stdio: 'ignore' });
+    fs.renameSync(tmp, path);
+    return `(peak ${before} dBFS -> normalised to ${peak()} dBFS)`;
+  } catch (e) {
+    return `(loudness gate skipped: ${String(e.message).slice(0, 80)})`;
+  }
+}
+
 async function tts(voice_id, text, outURL) {
   if (fs.existsSync(outURL)) return 'skip';
   const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice_id}?output_format=mp3_44100_128`, {
@@ -245,6 +274,7 @@ async function tts(voice_id, text, outURL) {
   });
   if (!r.ok) { console.error('  TTS FAIL', r.status, (await r.text()).slice(0, 140)); return 'fail'; }
   fs.writeFileSync(outURL, Buffer.from(await r.arrayBuffer()));
+  console.log(`  ${outURL.pathname.split('/').pop()} ${loudnessGate(outURL)}`);
   return 'ok';
 }
 

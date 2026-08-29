@@ -46,6 +46,8 @@
 //  16. SEAM        — the backdrop's two halves CROSS-FADE at the corner join
 //                    instead of butting: a 120 px strip read straight through
 //                    the left seam has no hard luminance cliff.
+//  17. HOMERS      — twenty GOOD-timed full flicks (half of them worth ~44 m
+//                    uncapped) never leave the park; ten PERFECT ones still do.
 import { webkit } from 'playwright';
 
 const BASE = process.env.SKK_URL ?? 'http://localhost:5173';
@@ -1566,6 +1568,149 @@ async function seamScenario(page) {
 }
 
 
+// ----------------------------------------------------------------- 17. HOMERS
+// "its really easy to kick homers" (dev, 2026-08-28). The gate and the carry cap
+// are unit-tested in tests/homers.test.js; what only the harness can prove is
+// that the WHOLE pipe agrees — a real pitch, the real judge, a real full flick,
+// the real ball physics and the real fence. Twenty GOOD-timed kicks (half of
+// them timed to carry ~44 m, PAST any fence in fields.json, before the cap) must
+// not produce one homer; ten PERFECT ones must still pay.
+async function homersScenario(page) {
+  console.log('\n--- 17: HOMERS ---');
+  await boot(page, 'match&nosplash&nointro');
+  if (!ok(!!(await poll(page, () => window.__skk.phase === 'PITCH' && !window.__skk.walkup, 30000, 'first pitch')),
+    'HOMERS: the first at-bat reaches a live pitch')) return;
+  const park = await page.evaluate(() => {
+    const s = window.__skk;
+    window.__homers = 0;
+    window.__before = 0;
+    window.__land = [];   // [judged quality, landing distance, fence] per kick
+    // COUNT the call, don't play the show: the real homer() runs a dance, a
+    // camera stage and a scoring pass that would cost this scenario minutes.
+    // It sets hrFired first, and so does this — game code is untouched, the
+    // wrapper lives in the harness page only.
+    s.homer = function countHomer() { if (!s.hrFired) { window.__homers += 1; s.hrFired = true; } };
+    // ONE neutral park for all thirty kicks: a city element that eats carry
+    // (heavy air) or shoves the ball out (the Hawk) would be measuring weather.
+    s.elements.carryScale = () => 1;
+    s.elements.windAccel = () => ({ x: 0, z: 0 });
+    s.elements.kickMods = () => ({ wobbleMs: 0, beatBonus01: 0 });
+    return { fenceM: s.fenceM, trackM: s.tuning.kick.hr.trackM };
+  });
+  console.log(`  · ${park.fenceM} m fence, cap at ${park.fenceM - park.trackM} m`);
+
+  // 232 px of rise in 200 ms = a FULL flick: 42° of loft, mid-band snap. The
+  // 120 px flick the other scenarios use lofts 25.6° — under hrMinLoftDeg, so it
+  // could never homer and would prove nothing here.
+  const FULL_FLICK = { risePx: 232, durMs: 200, driftPx: 0 };
+  const series = async (n, errMs, label) => {
+    let fired = 0;
+    let retries = 0;
+    const before = await page.evaluate(() => window.__homers);
+    for (let i = 0; i < n; i += 1) {
+      const ready = await poll(page, () => {
+        const s = window.__skk;
+        if (s.match.state.phase === 'GAME_END') return 'GAME_END';
+        if (s.walkup || s.phase !== 'PITCH' || s.kicked || !Number.isFinite(s.pitchArrival)) return null;
+        return s.ball.pos.z > -3 ? 'PITCH' : null; // the pitch is close — the flick is real
+      }, 30000, `${label} #${i + 1}: a live pitch`);
+      if (ready !== 'PITCH') { console.log(`  · ${label} #${i + 1}: no pitch (${ready ?? 'timeout'}) — stopping the series`); break; }
+      const phase = await page.evaluate(([err, flick]) => {
+        const s = window.__skk;
+        s.kicker.group.position.x = s.ball.pos.x; // dead under the ball: align term = 0
+        s._kickerPrevX = s.ball.pos.x;
+        window.__before = window.__homers;
+        s.attemptKick({ align: true, flick }, s.pitchArrival + err / 1000);
+        return s.phase;
+      }, [errMs, FULL_FLICK]);
+      if (phase !== 'KICK_ANIM') {
+        console.log(`  · ${label} #${i + 1}: the swing missed (phase ${phase}) — retrying`);
+        retries += 1;
+        if (retries > 5) break;
+        i -= 1;
+        continue;
+      }
+      fired += 1;
+      // the ball's fate: the homer call, or the ball coming to rest / the play moving on
+      await poll(page, () => {
+        const s = window.__skk;
+        if (window.__homers > window.__before) return 'HOMER';
+        if (s.phase === 'KICK_ANIM') return null;
+        if (s.ball.mode === 'flying') return null;
+        return 'DEAD';
+      }, 15000, `${label} #${i + 1}: the ball's fate`);
+      await page.evaluate(() => {
+        const s = window.__skk;
+        if (Number.isFinite(s.landDist)) window.__land.push([s.judged?.quality, s.landDist, s.fenceM]);
+        // hand the next pitch back: kill the play's timers, keep the human on
+        // the plate and the half-inning open, and serve again.
+        s.clearTimers();
+        s.engine.timeScale = 1;
+        s.robbing = null;
+        s.call = null;
+        s.match.state.outs = 0;
+        s.playerSide = s.match.kickingSide();
+        s.phase = 'SETUP';
+        s.serve();
+      });
+    }
+    const after = await page.evaluate(() => window.__homers);
+    return { fired, homers: after - before };
+  };
+
+  const good = await series(10, 45, 'GOOD(+45ms)');   // ~44 m uncapped: OUT of any park
+  const late = await series(10, 90, 'GOOD(+90ms)');   // the dev's own decent-miss timing
+  const goodFired = good.fired + late.fired;
+  const goodHomers = good.homers + late.homers;
+  ok(goodFired >= 18, `GOOD-timed full flicks actually got kicked — ${goodFired} of 20 reached the foot`);
+  ok(goodHomers === 0, `NOT ONE of ${goodFired} GOOD-timed full flicks left the yard (${goodHomers} homers)`);
+  const land = await page.evaluate(() => window.__land);
+  const deepest = land.reduce((m, r) => Math.max(m, r[1]), 0);
+  const cap = park.fenceM - park.trackM;
+  // 1.5 m of slack on the ceiling, not zero: the cap is solved from where the
+  // foot MEETS the ball (the glide's end mark) while landDist is measured from
+  // the plate, and the launch fires a frame or two before the glide completes.
+  // What matters is that it dies in front of the wall — 39.6 m into a 42 m
+  // fence is the deep fly the rob is for.
+  ok(land.length > 0 && deepest <= cap + 1.5 && deepest < park.fenceM - 1,
+    `every capped kick died at the track — deepest landing ${deepest.toFixed(1)} m against a ${cap} m ceiling (${park.fenceM} m fence)`);
+  ok(land.every((r) => r[0] !== 'PERFECT'), `and the judge called them all GOOD or worse (${[...new Set(land.map((r) => r[0]))].join(',')})`);
+
+  const perfect = await series(10, 0, 'PERFECT');
+  ok(perfect.fired >= 9, `PERFECT full flicks actually got kicked — ${perfect.fired} of 10 reached the foot`);
+  ok(perfect.homers >= 4, `an EARNED kick still pays — ${perfect.homers} homers out of ${perfect.fired} PERFECT, lined-up full flicks (needs >= 4; the gap-shot roll eats ~1 in 4)`);
+
+  // ...AND THE WIND CANNOT SMUGGLE ONE PAST IT (fix, 2026-08-28). The cap used
+  // to solve against a predictor that modelled NO wind while `ball.update`
+  // integrates `ball.wind` every frame — so on a blow-out field every capped
+  // kick still cleared the wall (a 36 m cap measured up to 51 m). Put the
+  // STRONGEST wind the game can produce on the live scene — the Hawk at full
+  // intensity inside a gust (4.6 m/s² x 1.0 x 1.8), windDirDeg 180 = straight
+  // out to centre — and fire the same twenty GOOD kicks into it.
+  const wind = await page.evaluate(() => {
+    const s = window.__skk;
+    const w = { x: 0, z: -(4.6 * 1.0 * 1.8) }; // cityElements.windAccel() at its ceiling
+    s.elements.windAccel = () => w;
+    // ball.wind is only assigned at an INNING roll (applyElementRoll), so the
+    // live ball has to be handed the same vector the stub now reports.
+    s.ball.wind = w;
+    window.__land = [];
+    return w;
+  });
+  console.log(`  · wind now ${wind.z.toFixed(2)} m/s² straight out (the Hawk, full intensity, gusting)`);
+  const windEarly = await series(10, 45, 'WIND GOOD(+45ms)');
+  const windLate = await series(10, 90, 'WIND GOOD(+90ms)');
+  const windFired = windEarly.fired + windLate.fired;
+  const windHomers = windEarly.homers + windLate.homers;
+  ok(windFired >= 18, `the wind series actually got kicked — ${windFired} of 20 reached the foot`);
+  ok(windHomers === 0, `NOT ONE of ${windFired} GOOD-timed full flicks blew out of the yard (${windHomers} homers)`);
+  const windLand = await page.evaluate(() => window.__land);
+  const windDeepest = windLand.reduce((m, r) => Math.max(m, r[1]), 0);
+  ok(windLand.length > 0 && windDeepest <= cap + 1.5 && windDeepest < park.fenceM - 1,
+    `and the cap held IN THE WIND — deepest landing ${windDeepest.toFixed(1)} m against a ${cap} m ceiling (${park.fenceM} m fence)`);
+}
+
+
 // fail FAST and legibly when the dev server isn't up, instead of ten scenarios
 // each grinding through a 30s boot timeout
 try {
@@ -1583,6 +1728,14 @@ const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
 // characters through a software renderer, and a blocked main thread blocks the
 // navigation promise with it. Plumbing, not an assertion.
 page.setDefaultNavigationTimeout(150000);
+// NO HOT RELOADS UNDER THE HARNESS. A pass is minutes long and a scenario can
+// hold one page for all of them; any save under src/ (a second pair of hands in
+// the repo, an editor autosave) makes Vite push a full page reload that destroys
+// the page mid-scenario — Playwright reports it as "Execution context was
+// destroyed" and the whole scenario dies. Mock the HMR socket: the module graph
+// is loaded at boot and every assertion here wants the build it booted with.
+// Vite's is the only WebSocket this app opens.
+await page.routeWebSocket(() => true, () => {});
 // belt-and-braces on top of ?mute: nothing this browser plays can make noise,
 // even a media element some future code path forgets to mute. The CENSUS this
 // keeps is what makes the SILENT assertion mean anything: querySelectorAll only
@@ -1630,6 +1783,7 @@ const scenarios = [
   ['WALK-UP CAM', walkupCamScenario],
   ['FENCE CAM', fenceCamScenario],
   ['SEAM', seamScenario],
+  ['HOMERS', homersScenario],
 ];
 // SKK_ONLY="KICK CONTACT,WALK-UP CAM" runs a subset while iterating on one
 // scenario (the full pass is ~8 min). CI/verification always runs them all.
