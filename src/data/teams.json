@@ -105,7 +105,7 @@
         {
           "id": "m4",
           "nick": "Old Bay Otis",
-          "pos": "Slugger",
+          "pos": "Big Boot",
           "number": 44,
           "stats": {
             "power": 8,
@@ -369,7 +369,7 @@
         {
           "id": "s7",
           "nick": "Gridlock",
-          "pos": "Slugger",
+          "pos": "Big Boot",
           "number": 44,
           "stats": {
             "power": 9,
@@ -505,7 +505,7 @@
         {
           "id": "b4",
           "nick": "Bed-Stuy Beast",
-          "pos": "Slugger",
+          "pos": "Big Boot",
           "number": 99,
           "stats": {
             "power": 9,
@@ -701,7 +701,7 @@
         {
           "id": "f4",
           "nick": "Boom Bap Bishop",
-          "pos": "Slugger",
+          "pos": "Big Boot",
           "number": 44,
           "stats": {
             "power": 9,
@@ -897,7 +897,7 @@
         {
           "id": "mr4",
           "nick": "Towpath Terror",
-          "pos": "Slugger",
+          "pos": "Big Boot",
           "number": 99,
           "stats": {
             "power": 9,
@@ -1093,7 +1093,7 @@
         {
           "id": "mt4",
           "nick": "Beltway Boom",
-          "pos": "Slugger",
+          "pos": "Big Boot",
           "number": 99,
           "stats": {
             "power": 9,
@@ -1289,7 +1289,7 @@
         {
           "id": "k4",
           "nick": "Big Wacker",
-          "pos": "Slugger",
+          "pos": "Big Boot",
           "number": 44,
           "stats": {
             "power": 9,
@@ -1485,7 +1485,7 @@
         {
           "id": "g4",
           "nick": "Saguaro Slam",
-          "pos": "Slugger",
+          "pos": "Big Boot",
           "number": 55,
           "stats": {
             "power": 9,
@@ -1504,7 +1504,7 @@
         },
         {
           "id": "g5",
-          "nick": "Gila Gloves",
+          "nick": "Gila Hands",
           "pos": "Catcher",
           "number": 8,
           "stats": {
@@ -1641,7 +1641,7 @@
         {
           "id": "h2",
           "nick": "Delta Thunder",
-          "pos": "Slugger",
+          "pos": "Big Boot",
           "number": 44,
           "stats": {
             "power": 9,
@@ -1877,7 +1877,7 @@
         {
           "id": "t4",
           "nick": "Big Tide",
-          "pos": "Slugger",
+          "pos": "Big Boot",
           "number": 44,
           "stats": {
             "power": 9,

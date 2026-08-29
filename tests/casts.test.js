@@ -130,7 +130,7 @@ describe('the crews look like their intros', () => {
       cast.forEach((c, i) => {
         const pos = roster[i].pos;
         if (/Leadoff/.test(pos)) expect(c.build, `${id} leadoff`).toBeLessThanOrEqual(1.04);
-        if (/Slugger/.test(pos)) expect(c.build, `${id} slugger`).toBeGreaterThanOrEqual(1.00);
+        if (/Big Boot/.test(pos)) expect(c.build, `${id} big boot`).toBeGreaterThanOrEqual(1.00);
       });
     }
   });

@@ -72,7 +72,7 @@ export function MenuScreen(ctx) {
             <div class="mode-card locker-card">THE LOCKER<small>${save.get('gear.unlocked', []).length}/${ctx.unlocks.GEAR.filter((g) => !g.stock).length} EARNED</small></div>
             <div class="mode-card locked">DERBY<small>COMING SOON</small></div>
           </div>
-          <div class="daily-card">DAILY CHALLENGE<small>Hit 3 home runs — 0/3</small><b>+500 XP</b></div>
+          <div class="daily-card">DAILY CHALLENGE<small>Kick 3 home runs — 0/3</small><b>+500 XP</b></div>
           <div class="menu-learn">
             <button class="menu-tutorial">🎓 TUTORIAL</button>
             <button class="menu-howto">📖 CONTROLS</button>
@@ -244,7 +244,7 @@ export function TeamSelectScreen(ctx) {
         w.querySelector('.m-city').textContent = t.city.toUpperCase() + ' · ' + t.musicGenre.toUpperCase();
         const avg = (k) => t.roster.reduce((a, p) => a + p.stats[k], 0) / t.roster.length;
         w.querySelector('.m-stats').innerHTML =
-          statBar('PWR', avg('power')) + statBar('SPD', avg('speed')) + statBar('ARM', avg('arm')) + statBar('GLV', avg('glove'));
+          statBar('PWR', avg('power')) + statBar('SPD', avg('speed')) + statBar('ARM', avg('arm')) + statBar('HND', avg('glove'));
         // a man + a woman, each shown in the SELECTED kit — REAL images, no tint.
         const setImg = (img, base) => {
           img.style.visibility = 'visible';

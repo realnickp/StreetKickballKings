@@ -16,7 +16,7 @@ import { clampNearHome, contactSide } from '../game/cameraDirector.js';
 // caught-out one-liners — the whole "robbed screen" is now this one sweep
 const CAUGHT_LINES = [
   'SNATCHED! SIT DOWN!',
-  'THE GLOVE SAID NO!',
+  'THE HANDS SAID NO!',
   "OUTTA THE SKY — YOU'RE OUT!",
   'ROBBED BLIND!',
   'CAUGHT IT. WALK IT OFF.',
