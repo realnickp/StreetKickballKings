@@ -1,7 +1,7 @@
 // Generate realistic gameplay SFX via ElevenLabs sound-generation, server-side.
 // Run: node scripts/gen-sfx.mjs   (resumable — skips files that already exist)
 import fs from 'fs';
-import { execFileSync } from 'child_process';
+import { execFileSync, spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 const ROOT = new URL('..', import.meta.url);
 const key = fs.readFileSync(new URL('.env.local', ROOT), 'utf8').match(/ELEVENLABS_API_KEY=(.+)/)?.[1]?.trim();
@@ -82,8 +82,10 @@ async function gen({ file, text, dur, infl }) {
 function loudnessGate(outUrl) {
   const path = fileURLToPath(outUrl);
   const peak = () => {
-    const log = execFileSync('ffmpeg', ['-hide_banner', '-i', path, '-af', 'volumedetect', '-f', 'null', '-'], { stdio: ['ignore', 'pipe', 'pipe'] }).toString()
-      + '';
+    // ffmpeg writes volumedetect to STDERR — execFileSync().toString() is stdout
+    // only, so reading it there meant the gate never fired (found 2026-08-28).
+    const r = spawnSync('ffmpeg', ['-hide_banner', '-i', path, '-af', 'volumedetect', '-f', 'null', '-'], { encoding: 'utf8' });
+    const log = `${r.stdout ?? ''}${r.stderr ?? ''}`;
     const m = /max_volume:\s*(-?[\d.]+) dB/.exec(log);
     return m ? parseFloat(m[1]) : null;
   };
