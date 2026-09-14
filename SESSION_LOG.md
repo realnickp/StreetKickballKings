@@ -1544,7 +1544,7 @@ both muted. Open threads for the dev's phone pass: homer feel (`kick.hr.power` /
 parks play like big ones (`trackM` is a flat 3 m), and the sea-breeze GUST never
 reaches `ball.wind` (the prompt is currently cosmetic).
 
-## 29) Session 29 (2026-09-12 → 09-14) — THE AUDIT + PHASE 0 STABILITY (branch fix/phase0-stabilize)
+## 29) Session 29 (2026-09-12 → 09-14) — THE AUDIT + PHASE 0 STABILITY (PR #112, MERGED, live on prod)
 
 Dev: *"freezing and breaking on all apple devices… about a million bugs… audit
 this game… PDF… plan to launch on both stores."* Read-only audit first:
@@ -1605,3 +1605,21 @@ retry card). `scripts/gameover-e2e.mjs` 7/7 WebKit, 6/6 Chromium. Full
 with its own dev server in one process (this box's background-task guard kills
 long background jobs under memory pressure). NOT changed on purpose: the render
 pipeline (MSAA/bloom/shadows/DPR/videos) — that is Phase 1 in the audit.
+
+**Current state (2026-09-14):** PR #112 MERGED on the dev's "push" (main `f872b45`),
+Vercel deploy green, and verified AGAINST PRODUCTION: `gameover-e2e.mjs` 6/6 on the
+live site (final out + walk-off reach the box score), `sw.js` serves `skk-v2`, the
+city tracks come down as plain MP4, bundle `index-B2VrKNjg.js`. The dev's phone gets
+it on the next full close + reopen. The audit lives at
+`docs/reports/SKK-Launch-Readiness-Audit-2026-09-12.pdf`. Open threads for the phone
+pass: does the final out / walk-off land on the box score every time; does city music
+play on iPhone; does sound come back after a call or app switch; the memory-pressure
+crash on older iPhones is NOT addressed yet (render pipeline untouched — Phase 1:
+asset diet + boot-time device tier, ledger B02/B15-B18/B43/B44).
+
+**Next session:** Phase 1 from the audit — delete the 162 MB of orphan assets, re-encode
+the seven 2048² PNG atlases to 1024² WebP and the backdrop videos to one ≤3 Mbps loop per
+field, a boot-time device tier (DPR / MSAA / bloom / shadow map / video-vs-poster /
+shadow casters), stop rendering the post chain behind DOM screens, chunk the character
+build off the main thread. Gate: ≤450 MB on an iPhone SE at match 3, 50 fps floor on a
+Galaxy A15. Verify on a REAL iPhone before merging (see [[verify-gameplay-by-real-play]]).
