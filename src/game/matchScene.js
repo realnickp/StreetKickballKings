@@ -4,7 +4,8 @@
 // holds at a bag or keeps going, and scores at home. The engine records the
 // exact field outcome via applyOutcome().
 import * as THREE from 'three';
-import { MatchEngine } from './matchState.js';
+import { MatchEngine, matchOverHold } from './matchState.js';
+import { telemetry } from '../engine/telemetry.js';
 import { judgeKick, crownJudge, launchParams, weakContactLaunch, powerFromError, isHrEligible, capSpeedForCarry, softCapCarry, flickShape, flickSteerDeg, FLICK, aiSwingStartS, safetyLaunchDelayS, footBoneRegex, clampCrownDirection } from './kickTiming.js';
 import { mashSpeed, humanRunSpeed, RunnerSim } from './baseRunning.js';
 import { resolveBaseThrow, resolvePeg } from './throwing.js';
@@ -244,10 +245,16 @@ export class MatchScene {
       this.youRing = ring;
     }
 
-    bus.on('cine:start', () => { this.cinematicLock = true; this.hud.hint(''); });
-    bus.on('cine:done', () => { this.cinematicLock = false; this.chipSkip = false; this.hud.hideSkipChip?.(); });
+    // EVERY subscription this scene makes is kept so destroy() can drop it:
+    // the bus is the app singleton, and a destroyed scene's handlers used to
+    // keep firing into a dead HUD (and keep the whole scene reachable) for as
+    // long as the tab lived — one more field, sixteen more bodies per match.
+    this._offBus = [];
+    const on = (ev, fn) => this._offBus.push(bus.on(ev, fn));
+    on('cine:start', () => { this.cinematicLock = true; this.hud.hint(''); });
+    on('cine:done', () => { this.cinematicLock = false; this.chipSkip = false; this.hud.hideSkipChip?.(); });
     // city element chip: inning rolls set it, procs pulse it
-    bus.on('element:roll', (r) => this.hud.setElement(r));
+    on('element:roll', (r) => this.hud.setElement(r));
     // Play It: a proc is a telegraphed WINDOW with a decision — tell the player
     // exactly what to do while it's open, loud and center screen.
     const PROC_CALLS = {
@@ -256,7 +263,7 @@ export class MatchScene {
       'sea-breeze': 'GUST — KICK NOW!',
       'the-hawk': 'THE HAWK IS HOWLING!',
     };
-    bus.on('element:proc', (p) => {
+    on('element:proc', (p) => {
       this.hud.flashElement(p.active);
       if (p.active) {
         const line = PROC_CALLS[this.elements.id] ?? `${p.label}!`;
@@ -264,7 +271,7 @@ export class MatchScene {
       }
     });
     // a cutscene's return throw: the scene flies it and the pitcher catches
-    bus.on('cine:returnThrow', () => this.flyBallToPitcher(14));
+    on('cine:returnThrow', () => this.flyBallToPitcher(14));
     // (the crowned/caught strike-screen VIDEOS are gone — 2026-08-03 rework:
     // both moments play in-engine now and finalizePlay*'s cinematicLock polls
     // hand off to the next play when the director finishes)
@@ -633,12 +640,22 @@ export class MatchScene {
   fireMatchOver() {
     if (this._matchOverFired) return; // one box score per match, whoever spots the end first
     this._matchOverFired = true;
+    const t0 = this.elapsed;
     const fire = () => {
       // a walk-off can land MID-PITCH (a steal of home, ball four): the dance
       // party must not drop on top of a live ball, a kick ring and a `TOO LATE!`
-      // stamp. Wait out the cinematic AND whatever is still in the air.
-      if (this.cinematicLock || this.phase === 'PITCH' || this.phase === 'KICK_ANIM'
-          || this.phase === 'LIVE' || this.phase === 'RESOLVE') return this.after(0.3, fire);
+      // stamp. Wait out the cinematic AND whatever is still in the air — but
+      // NEVER the scene phase on its own: after a game-ending play nothing
+      // leaves RESOLVE (nextAtBat bails on GAME_END), and the 2026-08-28 gate
+      // that keyed on it hung every final out and walk-off with no box score.
+      // `matchOverHold` (matchState.js) is the pure, unit-tested rule, hard-
+      // capped so a stuck flag can never strand the match again.
+      if (matchOverHold({
+        cinematicLock: this.cinematicLock, phase: this.phase, ballMode: this.ball.mode,
+        playFinalized: this.playFinalized, waitedS: this.elapsed - t0,
+      })) return this.after(0.3, fire);
+      // a pitch or kick ring left up by a mid-pitch ending must not sit under the party
+      this.hud.hideRing?.();
       this.victoryLap(() => this.bus.emit('matchOver', {
         winner: this.match.winner(), score: this.match.state.score, stats: this.matchStats,
       }));
@@ -2413,17 +2430,42 @@ export class MatchScene {
       this.finalizePlay(this.playOuts ?? 0, this.lastOutReason);
     }
 
-    // LAST-RESORT play watchdog: whatever state-hole we haven't met yet, a
-    // settled field must ALWAYS close the play (dev froze mid-play with two
-    // runners parked on a bag, 2026-08-05). Runners settled + defense owns the
-    // ball (or it's dead on the turf) + no cinematic = the play ends, period.
+    // (the LAST-RESORT settled-field watchdog that used to close this method
+    // now runs in update() ABOVE the phase blocks — see runPlayNets)
+  }
+
+  /** THE NETS RUN FIRST. Every dead-ball net in here used to sit downstream of
+   *  the runner / duel / defense code it guards: a per-frame throw in that code
+   *  (the class of bug behind July's taken-pitch freeze) was caught by the
+   *  frame loop — and skipped the nets every frame, so the loop "recovered"
+   *  while the play never closed. Called from update() right after the
+   *  RunnerWatchdog, before any phase block can throw.
+   *  - dead-ball net v2: after 14 s NOTHING holds the play open (settle every
+   *    stuck runner, strike any stage, unfreeze, let it finalize). Covers
+   *    RESOLVE too: the tag-up race runs there pre-finalize.
+   *  - settled-field net: runners settled + defense owns the ball (or it is
+   *    dead on the turf) + no cinematic = the play ends, period (dev froze
+   *    mid-play with two runners parked on a bag, 2026-08-05). */
+  runPlayNets(dt) {
+    const live = this.phase === 'LIVE' || this.phase === 'RESOLVE';
+    if (!live || this.playFinalized) { this._settledT = 0; return; }
+    if (this.elapsed - this.liveStart > 14) {
+      for (const r of [...this.runners]) {
+        if (r.state === 'running') this.forceSettleRunner(r);
+      }
+      if (this.duel) this.endDuel();
+      this.releasePickleFreeze();
+      this.restoreSpeed();
+      this.ballControlled = true;
+      this.defenseHasBall = true;
+    }
     const everyoneSettled = !this.runners.some((r) => r.state === 'running');
-    if (!this.playFinalized && !this.cinematicLock && everyoneSettled
-      && (this.defenseHasBall || this.ball.mode === 'idle')) {
+    if (!this.cinematicLock && everyoneSettled && (this.defenseHasBall || this.ball.mode === 'idle')) {
       this._settledT = (this._settledT ?? 0) + dt;
       if (this._settledT > 8) this.ballControlled = true;
       if (this._settledT > 12) {
         console.warn('[skk] play watchdog: force-finalizing a stuck play');
+        telemetry.event('stalled-play', { phase: this.phase, settledS: this._settledT });
         this.finalizePlay(this.playOuts ?? 0, this.lastOutReason);
       }
     } else {
@@ -3430,7 +3472,17 @@ export class MatchScene {
     const release = () => {
       if (released || !fielder.hasBall) return;
       released = true;
-      this.releaseThrow(fielder, { base, peg });
+      // `throwing` was armed above and only the flight timers / endThrow clear
+      // it: a throw INSIDE the release (a bad base, a runner gone mid-frame)
+      // used to leave it stuck true for the rest of the play — no tags, no
+      // afterThrow, no duel closure, until the 14 s net. End the throw instead.
+      try {
+        this.releaseThrow(fielder, { base, peg });
+      } catch (e) {
+        console.error('[skk] throw release failed (recovered):', e);
+        telemetry.error(e, { where: 'releaseThrow', phase: this.phase });
+        this.endThrow(fielder);
+      }
     };
     fielder.animator.play('throw', { onContact: release });
     this.after(0.5, release); // safety: an animator without contact marks never stalls
@@ -4454,6 +4506,8 @@ export class MatchScene {
         if (this.duel?.r === r) this.endDuel();
       }
     }
+    // ...and the play-level nets, for the same reason: above anything that can throw
+    this.runPlayNets(dt);
 
     if (this.phase === 'PITCH_TRACE') {
       const window = this.tuning.pitch.traceTimerMs / 1000;
@@ -4640,23 +4694,6 @@ export class MatchScene {
       }
     }
 
-    // dead-ball safety net v2: after 14s NOTHING holds the play open —
-    // settle every stuck runner to his nearest bag, strike any stage,
-    // unfreeze, and let the play finalize (dev hit two live stalls).
-    // Covers RESOLVE too: the tag-up race runs there pre-finalize, and a
-    // race that can't close must never strand the game (dev froze twice).
-    if ((this.phase === 'LIVE' || this.phase === 'RESOLVE') && !this.playFinalized
-        && this.elapsed - this.liveStart > 14) {
-      for (const r of [...this.runners]) {
-        if (r.state === 'running') this.forceSettleRunner(r);
-      }
-      if (this.duel) this.endDuel();
-      this.releasePickleFreeze();
-      this.restoreSpeed();
-      this.ballControlled = true;
-      this.defenseHasBall = true;
-    }
-
     this.updateStageMarkers();
 
     // STEAL CHIPS: runners on 1st/3rd sit outside the kick framing — pin a
@@ -4736,9 +4773,18 @@ export class MatchScene {
     this.offUp?.();
     this.offStroke?.();
     this.offFrame?.();
+    for (const off of this._offBus ?? []) { try { off(); } catch { /* fine */ } }
+    this._offBus = [];
     this.clearTimers();
     this.hud.destroy();
     this.engine.scene.remove(this.field.root, this.ball.mesh);
+    // THE FIELD GOES TOO. Removing its root only detached it: two 1248×1664
+    // H.264 decoders kept looping, the 2048² shadow map, the posters, the sky
+    // and the ground stayed on the GPU — and the next match built its own on
+    // top (match three had six video decoders running). See field.js dispose().
+    try { this.field.dispose?.(); } catch (e) { console.warn('[skk] field dispose:', e); }
+    this.ball.mesh?.geometry?.dispose?.();
+    this.ball.mesh?.material?.dispose?.();
     // THE SIXTEEN GO WITH THE SCENE. Taking a character off the graph is not
     // letting go of it: its decals own two skinned patch geometries + materials,
     // and its cloned materials, per-character geometries, skeleton bone textures and accessory
@@ -4766,5 +4812,9 @@ export class MatchScene {
     drop(this.fielderRing);
     for (const r of this.baseRings ?? []) drop(r);
     drop(this.youRing);
+    for (const sp of this.steamSprites ?? []) drop(sp);
+    this.steamSprites = [];
+    this._steamTex?.dispose?.();
+    this._steamTex = null;
   }
 }

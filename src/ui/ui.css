@@ -1963,3 +1963,25 @@ body { display: flex; align-items: center; justify-content: center; }
   0% { transform: rotateY(0deg); }
   100% { transform: rotateY(720deg); }
 }
+
+/* ---------- Phase 0 (2026-09-12): the two cards a failure shows instead of black ---------- */
+/* WebGL context lost: gameplay is paused behind this until the browser hands the context back */
+.gl-lost {
+  position: absolute; inset: 0; z-index: 400; display: flex; align-items: center; justify-content: center;
+  background: rgba(5, 6, 10, .82); pointer-events: auto;
+}
+.gl-lost-card, .flow-error-card {
+  display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center;
+  padding: 22px 26px; border: 2px solid var(--gold, #f5c518); border-radius: 12px; background: #13151c; color: #fff;
+  max-width: min(86vw, 340px);
+}
+.gl-lost-card b, .flow-error-card b { font-family: var(--display); font-size: 26px; letter-spacing: .06em; }
+.gl-lost-card span, .flow-error-card span { font-size: 14px; color: #c7cad3; line-height: 1.35; }
+.gl-lost-card button, .flow-error-card button {
+  margin-top: 6px; padding: 12px 22px; border: 0; border-radius: 10px; font-family: var(--display); font-size: 18px;
+  letter-spacing: .08em; background: var(--gold, #f5c518); color: #13151c;
+}
+.flow-error-card button[data-act="menu"] { background: #2c3040; color: #fff; }
+/* match build failed (a model or video never arrived): RETRY / MAIN MENU instead of a black screen */
+.flow-error { display: flex; align-items: center; justify-content: center; background: #050308; z-index: 60; }
+.flow-error-card .flow-error-actions { display: flex; gap: 10px; }

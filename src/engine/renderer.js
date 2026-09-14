@@ -10,6 +10,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { PerfWatchdog } from './perfWatchdog.js';
+import { telemetry } from './telemetry.js';
 
 // Combined vignette + chromatic aberration + scene tint + film grain grade.
 // Cheap single pass. Tint and grain exist to marry the clean 3D layer to the
@@ -72,6 +73,9 @@ const PMREM_EQUIRECT_W = PMREM_CUBE * 4;
 export function createEngine(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  let sceneEnvRT = null;  // the field-matched IBL render target (disposed on swap)
+  let lastEnvUrl = null;  // ...and what it was built from, to rebuild after a context loss
+  let contextLost = false;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -220,6 +224,11 @@ export function createEngine(canvas) {
           tex.colorSpace = THREE.SRGBColorSpace;
           const envRT = pmrem.fromEquirectangular(tex);
           tex.dispose();
+          // the previous field's map is a render target that nothing else
+          // holds — one more per match on the GPU until Phase 0 let it go
+          sceneEnvRT?.dispose();
+          sceneEnvRT = envRT;
+          lastEnvUrl = url;
           scene.environment = envRT.texture;
           scene.environmentIntensity = 0.7; // scene maps are darker than the white room
           // subtle grade pull toward the scene's average hue (never brightness)
@@ -268,6 +277,63 @@ export function createEngine(canvas) {
   requestAnimationFrame(resize);
   resize();
 
+  // WEBGL CONTEXT LOSS (Phase 0, 2026-09-12). iOS drops the context under
+  // memory pressure and on backgrounding; the Locker preview handled it, the
+  // game canvas did not — three's own handler just stops drawing, so the loop,
+  // the HUD, the timers and the audio kept going over a black (or frozen)
+  // canvas: "the game froze, only force-quit gets out". Now: pause gameplay
+  // behind a visible card; on restore rebuild what three cannot (the two IBL
+  // maps are render targets with no source image), size the targets again,
+  // and carry on. If no restore ever comes the card offers a reload.
+  let card = null;
+  let pausedBeforeLoss = false;
+  let reloadTimer = null;
+  const showCard = () => {
+    if (card || typeof document === 'undefined') return;
+    card = document.createElement('div');
+    card.className = 'gl-lost';
+    card.innerHTML = '<div class="gl-lost-card"><b>GRAPHICS RESET</b><span>Hang tight — bringing the block back.</span><button type="button" hidden>RELOAD</button></div>';
+    const btn = card.querySelector('button');
+    btn.addEventListener('pointerdown', (e) => { e.stopPropagation(); location.reload(); });
+    reloadTimer = setTimeout(() => { btn.hidden = false; }, 4000);
+    (canvas.parentElement ?? document.body).appendChild(card);
+  };
+  const hideCard = () => {
+    clearTimeout(reloadTimer); reloadTimer = null;
+    card?.remove(); card = null;
+  };
+  canvas.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault(); // tells the browser we intend to restore
+    contextLost = true;
+    pausedBeforeLoss = engine.paused;
+    engine.paused = true;
+    console.warn('[skk] WebGL context lost');
+    telemetry.event('context-lost');
+    showCard();
+  });
+  canvas.addEventListener('webglcontextrestored', () => {
+    contextLost = false;
+    try {
+      // three re-inits its GL state; textures re-upload from their images on
+      // the next draw. Render targets have no image: rebuild both IBL maps.
+      if (pmrem) {
+        pmrem.dispose();
+        pmrem = new THREE.PMREMGenerator(renderer);
+        sceneEnvRT?.dispose(); sceneEnvRT = null;
+        scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04, 0.1, 100, { size: PMREM_CUBE }).texture;
+        scene.environmentIntensity = 0.5;
+        if (lastEnvUrl) engine.setSceneEnvironment(lastEnvUrl);
+      }
+      resize();
+    } catch (err) {
+      console.warn('[skk] context restore rebuild failed:', err);
+    }
+    engine.paused = pausedBeforeLoss;
+    console.info('[skk] WebGL context restored');
+    telemetry.event('context-restored');
+    hideCard();
+  });
+
   const clock = new THREE.Clock();
   const shakeOffset = new THREE.Vector3();
   let running = true;
@@ -295,9 +361,13 @@ export function createEngine(canvas) {
     // When paused, skip gameplay callbacks entirely but keep rendering the scene.
     if (!engine.paused) {
       for (const cb of [...frameCbs]) {
-        try { cb(dt, rawDt); } catch (e) { console.error('[skk] frame callback error (recovered):', e); }
+        try { cb(dt, rawDt); } catch (e) {
+          console.error('[skk] frame callback error (recovered):', e);
+          telemetry.error(e, { where: 'frame' });
+        }
       }
     }
+    if (contextLost) return; // nothing to draw into; three would early-return anyway
 
     if (engine.shakeAmt > 0.001) {
       camera.position.sub(shakeOffset);
