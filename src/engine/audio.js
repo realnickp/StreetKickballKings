@@ -54,6 +54,9 @@ const FILES = {
 };
 
 const pick = (v) => (Array.isArray(v) ? v[Math.floor(Math.random() * v.length)] : v);
+// every URL a music track can resolve to — the eviction in music() only ever
+// lets go of THESE; SFX and booth lines stay resident for the whole session
+const MUSIC_URLS = new Set(Object.values(FILES.music).flat());
 
 /** SILENT RUN (?mute). The E2E harnesses drive the REAL game — real music, real
  *  booth, real set-piece videos — and a machine full of agent browsers playing
@@ -133,6 +136,7 @@ export class AudioBus {
     this._voLive = false;    // a line is on the mic RIGHT NOW
     this._voHeld = null;     // the one queued play call: { url, at }
     this._voToken = 0;       // guards the end/timeout race per line
+    this._musicToken = 0;    // guards the decode/stop race on the deck
     bus.on('sfx', (name) => this.sfx(name));
     bus.on('vo', (e) => this.vo(e));
     // scenes drive the soundtrack through the bus ({ name } to spin, { stop } to kill)
@@ -243,9 +247,45 @@ export class AudioBus {
       this.gains.music.gain.value = MUSIC_LEVEL;
       this.gains.sfx.gain.value = 0.9;
       this.gains.vo.gain.value = 1.0;
+      this._watchLifecycle();
     }
-    if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+    this.resumeIfNeeded();
     return this.ctx;
+  }
+
+  /** Wake a context the platform put to sleep. 'suspended' is the standard
+   *  autoplay gate; 'interrupted' is WebKit-only — a phone call, Siri, a
+   *  Control Center swipe or a backgrounded PWA leaves the context there, and
+   *  Safari never resumes it by itself. Before Phase 0 only 'suspended' was
+   *  checked, so an iPhone came back from any interruption silent for the
+   *  rest of the session. Safe to call from anywhere: a rejected resume (no
+   *  gesture yet) is swallowed and the next tap tries again. */
+  resumeIfNeeded() {
+    const st = this.ctx?.state;
+    if (st === 'suspended' || st === 'interrupted') {
+      try { this.ctx.resume()?.catch?.(() => {}); } catch { /* resume without a gesture: the next tap retries */ }
+    }
+  }
+
+  /** The three moments a sleeping context can be woken: the context says so
+   *  itself, the page comes back to the foreground, or the player touches the
+   *  screen (the one moment iOS is guaranteed to honour a resume). Installed
+   *  once; every hook is guarded so the node test environment (no DOM) and a
+   *  minimal window stand-in both pass through untouched. */
+  _watchLifecycle() {
+    if (this._lifecycleWatched) return;
+    this._lifecycleWatched = true;
+    const wake = () => this.resumeIfNeeded();
+    try { if (this.ctx && 'onstatechange' in this.ctx) this.ctx.onstatechange = wake; } catch { /* fine */ }
+    try {
+      if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') wake(); });
+      }
+      if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+        window.addEventListener('pointerdown', wake, { passive: true });
+        window.addEventListener('pageshow', wake);
+      }
+    } catch { /* fine */ }
   }
 
   /** Sound editor: set a channel's user volume (0..1). ch = 'master' | 'music' | 'sfx'. */
@@ -264,7 +304,14 @@ export class AudioBus {
     const p = fetch(url)
       .then(r => r.arrayBuffer())
       .then(ab => this.ensureCtx()?.decodeAudioData(ab) ?? null)
-      .catch(() => null);
+      .catch((e) => {
+        // a failed fetch or decode must not be REMEMBERED as silence for the
+        // session (Safari rejects containers Chrome accepts; cellular drops
+        // mid-file) — forget it so the next play retries, and say so
+        console.warn('[skk] audio failed, will retry:', url, e?.message ?? e);
+        this.buffers.delete(url);
+        return null;
+      });
     this.buffers.set(url, p);
     return p;
   }
@@ -272,6 +319,14 @@ export class AudioBus {
   async playBuffer(url, channel, { loop = false, gain = 1 } = {}) {
     const buf = await this.buffer(url);
     if (!buf) return null;
+    return this._startSource(buf, channel, { loop, gain });
+  }
+
+  /** Wire a decoded buffer into a channel and start it. Split from playBuffer
+   *  so music() can check its race token AFTER the decode and BEFORE anything
+   *  starts — a source that is started and stopped in the same tick still
+   *  cost a decode and a graph node. */
+  _startSource(buf, channel, { loop = false, gain = 1 } = {}) {
     const ctx = this.ensureCtx();
     if (!ctx) return null;
     const src = ctx.createBufferSource();
@@ -285,16 +340,32 @@ export class AudioBus {
     return { src, g };
   }
 
+  /** Spin a track. RACE-SAFE: the decode is async, and the theme used to
+   *  restart itself over the intro video — main.js called stopMusic() while
+   *  the theme was still decoding, then the late `this.musicSrc = await …`
+   *  landed and played it anyway, unstoppable. A token taken here and bumped
+   *  by every stop or newer music() call decides who owns the deck once the
+   *  decode lands. MEMORY: a decoded track is 20-60 MB of PCM, and the cache
+   *  kept every one for the life of the tab (theme + city + beat + …); the
+   *  previous track's buffer is evicted once the new one is up. */
   async music(name) {
     if (!FILES.music[name]) name = 'beat'; // unknown city / missing track → generic pool
     if (this.currentMusic === name && this.musicSrc) return; // already spinning
     this.ensureCtx();
     this.musicSrc?.src.stop();
+    this.musicSrc = null;
     this.currentMusic = name;
-    this.musicSrc = await this.playBuffer(pick(FILES.music[name]), 'music', { loop: true });
+    const token = ++this._musicToken;
+    const url = pick(FILES.music[name]);
+    const buf = await this.buffer(url);
+    if (token !== this._musicToken) return; // a stop or a newer track won the race
+    if (!buf) return;
+    this.musicSrc = this._startSource(buf, 'music', { loop: true });
+    for (const u of this.buffers.keys()) if (u !== url && MUSIC_URLS.has(u)) this.buffers.delete(u);
   }
 
   stopMusic() {
+    this._musicToken = (this._musicToken ?? 0) + 1; // a decode still in flight must not start
     this.musicSrc?.src.stop();
     this.musicSrc = null;
     this.currentMusic = null;

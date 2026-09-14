@@ -21,14 +21,20 @@ export function playVideo(url, { muted = false, skippable = true } = {}) {
     const finish = () => {
       if (done) return;
       done = true;
+      // a removed <video> is still an AVPlayer until it is unloaded: a skipped
+      // clip kept downloading and decoding behind the next screen (iOS counts
+      // every live media element against the tab)
+      try { video.pause(); video.removeAttribute('src'); video.load(); } catch { /* fine */ }
       wrap.remove();
       resolve();
     };
     video.onended = finish;
     video.onerror = finish;
     if (skippable) wrap.addEventListener('pointerdown', finish);
-    video.play().catch(() => {
-      // autoplay with sound blocked → retry muted
+    video.play().catch((e) => {
+      // autoplay with sound blocked → retry muted, and SAY SO: a silently
+      // muted set piece reads as "the audio broke" on a phone
+      console.warn('[skk] video autoplay with sound refused, retrying muted:', url, e?.name ?? e);
       video.muted = true;
       video.play().catch(finish);
     });

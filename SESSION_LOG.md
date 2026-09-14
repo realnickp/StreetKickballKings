@@ -1543,3 +1543,65 @@ both muted. Open threads for the dev's phone pass: homer feel (`kick.hr.power` /
 4 % floor), rob-call frequency (extinct → common, may now be too common), short
 parks play like big ones (`trackM` is a flat 3 m), and the sea-breeze GUST never
 reaches `ball.wind` (the prompt is currently cosmetic).
+
+## 29) Session 29 (2026-09-12 → 09-14) — THE AUDIT + PHASE 0 STABILITY (branch fix/phase0-stabilize)
+
+Dev: *"freezing and breaking on all apple devices… about a million bugs… audit
+this game… PDF… plan to launch on both stores."* Read-only audit first:
+`docs/reports/SKK-Launch-Readiness-Audit-2026-09-12.pdf` (14 pages: root causes,
+44-item ledger B01-B44, dead weight, device lab, store path, Kings Pass, 20-week
+plan). Then, on "go ahead and start" (with "do NOT break the game on android"),
+Phase 0 = the ledger's game-stoppers, test-first, verified in WebKit AND Chromium.
+
+- **B01 P0 — every game that ended on a play hung (since 9429882, 2026-08-28).**
+  `fireMatchOver` re-polled while `phase` was RESOLVE and nothing ever leaves
+  RESOLVE after GAME_END. Now `matchOverHold` (matchState.js, pure, 6 tests):
+  wait for a cinematic, a ball still in flight, or an un-booked live play —
+  never the scene phase alone — with a 6 s hard cap. `scripts/gameover-e2e.mjs`
+  proved the hang live (GAME_END booked, phase RESOLVE, no matchOver), then
+  7/7 after: final out, walk-off, and the honest path (three TOO LATE strikes →
+  box score in 22 s). Chromium 6/6.
+- **B06 — the 14 s net and the settled-field net now run ABOVE the phase blocks**
+  (`runPlayNets`, right after the RunnerWatchdog) so a per-frame throw in the
+  runner/duel/defense code can no longer starve them.
+- **B09 — a throw inside the release ends the throw** (try/catch → `endThrow`);
+  `throwing` can no longer stick true for the rest of the play.
+- **B04 — real teardown:** `field.dispose()` (both backdrop videos paused +
+  unloaded, gesture hooks off, every geometry/material/texture under root,
+  `sun.dispose()`), the scene's five app-bus subscriptions are kept and dropped
+  in `destroy()`, steam sprites + ball freed, the previous field's IBL render
+  target disposed on swap (renderer.js).
+- **B11 — main-canvas WebGL context loss:** pause behind a `.gl-lost` card, on
+  restore rebuild both IBL maps + resize, resume; RELOAD offered after 4 s.
+- **B03 — the match flow has an error path:** `startMatchFlow` wraps
+  `runMatchFlow`; any failure shows the `.flow-error` card (RUN IT BACK / MAIN
+  MENU) instead of black forever; the early crew rejection no longer doubles as
+  an unhandled one.
+- **B10 — telemetry seam** (`src/engine/telemetry.js`, 3 tests): bounded ring,
+  pluggable sink (Sentry = one `setSink`), `window.error` + `unhandledrejection`
+  installed in main.js, frame-callback / throw-release / stalled-play events.
+- **B12/B13/B14 audio:** `resumeIfNeeded` handles WebKit's `interrupted` state
+  (statechange, visibilitychange, pointerdown, pageshow); `music()` is token-
+  guarded so a stop during the decode wins (the theme no longer restarts over
+  the intro video); the previous track's PCM is evicted; a failed decode is no
+  longer cached as silence. 4 tests with a fake AudioContext.
+- **B36 — the 12 in-match tracks were FRAGMENTED MP4** (iso5, 2585 `moof`,
+  Safari's decoder rejects them → silent city music, which the dev had noticed):
+  remuxed with `ffmpeg -c copy -movflags +faststart`; theme mp3's ID3 cover art
+  stripped. `tests/audioContainers.test.js` fails the build if either returns.
+- **B19 — service worker:** `skk-v2`, old caches deleted on activate, video /
+  models / anims / players / music never cached (left to the network, so iOS
+  Range requests stay native). 4 sandboxed tests.
+- **B37 — build target** `['es2020','safari15','chrome87','firefox78']` (was the
+  Vite default safari16.4: class static blocks + private fields = blank stage on
+  iOS 15-16.3); `structuredClone` replaced. Verified by grepping the bundle.
+- **B41/B42:** set-piece videos are unloaded on finish and a refused autoplay is
+  logged; the backdrop loops are re-kicked on `visibilitychange`.
+
+**Verification:** vitest 663/663 (67 files, +19 new). `scripts/phase0-e2e.mjs`
+17/17 in WebKit AND Chromium (throw guard, nets-first, teardown, context loss,
+retry card). `scripts/gameover-e2e.mjs` 7/7 WebKit, 6/6 Chromium. Full
+`round-e2e.mjs` ALL PASS (17 scenarios). `scripts/with-dev.mjs` runs a harness
+with its own dev server in one process (this box's background-task guard kills
+long background jobs under memory pressure). NOT changed on purpose: the render
+pipeline (MSAA/bloom/shadows/DPR/videos) — that is Phase 1 in the audit.

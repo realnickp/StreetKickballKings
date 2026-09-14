@@ -46,6 +46,31 @@ export function topEndsGame(state, cfg, firstKick = 'away') {
     && lastLicksLead(state.score, firstKick);
 }
 
+// ---------- THE GAME-OVER HAND-OFF. matchScene polls this every 0.3 s after a
+// GAME_END is booked, and throws the winners' dance party the first time it
+// says "don't hold". It exists as a pure rule because the 2026-08-28 gate
+// ("the victory lap waits for the ball") held while the SCENE phase was
+// RESOLVE — and after a game-ending play nothing ever leaves RESOLVE
+// (nextAtBat bails on GAME_END), so every final out and walk-off hung
+// forever with no box score. The things worth waiting for are a running
+// cinematic, a ball still in flight, and a live play that has not been booked;
+// the scene phase on its own is not one of them. And whatever the scene
+// says, the hold has a hard cap: a stuck flag must never strand the match.
+export const MATCH_OVER_HOLD_MAX_S = 6;
+
+/**
+ * @param {{cinematicLock?: boolean, phase?: string, ballMode?: string,
+ *          playFinalized?: boolean, waitedS?: number}} s a snapshot of the scene
+ * @returns {boolean} true = keep polling, false = fire the party now
+ */
+export function matchOverHold({ cinematicLock = false, phase = 'IDLE', ballMode = 'idle', playFinalized = true, waitedS = 0 } = {}) {
+  if (waitedS >= MATCH_OVER_HOLD_MAX_S) return false;
+  if (cinematicLock) return true;
+  if (ballMode !== 'idle') return true; // a pitch rolling in, a throw or a kick in the air
+  const livePlay = phase === 'LIVE' || phase === 'KICK_ANIM' || phase === 'RESOLVE';
+  return livePlay && !playFinalized;
+}
+
 export class MatchEngine {
   /**
    * @param {{home: string, away: string}} sides team ids

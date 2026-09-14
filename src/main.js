@@ -2,6 +2,7 @@
 // splash video -> title -> menu -> team select -> coin toss -> match -> post-game
 import './ui/ui.css';
 import { createEngine } from './engine/renderer.js';
+import { telemetry, installGlobalHandlers } from './engine/telemetry.js';
 import { GestureInput } from './engine/input.js';
 import { EventBus } from './engine/events.js';
 import { AudioBus } from './engine/audio.js';
@@ -38,6 +39,10 @@ const stage = document.getElementById('stage') ?? document.body;
 const hudRoot = document.createElement('div');
 hudRoot.id = 'hud-root';
 stage.appendChild(hudRoot);
+// every uncaught error and rejected promise lands in telemetry (Phase 0):
+// the game had no global error path and crashes were learned from players
+installGlobalHandlers(telemetry);
+window.__telemetry = telemetry; // dev/debug handle; a Sentry sink is one setSink() away
 const engine = createEngine(canvas);
 const input = new GestureInput();
 input.attach(stage); // gestures scoped to the phone frame, not the desktop letterbox
@@ -251,7 +256,39 @@ async function bootFlow() {
   if (params.has('go')) router.go(params.get('go'));
   if (params.has('tut')) startTutorial(); // dev harness: straight into the drills
 
+  /** The match flow with an ERROR PATH (Phase 0, 2026-09-12). Two crews of
+   *  GLB models, three videos and a scene build ride this promise, and a single
+   *  dropped fetch (cellular, a stale service-worker 404) used to reject it
+   *  with nothing listening: the black cover div stayed up forever and a
+   *  home-screen PWA has no address bar to reload from. Now a failure lands on
+   *  a card with RETRY (same matchup, same kits) and MAIN MENU. */
   async function startMatchFlow(playerTeam, opponentTeam, kits) {
+    try {
+      await runMatchFlow(playerTeam, opponentTeam, kits);
+    } catch (e) {
+      console.error('[skk] match build failed:', e);
+      telemetry.error(e, { where: 'startMatchFlow', home: opponentTeam?.id, away: playerTeam?.id });
+      if (ctx.scene) { try { ctx.scene.destroy(); } catch { /* fine */ } ctx.scene = null; }
+      audio.stopMusic();
+      showFlowError(() => startMatchFlow(playerTeam, opponentTeam, kits));
+    }
+  }
+
+  function showFlowError(retry) {
+    uiRoot.replaceChildren();
+    const card = document.createElement('div');
+    card.className = 'screen flow-error';
+    card.innerHTML = `<div class="flow-error-card">
+        <b>COULDN'T LOAD THE BLOCK</b>
+        <span>Something didn't come down the wire. Check your signal and run it back.</span>
+        <div class="flow-error-actions"><button type="button" data-act="retry">RUN IT BACK</button><button type="button" data-act="menu">MAIN MENU</button></div>
+      </div>`;
+    card.querySelector('[data-act="retry"]').addEventListener('pointerdown', (e) => { e.stopPropagation(); bus.emit('sfx', 'ui-confirm'); retry(); });
+    card.querySelector('[data-act="menu"]').addEventListener('pointerdown', (e) => { e.stopPropagation(); bus.emit('sfx', 'ui-tap'); backToMenu(); });
+    uiRoot.appendChild(card);
+  }
+
+  async function runMatchFlow(playerTeam, opponentTeam, kits) {
     ctx.playerTeam = playerTeam;
     ctx.opponentTeam = opponentTeam;
 
@@ -314,6 +351,9 @@ async function bootFlow() {
       await prewarmCharacters(engine, c, { compile: false });
       return c;
     })();
+    // awaited below, after the videos — an EARLY rejection (a model 404 during
+    // the first clip) must not also surface as an unhandled one in the meantime
+    charsPromise.catch(() => {});
 
     // INTRO SEQUENCE: kill the theme (so it doesn't fight each video's own music).
     // YOUR squad's video first, then the opponent's — the VS slam only AFTER both
@@ -417,7 +457,9 @@ async function bootFlow() {
     };
     loadExtrasFor([...chars.home, ...chars.away]);
     // endless half: outs never roll the inning, drills own the flow
-    const tutTuning = structuredClone(tuning);
+    // plain JSON, so a JSON round-trip is an exact copy — and it does not need
+    // structuredClone, which iOS 15 and 16.0-16.3 WebKit builds do not have
+    const tutTuning = JSON.parse(JSON.stringify(tuning));
     tutTuning.match = { ...tutTuning.match, innings: 1, outsPerHalf: 99 };
     ctx.scene = new MatchScene({
       engine, input, bus, chars,

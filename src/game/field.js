@@ -68,7 +68,7 @@ export function buildField(fieldData, scene) {
   const root = new THREE.Group();
   root.name = `field-${fieldData.id}`;
   const palette = fieldData.palette ?? {};
-  const handles = { root, layout: FIELD_LAYOUT };
+  const handles = { root, layout: FIELD_LAYOUT, _videoHooks: [] };
 
   // --- ground ---------------------------------------------------------------
   // generated art when the field defines it, canvas placeholder otherwise
@@ -308,6 +308,8 @@ export function buildField(fieldData, scene) {
       }
       kick();
       window.addEventListener('pointerdown', kick, { once: true }); // mobile autoplay may need a gesture
+      // dispose() below needs the gesture hook to unhook and the loop to unload
+      handles._videoHooks.push({ video, kick });
       return { mat: bmat, video };
     };
     const frontBuild = buildBackdropMat(fieldData.textures?.backdrop, fieldData.textures?.backdropVideo, tuneTex);
@@ -592,6 +594,53 @@ export function buildField(fieldData, scene) {
   root.add(rim);
 
   scene.add(root);
+
+  // BACKGROUNDED AND BACK: iOS pauses a looping <video> when the PWA leaves
+  // the foreground and does not always restart it — the backdrop came back as
+  // a frozen frame. Kick both loops on the way back in; unhooked in dispose().
+  const onVisible = () => {
+    if (typeof document === 'undefined' || document.visibilityState !== 'visible') return;
+    for (const { video } of handles._videoHooks) { try { video.play().catch(() => {}); } catch { /* fine */ } }
+  };
+  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisible);
+
+  /** TEARDOWN (Phase 0, 2026-09-12). matchScene.destroy() used to just remove
+   *  the root from the graph: both 1248×1664 H.264 loops kept decoding (a
+   *  playing media element cannot be collected), the 2048² shadow map, both
+   *  posters, the sky, the ground and every canvas texture stayed on the GPU,
+   *  and the next match stacked its own on top. Frees exactly what buildField
+   *  allocated: videos paused + unloaded, gesture hooks unhooked, every
+   *  geometry / material / texture under root disposed, the sun's shadow map. */
+  handles.dispose = () => {
+    if (handles._disposed) return;
+    handles._disposed = true;
+    if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisible);
+    for (const { video, kick } of handles._videoHooks) {
+      try { window.removeEventListener('pointerdown', kick); } catch { /* fine */ }
+      try { video.pause(); } catch { /* fine */ }
+      try { video.removeAttribute('src'); video.load(); } catch { /* fine */ }
+    }
+    handles._videoHooks = [];
+    handles.backdropVideo = null;
+    handles.backdropVideoBack = null;
+    const TEX_KEYS = ['map', 'alphaMap', 'bumpMap', 'normalMap', 'emissiveMap', 'roughnessMap', 'metalnessMap', 'aoMap'];
+    const seenMat = new Set(), seenTex = new Set();
+    root.traverse((o) => {
+      o.geometry?.dispose?.();
+      const mats = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+      for (const m of mats) {
+        if (seenMat.has(m)) continue;
+        seenMat.add(m);
+        for (const k of TEX_KEYS) {
+          const t = m[k];
+          if (t && !seenTex.has(t)) { seenTex.add(t); t.dispose?.(); }
+        }
+        m.dispose?.();
+      }
+    });
+    try { sun.dispose(); } catch { /* fine */ }
+    root.parent?.remove(root);
+  };
   return handles;
 }
 
