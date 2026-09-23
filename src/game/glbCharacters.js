@@ -22,6 +22,7 @@ import { inkFor, logoFor, markFor } from './kits.js';
 import { recolorPixels, kitTintPixel, inkKitPanels, rasterizeUvMask, dilateMask } from './skinTint.js';
 import { attachAccessory, bandHexFor } from './accessories.js';
 import castsData from '../data/casts.json';
+import { yieldToMain } from '../engine/yieldToMain.js';
 
 const loader = new GLTFLoader();
 const gltfCache = new Map();
@@ -850,12 +851,22 @@ export async function buildTeamCharsGlb(team, uniformColor, gear = null, opts = 
     try { return await loadMocapClips(`/assets/anims/mocap-${key}.glb`); }
     catch (e) { console.warn(`[skk] mocap-${key}.glb unavailable, using code animator:`, e); return null; }
   };
+  // PREFETCH (B15): the old loop fetched slot N+1's model and clip pack only
+  // after slot N's synchronous recolour had finished, so the network sat idle
+  // between bodies. Everything comes down at once now (loadGltf and
+  // loadMocapClips both cache per URL), and the build below is pure CPU.
+  const slots = roster.map((p, i) => ({ p, i, archIdx: archIdxFor(team, i) /* shared with the Locker preview */, cast: castSlotFor(team, i) }));
+  await Promise.all(slots.map((s) => Promise.all([
+    loadGltf(ARCHETYPES[s.archIdx]).catch(() => null), // a 404 is handled per-slot below (fallback model)
+    clipsFor(s.archIdx),
+  ])));
   const out = [];
-  for (let i = 0; i < roster.length; i++) {
-    const p = roster[i];
-    const archIdx = archIdxFor(team, i); // shared with the Locker preview
-    const cast = castSlotFor(team, i);
-    const clips = await clipsFor(archIdx);
+  for (const { p, i, archIdx, cast } of slots) {
+    // BREATHE (B15): the recolour + fence + panel pass is synchronous pixel
+    // work per body. Between bodies the thread goes back to the page so TAP TO
+    // SKIP on the intro video answers and the frame loop paints.
+    if (out.length) await yieldToMain();
+    const clips = await clipsFor(archIdx); // cached by the prefetch
     let char;
     try {
       char = await buildGlbCharacter({ model: ARCHETYPES[archIdx], teamColor: primary, cleatHex, cast }, { heightM: 2.05, clips });
