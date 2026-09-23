@@ -2,6 +2,7 @@
 // splash video -> title -> menu -> team select -> coin toss -> match -> post-game
 import './ui/ui.css';
 import { createEngine } from './engine/renderer.js';
+import { isCovered } from './engine/renderGate.js';
 import { telemetry, installGlobalHandlers } from './engine/telemetry.js';
 import { GestureInput } from './engine/input.js';
 import { EventBus } from './engine/events.js';
@@ -49,6 +50,15 @@ const bus = new EventBus();
 const audio = new AudioBus(bus);
 const save = new SaveManager({});
 window.__bus = bus; window.__audio = audio; window.__engine = engine; // dev/debug handles
+
+// RENDER GATE (Phase 1, B16): the post chain used to run at 60 fps under the
+// Title, Menu, Team Select, Locker and the intro videos. Watch the UI root
+// and the stage for opaque covers and tell the engine; the coin toss is
+// `.screen.transparent` and keeps drawing. One cheap query per DOM change.
+const refreshCover = () => engine.setCovered(isCovered(stage));
+new MutationObserver(refreshCover).observe(uiRoot, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden'] });
+new MutationObserver(refreshCover).observe(stage, { childList: true });
+refreshCover();
 
 // PWA: register the service worker in production only (keeps dev hot-reload clean)
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {

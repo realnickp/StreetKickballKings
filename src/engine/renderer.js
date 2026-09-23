@@ -10,6 +10,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { PerfWatchdog } from './perfWatchdog.js';
 import { tierFromBrowser } from './deviceTier.js';
+import { RenderGate } from './renderGate.js';
 import { telemetry } from './telemetry.js';
 
 // Combined vignette + chromatic aberration + scene tint + film grain grade.
@@ -99,25 +100,35 @@ export function createEngine(canvas, opts = {}) {
   // is the cheapest material-quality win. Wrapped because a missing/renamed addon must
   // NEVER blank the screen — on failure we just skip the env map and keep rendering.
   let pmrem = null;
-  try {
-    pmrem = new THREE.PMREMGenerator(renderer);
-    // SIZE PINNED, and it is not cosmetic. `envMapCubeUVHeight` is part of the
-    // PROGRAM KEY three links a material against, and `setSceneEnvironment`
-    // below swaps this neutral room for a map built out of the field's own
-    // backdrop — `fromEquirectangular` of a 256x128 canvas, i.e. cube size
-    // 256/4 = 64. `fromScene` defaults to 256, so the boot map and the field
-    // map had DIFFERENT cubeUV heights and EVERY body re-linked its shader on
-    // its first visible draw after the swap. Since the sixteen are hidden until
-    // the walk-out, that re-link was deferred all the way to the show — the
-    // 940 ms first frame, and the "they render one by one" the dev saw. Same
-    // size on both paths = same key = the swap can never move it.
-    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04, 0.1, 100, { size: PMREM_CUBE }).texture;
-    // Hold the IBL well back: full-strength RoomEnvironment + the bright per-sky
-    // lights blew every surface past the bloom threshold (everything glowed). This
-    // keeps the material reflectance cue without lifting overall scene brightness.
-    scene.environmentIntensity = 0.5;
-  } catch (e) {
-    console.warn('[skk] env map (RoomEnvironment/PMREM) unavailable, skipping:', e);
+  try { pmrem = new THREE.PMREMGenerator(renderer); } catch (e) { console.warn('[skk] PMREM unavailable, no env map:', e); }
+  // The neutral room map is built on the FIRST FRAME THAT DRAWS (or the first
+  // time a field map fails to land), not at boot: menus cover the canvas for
+  // the first minute of a session and the field's own map usually replaces it
+  // before anything is seen (B23).
+  //
+  // SIZE PINNED, and it is not cosmetic. `envMapCubeUVHeight` is part of the
+  // PROGRAM KEY three links a material against, and `setSceneEnvironment`
+  // below swaps this neutral room for a map built out of the field's own
+  // backdrop — `fromEquirectangular` of a 256x128 canvas, i.e. cube size
+  // 256/4 = 64. `fromScene` defaults to 256, so the boot map and the field
+  // map had DIFFERENT cubeUV heights and EVERY body re-linked its shader on
+  // its first visible draw after the swap. Since the sixteen are hidden until
+  // the walk-out, that re-link was deferred all the way to the show — the
+  // 940 ms first frame, and the "they render one by one" the dev saw. Same
+  // size on both paths = same key = the swap can never move it.
+  let neutralBuilt = false;
+  function ensureNeutralEnv() {
+    if (neutralBuilt || !pmrem || scene.environment) return;
+    neutralBuilt = true;
+    try {
+      scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04, 0.1, 100, { size: PMREM_CUBE }).texture;
+      // Hold the IBL well back: full-strength RoomEnvironment + the bright per-sky
+      // lights blew every surface past the bloom threshold (everything glowed). This
+      // keeps the material reflectance cue without lifting overall scene brightness.
+      scene.environmentIntensity = 0.5;
+    } catch (e) {
+      console.warn('[skk] env map (RoomEnvironment/PMREM) unavailable, skipping:', e);
+    }
   }
 
   const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 500);
@@ -151,6 +162,7 @@ export function createEngine(canvas, opts = {}) {
   rebuildChain();
 
   const frameCbs = new Set();
+  const gate = new RenderGate();
   const engine = {
     THREE,
     tier,
@@ -172,6 +184,11 @@ export function createEngine(canvas, opts = {}) {
       frameCbs.add(cb);
       return () => frameCbs.delete(cb);
     },
+    /** RENDER GATE (B16): while an opaque screen or a set-piece video covers
+     *  the canvas, frame callbacks still run but nothing is drawn. main.js
+     *  watches the DOM and flips this. */
+    setCovered(on) { gate.setCovered(on); },
+    get covered() { return gate.covered; },
     setQuality(q) {
       quality = q;
       rebuildChain();
@@ -196,7 +213,10 @@ export function createEngine(canvas, opts = {}) {
       // rejects — a missing backdrop keeps the neutral IBL and the match runs.
       let settle = () => {};
       engine.envReady = new Promise((res) => { settle = res; });
-      if (!url || !pmrem) { settle(); return; }
+      // every path that leaves the scene WITHOUT a field map falls back to the
+      // neutral one BEFORE envReady settles: the prewarm links programs against
+      // whatever is in place, and a map that arrives later re-links all sixteen
+      if (!url || !pmrem) { ensureNeutralEnv(); settle(); return; }
       new THREE.ImageLoader().load(url, (img) => {
         try {
           // Equirect approximation of standing inside the scene: the backdrop
@@ -236,11 +256,13 @@ export function createEngine(canvas, opts = {}) {
           );
         } catch (e) {
           console.warn('[skk] scene environment failed, keeping neutral IBL:', e);
+          ensureNeutralEnv();
         } finally {
           settle(); // swapped or not, the light is now whatever it is going to be
         }
       }, undefined, (e) => {
         console.warn('[skk] scene backdrop unavailable, keeping neutral IBL:', e);
+        ensureNeutralEnv();
         settle();
       });
     },
@@ -311,9 +333,8 @@ export function createEngine(canvas, opts = {}) {
         pmrem.dispose();
         pmrem = new THREE.PMREMGenerator(renderer);
         sceneEnvRT?.dispose(); sceneEnvRT = null;
-        scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04, 0.1, 100, { size: PMREM_CUBE }).texture;
-        scene.environmentIntensity = 0.5;
-        if (lastEnvUrl) engine.setSceneEnvironment(lastEnvUrl);
+        scene.environment = null; neutralBuilt = false;
+        if (lastEnvUrl) engine.setSceneEnvironment(lastEnvUrl); else ensureNeutralEnv();
       }
       resize();
     } catch (err) {
@@ -360,6 +381,8 @@ export function createEngine(canvas, opts = {}) {
       }
     }
     if (contextLost) return; // nothing to draw into; three would early-return anyway
+    if (!gate.shouldRender()) return; // an opaque screen or a video covers the canvas (B16)
+    ensureNeutralEnv(); // the first frame that draws gets its IBL (never a frame without one)
 
     if (engine.shakeAmt > 0.001) {
       camera.position.sub(shakeOffset);
