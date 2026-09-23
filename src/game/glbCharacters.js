@@ -22,6 +22,7 @@ import { inkFor, logoFor, markFor } from './kits.js';
 import { recolorPixels, kitTintPixel, inkKitPanels, rasterizeUvMask, dilateMask } from './skinTint.js';
 import { attachAccessory, bandHexFor } from './accessories.js';
 import castsData from '../data/casts.json';
+import { yieldToMain } from '../engine/yieldToMain.js';
 
 const loader = new GLTFLoader();
 const gltfCache = new Map();
@@ -117,6 +118,9 @@ function recolorKitTexture(srcTex, primaryHex, { skinTone = null, mesh = null } 
 // different crews, and then eviction is real: the old characters are gone, the
 // canvas goes with the entry, and the GL handle is genuinely freed.
 const RECOLOR_CACHE_MAX = 16;
+/** Frustum-culling sphere for a rig: the bind pose's sphere grown by this, so
+ *  a dive, a bicycle kick or a hips bob never leaves it (B17). */
+export const CULL_RADIUS_SCALE = 2.2;
 const recolorCache = new Map();
 
 // ---- the hair/shoe fence --------------------------------------------------
@@ -614,7 +618,22 @@ export async function buildGlbCharacter(def, { heightM = 2.05, clips = null } = 
   const root = skeletonClone(base.scene);
   root.traverse((o) => {
     if (o.isMesh) {
-      o.castShadow = true; o.frustumCulled = false;
+      o.castShadow = true;
+      // FRUSTUM CULLING (Phase 1, B17). Skinned meshes shipped `frustumCulled =
+      // false` because three would otherwise compute a sphere from the SKINNED
+      // vertices. We give each one a fixed sphere instead: the bind pose's,
+      // grown ×CULL_RADIUS_SCALE so no clip ever leaves it. Off-screen fielders
+      // then skip the main pass (the shadow pass has its own budget —
+      // shadowBudget.js). The prewarm stages every rig UNCULLED for its one
+      // draw, so bone textures and shadow variants still link before the show.
+      if (o.isSkinnedMesh) {
+        if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
+        o.boundingSphere = o.geometry.boundingSphere.clone();
+        o.boundingSphere.radius *= CULL_RADIUS_SCALE;
+        o.frustumCulled = true;
+      } else {
+        o.frustumCulled = false;
+      }
       if (o.material) {
         // clone the material per character so recolor/changes don't leak to other clones
         o.material = o.material.clone();
@@ -832,12 +851,22 @@ export async function buildTeamCharsGlb(team, uniformColor, gear = null, opts = 
     try { return await loadMocapClips(`/assets/anims/mocap-${key}.glb`); }
     catch (e) { console.warn(`[skk] mocap-${key}.glb unavailable, using code animator:`, e); return null; }
   };
+  // PREFETCH (B15): the old loop fetched slot N+1's model and clip pack only
+  // after slot N's synchronous recolour had finished, so the network sat idle
+  // between bodies. Everything comes down at once now (loadGltf and
+  // loadMocapClips both cache per URL), and the build below is pure CPU.
+  const slots = roster.map((p, i) => ({ p, i, archIdx: archIdxFor(team, i) /* shared with the Locker preview */, cast: castSlotFor(team, i) }));
+  await Promise.all(slots.map((s) => Promise.all([
+    loadGltf(ARCHETYPES[s.archIdx]).catch(() => null), // a 404 is handled per-slot below (fallback model)
+    clipsFor(s.archIdx),
+  ])));
   const out = [];
-  for (let i = 0; i < roster.length; i++) {
-    const p = roster[i];
-    const archIdx = archIdxFor(team, i); // shared with the Locker preview
-    const cast = castSlotFor(team, i);
-    const clips = await clipsFor(archIdx);
+  for (const { p, i, archIdx, cast } of slots) {
+    // BREATHE (B15): the recolour + fence + panel pass is synchronous pixel
+    // work per body. Between bodies the thread goes back to the page so TAP TO
+    // SKIP on the intro video answers and the frame loop paints.
+    if (out.length) await yieldToMain();
+    const clips = await clipsFor(archIdx); // cached by the prefetch
     let char;
     try {
       char = await buildGlbCharacter({ model: ARCHETYPES[archIdx], teamColor: primary, cleatHex, cast }, { heightM: 2.05, clips });

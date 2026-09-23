@@ -248,12 +248,13 @@ export function TeamSelectScreen(ctx) {
         // a man + a woman, each shown in the SELECTED kit — REAL images, no tint.
         const setImg = (img, base) => {
           img.style.visibility = 'visible';
-          const signature = `assets/players/${base}.png`;
+          // WebP since Phase 1 (2026-09-22): the fifty PNGs were 64 MB
+          const signature = `assets/players/${base}.webp`;
           img.onerror = () => { // alt kit missing -> signature image -> generic team image
-            img.onerror = () => { img.onerror = null; img.src = `assets/players/${t.id}.png`; };
+            img.onerror = () => { img.onerror = null; img.src = `assets/players/${t.id}.webp`; };
             img.src = signature;
           };
-          img.src = `assets/players/${base}${k.img}.png`;
+          img.src = `assets/players/${base}${k.img}.webp`;
         };
         setImg(w.querySelector('.m-player.man'), `${t.id}-man`);
         setImg(w.querySelector('.m-player.woman'), `${t.id}-woman`);

@@ -4,6 +4,7 @@ import { isMuted } from '../engine/audio.js';
 export function playVideo(url, { muted = false, skippable = true } = {}) {
   return new Promise((resolve) => {
     const wrap = document.createElement('div');
+    wrap.className = 'video-cover'; // read by the render gate (renderGate.js): the canvas is covered while a clip plays
     wrap.style.cssText = 'position:absolute;inset:0;background:#000;z-index:50;display:flex;align-items:center;justify-content:center;';
     const video = document.createElement('video');
     video.src = url;

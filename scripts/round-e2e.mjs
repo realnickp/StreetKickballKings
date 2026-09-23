@@ -24,8 +24,9 @@
 //                    and flash home on a score.
 //   8. DANCE BAG   — a full bag cycle is all-distinct, and no draw ever
 //                    repeats back-to-back across the refill seam.
-//   9. MSAA        — the composer target starts at 4 samples, setSamples(2)
-//                    lands on both targets and the loop survives, ?msaa= wins.
+//   9. MSAA        — the composer target starts at the device tier's MSAA,
+//                    setSamples(lower) lands on both targets and the loop
+//                    survives, ?msaa= wins.
 //  10. LOCKER      — the preview canvas renders a lit captain over a clear
 //                    background, and the caption names him and his kit.
 //  11. GEAR UP     — team select's START lands on GEAR UP, the first run opens
@@ -879,17 +880,22 @@ async function msaaScenario(page) {
   // earn a downgrade.
   await page.goto(url('nosplash&go=menu'), { waitUntil: 'domcontentloaded' });
   if (!ok(!!(await poll(page, () => !!window.__engine?.composer, 20000, 'engine')), 'engine up on the flow page')) return;
-  const start = await page.evaluate(() => ({ s: window.__engine.samples, rt1: window.__engine.composer.renderTarget1.samples, rt2: window.__engine.composer.renderTarget2.samples }));
-  ok(start.s === 4 && start.rt1 === 4 && start.rt2 === 4, `the composer targets start at 4x MSAA (${JSON.stringify(start)})`);
-  const dropped = await page.evaluate(async () => {
+  const start = await page.evaluate(() => ({ s: window.__engine.samples, tier: window.__engine.tier.msaa, rt1: window.__engine.composer.renderTarget1.samples, rt2: window.__engine.composer.renderTarget2.samples }));
+  ok(start.s === start.tier && start.rt1 === start.tier && start.rt2 === start.tier, `the composer targets start at the device tier's MSAA (${JSON.stringify(start)})`);
+  const next = start.tier >= 2 ? start.tier / 2 : 0;
+  const dropped = await page.evaluate(async (n) => {
     let frames = 0;
     const off = window.__engine.onFrame(() => { frames += 1; });
-    window.__engine.setSamples(2);
-    await new Promise((r) => setTimeout(r, 400));
+    window.__engine.setSamples(n);
+    // up to 3 s for three frames: under WebKit's software renderer the frame after
+    // a target re-allocation re-links the chain, and the render gate (Phase 1)
+    // only draws two settle frames on the menu before it stops calling the composer
+    const t0 = performance.now();
+    while (frames < 3 && performance.now() - t0 < 3000) await new Promise((r) => setTimeout(r, 100));
     off?.();
     return { s: window.__engine.samples, rt1: window.__engine.composer.renderTarget1.samples, rt2: window.__engine.composer.renderTarget2.samples, frames };
-  });
-  ok(dropped.s === 2 && dropped.rt1 === 2 && dropped.rt2 === 2, `setSamples(2) lands on both targets (${JSON.stringify(dropped)})`);
+  }, next);
+  ok(dropped.s === next && dropped.rt1 === next && dropped.rt2 === next, `setSamples(${next}) lands on both targets (${JSON.stringify(dropped)})`);
   ok(dropped.frames > 2, `the render loop survives the re-allocation (${dropped.frames} frames after)`);
   await page.goto(url('nosplash&go=menu&msaa=0'), { waitUntil: 'domcontentloaded' });
   if (!(await poll(page, () => !!window.__engine?.composer, 20000, 'engine (msaa=0)'))) return ok(false, '?msaa=0 page booted');

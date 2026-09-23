@@ -90,13 +90,13 @@ async function teardownScenario(page) {
     s.destroy();
     const after = { cine: count('cine:start'), roll: count('element:roll'), ret: count('cine:returnThrow') };
     return {
-      videos: vids.length,
+      videos: vids.length, tier: window.__engine.tier.name, hooks: s.field._videoHooks.length, mode: s.field.videoMode,
       paused: vids.every((v) => v.paused),
       unloaded: vids.every((v) => !v.getAttribute('src') && !v.src),
       before, after,
     };
   });
-  ok(r.videos === 2, `the field carried two backdrop videos (${r.videos})`);
+  ok(r.videos === 2, `the field carried two backdrop videos (${r.videos}; tier ${r.tier}, mode ${r.mode}, hooks ${r.hooks})`);
   ok(r.paused, 'destroy() pauses both backdrop videos');
   ok(r.unloaded, 'destroy() unloads both backdrop videos (src cleared)');
   ok(r.after.cine < r.before.cine && r.after.roll < r.before.roll && r.after.ret < r.before.ret,
@@ -167,7 +167,10 @@ page.on('pageerror', (e) => errors.push(String(e).slice(0, 200)));
 // one scenario blowing up must not hide the others' verdicts
 const run = async (fn) => { try { await fn(page); } catch (e) { fail++; console.log(`FAIL  harness error in ${fn.name}:`, e?.message ?? e); } };
 try {
-  await boot(page, 'match&mute&nosplash');
+  // tier=high: the TEARDOWN scenario's contract is that BOTH backdrop loops are
+  // paused and unloaded, and since Phase 1 the device tier decides how many a
+  // field carries (this iPhone 13 descriptor's iOS 15 UA would land on 'low')
+  await boot(page, 'match&mute&nosplash&tier=high');
   await run(throwGuardScenario);
   await run(netsFirstScenario);
   await run(teardownScenario);

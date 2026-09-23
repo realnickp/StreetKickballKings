@@ -34,6 +34,7 @@ import { gearLine } from '../meta/gearLine.js';
 import { PREGAME, pregameTimeline, walkoutPregame } from './pregame.js';
 import { WALKOUT_SHOW, walkoutTimeline, walkoutShotAt, walkoutPosAt, craneT } from './walkoutShow.js';
 import { prewarmCharacters } from './prewarm.js';
+import { pickCasters, applyCasters } from './shadowBudget.js';
 import { disposeCharacter } from './glbCharacters.js';
 import { cityTrackId } from '../engine/audioTracks.js';
 import teamsData from '../data/teams.json';
@@ -134,7 +135,7 @@ export class MatchScene {
     // homeTeam differs from the scheduled home side).
     const fieldHomeTeam = teamsData.teams.find((t) => t.id === fieldData.homeTeam);
     this.matchCityTrack = cityTrackId(fieldHomeTeam?.city ?? teams.home?.city);
-    this.field = buildField(fieldData, engine.scene);
+    this.field = buildField(fieldData, engine.scene, { video: engine.tier?.video, shadowMap: engine.tier?.shadowMap });
     // Light the live layer BY the scene: IBL + grade tint derived from this
     // field's own backdrop art so court/players sit inside it, not on top.
     engine.setSceneEnvironment?.(fieldData.textures?.backdrop);
@@ -810,6 +811,12 @@ export class MatchScene {
   }
   fieldingChars() {
     return this.chars[this.match.fieldingSide()];
+  }
+  /** Only the device tier's N rigs nearest the camera cast a shadow (B17). */
+  refreshShadowCasters() {
+    const n = this.engine.tier?.casters ?? 16;
+    const all = [...(this.chars?.home ?? []), ...(this.chars?.away ?? [])];
+    applyCasters(all, pickCasters(all, this.engine.camera.position, n));
   }
   /** Keep a caught/held ball visibly IN the holder's hands every frame — so you
    *  SEE it after a catch (gameplay AND the replay cinematic) and while a baseman
@@ -4424,6 +4431,11 @@ export class MatchScene {
   // ---------- frame update ----------
   update(dt, rawDt) {
     this.elapsed += rawDt;
+    // SHADOW BUDGET (Phase 1, B17): the tier's N nearest rigs cast; re-picked
+    // four times a second, which follows every camera cut without per-frame
+    // cost. Starts past the threshold so the very first tick applies it.
+    this._casterT = (this._casterT ?? 1) + rawDt;
+    if (this._casterT >= 0.25) { this._casterT = 0; this.refreshShadowCasters(); }
     // pickle-stage freeze: hold the world while the camera lands, then GO
     if (this.pickleFreezeUntil && this.elapsed >= this.pickleFreezeUntil) {
       this.releasePickleFreeze();

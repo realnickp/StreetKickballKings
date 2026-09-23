@@ -8,8 +8,9 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { PerfWatchdog } from './perfWatchdog.js';
+import { tierFromBrowser } from './deviceTier.js';
+import { RenderGate } from './renderGate.js';
 import { telemetry } from './telemetry.js';
 
 // Combined vignette + chromatic aberration + scene tint + film grain grade.
@@ -70,14 +71,23 @@ const GradeShader = {
 const PMREM_CUBE = 64;
 const PMREM_EQUIRECT_W = PMREM_CUBE * 4;
 
-export function createEngine(canvas) {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+export function createEngine(canvas, opts = {}) {
+  // DEVICE TIER (Phase 1, 2026-09-22): dpr / msaa / bloom / grade come from
+  // one boot-time decision (deviceTier.js); the field reads shadowMap + video
+  // off the same object, the match scene reads casters. ?tier= overrides.
+  const tier = opts.tier ?? tierFromBrowser();
+  console.info(`[skk] device tier ${tier.name} (${tier.reason}): dpr ${tier.dpr}, msaa ${tier.msaa}, bloom ${tier.bloom}, shadow ${tier.shadowMap}, video ${tier.video}`);
+  // antialias:false — every frame renders through the composer, so the
+  // backbuffer's own MSAA (~25 MB at phone resolution) was never seen (B38)
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, tier.dpr));
   let sceneEnvRT = null;  // the field-matched IBL render target (disposed on swap)
   let lastEnvUrl = null;  // ...and what it was built from, to rebuild after a context loss
   let contextLost = false;
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  // PCFSoftShadowMap is deprecated in r183+ and was silently downgraded to
+  // PCFShadowMap with a warning on every boot (B34) — ask for it outright
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   // ACES at default exposure reads muddy on phones — lift the whole image.
   // Dev directive 2026-07-21: "the graphics need to be brighter."
@@ -90,25 +100,36 @@ export function createEngine(canvas) {
   // is the cheapest material-quality win. Wrapped because a missing/renamed addon must
   // NEVER blank the screen — on failure we just skip the env map and keep rendering.
   let pmrem = null;
-  try {
-    pmrem = new THREE.PMREMGenerator(renderer);
-    // SIZE PINNED, and it is not cosmetic. `envMapCubeUVHeight` is part of the
-    // PROGRAM KEY three links a material against, and `setSceneEnvironment`
-    // below swaps this neutral room for a map built out of the field's own
-    // backdrop — `fromEquirectangular` of a 256x128 canvas, i.e. cube size
-    // 256/4 = 64. `fromScene` defaults to 256, so the boot map and the field
-    // map had DIFFERENT cubeUV heights and EVERY body re-linked its shader on
-    // its first visible draw after the swap. Since the sixteen are hidden until
-    // the walk-out, that re-link was deferred all the way to the show — the
-    // 940 ms first frame, and the "they render one by one" the dev saw. Same
-    // size on both paths = same key = the swap can never move it.
-    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04, 0.1, 100, { size: PMREM_CUBE }).texture;
-    // Hold the IBL well back: full-strength RoomEnvironment + the bright per-sky
-    // lights blew every surface past the bloom threshold (everything glowed). This
-    // keeps the material reflectance cue without lifting overall scene brightness.
-    scene.environmentIntensity = 0.5;
-  } catch (e) {
-    console.warn('[skk] env map (RoomEnvironment/PMREM) unavailable, skipping:', e);
+  try { pmrem = new THREE.PMREMGenerator(renderer); } catch (e) { console.warn('[skk] PMREM unavailable, no env map:', e); }
+  // The neutral room map is built by the first frame that draws — in practice
+  // the loop's first iteration at the end of createEngine, before main.js has
+  // mounted a screen, so it still lands at boot (a cube-64 PMREM: a few ms and
+  // ~100 KB). What this buys is the INVARIANT below: no frame and no prewarm
+  // ever links a program without an env map, whichever path got there first.
+  //
+  // SIZE PINNED, and it is not cosmetic. `envMapCubeUVHeight` is part of the
+  // PROGRAM KEY three links a material against, and `setSceneEnvironment`
+  // below swaps this neutral room for a map built out of the field's own
+  // backdrop — `fromEquirectangular` of a 256x128 canvas, i.e. cube size
+  // 256/4 = 64. `fromScene` defaults to 256, so the boot map and the field
+  // map had DIFFERENT cubeUV heights and EVERY body re-linked its shader on
+  // its first visible draw after the swap. Since the sixteen are hidden until
+  // the walk-out, that re-link was deferred all the way to the show — the
+  // 940 ms first frame, and the "they render one by one" the dev saw. Same
+  // size on both paths = same key = the swap can never move it.
+  let neutralBuilt = false;
+  function ensureNeutralEnv() {
+    if (neutralBuilt || !pmrem || scene.environment) return;
+    neutralBuilt = true;
+    try {
+      scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04, 0.1, 100, { size: PMREM_CUBE }).texture;
+      // Hold the IBL well back: full-strength RoomEnvironment + the bright per-sky
+      // lights blew every surface past the bloom threshold (everything glowed). This
+      // keeps the material reflectance cue without lifting overall scene brightness.
+      scene.environmentIntensity = 0.5;
+    } catch (e) {
+      console.warn('[skk] env map (RoomEnvironment/PMREM) unavailable, skipping:', e);
+    }
   }
 
   const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 500);
@@ -119,10 +140,11 @@ export function createEngine(canvas) {
   // post chain, so the WebGLRenderer's own antialias flag never applied
   // (effective AA was none — the jagged edges the dev saw). ?msaa=N overrides.
   const msaaParam = new URLSearchParams(location.search).get('msaa');
-  let samples = msaaParam != null ? Math.max(0, Math.min(4, Number(msaaParam) || 0)) : 4;
+  let samples = msaaParam != null ? Math.max(0, Math.min(4, Number(msaaParam) || 0)) : tier.msaa;
   const composer = new EffectComposer(renderer,
     new THREE.WebGLRenderTarget(1, 1, { samples, type: THREE.HalfFloatType }));
-  const watchdog = new PerfWatchdog();
+  // the watchdog only ever steps DOWN from the tier's level; a tier at 0 never fires
+  const watchdog = new PerfWatchdog({ steps: [4, 2, 0].filter((s) => s <= samples) });
   const renderPass = new RenderPass(scene, camera);
   // threshold 1.0 (was .95): the exposure lift above would otherwise push
   // ordinary surfaces over the bloom cutoff and everything would glow
@@ -130,38 +152,21 @@ export function createEngine(canvas) {
   const gradePass = new ShaderPass(GradeShader);
   const outputPass = new OutputPass();
 
-  // Ambient occlusion (high quality only): subtle contact darkening where players,
-  // ball and props meet the ground so nothing floats. GTAO renders its own depth/
-  // normal buffer. Wrapped so a missing/renamed addon degrades to "no AO" instead of
-  // blanking the screen. Tuned conservatively — a light contact shade, not a grey halo.
-  let aoPass = null;
-  try {
-    aoPass = new GTAOPass(scene, camera, 1, 1); // sized in resize()
-    aoPass.output = GTAOPass.OUTPUT.Default; // scene blended with AO, not the raw AO buffer
-    aoPass.blendIntensity = 0.55;            // hold the occlusion back so it stays subtle
-    aoPass.updateGtaoMaterial({ radius: 0.45, distanceExponent: 1.2, thickness: 1.0, scale: 1.0, samples: 16 });
-  } catch (e) {
-    console.warn('[skk] GTAOPass unavailable, skipping AO:', e);
-    aoPass = null;
-  }
-
   let quality = 'high';
   function rebuildChain() {
     composer.passes.length = 0;
     composer.addPass(renderPass);
-    // AO disabled: GTAO produced big dark halo-discs under players and a black box
-    // around the fast-moving ball. The env map + sun shadows already ground the scene;
-    // revisit with a properly tuned (much smaller radius) pass later.
-    // if (quality === 'high' && aoPass) composer.addPass(aoPass);
-    composer.addPass(bloomPass);
-    if (quality === 'high') composer.addPass(gradePass);
+    if (tier.bloom) composer.addPass(bloomPass);
+    if (quality === 'high' && tier.grade) composer.addPass(gradePass);
     composer.addPass(outputPass);
   }
   rebuildChain();
 
   const frameCbs = new Set();
+  const gate = new RenderGate();
   const engine = {
     THREE,
+    tier,
     renderer,
     scene,
     camera,
@@ -180,6 +185,11 @@ export function createEngine(canvas) {
       frameCbs.add(cb);
       return () => frameCbs.delete(cb);
     },
+    /** RENDER GATE (B16): while an opaque screen or a set-piece video covers
+     *  the canvas, frame callbacks still run but nothing is drawn. main.js
+     *  watches the DOM and flips this. */
+    setCovered(on) { gate.setCovered(on); },
+    get covered() { return gate.covered; },
     setQuality(q) {
       quality = q;
       rebuildChain();
@@ -204,7 +214,10 @@ export function createEngine(canvas) {
       // rejects — a missing backdrop keeps the neutral IBL and the match runs.
       let settle = () => {};
       engine.envReady = new Promise((res) => { settle = res; });
-      if (!url || !pmrem) { settle(); return; }
+      // every path that leaves the scene WITHOUT a field map falls back to the
+      // neutral one BEFORE envReady settles: the prewarm links programs against
+      // whatever is in place, and a map that arrives later re-links all sixteen
+      if (!url || !pmrem) { ensureNeutralEnv(); settle(); return; }
       new THREE.ImageLoader().load(url, (img) => {
         try {
           // Equirect approximation of standing inside the scene: the backdrop
@@ -244,11 +257,13 @@ export function createEngine(canvas) {
           );
         } catch (e) {
           console.warn('[skk] scene environment failed, keeping neutral IBL:', e);
+          ensureNeutralEnv();
         } finally {
           settle(); // swapped or not, the light is now whatever it is going to be
         }
       }, undefined, (e) => {
         console.warn('[skk] scene backdrop unavailable, keeping neutral IBL:', e);
+        ensureNeutralEnv();
         settle();
       });
     },
@@ -265,7 +280,6 @@ export function createEngine(canvas) {
     const h = canvas.clientHeight || window.innerHeight;
     renderer.setSize(w, h, false); // false = don't touch CSS; the frame already sizes the canvas
     composer.setSize(w, h);
-    if (aoPass) aoPass.setSize(w, h);
     camera.aspect = w / h;
     // keep the field framed in narrow portrait by widening FOV as aspect shrinks
     camera.fov = w / h < 0.65 ? 74 : 58;
@@ -320,9 +334,8 @@ export function createEngine(canvas) {
         pmrem.dispose();
         pmrem = new THREE.PMREMGenerator(renderer);
         sceneEnvRT?.dispose(); sceneEnvRT = null;
-        scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04, 0.1, 100, { size: PMREM_CUBE }).texture;
-        scene.environmentIntensity = 0.5;
-        if (lastEnvUrl) engine.setSceneEnvironment(lastEnvUrl);
+        scene.environment = null; neutralBuilt = false;
+        if (lastEnvUrl) engine.setSceneEnvironment(lastEnvUrl); else ensureNeutralEnv();
       }
       resize();
     } catch (err) {
@@ -334,7 +347,7 @@ export function createEngine(canvas) {
     hideCard();
   });
 
-  const clock = new THREE.Clock();
+  const timer = new THREE.Timer(); // THREE.Clock is deprecated since r183 (B34)
   const shakeOffset = new THREE.Vector3();
   let running = true;
   let lastFrameAt = performance.now();
@@ -348,13 +361,14 @@ export function createEngine(canvas) {
     }
     requestAnimationFrame(loop);
     lastFrameAt = performance.now();
-    const rawDt = Math.min(clock.getDelta(), 0.05);
+    timer.update(ts);
+    const rawDt = Math.min(timer.getDelta(), 0.05);
     if (!document.hidden && msaaParam == null) {
       const drop = watchdog.tick(rawDt);
       if (drop !== null) engine.setSamples(drop);
     }
     const dt = rawDt * engine.timeScale;
-    gradePass.uniforms.time.value = clock.elapsedTime; // animates the film grain
+    gradePass.uniforms.time.value = timer.getElapsed(); // animates the film grain
 
     // a throwing frame callback must NEVER freeze the whole game (skip render /
     // other callbacks). Isolate each one so the loop always survives + renders.
@@ -368,6 +382,8 @@ export function createEngine(canvas) {
       }
     }
     if (contextLost) return; // nothing to draw into; three would early-return anyway
+    if (!gate.shouldRender()) return; // an opaque screen or a video covers the canvas (B16)
+    ensureNeutralEnv(); // the first frame that draws gets its IBL (never a frame without one)
 
     if (engine.shakeAmt > 0.001) {
       camera.position.sub(shakeOffset);

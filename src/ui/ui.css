@@ -5,7 +5,7 @@
    labels, buttons and tabs are Archivo 900 uppercase (--display); Permanent
    Marker (--marker) is reserved for nicknames, crew names and the big moment
    stamps. Actionable = lit backplate + glow; idle = text with a rule. */
-@import url('https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Archivo:wght@500;700;900&display=swap');
+@import './fonts.css'; /* self-hosted (public/fonts, scripts/fetch-fonts.mjs) — the Google import was render-blocking (B23) */
 
 :root {
   --sab: env(safe-area-inset-bottom, 0px); /* read by updateRunnerArrows so markers clear the phone's control row */
@@ -65,10 +65,13 @@ body { display: flex; align-items: center; justify-content: center; }
 #stage {
   position: relative;
   height: 100vh;
+  height: 100dvh; /* iOS Safari (non-PWA): 100vh sits under the toolbar and hid the bottom HUD row (B24) */
   width: min(100vw, calc(100vh * 0.52)); /* portrait phone aspect (~9:17) */
+  width: min(100vw, calc(100dvh * 0.52));
   overflow: hidden;
   background: var(--bg);
   box-shadow: 0 0 50px rgba(0, 0, 0, .7);
+  -webkit-touch-callout: none; /* a long press on a crest mid-play opened the iOS share sheet (B33) */
   /* size container so UI uses cqw (% of the FRAME), not vw (% of the desktop window) */
   container-type: inline-size;
 }
@@ -283,13 +286,13 @@ body { display: flex; align-items: center; justify-content: center; }
   padding: 6px 0;
   text-shadow: 0 2px 10px rgba(0,0,0,.9), 0 0 22px rgba(0,0,0,.7);
   box-shadow: none;
-  animation: hintPulse 0.8s ease-in-out infinite;
   pointer-events: none;
   white-space: nowrap;
   max-width: 96cqw;
   opacity: 0;
 }
-.action-hint.show { opacity: 1; }
+/* the pulse runs only while SHOWN — it used to run at opacity 0 for the whole match (B32) */
+.action-hint.show { opacity: 1; animation: hintPulse 0.8s ease-in-out infinite; }
 /* when the pitch picker is up, lift the hint ABOVE the two button rows so it isn't hidden behind them */
 .action-hint.above-pitch { bottom: calc(150px + env(safe-area-inset-bottom)); font-size: 19px; }
 @keyframes hintPulse {
@@ -1271,11 +1274,11 @@ body { display: flex; align-items: center; justify-content: center; }
 @keyframes tutRipple { from { opacity: .9; scale: .4; } to { opacity: 0; scale: 2.4; } }
 .tut-diamond { position: relative; width: 86px; height: 86px; transform: rotate(45deg); }
 .tut-diamond i { position: absolute; width: 20px; height: 20px; border-radius: 5px; background: #e8e2d5; box-shadow: 0 0 10px rgba(255,255,255,.25); }
-.tut-diamond .d1 { right: 0; bottom: 0; background: var(--gold); animation: tutBag 1.2s ease-in-out infinite; }
+.tut-diamond .d1 { right: 0; bottom: 0; background: var(--gold); box-shadow: 0 0 14px rgba(245,179,18,.7); animation: tutBag 1.2s ease-in-out infinite; }
 .tut-diamond .d2 { right: 0; top: 0; }
 .tut-diamond .d3 { left: 0; top: 0; }
 .tut-diamond .dh { left: 0; bottom: 0; background: #cfd6e4; }
-@keyframes tutBag { 0%, 100% { box-shadow: 0 0 8px rgba(245,179,18,.4); } 50% { box-shadow: 0 0 20px rgba(245,179,18,.95); } }
+@keyframes tutBag { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } }
 /* bars that mimic GO FOR 2! / SLIDE! — the real buttons are bars now */
 .tut-pill {
   pointer-events: none; font-family: var(--display); font-weight: 900; font-size: 16px;
@@ -1356,7 +1359,7 @@ body { display: flex; align-items: center; justify-content: center; }
 .drill-intro {
   position: absolute; inset: 0; pointer-events: auto; z-index: 9;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(5,6,10,.74); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+  background: rgba(5,6,10,.82); /* no backdrop blur over the live canvas (B32) */
   animation: introFade .25s ease-out;
 }
 .drill-intro.bye { opacity: 0; transition: opacity .3s; }
@@ -1557,11 +1560,8 @@ body { display: flex; align-items: center; justify-content: center; }
 .element-chip .element-icon { font-size: 15px; }
 .element-chip .element-pips { color: rgba(255,255,255,.75); letter-spacing: .3em; font-size: 9px; }
 .element-chip .element-wind { display: inline-block; font-size: 13px; }
-.element-chip.element-live { animation: elementPulse .5s ease-in-out infinite alternate; }
-@keyframes elementPulse {
-  from { box-shadow: inset 0 -2px 0 rgba(255,215,94,.25); }
-  to { box-shadow: inset 0 -2px 0 rgba(255,215,94,1); }
-}
+.element-chip.element-live { box-shadow: inset 0 -2px 0 rgba(255,215,94,1); animation: elementPulse .5s ease-in-out infinite alternate; }
+@keyframes elementPulse { from { opacity: .7; } to { opacity: 1; } }
 
 /* RUN THE MAP (Win It): the city ladder + trophy case */
 .map-screen { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 18px 12px calc(16px + env(safe-area-inset-bottom)); overflow-y: auto; }
@@ -1856,7 +1856,7 @@ body { display: flex; align-items: center; justify-content: center; }
 }
 .heat-bar.hot .heat-flame { opacity: .9; filter: none; }
 .heat-bar.on-fire { background: rgba(255,90,42,.3); }
-.heat-bar.on-fire .heat-fill { animation: heatBurn .4s ease-in-out infinite alternate; }
+.heat-bar.on-fire .heat-fill { box-shadow: 0 0 8px 2px rgba(255,120,42,.9); animation: heatBurn .4s ease-in-out infinite alternate; }
 .heat-bar.on-fire .heat-flame { opacity: 1; filter: none; font-size: 15px; animation: flamePulse .35s ease-in-out infinite alternate; }
 @keyframes flamePulse { from { scale: 1; } to { scale: 1.35; } }
 .heat-float {
@@ -1866,10 +1866,7 @@ body { display: flex; align-items: center; justify-content: center; }
   translate: -50% 0; animation: heatFloat 1s ease-out forwards;
 }
 @keyframes heatFloat { from { opacity: 0; translate: -50% 6px; scale: .7; } 25% { opacity: 1; scale: 1.1; } to { opacity: 0; translate: -50% -26px; scale: 1; } }
-@keyframes heatBurn {
-  from { filter: brightness(1); box-shadow: 0 0 3px 0 rgba(255,90,42,.6); }
-  to { filter: brightness(1.6); box-shadow: 0 0 8px 2px rgba(255,120,42,.9); }
-}
+@keyframes heatBurn { from { opacity: .8; } to { opacity: 1; } } /* was filter + box-shadow: a repaint per frame (B32) */
 
 /* STREET CALL button (dive/rob): duel-button geometry, always-lit gold —
    it only exists while the call window is open */
@@ -1902,10 +1899,11 @@ body { display: flex; align-items: center; justify-content: center; }
 /* steal chips run hot during the wind-up — tap NOW for the jump */
 .steal-chips.hot .steal-chip {
   color: var(--gold);
+  text-shadow: 0 2px 6px rgba(0,0,0,.85), 0 0 16px rgba(245,179,18,.95); /* glow static; the pulse rides opacity (B32) */
   animation: hotPulse 0.4s ease-in-out infinite alternate;
 }
 .steal-chips.hot .steal-chip span { border-bottom-color: var(--gold); }
-@keyframes hotPulse { from { text-shadow: 0 2px 6px rgba(0,0,0,.85); } to { text-shadow: 0 2px 6px rgba(0,0,0,.85), 0 0 16px rgba(245,179,18,.95); } }
+@keyframes hotPulse { from { opacity: .72; } to { opacity: 1; } }
 
 /* walkout deliberate-skip chip (stray taps no longer eat the lineup) */
 /* SKIP is a word, not a chip — 44px of tap area around bare letterspaced type */

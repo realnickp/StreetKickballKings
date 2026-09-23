@@ -64,11 +64,17 @@ export const SKY_PRESETS = {
   'stadium-night': { hemiSky: '#868eba', hemiGround: '#42424f', sun: '#ffffff', sunI: 2.5, hemiI: 1.5,  amb: '#4a4a5a', ambI: 0.46 },
 };
 
-export function buildField(fieldData, scene) {
+export function buildField(fieldData, scene, opts = {}) {
   const root = new THREE.Group();
   root.name = `field-${fieldData.id}`;
   const palette = fieldData.palette ?? {};
   const handles = { root, layout: FIELD_LAYOUT, _videoHooks: [] };
+  // DEVICE TIER (Phase 1): 'both' = the two animated halves (desktop / 8 GB
+  // Android), 'front' = the outfield loop only, the home half stays its
+  // poster (iOS default — one hardware decoder), 'none' = posters only (low
+  // tier). Callers without a tier get today's behaviour.
+  const videoMode = opts.video ?? 'both';
+  const shadowMapSize = opts.shadowMap ?? 2048;
 
   // --- ground ---------------------------------------------------------------
   // generated art when the field defines it, canvas placeholder otherwise
@@ -179,23 +185,6 @@ export function buildField(fieldData, scene) {
     side.position.set(sign * 7, fh / 2, 2.5);
     side.rotation.y = sign * -Math.PI / 3.2;
     root.add(side);
-  }
-
-  // TRUE 3D WORLD (hero field): loads async; on success the flat backdrop +
-  // skyline hide and real geometry takes the horizon. On failure nothing
-  // changes — the legacy backdrop below is the fallback.
-  const world3d = !!fieldData.world3d;
-  if (world3d) {
-    import('./world/blacktop.js').then(async ({ loadBlacktopWorld }) => {
-      const world = await loadBlacktopWorld();
-      root.add(world.group);
-      // the world animates (el train, steam, cloud drift) off the crowd tick
-      const prevTick = handles.updateCrowd;
-      handles.updateCrowd = (t) => { prevTick(t); world.update(t); };
-      if (handles.backdrop) handles.backdrop.visible = false;
-      if (handles.backdropVideo) { try { handles.backdropVideo.pause(); } catch { /* fine */ } }
-      if (handles.skyline) handles.skyline.visible = false;
-    }).catch((e) => console.warn('[skk] 3d world unavailable, keeping backdrop:', e));
   }
 
   // --- backdrop: ONE cohesive Higgsfield-designed scene (fans + city + sky),
@@ -312,7 +301,7 @@ export function buildField(fieldData, scene) {
       handles._videoHooks.push({ video, kick });
       return { mat: bmat, video };
     };
-    const frontBuild = buildBackdropMat(fieldData.textures?.backdrop, fieldData.textures?.backdropVideo, tuneTex);
+    const frontBuild = buildBackdropMat(fieldData.textures?.backdrop, videoMode === 'none' ? null : fieldData.textures?.backdropVideo, tuneTex);
     const mat = frontBuild.mat;
     if (frontBuild.video) handles.backdropVideo = frontBuild.video;
     // Backdrop sizing (overridable per-field via fieldData.backdropGeo). Pushed
@@ -370,7 +359,7 @@ export function buildField(fieldData, scene) {
       seamRamp.magFilter = THREE.LinearFilter;
       seamRamp.generateMipmaps = false;
       seamRamp.needsUpdate = true;
-      const backBuild = buildBackdropMat(bk.tex ?? fieldData.textures?.backdrop, bk.video ?? null, tuneBack, seamRamp);
+      const backBuild = buildBackdropMat(bk.tex ?? fieldData.textures?.backdrop, videoMode === 'both' ? (bk.video ?? null) : null, tuneBack, seamRamp);
       if (backBuild.video) handles.backdropVideoBack = backBuild.video;
       // The two halves are CO-RADIAL in every shipped field, so the overlap
       // bands would z-fight. 5 cm of inward bias (0.1 % of the radius — no
@@ -448,9 +437,7 @@ export function buildField(fieldData, scene) {
   // Far sphere dome for the zenith, PLUS a same-radius "sky cap" cylinder that
   // continues the backdrop's own sky straight up with no parallax — so the rich
   // sky goes high enough and the join is seamless and natural (no design change).
-  // world3d fields use the per-sky GRADIENT (golden-hour dusk), not the baked
-  // daytime sky photo that matched the old backdrop
-  const skyMap = (fieldData.textures?.sky && !world3d)
+  const skyMap = fieldData.textures?.sky
     ? new THREE.TextureLoader().load(fieldData.textures.sky, (t) => { t.colorSpace = THREE.SRGBColorSpace; })
     : makeSkyGradient(fieldData.sky);
   const sky = new THREE.Mesh(
@@ -565,14 +552,11 @@ export function buildField(fieldData, scene) {
   // a small ambient floor so ACES tone-mapping never crushes the court to black
   root.add(new THREE.AmbientLight(lp.amb ?? '#55585f', (lp.ambI ?? 0.3) * lift.amb));
   const sun = new THREE.DirectionalLight(lp.sun, lp.sunI * lift.sun);
-  // golden-hour 3D world: LOW warm sun from the third-base side -> long dusk
-  // shadows across the asphalt (the mood the whole world bake is lit for)
-  if (world3d) sun.position.set(-34, 17, 24);
-  else sun.position.set(28, 40, 18);
+  sun.position.set(28, 40, 18);
   sun.castShadow = true;
   // Higher-res map + a tighter frustum (±38 still covers the ~42m fence play near home)
   // = crisper contact shadows. Bias pair kills shadow acne and peter-panning.
-  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.mapSize.set(shadowMapSize, shadowMapSize);
   sun.shadow.camera.left = -38;
   sun.shadow.camera.right = 38;
   sun.shadow.camera.top = 38;
@@ -582,6 +566,7 @@ export function buildField(fieldData, scene) {
   sun.shadow.normalBias = 0.02;
   root.add(sun);
   handles.sun = sun;
+  handles.videoMode = videoMode;
   handles.hemi = hemi;
 
   // Rim / back light from behind-above the play: skims the tops and edges of the

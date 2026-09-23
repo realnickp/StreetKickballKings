@@ -2,13 +2,13 @@
 // splash video -> title -> menu -> team select -> coin toss -> match -> post-game
 import './ui/ui.css';
 import { createEngine } from './engine/renderer.js';
+import { isCovered } from './engine/renderGate.js';
 import { telemetry, installGlobalHandlers } from './engine/telemetry.js';
 import { GestureInput } from './engine/input.js';
 import { EventBus } from './engine/events.js';
 import { AudioBus } from './engine/audio.js';
 import { SaveManager } from './meta/save.js';
 import { buildField } from './game/field.js';
-import { buildPlayer, CLIP_NAMES } from './game/characters.js';
 import { buildTeamCharsGlb } from './game/glbCharacters.js';
 import { dressTeams, groundLFor } from './game/kits.js';
 import { prewarmCharacters } from './game/prewarm.js';
@@ -51,6 +51,15 @@ const audio = new AudioBus(bus);
 const save = new SaveManager({});
 window.__bus = bus; window.__audio = audio; window.__engine = engine; // dev/debug handles
 
+// RENDER GATE (Phase 1, B16): the post chain used to run at 60 fps under the
+// Title, Menu, Team Select, Locker and the intro videos. Watch the UI root
+// and the stage for opaque covers and tell the engine; the coin toss is
+// `.screen.transparent` and keeps drawing. One cheap query per DOM change.
+const refreshCover = () => engine.setCovered(isCovered(stage));
+new MutationObserver(refreshCover).observe(uiRoot, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden'] });
+new MutationObserver(refreshCover).observe(stage, { childList: true });
+refreshCover();
+
 // PWA: register the service worker in production only (keeps dev hot-reload clean)
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
@@ -61,7 +70,7 @@ const blacktop = fieldsData.fields.find(f => f.id === 'blacktop');
 
 // ---------- dev: 3D GLB character harness (?glb) ----------
 if (params.has('glb')) {
-  const field = buildField(blacktop, engine.scene);
+  const field = buildField(blacktop, engine.scene, { video: engine.tier.video, shadowMap: engine.tier.shadowMap });
   let elapsed = 0;
   engine.onFrame((dt) => { elapsed += dt; field.updateCrowd(elapsed); });
   import('./game/glbCharacters.js').then(async ({ buildGlbCharacter }) => {
@@ -93,30 +102,33 @@ if (params.has('glb')) {
 
 // ---------- dev: animation harness ----------
 if (params.has('dance')) {
-  const monarchs = teamsData.teams.find(t => t.id === 'monarchs');
-  const snappers = teamsData.teams.find(t => t.id === 'snappers');
-  const field = buildField(blacktop, engine.scene);
-  let elapsed = 0;
-  engine.onFrame((dt) => { elapsed += dt; field.updateCrowd(elapsed); });
-  const p1 = buildPlayer(monarchs.roster[0].look, monarchs.colors);
-  p1.group.position.set(-0.75, 0, -3.4);
-  engine.scene.add(p1.group);
-  const p2 = buildPlayer(snappers.roster[1].look, snappers.colors);
-  p2.group.position.set(0.75, 0, -3.4);
-  engine.scene.add(p2.group);
-  let clipIdx = 0;
-  const nextClip = () => {
-    const name = CLIP_NAMES[clipIdx % CLIP_NAMES.length];
-    p1.animator.play(name, { variant: 'tank' });
-    p2.animator.play(name);
-    clipIdx++;
-  };
-  nextClip();
-  setInterval(nextClip, 2500);
-  engine.onFrame((dt) => { p1.animator.update(dt); p2.animator.update(dt); });
-  engine.camera.position.set(0, 1.6, 0.2);
-  engine.camera.lookAt(0, 1.0, -3.4);
-  engine.cameraLock = true;
+  // legacy procedural rig harness — lazy, so the 674-line module stays out of the game bundle
+  import('./game/characters.js').then(({ buildPlayer, CLIP_NAMES }) => {
+    const monarchs = teamsData.teams.find(t => t.id === 'monarchs');
+    const snappers = teamsData.teams.find(t => t.id === 'snappers');
+    const field = buildField(blacktop, engine.scene, { video: engine.tier.video, shadowMap: engine.tier.shadowMap });
+    let elapsed = 0;
+    engine.onFrame((dt) => { elapsed += dt; field.updateCrowd(elapsed); });
+    const p1 = buildPlayer(monarchs.roster[0].look, monarchs.colors);
+    p1.group.position.set(-0.75, 0, -3.4);
+    engine.scene.add(p1.group);
+    const p2 = buildPlayer(snappers.roster[1].look, snappers.colors);
+    p2.group.position.set(0.75, 0, -3.4);
+    engine.scene.add(p2.group);
+    let clipIdx = 0;
+    const nextClip = () => {
+      const name = CLIP_NAMES[clipIdx % CLIP_NAMES.length];
+      p1.animator.play(name, { variant: 'tank' });
+      p2.animator.play(name);
+      clipIdx++;
+    };
+    nextClip();
+    setInterval(nextClip, 2500);
+    engine.onFrame((dt) => { p1.animator.update(dt); p2.animator.update(dt); });
+    engine.camera.position.set(0, 1.6, 0.2);
+    engine.camera.lookAt(0, 1.0, -3.4);
+    engine.cameraLock = true;
+  }).catch((e) => console.error('dance harness failed', e));
 } else
 
 // ---------- dev: jump straight into a match (?match = you kick, ?match=field = you field) ----------

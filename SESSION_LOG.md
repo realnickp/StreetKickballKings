@@ -1623,3 +1623,77 @@ field, a boot-time device tier (DPR / MSAA / bloom / shadow map / video-vs-poste
 shadow casters), stop rendering the post chain behind DOM screens, chunk the character
 build off the main thread. Gate: ≤450 MB on an iPhone SE at match 3, 50 fps floor on a
 Galaxy A15. Verify on a REAL iPhone before merging (see [[verify-gameplay-by-real-play]]).
+
+## 30) Session 30 (2026-09-22) — PHASE 1: THE DIET + THE DEVICE TIERS (branch fix/phase1-diet-device-tiers, PR pending the dev's "push")
+
+Dev: *"read the .md file. there are some phases of changes we need to go through
+mainly focused on fixes and refactoring."* §29's "Next session" = the audit's
+Phase 1. Plan: `docs/superpowers/plans/2026-09-22-phase1-diet-device-tiers.md`
+(13 tasks, TDD, one commit each). Worked in the `skk-phase0` worktree off main
+8b2740b; the main checkout stays parked on `feat/switch-cinematic-crown-pitch`.
+
+- **Dead weight (B02/§04):** spriteCharacters.js, world/blacktop.js,
+  assets.manifest.json (zero importers), the never-added GTAO pass, the rapier
+  dependency, teams.json's dead `sprites`/`runSprites` blocks; characters.js
+  loads lazily for `?dance`. 26 MB of orphan assets deleted (28 VO wavs, the old
+  match beat, the poster logo, coin-flip.mp4, bullies-alt, four stray textures).
+  `tests/moduleGraph.test.js` + `tests/assetReferences.test.js` guard both.
+  NOT touched: `public/assets/sprites/` (gitignored, undeployed, 132 MB on the
+  dev's disk) — his call to delete.
+- **B43 atlases:** the seven 2048² PNG atlases (6 legacy archetypes +
+  monarchs-23, 149 of the 267 MB measured live) are 1024² WebP through
+  EXT_texture_webp like the other fourteen (`scripts/shrink-glb-atlases.mjs`,
+  kit-recolour mask drift 0.1-2.2 %, guard 3 %). models 72.9 → 31.0 MB.
+- **B18 video:** every backdrop loop re-encoded to 720 px / CRF 22 under a
+  3 Mbps cap (`scripts/reencode-backdrops.mjs`; the AI scenes settle at
+  0.4-1.5 Mbps, frames checked side by side) — 190 → 13 MB. `buildField` takes
+  `{ video: none|front|both, shadowMap }`.
+- **THE DEVICE TIER (B16/B17/B34/B38)** `src/engine/deviceTier.js`, pure,
+  7 tests: low (SE-class / iOS 15 / 2 GB Android: DPR 1.5, no MSAA, no bloom or
+  grade, 1024² PCF shadows, posters, 6 casters), mid (every other iPhone, 4 GB
+  Android: 2× MSAA, bloom + grade, ONE loop, 8 casters), high (desktop, 8 GB
+  Android: today's look). iOS never gets high. antialias:false on the main
+  renderer, PCFShadowMap + THREE.Timer replace the deprecated pair. `?tier=`
+  overrides. The PerfWatchdog still steps down from the tier's MSAA.
+- **B16 render gate** `src/engine/renderGate.js`: no composer.render() under an
+  opaque .screen or a set-piece video (two settle frames after each change;
+  frame callbacks untouched; a `.screen.transparent` would keep drawing, but
+  no shipped screen uses that modifier — the coin toss is opaque). main.js
+  drives it from a MutationObserver. The neutral IBL still lands at boot (the
+  loop's first iteration runs before any screen mounts); what changed is the
+  invariant — no frame and no prewarm ever links without an env map.
+- **B17 shadows** `src/game/shadowBudget.js`: the tier's N nearest rigs cast
+  (only the body mesh ever casts; patches and bands never did),
+  re-picked 4×/s; every SkinnedMesh carries a bind-pose sphere ×2.2 and is
+  frustum-culled; the prewarm stages rigs UNCULLED for its draw (test).
+- **B15 build:** models + clip packs prefetch in parallel; the build yields a
+  frame between bodies (`src/engine/yieldToMain.js`). Chromium long tasks
+  during the build: longest 884 ms under swiftshader (was a 14 s stall).
+- **B23/B40 boot:** fonts self-hosted (`public/fonts`, `scripts/fetch-fonts.mjs`,
+  no Google import), logo 2000² → 1024², coins → 512². Portraits → WebP
+  (62.9 → 3.6 MB). **B24/B32/B33 CSS:** dvh stage, -webkit-touch-callout none,
+  the action hint animates only while shown, four pulses moved off
+  text-shadow/box-shadow/filter, the drill intro no longer blurs the canvas.
+
+**Verification:** vitest 663 → 697 green. `scripts/phase1-e2e.mjs` WebKit
+(iPhone 14 profile) 35/35, Chromium 35/35 + build-stall; phase0-e2e 17/17 in
+both browsers (its shared boot now asks `tier=high` so the teardown scenario
+still sees two loops); gameover-e2e 7/7; round-e2e 16/17 full + the MSAA
+scenario 5/5 after its 400 ms window became "wait for 3 frames". Live match
+textures 155 MB across 59 (was 242-267). Build: 1.16 MB JS + 13 KB lazy
+characters chunk, no GTAO/rapier/sprites/Google Fonts in the bundle.
+`public/assets` 491 → 179 MB (video 47, models 31, players 3.6, audio 33,
+textures 9, branding 2, anims 48, logos 6). Playwright is now an honest
+devDependency (Task 1's npm uninstall had pruned the extraneous install).
+
+**What the dev will SEE on his phone:** on the mid tier the HOME half of the
+backdrop is its poster (one loop, not two); `?tier=high` forces both. Low tier
+has no bloom/grade and posters only. Everything else should look the same
+with far less memory.
+
+**Not in this round (and why):** B44 gltfCache source bitmaps (≈28 MB after the
+shrink; dropping them breaks context-loss re-upload); B07/B08/B20-B22/B25-B31
+gameplay + HUD ledger items → a "ledger sweep" plan next; code-splitting (three
+is ~600 KB of the 1.16 MB, ~50 KB to gain); music at 96 kbps (PCM is
+duration-bound, no memory win). **The real-device gate is still open:** ≤ 450 MB
+on an iPhone SE at match 3, 50 fps floor on a Galaxy A15 — the dev's phone pass.
