@@ -181,23 +181,6 @@ export function buildField(fieldData, scene) {
     root.add(side);
   }
 
-  // TRUE 3D WORLD (hero field): loads async; on success the flat backdrop +
-  // skyline hide and real geometry takes the horizon. On failure nothing
-  // changes — the legacy backdrop below is the fallback.
-  const world3d = !!fieldData.world3d;
-  if (world3d) {
-    import('./world/blacktop.js').then(async ({ loadBlacktopWorld }) => {
-      const world = await loadBlacktopWorld();
-      root.add(world.group);
-      // the world animates (el train, steam, cloud drift) off the crowd tick
-      const prevTick = handles.updateCrowd;
-      handles.updateCrowd = (t) => { prevTick(t); world.update(t); };
-      if (handles.backdrop) handles.backdrop.visible = false;
-      if (handles.backdropVideo) { try { handles.backdropVideo.pause(); } catch { /* fine */ } }
-      if (handles.skyline) handles.skyline.visible = false;
-    }).catch((e) => console.warn('[skk] 3d world unavailable, keeping backdrop:', e));
-  }
-
   // --- backdrop: ONE cohesive Higgsfield-designed scene (fans + city + sky),
   //     animated as a looping video, in the SAME stylized-realistic 3D render
   //     style as the players. Wraps the field and replaces the old stitched
@@ -448,9 +431,7 @@ export function buildField(fieldData, scene) {
   // Far sphere dome for the zenith, PLUS a same-radius "sky cap" cylinder that
   // continues the backdrop's own sky straight up with no parallax — so the rich
   // sky goes high enough and the join is seamless and natural (no design change).
-  // world3d fields use the per-sky GRADIENT (golden-hour dusk), not the baked
-  // daytime sky photo that matched the old backdrop
-  const skyMap = (fieldData.textures?.sky && !world3d)
+  const skyMap = fieldData.textures?.sky
     ? new THREE.TextureLoader().load(fieldData.textures.sky, (t) => { t.colorSpace = THREE.SRGBColorSpace; })
     : makeSkyGradient(fieldData.sky);
   const sky = new THREE.Mesh(
@@ -565,10 +546,7 @@ export function buildField(fieldData, scene) {
   // a small ambient floor so ACES tone-mapping never crushes the court to black
   root.add(new THREE.AmbientLight(lp.amb ?? '#55585f', (lp.ambI ?? 0.3) * lift.amb));
   const sun = new THREE.DirectionalLight(lp.sun, lp.sunI * lift.sun);
-  // golden-hour 3D world: LOW warm sun from the third-base side -> long dusk
-  // shadows across the asphalt (the mood the whole world bake is lit for)
-  if (world3d) sun.position.set(-34, 17, 24);
-  else sun.position.set(28, 40, 18);
+  sun.position.set(28, 40, 18);
   sun.castShadow = true;
   // Higher-res map + a tighter frustum (±38 still covers the ~42m fence play near home)
   // = crisper contact shadows. Bias pair kills shadow acne and peter-panning.

@@ -8,7 +8,6 @@ import { EventBus } from './engine/events.js';
 import { AudioBus } from './engine/audio.js';
 import { SaveManager } from './meta/save.js';
 import { buildField } from './game/field.js';
-import { buildPlayer, CLIP_NAMES } from './game/characters.js';
 import { buildTeamCharsGlb } from './game/glbCharacters.js';
 import { dressTeams, groundLFor } from './game/kits.js';
 import { prewarmCharacters } from './game/prewarm.js';
@@ -93,30 +92,33 @@ if (params.has('glb')) {
 
 // ---------- dev: animation harness ----------
 if (params.has('dance')) {
-  const monarchs = teamsData.teams.find(t => t.id === 'monarchs');
-  const snappers = teamsData.teams.find(t => t.id === 'snappers');
-  const field = buildField(blacktop, engine.scene);
-  let elapsed = 0;
-  engine.onFrame((dt) => { elapsed += dt; field.updateCrowd(elapsed); });
-  const p1 = buildPlayer(monarchs.roster[0].look, monarchs.colors);
-  p1.group.position.set(-0.75, 0, -3.4);
-  engine.scene.add(p1.group);
-  const p2 = buildPlayer(snappers.roster[1].look, snappers.colors);
-  p2.group.position.set(0.75, 0, -3.4);
-  engine.scene.add(p2.group);
-  let clipIdx = 0;
-  const nextClip = () => {
-    const name = CLIP_NAMES[clipIdx % CLIP_NAMES.length];
-    p1.animator.play(name, { variant: 'tank' });
-    p2.animator.play(name);
-    clipIdx++;
-  };
-  nextClip();
-  setInterval(nextClip, 2500);
-  engine.onFrame((dt) => { p1.animator.update(dt); p2.animator.update(dt); });
-  engine.camera.position.set(0, 1.6, 0.2);
-  engine.camera.lookAt(0, 1.0, -3.4);
-  engine.cameraLock = true;
+  // legacy procedural rig harness — lazy, so the 674-line module stays out of the game bundle
+  import('./game/characters.js').then(({ buildPlayer, CLIP_NAMES }) => {
+    const monarchs = teamsData.teams.find(t => t.id === 'monarchs');
+    const snappers = teamsData.teams.find(t => t.id === 'snappers');
+    const field = buildField(blacktop, engine.scene);
+    let elapsed = 0;
+    engine.onFrame((dt) => { elapsed += dt; field.updateCrowd(elapsed); });
+    const p1 = buildPlayer(monarchs.roster[0].look, monarchs.colors);
+    p1.group.position.set(-0.75, 0, -3.4);
+    engine.scene.add(p1.group);
+    const p2 = buildPlayer(snappers.roster[1].look, snappers.colors);
+    p2.group.position.set(0.75, 0, -3.4);
+    engine.scene.add(p2.group);
+    let clipIdx = 0;
+    const nextClip = () => {
+      const name = CLIP_NAMES[clipIdx % CLIP_NAMES.length];
+      p1.animator.play(name, { variant: 'tank' });
+      p2.animator.play(name);
+      clipIdx++;
+    };
+    nextClip();
+    setInterval(nextClip, 2500);
+    engine.onFrame((dt) => { p1.animator.update(dt); p2.animator.update(dt); });
+    engine.camera.position.set(0, 1.6, 0.2);
+    engine.camera.lookAt(0, 1.0, -3.4);
+    engine.cameraLock = true;
+  }).catch((e) => console.error('dance harness failed', e));
 } else
 
 // ---------- dev: jump straight into a match (?match = you kick, ?match=field = you field) ----------

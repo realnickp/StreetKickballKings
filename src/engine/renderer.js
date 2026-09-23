@@ -8,7 +8,6 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { PerfWatchdog } from './perfWatchdog.js';
 import { telemetry } from './telemetry.js';
 
@@ -130,29 +129,10 @@ export function createEngine(canvas) {
   const gradePass = new ShaderPass(GradeShader);
   const outputPass = new OutputPass();
 
-  // Ambient occlusion (high quality only): subtle contact darkening where players,
-  // ball and props meet the ground so nothing floats. GTAO renders its own depth/
-  // normal buffer. Wrapped so a missing/renamed addon degrades to "no AO" instead of
-  // blanking the screen. Tuned conservatively — a light contact shade, not a grey halo.
-  let aoPass = null;
-  try {
-    aoPass = new GTAOPass(scene, camera, 1, 1); // sized in resize()
-    aoPass.output = GTAOPass.OUTPUT.Default; // scene blended with AO, not the raw AO buffer
-    aoPass.blendIntensity = 0.55;            // hold the occlusion back so it stays subtle
-    aoPass.updateGtaoMaterial({ radius: 0.45, distanceExponent: 1.2, thickness: 1.0, scale: 1.0, samples: 16 });
-  } catch (e) {
-    console.warn('[skk] GTAOPass unavailable, skipping AO:', e);
-    aoPass = null;
-  }
-
   let quality = 'high';
   function rebuildChain() {
     composer.passes.length = 0;
     composer.addPass(renderPass);
-    // AO disabled: GTAO produced big dark halo-discs under players and a black box
-    // around the fast-moving ball. The env map + sun shadows already ground the scene;
-    // revisit with a properly tuned (much smaller radius) pass later.
-    // if (quality === 'high' && aoPass) composer.addPass(aoPass);
     composer.addPass(bloomPass);
     if (quality === 'high') composer.addPass(gradePass);
     composer.addPass(outputPass);
@@ -265,7 +245,6 @@ export function createEngine(canvas) {
     const h = canvas.clientHeight || window.innerHeight;
     renderer.setSize(w, h, false); // false = don't touch CSS; the frame already sizes the canvas
     composer.setSize(w, h);
-    if (aoPass) aoPass.setSize(w, h);
     camera.aspect = w / h;
     // keep the field framed in narrow portrait by widening FOV as aspect shrinks
     camera.fov = w / h < 0.65 ? 74 : 58;
