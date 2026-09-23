@@ -64,11 +64,17 @@ export const SKY_PRESETS = {
   'stadium-night': { hemiSky: '#868eba', hemiGround: '#42424f', sun: '#ffffff', sunI: 2.5, hemiI: 1.5,  amb: '#4a4a5a', ambI: 0.46 },
 };
 
-export function buildField(fieldData, scene) {
+export function buildField(fieldData, scene, opts = {}) {
   const root = new THREE.Group();
   root.name = `field-${fieldData.id}`;
   const palette = fieldData.palette ?? {};
   const handles = { root, layout: FIELD_LAYOUT, _videoHooks: [] };
+  // DEVICE TIER (Phase 1): 'both' = the two animated halves (desktop / 8 GB
+  // Android), 'front' = the outfield loop only, the home half stays its
+  // poster (iOS default — one hardware decoder), 'none' = posters only (low
+  // tier). Callers without a tier get today's behaviour.
+  const videoMode = opts.video ?? 'both';
+  const shadowMapSize = opts.shadowMap ?? 2048;
 
   // --- ground ---------------------------------------------------------------
   // generated art when the field defines it, canvas placeholder otherwise
@@ -295,7 +301,7 @@ export function buildField(fieldData, scene) {
       handles._videoHooks.push({ video, kick });
       return { mat: bmat, video };
     };
-    const frontBuild = buildBackdropMat(fieldData.textures?.backdrop, fieldData.textures?.backdropVideo, tuneTex);
+    const frontBuild = buildBackdropMat(fieldData.textures?.backdrop, videoMode === 'none' ? null : fieldData.textures?.backdropVideo, tuneTex);
     const mat = frontBuild.mat;
     if (frontBuild.video) handles.backdropVideo = frontBuild.video;
     // Backdrop sizing (overridable per-field via fieldData.backdropGeo). Pushed
@@ -353,7 +359,7 @@ export function buildField(fieldData, scene) {
       seamRamp.magFilter = THREE.LinearFilter;
       seamRamp.generateMipmaps = false;
       seamRamp.needsUpdate = true;
-      const backBuild = buildBackdropMat(bk.tex ?? fieldData.textures?.backdrop, bk.video ?? null, tuneBack, seamRamp);
+      const backBuild = buildBackdropMat(bk.tex ?? fieldData.textures?.backdrop, videoMode === 'both' ? (bk.video ?? null) : null, tuneBack, seamRamp);
       if (backBuild.video) handles.backdropVideoBack = backBuild.video;
       // The two halves are CO-RADIAL in every shipped field, so the overlap
       // bands would z-fight. 5 cm of inward bias (0.1 % of the radius — no
@@ -550,7 +556,7 @@ export function buildField(fieldData, scene) {
   sun.castShadow = true;
   // Higher-res map + a tighter frustum (±38 still covers the ~42m fence play near home)
   // = crisper contact shadows. Bias pair kills shadow acne and peter-panning.
-  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.mapSize.set(shadowMapSize, shadowMapSize);
   sun.shadow.camera.left = -38;
   sun.shadow.camera.right = 38;
   sun.shadow.camera.top = 38;
@@ -560,6 +566,7 @@ export function buildField(fieldData, scene) {
   sun.shadow.normalBias = 0.02;
   root.add(sun);
   handles.sun = sun;
+  handles.videoMode = videoMode;
   handles.hemi = hemi;
 
   // Rim / back light from behind-above the play: skims the tops and edges of the
