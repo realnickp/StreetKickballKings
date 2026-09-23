@@ -5,7 +5,7 @@
    labels, buttons and tabs are Archivo 900 uppercase (--display); Permanent
    Marker (--marker) is reserved for nicknames, crew names and the big moment
    stamps. Actionable = lit backplate + glow; idle = text with a rule. */
-@import url('https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Archivo:wght@500;700;900&display=swap');
+@import './fonts.css'; /* self-hosted (public/fonts, scripts/fetch-fonts.mjs) — the Google import was render-blocking (B23) */
 
 :root {
   --sab: env(safe-area-inset-bottom, 0px); /* read by updateRunnerArrows so markers clear the phone's control row */
