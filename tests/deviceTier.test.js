@@ -49,3 +49,8 @@ it('desktop is high; the ?tier override wins over everything', () => {
   expect(detectTier({ ua: SE, screenW: 375, screenH: 667, override: 'high' })).toMatchObject({ name: 'high', reason: 'override' });
   expect(detectTier({ ua: DESKTOP, override: 'nonsense' }).name).toBe('high');
 });
+
+it('the 375-pt @3x phones (X/XS/11 Pro/12-13 mini, 3-4 GB) are mid; the @2x SE/8 body is the low one', () => {
+  expect(detectTier({ ua: SE, screenW: 375, screenH: 812, dpr: 3 }).name).toBe('mid');
+  expect(detectTier({ ua: SE, screenW: 375, screenH: 667, dpr: 2 }).name).toBe('low');
+});

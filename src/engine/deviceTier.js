@@ -15,9 +15,14 @@ export const TIERS = {
 /** Pure: decide from what the browser tells us. iOS never lands on `high`
  *  (the memory ceiling is the whole problem); Android trusts `deviceMemory`
  *  (Chrome rounds to a power of two, so 6 GB reads 4) and the core count;
- *  anything that is not a phone is high. Missing signals fall to the middle. */
+ *  anything that is not a phone is high. Missing signals fall to the middle.
+ *
+ *  iOS exposes no memory signal, so the audit's kill zone (SE / 8 body, the
+ *  phone that reloads first) is read off the SCREEN: 375 pt at 2× is that
+ *  body and nothing else. The 375 pt @3× phones (X/XS/11 Pro/12-13 mini) are
+ *  3-4 GB like the XR/11 and stay mid; iOS 15 devices are old hardware. */
 export function detectTier(env = {}) {
-  const { ua = '', platform = '', maxTouchPoints = 0, deviceMemory = null, hardwareConcurrency = null, screenW = 0, screenH = 0, override = null } = env;
+  const { ua = '', platform = '', maxTouchPoints = 0, deviceMemory = null, hardwareConcurrency = null, screenW = 0, screenH = 0, dpr = 2, override = null } = env;
   if (override && TIERS[override]) return { ...TIERS[override], reason: 'override' };
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (platform === 'MacIntel' && maxTouchPoints > 1);
   const isAndroid = /Android/i.test(ua);
@@ -26,7 +31,7 @@ export function detectTier(env = {}) {
     const major = m ? Number(m[1]) : null;
     const shortSide = Math.min(screenW || Infinity, screenH || Infinity);
     if (major !== null && major < 16) return { ...TIERS.low, reason: 'ios-old' };
-    if (Number.isFinite(shortSide) && shortSide <= 380) return { ...TIERS.low, reason: 'ios-small' };
+    if (Number.isFinite(shortSide) && shortSide <= 380 && dpr <= 2) return { ...TIERS.low, reason: 'ios-small' };
     return { ...TIERS.mid, reason: 'ios' };
   }
   if (isAndroid) {
@@ -47,6 +52,6 @@ export function tierFromBrowser(win = typeof window !== 'undefined' ? window : n
     ua: nav.userAgent ?? '', platform: nav.platform ?? '', maxTouchPoints: nav.maxTouchPoints ?? 0,
     deviceMemory: typeof nav.deviceMemory === 'number' ? nav.deviceMemory : null,
     hardwareConcurrency: typeof nav.hardwareConcurrency === 'number' ? nav.hardwareConcurrency : null,
-    screenW: win.screen?.width ?? 0, screenH: win.screen?.height ?? 0, override,
+    screenW: win.screen?.width ?? 0, screenH: win.screen?.height ?? 0, dpr: win.devicePixelRatio ?? 2, override,
   });
 }
