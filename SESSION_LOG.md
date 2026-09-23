@@ -1709,7 +1709,118 @@ lesson: the production bundle is minified, so the bloom check is by pass IDENTIT
 (`engine.fx.bloomPass`), never by class name. The dev's phone gets it on the next full
 close + reopen; the real-device gate (≤450 MB SE at match 3, 50 fps A15) is his pass.
 
-**Next session:** the ledger sweep — B07 (two runners one bag), B08 (pickle clock), B20
-(cinematic lock refcount), B21 (coin-toss timers outlive navigation), B22 (HUD per-frame
-churn), B25-B31 (tags after the books close, tryNext cap, pause refcount, AI early return,
-HUD timers, menu's fake XP/crowns/streak) — then Phase 2 (Capacitor shell + rails).
+### 30b) Same day, after the phone pass — the lag, and the story-mode brainstorm
+
+Dev, on his phone with PR #113 live: *"It's good. It lags a bit though. What can be done
+to fix that, and what's the next phase?"*
+
+**The lag — diagnosis + plan (the "frame-budget round", NOT started):** his phone model is
+not on record, and Chrome rounds `deviceMemory` to a power of two, so any Android with 8 GB
+lands on HIGH = the desktop look (4x MSAA, full-res 11-pass bloom, both backdrop loops
+decoding, sixteen shadow casters into a 2048² map, all at DPR 2). The PerfWatchdog only
+steps MSAA down after ~8 s and touches nothing else. Plan, in order: (1) the watchdog sheds
+the WHOLE tier — MSAA off → bloom half-res → second loop off → DPR 2 → 1.5 → shadow 2048 →
+1024 + fewer casters — self-correcting in seconds; (2) Android tops out at mid unless the
+GPU string (WEBGL_debug_renderer_info) names a flagship chip; desktop keeps high, ?tier=high
+still forces it; (3) bloom at half resolution on mid (UnrealBloomPass resolution); (4) the
+per-frame churn — B22 HUD rebuilds runner alerts + re-queries the diamond every LIVE frame
+with two forced layout reads, the replay recorder's ~320 KB/s of garbage, scratch vectors;
+(5) a `?perf` overlay (tier, frame time, textures) so the dev can read two numbers off his
+phone. A day of work with the same harness coverage as Phase 1.
+
+**Story mode — brainstorm (architectural; nothing written, nothing approved):** the dev
+wants the game to be free, ad-supported with in-game purchases, carried by a STORY MODE:
+pick a crew, tour cities, teams get progressively harder, upgrades (coins earned slowly by
+play / rewarded video / paid) that REALLY affect gameplay, an incremental system that takes
+time. Decisions and positions so far:
+- **Money model** shifts from the audit's Kings Pass subscription (cosmetics only) to free +
+  ads + IAP with stat-affecting upgrades — fine because it is single player. Rules I put
+  down: every wall beatable by a skilled free player with earned coins (pay = time-skip,
+  never the only path); upgrades deterministic, no paid random packs (loot-box rules).
+  Pushed back on "an ad every few pitches and kicks": interstitials only at natural breaks
+  (end of a half inning, post-game, on the map), ~1 per 3 min cap, rewarded video (double
+  coins after a win, a retry, a temp boost) as the accelerator. Real rewarded video + IAP
+  need the native shell (Phase 2: Capacitor + AdMob + RevenueCat) → campaign + economy ship
+  PWA-first with the ad/IAP hooks stubbed, so the difficulty curve is tuned before ads.
+- **You are one of the ten existing crews** (upgrades attach to the crew / the Locker; Run
+  the Map's crowns become chapter endings).
+- **Scale: a city per STATE**, states in regions, regional tournaments, nationals — "the
+  game keeps going until undisputed national champion". Cost, honestly: a full city ≈ 8 MB
+  installed and one generation round (two backdrop scenes, sky, ground, intro, cast,
+  music); fifty full cities ≈ 400 MB and five of the rounds the first ten took. Agreed
+  structure: 5-6 regions; hero cities keep full fields (the ten + a few new ones as monthly
+  drops); the other states are CREWS on REGIONAL COURTS (one generated scene per region with
+  paint/banner slots designed in) plus a STATE-DRESSING layer that makes each state obvious
+  in two seconds: a license-plate HUD chip (state name, plate colors), a wall MURAL decal
+  (landmark silhouette in crew colors), fence banners in state colors, sky/ground preset,
+  two booth lines naming city + state, a state-flavored crew (crest, kits, portraits, cast).
+  ≈ 500 KB per state, images not video; region packs on demand (20-30 MB).
+- **Fielding a little harder** (dev: the ball auto-goes to an infielder; the outfielder
+  auto-runs onto flies): agreed. Half is already built and never shipped — commit 6eb94e0
+  "the catch is a CALL" on the parked `feat/switch-cinematic-crown-pitch` branch (auto-run
+  stops 1.2 m short, timed CATCH on the one button, early/late pops it loose, catch radius
+  2.2 → 1.6 m, grounders keep the scoop). Main also has a landing marker + defense drag that
+  hands to auto-pursuit near the landing (matchScene ~3706-3729). The new piece: the last
+  metres are YOURS — get him to the shadow, the gap growing per difficulty. Rebase that
+  commit onto the new main (the branch carries the switch-cinematic WIP with B05/B35). Bounded.
+- **Story premise (dev's):** "Every team wants the title. Kickball brings the neighborhoods
+  together, it's tough competition to be the best in the streets." No villain needed. Then:
+  **a new team of ALIENS challenges humanity to kickball, they want Earth's best crew; each
+  tournament you win brings you closer to playing them in the finale.** Aliens are **cocky
+  and street** (rejected: silent/unsettling, curious/formal). My cautions: they must be
+  street too (a crew on a court, by street rules, in the booth — not cartoons, and no beats
+  from the famous alien-ball-game film); the alien crew is the one asset that can't be
+  dressed from existing parts (eight rigs + atlases, a finale court, a finale video).
+- **Delivery model for cutscenes:** in-engine staged scenes on the court with the 3D crews +
+  dialogue cards for every between-match beat (cheap, any crew); the booth (Tony + Carter)
+  as connective tissue; ONE generated video per region opener + the cold open + the finale
+  (~8 clips). Every stop repeats one shape: arrival → the local captain steps up → the game
+  → the after (respect, their ball rides with you, that block is in your crowd from now on).
+- **Proposed order:** lag round → fielding → campaign spine + economy spec (built on the ten
+  cities as region one, playable before any new state exists) → state content pipeline
+  (regional courts + state data format + crew/mural generator workflow) → Phase 2 rails.
+  The ledger sweep (B07/B08/B20-B22/B25-B31) folds in where it touches the same code.
+
+**The treatment as presented (dev: "Maybe. Let me sleep on it for now."):**
+
+> **Working title: THE VISITORS.** In pickup culture the away crew is the visitors. They
+> love that word. Language: trash talk all day, no profanity (Teen rating, wide ad inventory).
+>
+> **Cold open** (one generated video). A Tuesday night game on a neighborhood court. The sky
+> goes wrong. A ship settles over the block and one red rubber ball drops out of it and
+> bounces to a stop on home plate. A voice through every phone on the fence, easy and amused:
+> "Heard this is where the game is. Best crew in the world. One game. Our court. End of
+> summer. Go find them." The booth goes live: the National Circuit. Every neighborhood in the
+> country wants that game.
+>
+> **The crew** (placeholder names): ORBIT, the captain, never raises his voice ("Home team.
+> Cute."); STATIC, the mouth, talks through every pitch ("Y'all play on concrete? Adorable.");
+> GRAVITY, the big one, kicks it out of any park, says almost nothing; COMET, the speed,
+> steals on a walk; ECLIPSE, the sneaky one, her kicks bend the wrong way. Their ship is "the
+> Yard." Where they're from is never answered: "Not around here."
+>
+> **Every stop has the same shape**, in-engine: arrival (the plate, the mural, the block
+> filling the fence) → the local captain steps up with two lines → the game → the after
+> (respect, their ball rides with you, that block is in your crowd from now on).
+>
+> **The season.** Region one is home: run your own map; at the regional final a visitor is
+> in the stands, one line: "That's it?" **The Exhibition:** after region two the Yard lands at
+> a regional final for "a warm-up" — one inning against them, meant to be lost; Gravity puts
+> one over the fence, Static narrates it, the booth says the line the game is built on:
+> "That's the bar." From here the upgrade tree is the road to the bar. **Regions three to
+> five:** the ship is bigger in the sky every region; a human rival crew crosses your path at
+> every regional final; before nationals the crew cracks — one vet wants out ("they're not
+> beatable") — and answers it on the court, not in a speech. **Nationals:** the regional
+> champions; win it and Orbit speaks to you directly for the first time: "Finally." **The
+> finale:** the Yard lands ON your home court and turns it into theirs — their light, their
+> crowd, their rules; the whole map is in the stands, every crew you beat; their moves are
+> the top of the upgrade tree, which is why the tree is slow. **The after:** win, and Orbit
+> leaves the ball on the plate: "Keep it. We're back next summer." (live-ops season two).
+> Lose, and it's "Run it back" — a rematch with what you've earned. No game over.
+
+**Next session:** (1) the dev's verdict on the treatment → if yes, the story spec
+(`docs/superpowers/specs/2026-09-2x-story-mode-design.md`), then the campaign spine + coin
+economy as the next design section (ratings per region, coins per match, upgrade tiers and
+costs, the ad/IAP hooks, what "the bar" is in numbers); (2) the frame-budget round for the
+lag; (3) fielding is a skill (rebase 6eb94e0 + the shadow positioning); (4) the ledger sweep
+where it overlaps. The real-device gate from Phase 1 is still the dev's phone pass.
