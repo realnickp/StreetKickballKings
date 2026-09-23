@@ -1624,7 +1624,7 @@ shadow casters), stop rendering the post chain behind DOM screens, chunk the cha
 build off the main thread. Gate: ≤450 MB on an iPhone SE at match 3, 50 fps floor on a
 Galaxy A15. Verify on a REAL iPhone before merging (see [[verify-gameplay-by-real-play]]).
 
-## 30) Session 30 (2026-09-22) — PHASE 1: THE DIET + THE DEVICE TIERS (branch fix/phase1-diet-device-tiers, PR pending the dev's "push")
+## 30) Session 30 (2026-09-22) — PHASE 1: THE DIET + THE DEVICE TIERS (PR #113, MERGED, live on prod)
 
 Dev: *"read the .md file. there are some phases of changes we need to go through
 mainly focused on fixes and refactoring."* §29's "Next session" = the audit's
@@ -1697,3 +1697,19 @@ gameplay + HUD ledger items → a "ledger sweep" plan next; code-splitting (thre
 is ~600 KB of the 1.16 MB, ~50 KB to gain); music at 96 kbps (PCM is
 duration-bound, no memory win). **The real-device gate is still open:** ≤ 450 MB
 on an iPhone SE at match 3, 50 fps floor on a Galaxy A15 — the dev's phone pass.
+
+**Current state (2026-09-22, 21:45):** PR #113 MERGED on the dev's "push" (main `374a62a`),
+Vercel served the new bundle (`index-BoBpAdzT.js`) 15 s later, and the diet is verified
+AGAINST PRODUCTION: `scripts/phase1-e2e.mjs` tiers 24/24 + texture/shadow budget 3/3 +
+fonts/portraits 3/3 in WebKit (iPhone 14 profile) with `SKK_URL` pointed at the live site
+— low = posters + no bloom, mid = one loop, high = both; live-match textures 155 MB on prod;
+arch-afro.glb comes down at 1.09 MB, backdrop-block-party.mp4 at 489 KB, the fonts from
+`/fonts`, portraits as WebP, the deleted orphans 404, sw `skk-v2` unchanged. One harness
+lesson: the production bundle is minified, so the bloom check is by pass IDENTITY
+(`engine.fx.bloomPass`), never by class name. The dev's phone gets it on the next full
+close + reopen; the real-device gate (≤450 MB SE at match 3, 50 fps A15) is his pass.
+
+**Next session:** the ledger sweep — B07 (two runners one bag), B08 (pickle clock), B20
+(cinematic lock refcount), B21 (coin-toss timers outlive navigation), B22 (HUD per-frame
+churn), B25-B31 (tags after the books close, tryNext cap, pause refcount, AI early return,
+HUD timers, menu's fake XP/crowns/streak) — then Phase 2 (Capacitor shell + rails).

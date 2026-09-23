@@ -52,6 +52,8 @@ async function bootMatch(page, q) {
 const tierState = () => ({
   name: window.__engine.tier.name, samples: window.__engine.samples, tierMsaa: window.__engine.tier.msaa,
   passes: window.__engine.composer.passes.map((p) => p.constructor.name),
+  // identity, not the class name: the production bundle is minified (pg/e/_g)
+  bloomIn: window.__engine.composer.passes.includes(window.__engine.fx.bloomPass),
   dpr: window.__engine.renderer.getPixelRatio(),
   shadowType: window.__engine.renderer.shadowMap.type,
   shadowMap: window.__skk.field.sun.shadow.mapSize.x,
@@ -71,7 +73,7 @@ async function tierScenario(page, tier, expect) {
   // the TIER's answer is under test; the PerfWatchdog (its own unit tests) only ever
   // steps DOWN from it, and under WebKit's software renderer it does so during the boot
   ok(s.tierMsaa === expect.msaa && s.samples <= expect.msaa, `tier MSAA ${expect.msaa}, composer at or below it (tier ${s.tierMsaa}, samples ${s.samples})`);
-  ok(s.passes.includes('UnrealBloomPass') === expect.bloom, `bloom ${expect.bloom ? 'in' : 'out of'} the chain (${s.passes.join(',')})`);
+  ok(s.bloomIn === expect.bloom, `bloom ${expect.bloom ? 'in' : 'out of'} the chain (${s.passes.length} passes: ${s.passes.join(',')})`);
   ok(s.dpr <= expect.dpr + 1e-6, `pixel ratio ≤ ${expect.dpr} (${s.dpr})`);
   ok(s.shadowMap === expect.shadowMap, `shadow map ${expect.shadowMap} (${s.shadowMap})`);
   ok(s.shadowType === 1, `PCFShadowMap (${s.shadowType})`);
