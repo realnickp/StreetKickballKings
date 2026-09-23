@@ -24,14 +24,6 @@
           "img": ""
         }
       },
-      "sprites": [
-        "assets/sprites/monarchs-1.png",
-        "assets/sprites/monarchs-2.png"
-      ],
-      "runSprites": [
-        "assets/sprites/monarchs-1-run.png",
-        "assets/sprites/monarchs-2-run.png"
-      ],
       "anthem": null,
       "introVideo": "assets/video/intro-monarchs.mp4",
       "musicGenre": "Baltimore club / boom bap",
@@ -228,14 +220,6 @@
           "img": "-alt"
         }
       },
-      "sprites": [
-        "assets/sprites/snappers-1.png",
-        "assets/sprites/snappers-2.png"
-      ],
-      "runSprites": [
-        "assets/sprites/snappers-1-run.png",
-        "assets/sprites/snappers-2-run.png"
-      ],
       "anthem": null,
       "introVideo": "assets/video/intro-snappers.mp4",
       "musicGenre": "90s boom bap",
