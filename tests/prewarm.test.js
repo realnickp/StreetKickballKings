@@ -17,6 +17,7 @@ function fakeChar(name, { decals = true, ready = Promise.resolve() } = {}) {
   const body = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshStandardMaterial({ map: atlas, emissiveMap: atlas }));
   body.isSkinnedMesh = true;
   body.skeleton = { boneTexture: null }; // three creates this at FIRST DRAW
+  body.frustumCulled = true; // like the real build (B17 culling): the warm must draw it unculled
   group.add(body);
   const char = { group, body };
   if (decals) {
@@ -55,6 +56,7 @@ function fakeEngine({ throwOnCompile = false } = {}) {
         // what the draw would actually SEE
         sc.children.filter((o) => o.visible).length]);
       sc.traverse((o) => {
+        if (o.isSkinnedMesh) log.push(['drawCulled', o.parent?.name, o.frustumCulled]); // what culling the draw saw
         if (o.isSkinnedMesh && o.skeleton && !o.skeleton.boneTexture) o.skeleton.boneTexture = tex(`${o.parent?.name}-bones`);
       });
     },
@@ -307,5 +309,16 @@ describe('prewarmCharacters', () => {
     const { engine } = fakeEngine();
     const stats = await prewarmCharacters(engine, [fakeChar('c')]);
     expect(stats.drew).toBe(true);
+  });
+});
+// ------------------------------------------------------- culling (B17)
+describe('warmNow + frustum culling', () => {
+  it('stages every skinned mesh UNCULLED for the warm draw and restores culling after', () => {
+    const { engine, log } = fakeEngine();
+    const a = fakeChar('a'); a.group.visible = false;
+    const stats = warmNow(engine, [a]);
+    expect(stats.drew).toBe(true);
+    expect(log.filter((e) => e[0] === 'drawCulled')).toEqual([['drawCulled', 'a', false]]);
+    expect(a.body.frustumCulled).toBe(true);
   });
 });

@@ -164,13 +164,18 @@ function warmNow(engine, list, opts = {}) {
     programs: info.programs?.length ?? 0,
   };
 
-  // ---- stage: everyone visible, everyone on the graph
+  // ---- stage: everyone visible, everyone on the graph, everyone UNCULLED —
+  // the rigs carry a frustum sphere now (B17), and the live camera must "see"
+  // every one of them for its bone texture to be created and its shadow
+  // variant linked; culling is put back exactly as found below
   const staged = [];
+  const culled = [];
   for (const c of list) {
     const g = c.group;
     staged.push({ g, visible: g.visible, parent: g.parent });
     g.visible = true;
     if (!inTree(g, scene)) scene.add(g);
+    g.traverse?.((o) => { if (o.isSkinnedMesh && o.frustumCulled) { o.frustumCulled = false; culled.push(o); } });
   }
 
   // ---- the uploads. Do them BEFORE the draw so the draw itself is a pure
@@ -192,8 +197,8 @@ function warmNow(engine, list, opts = {}) {
     renderer.setRenderTarget?.(target);
     try { renderer.compile?.(scene, camera); } catch (e) { console.warn('[skk] prewarm compile:', e); }
     // The draw is what CREATES the bone textures and links the shadow-depth
-    // variants; character meshes are built `frustumCulled = false`, so the live
-    // camera draws every one of them wherever they happen to stand.
+    // variants; the rigs are staged unculled above, so the live camera draws
+    // every one of them wherever they happen to stand.
     //
     // NO TARGET, NO DRAW. Without one this would go to the visible framebuffer:
     // sixteen staged bodies flashed on screen, and — since three only applies
@@ -220,6 +225,7 @@ function warmNow(engine, list, opts = {}) {
     if (!s.parent) s.g.removeFromParent?.();
     else if (s.g.parent !== s.parent) s.parent.add(s.g);
   }
+  for (const o of culled) o.frustumCulled = true;
 
   return {
     players: list.length,

@@ -117,6 +117,9 @@ function recolorKitTexture(srcTex, primaryHex, { skinTone = null, mesh = null } 
 // different crews, and then eviction is real: the old characters are gone, the
 // canvas goes with the entry, and the GL handle is genuinely freed.
 const RECOLOR_CACHE_MAX = 16;
+/** Frustum-culling sphere for a rig: the bind pose's sphere grown by this, so
+ *  a dive, a bicycle kick or a hips bob never leaves it (B17). */
+export const CULL_RADIUS_SCALE = 2.2;
 const recolorCache = new Map();
 
 // ---- the hair/shoe fence --------------------------------------------------
@@ -614,7 +617,22 @@ export async function buildGlbCharacter(def, { heightM = 2.05, clips = null } = 
   const root = skeletonClone(base.scene);
   root.traverse((o) => {
     if (o.isMesh) {
-      o.castShadow = true; o.frustumCulled = false;
+      o.castShadow = true;
+      // FRUSTUM CULLING (Phase 1, B17). Skinned meshes shipped `frustumCulled =
+      // false` because three would otherwise compute a sphere from the SKINNED
+      // vertices. We give each one a fixed sphere instead: the bind pose's,
+      // grown ×CULL_RADIUS_SCALE so no clip ever leaves it. Off-screen fielders
+      // then skip the main pass (the shadow pass has its own budget —
+      // shadowBudget.js). The prewarm stages every rig UNCULLED for its one
+      // draw, so bone textures and shadow variants still link before the show.
+      if (o.isSkinnedMesh) {
+        if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
+        o.boundingSphere = o.geometry.boundingSphere.clone();
+        o.boundingSphere.radius *= CULL_RADIUS_SCALE;
+        o.frustumCulled = true;
+      } else {
+        o.frustumCulled = false;
+      }
       if (o.material) {
         // clone the material per character so recolor/changes don't leak to other clones
         o.material = o.material.clone();
