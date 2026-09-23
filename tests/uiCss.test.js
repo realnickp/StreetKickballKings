@@ -26,3 +26,33 @@ it('the TAP IN logo and the coin faces are phone-sized', async () => {
   expect(await dim('coin-heads.png')).toBeLessThanOrEqual(512);
   expect(await dim('coin-tails.png')).toBeLessThanOrEqual(512);
 });
+// The ledger's CSS items: B24 (100vh under Safari's toolbar), B33 (long-press
+// share sheet), B32 (infinite animations on hidden elements; keyframes that
+// animate filter/box-shadow/text-shadow repaint every frame; blur over the
+// live canvas).
+const keyframes = (name) => css().match(new RegExp(`@keyframes ${name}\\s*{[\\s\\S]*?}\\s*}`))?.[0] ?? '';
+
+it('the stage uses dynamic viewport height and blocks the iOS long-press callout', () => {
+  const stage = css().match(/#stage\s*{[^}]*}/)[0];
+  expect(stage).toMatch(/height:\s*100dvh/);
+  expect(stage).toMatch(/calc\(100dvh \* 0\.52\)/);
+  expect(stage).toMatch(/-webkit-touch-callout:\s*none/);
+});
+
+it('the action hint only animates while shown', () => {
+  const base = css().match(/\.action-hint\s*{[^}]*}/)[0];
+  expect(base).not.toMatch(/animation:\s*hintPulse/);
+  expect(css()).toMatch(/\.action-hint\.show\s*{[^}]*animation:\s*hintPulse/);
+});
+
+it('infinite pulses animate transform/opacity only', () => {
+  for (const k of ['hotPulse', 'heatBurn', 'elementPulse', 'tutBag']) expect(keyframes(k), k).not.toBe('');
+  expect(keyframes('hotPulse')).not.toMatch(/text-shadow/);
+  expect(keyframes('heatBurn')).not.toMatch(/filter|box-shadow/);
+  expect(keyframes('elementPulse')).not.toMatch(/box-shadow/);
+  expect(keyframes('tutBag')).not.toMatch(/box-shadow/);
+});
+
+it('nothing blurs the live canvas', () => {
+  expect(css()).not.toMatch(/backdrop-filter/);
+});
