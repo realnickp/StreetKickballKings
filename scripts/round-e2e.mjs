@@ -887,7 +887,11 @@ async function msaaScenario(page) {
     let frames = 0;
     const off = window.__engine.onFrame(() => { frames += 1; });
     window.__engine.setSamples(n);
-    await new Promise((r) => setTimeout(r, 400));
+    // up to 3 s for three frames: under WebKit's software renderer the frame after
+    // a target re-allocation re-links the chain, and the render gate (Phase 1)
+    // only draws two settle frames on the menu before it stops calling the composer
+    const t0 = performance.now();
+    while (frames < 3 && performance.now() - t0 < 3000) await new Promise((r) => setTimeout(r, 100));
     off?.();
     return { s: window.__engine.samples, rt1: window.__engine.composer.renderTarget1.samples, rt2: window.__engine.composer.renderTarget2.samples, frames };
   }, next);
