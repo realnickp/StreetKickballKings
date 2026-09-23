@@ -1657,11 +1657,13 @@ Phase 1. Plan: `docs/superpowers/plans/2026-09-22-phase1-diet-device-tiers.md`
   overrides. The PerfWatchdog still steps down from the tier's MSAA.
 - **B16 render gate** `src/engine/renderGate.js`: no composer.render() under an
   opaque .screen or a set-piece video (two settle frames after each change;
-  frame callbacks untouched; the coin toss is .transparent and keeps drawing).
-  main.js drives it from a MutationObserver. The neutral IBL is built on the
-  first frame that draws (or when a field map fails) — never a frame, and
-  never a prewarm, without an env map.
-- **B17 shadows** `src/game/shadowBudget.js`: the tier's N nearest rigs cast,
+  frame callbacks untouched; a `.screen.transparent` would keep drawing, but
+  no shipped screen uses that modifier — the coin toss is opaque). main.js
+  drives it from a MutationObserver. The neutral IBL still lands at boot (the
+  loop's first iteration runs before any screen mounts); what changed is the
+  invariant — no frame and no prewarm ever links without an env map.
+- **B17 shadows** `src/game/shadowBudget.js`: the tier's N nearest rigs cast
+  (only the body mesh ever casts; patches and bands never did),
   re-picked 4×/s; every SkinnedMesh carries a bind-pose sphere ×2.2 and is
   frustum-culled; the prewarm stages rigs UNCULLED for its draw (test).
 - **B15 build:** models + clip packs prefetch in parallel; the build yields a

@@ -23,9 +23,10 @@ export class RenderGate {
 }
 
 /** Is the stage's canvas hidden behind something opaque right now? Opaque =
- *  a `.screen` in #ui-root that is not `.transparent` (the coin toss shows the
- *  field through) and not hidden, or a set-piece video wrapper
- *  (`.video-cover`). The pause overlay is neither: the game stays visible. */
+ *  a `.screen` in #ui-root that is not `.transparent` (ui.css supports that
+ *  modifier; no shipped screen sets it today — the coin toss is opaque too)
+ *  and not hidden, or a set-piece video wrapper (`.video-cover`). The pause
+ *  overlay is neither: the game stays visible behind it. */
 export function isCovered(stage) {
   if (!stage) return false;
   if (stage.querySelector('.video-cover')) return true;

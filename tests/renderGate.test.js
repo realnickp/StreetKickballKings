@@ -37,7 +37,7 @@ function el(cls = '', children = [], attrs = {}) {
   return node;
 }
 
-it('an opaque .screen in #ui-root covers; a transparent one (coin toss) or an empty root does not', () => {
+it('an opaque .screen in #ui-root covers; a .transparent one (a CSS modifier no shipped screen uses yet) or an empty root does not', () => {
   const stage = (kids) => el('', [el('', kids, { id: 'ui-root' })]);
   expect(isCovered(stage([el('screen menu-screen')]))).toBe(true);
   expect(isCovered(stage([el('screen transparent coin-screen')]))).toBe(false);

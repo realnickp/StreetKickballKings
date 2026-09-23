@@ -101,10 +101,11 @@ export function createEngine(canvas, opts = {}) {
   // NEVER blank the screen — on failure we just skip the env map and keep rendering.
   let pmrem = null;
   try { pmrem = new THREE.PMREMGenerator(renderer); } catch (e) { console.warn('[skk] PMREM unavailable, no env map:', e); }
-  // The neutral room map is built on the FIRST FRAME THAT DRAWS (or the first
-  // time a field map fails to land), not at boot: menus cover the canvas for
-  // the first minute of a session and the field's own map usually replaces it
-  // before anything is seen (B23).
+  // The neutral room map is built by the first frame that draws — in practice
+  // the loop's first iteration at the end of createEngine, before main.js has
+  // mounted a screen, so it still lands at boot (a cube-64 PMREM: a few ms and
+  // ~100 KB). What this buys is the INVARIANT below: no frame and no prewarm
+  // ever links a program without an env map, whichever path got there first.
   //
   // SIZE PINNED, and it is not cosmetic. `envMapCubeUVHeight` is part of the
   // PROGRAM KEY three links a material against, and `setSceneEnvironment`

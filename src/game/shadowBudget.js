@@ -10,9 +10,10 @@ export function pickCasters(chars, camPos, n) {
   return new Set(ranked.slice(0, n).map((x) => x.c));
 }
 
-/** The meshes on this character the BUILD made casters (body, bands). Decal
- *  patches are built `castShadow = false` and stay that way. Memoised on the
- *  first call, which must happen before any pick switches them off. */
+/** The meshes on this character the BUILD made casters (the body; decal
+ *  patches and bands are built `castShadow = false` and stay that way).
+ *  Memoised on the first call, which must happen before any pick switches
+ *  them off. */
 export function castersOf(char) {
   if (!char._casterMeshes) {
     const out = [];
