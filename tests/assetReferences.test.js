@@ -14,7 +14,7 @@ import { markFor } from '../src/game/kits.js';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
 const pub = path.join(root, 'public');
-export const PORTRAIT_EXT = 'png';
+export const PORTRAIT_EXT = 'webp';
 
 function walk(dir, out = []) {
   if (!fs.existsSync(dir)) return out;
@@ -52,6 +52,11 @@ function derivedRefs() {
 it('every asset the source names is on disk', () => {
   const missing = [...literalRefs()].filter((r) => !fs.existsSync(path.join(pub, r)));
   expect(missing).toEqual([]);
+});
+
+it('portraits ship as WebP (the 50 PNGs were 64 MB)', () => {
+  const pngs = fs.readdirSync(path.join(pub, 'assets/players')).filter((f) => f.endsWith('.png'));
+  expect(pngs).toEqual([]);
 });
 
 it('no orphan files in the hand-authored asset folders', () => {
