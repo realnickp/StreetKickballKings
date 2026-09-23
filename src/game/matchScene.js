@@ -134,7 +134,7 @@ export class MatchScene {
     // homeTeam differs from the scheduled home side).
     const fieldHomeTeam = teamsData.teams.find((t) => t.id === fieldData.homeTeam);
     this.matchCityTrack = cityTrackId(fieldHomeTeam?.city ?? teams.home?.city);
-    this.field = buildField(fieldData, engine.scene);
+    this.field = buildField(fieldData, engine.scene, { video: engine.tier?.video, shadowMap: engine.tier?.shadowMap });
     // Light the live layer BY the scene: IBL + grade tint derived from this
     // field's own backdrop art so court/players sit inside it, not on top.
     engine.setSceneEnvironment?.(fieldData.textures?.backdrop);

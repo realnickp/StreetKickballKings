@@ -60,7 +60,7 @@ const blacktop = fieldsData.fields.find(f => f.id === 'blacktop');
 
 // ---------- dev: 3D GLB character harness (?glb) ----------
 if (params.has('glb')) {
-  const field = buildField(blacktop, engine.scene);
+  const field = buildField(blacktop, engine.scene, { video: engine.tier.video, shadowMap: engine.tier.shadowMap });
   let elapsed = 0;
   engine.onFrame((dt) => { elapsed += dt; field.updateCrowd(elapsed); });
   import('./game/glbCharacters.js').then(async ({ buildGlbCharacter }) => {
@@ -96,7 +96,7 @@ if (params.has('dance')) {
   import('./game/characters.js').then(({ buildPlayer, CLIP_NAMES }) => {
     const monarchs = teamsData.teams.find(t => t.id === 'monarchs');
     const snappers = teamsData.teams.find(t => t.id === 'snappers');
-    const field = buildField(blacktop, engine.scene);
+    const field = buildField(blacktop, engine.scene, { video: engine.tier.video, shadowMap: engine.tier.shadowMap });
     let elapsed = 0;
     engine.onFrame((dt) => { elapsed += dt; field.updateCrowd(elapsed); });
     const p1 = buildPlayer(monarchs.roster[0].look, monarchs.colors);

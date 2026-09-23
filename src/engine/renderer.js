@@ -9,6 +9,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { PerfWatchdog } from './perfWatchdog.js';
+import { tierFromBrowser } from './deviceTier.js';
 import { telemetry } from './telemetry.js';
 
 // Combined vignette + chromatic aberration + scene tint + film grain grade.
@@ -69,14 +70,23 @@ const GradeShader = {
 const PMREM_CUBE = 64;
 const PMREM_EQUIRECT_W = PMREM_CUBE * 4;
 
-export function createEngine(canvas) {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+export function createEngine(canvas, opts = {}) {
+  // DEVICE TIER (Phase 1, 2026-09-22): dpr / msaa / bloom / grade come from
+  // one boot-time decision (deviceTier.js); the field reads shadowMap + video
+  // off the same object, the match scene reads casters. ?tier= overrides.
+  const tier = opts.tier ?? tierFromBrowser();
+  console.info(`[skk] device tier ${tier.name} (${tier.reason}): dpr ${tier.dpr}, msaa ${tier.msaa}, bloom ${tier.bloom}, shadow ${tier.shadowMap}, video ${tier.video}`);
+  // antialias:false — every frame renders through the composer, so the
+  // backbuffer's own MSAA (~25 MB at phone resolution) was never seen (B38)
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, tier.dpr));
   let sceneEnvRT = null;  // the field-matched IBL render target (disposed on swap)
   let lastEnvUrl = null;  // ...and what it was built from, to rebuild after a context loss
   let contextLost = false;
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  // PCFSoftShadowMap is deprecated in r183+ and was silently downgraded to
+  // PCFShadowMap with a warning on every boot (B34) — ask for it outright
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   // ACES at default exposure reads muddy on phones — lift the whole image.
   // Dev directive 2026-07-21: "the graphics need to be brighter."
@@ -118,10 +128,11 @@ export function createEngine(canvas) {
   // post chain, so the WebGLRenderer's own antialias flag never applied
   // (effective AA was none — the jagged edges the dev saw). ?msaa=N overrides.
   const msaaParam = new URLSearchParams(location.search).get('msaa');
-  let samples = msaaParam != null ? Math.max(0, Math.min(4, Number(msaaParam) || 0)) : 4;
+  let samples = msaaParam != null ? Math.max(0, Math.min(4, Number(msaaParam) || 0)) : tier.msaa;
   const composer = new EffectComposer(renderer,
     new THREE.WebGLRenderTarget(1, 1, { samples, type: THREE.HalfFloatType }));
-  const watchdog = new PerfWatchdog();
+  // the watchdog only ever steps DOWN from the tier's level; a tier at 0 never fires
+  const watchdog = new PerfWatchdog({ steps: [4, 2, 0].filter((s) => s <= samples) });
   const renderPass = new RenderPass(scene, camera);
   // threshold 1.0 (was .95): the exposure lift above would otherwise push
   // ordinary surfaces over the bloom cutoff and everything would glow
@@ -133,8 +144,8 @@ export function createEngine(canvas) {
   function rebuildChain() {
     composer.passes.length = 0;
     composer.addPass(renderPass);
-    composer.addPass(bloomPass);
-    if (quality === 'high') composer.addPass(gradePass);
+    if (tier.bloom) composer.addPass(bloomPass);
+    if (quality === 'high' && tier.grade) composer.addPass(gradePass);
     composer.addPass(outputPass);
   }
   rebuildChain();
@@ -142,6 +153,7 @@ export function createEngine(canvas) {
   const frameCbs = new Set();
   const engine = {
     THREE,
+    tier,
     renderer,
     scene,
     camera,
@@ -313,7 +325,7 @@ export function createEngine(canvas) {
     hideCard();
   });
 
-  const clock = new THREE.Clock();
+  const timer = new THREE.Timer(); // THREE.Clock is deprecated since r183 (B34)
   const shakeOffset = new THREE.Vector3();
   let running = true;
   let lastFrameAt = performance.now();
@@ -327,13 +339,14 @@ export function createEngine(canvas) {
     }
     requestAnimationFrame(loop);
     lastFrameAt = performance.now();
-    const rawDt = Math.min(clock.getDelta(), 0.05);
+    timer.update(ts);
+    const rawDt = Math.min(timer.getDelta(), 0.05);
     if (!document.hidden && msaaParam == null) {
       const drop = watchdog.tick(rawDt);
       if (drop !== null) engine.setSamples(drop);
     }
     const dt = rawDt * engine.timeScale;
-    gradePass.uniforms.time.value = clock.elapsedTime; // animates the film grain
+    gradePass.uniforms.time.value = timer.getElapsed(); // animates the film grain
 
     // a throwing frame callback must NEVER freeze the whole game (skip render /
     // other callbacks). Isolate each one so the loop always survives + renders.
