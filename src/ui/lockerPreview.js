@@ -29,10 +29,15 @@ export class LockerPreview {
     // memory pressure, another context taking the last slot). Without a guard
     // the rAF loop keeps rendering into a dead context and the captain is a
     // black hole for the rest of the visit — onLost lets the screen rebuild.
+    // destroy() fires this too (forceContextLoss) — that loss is ours, not the
+    // phone's, and reporting it made the screen mount a NEW renderer + captain
+    // on the detached canvas, rendering under the match forever (the iPhone
+    // reload, 2026-09-28). Only a loss while running asks for a rebuild.
     canvas.addEventListener('webglcontextlost', (e) => {
       e.preventDefault();
+      const wasRunning = this.running;
       this.running = false;
-      this.onLost?.();
+      if (wasRunning) this.onLost?.();
     });
     const loop = () => {
       if (!this.running) return;
