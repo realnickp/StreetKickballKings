@@ -1969,6 +1969,2961 @@
           "archetype": 18
         }
       ]
+    },
+    {
+      "id": "detroit",
+      "city": "Detroit",
+      "region": "midwest",
+      "name": "Detroit Wreckers",
+      "colors": {
+        "primary": "#B3261E",
+        "secondary": "#1F2A30",
+        "accent": "#C9CED1"
+      },
+      "logo": "assets/logos/detroit.png",
+      "kits": {
+        "dark": {
+          "hex": "#1f2a30",
+          "ink": "#f4f4f6",
+          "logo": "detroit",
+          "img": ""
+        },
+        "light": {
+          "hex": "#e9ecee",
+          "ink": "#0b0c10",
+          "logo": "detroit-light",
+          "img": ""
+        }
+      },
+      "anthem": null,
+      "introVideo": null,
+      "musicGenre": "detroit street rap / ghettotech",
+      "special": {
+        "id": "wrecking-ball",
+        "label": "WRECKING BALL"
+      },
+      "homeField": "rubber-yard",
+      "status": "story",
+      "roster": [
+        {
+          "id": "dw1",
+          "nick": "Motor Mouth Mack",
+          "pos": "Captain",
+          "number": 13,
+          "stats": {
+            "power": 8,
+            "speed": 7,
+            "arm": 7,
+            "glove": 5
+          },
+          "look": {
+            "skin": 5,
+            "hair": "buzz",
+            "build": "standard",
+            "fit": "sleeveless",
+            "accessory": "chain"
+          },
+          "archetype": 18
+        },
+        {
+          "id": "dw2",
+          "nick": "Eight Mile Mo",
+          "pos": "Leadoff",
+          "number": 8,
+          "stats": {
+            "power": 5,
+            "speed": 9,
+            "arm": 5,
+            "glove": 7
+          },
+          "look": {
+            "skin": 6,
+            "hair": "locs",
+            "build": "compact",
+            "fit": "tied-up",
+            "accessory": "glasses"
+          },
+          "archetype": 8
+        },
+        {
+          "id": "dw3",
+          "nick": "Belle Isle Bree",
+          "pos": "Pitcher",
+          "number": 22,
+          "stats": {
+            "power": 6,
+            "speed": 6,
+            "arm": 9,
+            "glove": 7
+          },
+          "look": {
+            "skin": 4,
+            "hair": "fade",
+            "build": "standard",
+            "fit": "standard",
+            "accessory": "glasses"
+          },
+          "archetype": 7
+        },
+        {
+          "id": "dw4",
+          "nick": "Assembly Line",
+          "pos": "Big Boot",
+          "number": 99,
+          "stats": {
+            "power": 9,
+            "speed": 3,
+            "arm": 8,
+            "glove": 5
+          },
+          "look": {
+            "skin": 6,
+            "hair": "braids",
+            "build": "stocky",
+            "fit": "oversized",
+            "accessory": "wristband"
+          },
+          "archetype": 19
+        },
+        {
+          "id": "dw5",
+          "nick": "Rust Belt Rollo",
+          "pos": "Catcher",
+          "number": 31,
+          "stats": {
+            "power": 7,
+            "speed": 5,
+            "arm": 6,
+            "glove": 8
+          },
+          "look": {
+            "skin": 1,
+            "hair": "durag",
+            "build": "standard",
+            "fit": "standard",
+            "accessory": "glasses"
+          },
+          "archetype": 12
+        },
+        {
+          "id": "dw6",
+          "nick": "Woodward Whip",
+          "pos": "Shortstop",
+          "number": 4,
+          "stats": {
+            "power": 5,
+            "speed": 8,
+            "arm": 6,
+            "glove": 8
+          },
+          "look": {
+            "skin": 4,
+            "hair": "cap",
+            "build": "standard",
+            "fit": "tied-up",
+            "accessory": "none"
+          },
+          "archetype": 14
+        },
+        {
+          "id": "dw7",
+          "nick": "Coney Queen",
+          "pos": "Outfield",
+          "number": 17,
+          "stats": {
+            "power": 7,
+            "speed": 7,
+            "arm": 7,
+            "glove": 6
+          },
+          "look": {
+            "skin": 5,
+            "hair": "afro",
+            "build": "tank",
+            "fit": "sleeveless",
+            "accessory": "headband"
+          },
+          "archetype": 2
+        },
+        {
+          "id": "dw8",
+          "nick": "Chrome Bumper",
+          "pos": "Utility",
+          "number": 48,
+          "stats": {
+            "power": 7,
+            "speed": 7,
+            "arm": 6,
+            "glove": 6
+          },
+          "look": {
+            "skin": 3,
+            "hair": "twists",
+            "build": "standard",
+            "fit": "oversized",
+            "accessory": "none"
+          },
+          "archetype": 16
+        }
+      ]
+    },
+    {
+      "id": "stlouis",
+      "city": "St. Louis",
+      "region": "midwest",
+      "name": "St. Louis Arches",
+      "colors": {
+        "primary": "#2F6DB5",
+        "secondary": "#C0C6CC",
+        "accent": "#E03A3E"
+      },
+      "logo": "assets/logos/stlouis.png",
+      "kits": {
+        "dark": {
+          "hex": "#1b3a63",
+          "ink": "#f4f4f6",
+          "logo": "stlouis",
+          "img": ""
+        },
+        "light": {
+          "hex": "#ebf0f4",
+          "ink": "#0b0c10",
+          "logo": "stlouis-light",
+          "img": ""
+        }
+      },
+      "anthem": null,
+      "introVideo": null,
+      "musicGenre": "st. louis bounce / country rap",
+      "special": {
+        "id": "gateway-blast",
+        "label": "GATEWAY BLAST"
+      },
+      "homeField": "the-underpass",
+      "status": "story",
+      "roster": [
+        {
+          "id": "sl1",
+          "nick": "Gateway Gus",
+          "pos": "Captain",
+          "number": 14,
+          "stats": {
+            "power": 9,
+            "speed": 7,
+            "arm": 7,
+            "glove": 6
+          },
+          "look": {
+            "skin": 5,
+            "hair": "durag",
+            "build": "standard",
+            "fit": "sleeveless",
+            "accessory": "wristband"
+          },
+          "archetype": 8
+        },
+        {
+          "id": "sl2",
+          "nick": "Lou Quick",
+          "pos": "Leadoff",
+          "number": 1,
+          "stats": {
+            "power": 5,
+            "speed": 9,
+            "arm": 6,
+            "glove": 6
+          },
+          "look": {
+            "skin": 4,
+            "hair": "cap",
+            "build": "compact",
+            "fit": "tied-up",
+            "accessory": "wristband"
+          },
+          "archetype": 18
+        },
+        {
+          "id": "sl3",
+          "nick": "Toasted Rav",
+          "pos": "Pitcher",
+          "number": 30,
+          "stats": {
+            "power": 5,
+            "speed": 6,
+            "arm": 9,
+            "glove": 7
+          },
+          "look": {
+            "skin": 1,
+            "hair": "afro",
+            "build": "standard",
+            "fit": "standard",
+            "accessory": "wristband"
+          },
+          "archetype": 19
+        },
+        {
+          "id": "sl4",
+          "nick": "Big Muddy",
+          "pos": "Big Boot",
+          "number": 63,
+          "stats": {
+            "power": 9,
+            "speed": 4,
+            "arm": 7,
+            "glove": 5
+          },
+          "look": {
+            "skin": 6,
+            "hair": "twists",
+            "build": "stocky",
+            "fit": "oversized",
+            "accessory": "chain"
+          },
+          "archetype": 12
+        },
+        {
+          "id": "sl5",
+          "nick": "Soulard Stone",
+          "pos": "Catcher",
+          "number": 9,
+          "stats": {
+            "power": 6,
+            "speed": 4,
+            "arm": 7,
+            "glove": 8
+          },
+          "look": {
+            "skin": 1,
+            "hair": "buzz",
+            "build": "standard",
+            "fit": "standard",
+            "accessory": "none"
+          },
+          "archetype": 1
+        },
+        {
+          "id": "sl6",
+          "nick": "Delmar Dee",
+          "pos": "Shortstop",
+          "number": 6,
+          "stats": {
+            "power": 3,
+            "speed": 8,
+            "arm": 7,
+            "glove": 9
+          },
+          "look": {
+            "skin": 6,
+            "hair": "locs",
+            "build": "standard",
+            "fit": "tied-up",
+            "accessory": "chain"
+          },
+          "archetype": 15
+        },
+        {
+          "id": "sl7",
+          "nick": "Arch Angel",
+          "pos": "Outfield",
+          "number": 21,
+          "stats": {
+            "power": 7,
+            "speed": 7,
+            "arm": 7,
+            "glove": 6
+          },
+          "look": {
+            "skin": 4,
+            "hair": "fade",
+            "build": "standard",
+            "fit": "sleeveless",
+            "accessory": "glasses"
+          },
+          "archetype": 3
+        },
+        {
+          "id": "sl8",
+          "nick": "Northside Nook",
+          "pos": "Utility",
+          "number": 77,
+          "stats": {
+            "power": 7,
+            "speed": 8,
+            "arm": 7,
+            "glove": 5
+          },
+          "look": {
+            "skin": 3,
+            "hair": "braids",
+            "build": "compact",
+            "fit": "oversized",
+            "accessory": "headband"
+          },
+          "archetype": 6
+        }
+      ]
+    },
+    {
+      "id": "cleveland",
+      "city": "Cleveland",
+      "region": "midwest",
+      "name": "Cleveland Crush",
+      "colors": {
+        "primary": "#6B2C91",
+        "secondary": "#F28C28",
+        "accent": "#111111"
+      },
+      "logo": "assets/logos/cleveland.png",
+      "kits": {
+        "dark": {
+          "hex": "#2e1640",
+          "ink": "#f4f4f6",
+          "logo": "cleveland",
+          "img": ""
+        },
+        "light": {
+          "hex": "#fbecd9",
+          "ink": "#0b0c10",
+          "logo": "cleveland-light",
+          "img": ""
+        }
+      },
+      "anthem": null,
+      "introVideo": null,
+      "musicGenre": "cleveland melodic rap",
+      "special": {
+        "id": "crush-zone",
+        "label": "CRUSH ZONE"
+      },
+      "homeField": "winter-classic",
+      "status": "story",
+      "roster": [
+        {
+          "id": "cv1",
+          "nick": "Lakefront Lonnie",
+          "pos": "Captain",
+          "number": 16,
+          "stats": {
+            "power": 9,
+            "speed": 6,
+            "arm": 7,
+            "glove": 7
+          },
+          "look": {
+            "skin": 4,
+            "hair": "locs",
+            "build": "standard",
+            "fit": "sleeveless",
+            "accessory": "none"
+          },
+          "archetype": 14
+        },
+        {
+          "id": "cv2",
+          "nick": "Euclid Evie",
+          "pos": "Leadoff",
+          "number": 2,
+          "stats": {
+            "power": 4,
+            "speed": 9,
+            "arm": 6,
+            "glove": 7
+          },
+          "look": {
+            "skin": 6,
+            "hair": "fade",
+            "build": "compact",
+            "fit": "tied-up",
+            "accessory": "chain"
+          },
+          "archetype": 11
+        },
+        {
+          "id": "cv3",
+          "nick": "Rock Hall Ray",
+          "pos": "Pitcher",
+          "number": 26,
+          "stats": {
+            "power": 5,
+            "speed": 7,
+            "arm": 8,
+            "glove": 7
+          },
+          "look": {
+            "skin": 1,
+            "hair": "braids",
+            "build": "standard",
+            "fit": "standard",
+            "accessory": "none"
+          },
+          "archetype": 18
+        },
+        {
+          "id": "cv4",
+          "nick": "Steel Mill Sully",
+          "pos": "Big Boot",
+          "number": 44,
+          "stats": {
+            "power": 9,
+            "speed": 5,
+            "arm": 6,
+            "glove": 6
+          },
+          "look": {
+            "skin": 2,
+            "hair": "durag",
+            "build": "stocky",
+            "fit": "oversized",
+            "accessory": "wristband"
+          },
+          "archetype": 8
+        },
+        {
+          "id": "cv5",
+          "nick": "Cuyahoga Cole",
+          "pos": "Catcher",
+          "number": 12,
+          "stats": {
+            "power": 8,
+            "speed": 4,
+            "arm": 6,
+            "glove": 9
+          },
+          "look": {
+            "skin": 5,
+            "hair": "cap",
+            "build": "lanky",
+            "fit": "standard",
+            "accessory": "none"
+          },
+          "archetype": 4
+        },
+        {
+          "id": "cv6",
+          "nick": "Flats Fly",
+          "pos": "Shortstop",
+          "number": 5,
+          "stats": {
+            "power": 4,
+            "speed": 8,
+            "arm": 6,
+            "glove": 9
+          },
+          "look": {
+            "skin": 3,
+            "hair": "afro",
+            "build": "standard",
+            "fit": "tied-up",
+            "accessory": "headband"
+          },
+          "archetype": 16
+        },
+        {
+          "id": "cv7",
+          "nick": "Pierogi Paula",
+          "pos": "Outfield",
+          "number": 19,
+          "stats": {
+            "power": 6,
+            "speed": 7,
+            "arm": 7,
+            "glove": 8
+          },
+          "look": {
+            "skin": 4,
+            "hair": "twists",
+            "build": "standard",
+            "fit": "sleeveless",
+            "accessory": "headband"
+          },
+          "archetype": 5
+        },
+        {
+          "id": "cv8",
+          "nick": "Grape Soda Gil",
+          "pos": "Utility",
+          "number": 87,
+          "stats": {
+            "power": 6,
+            "speed": 6,
+            "arm": 6,
+            "glove": 7
+          },
+          "look": {
+            "skin": 6,
+            "hair": "buzz",
+            "build": "stocky",
+            "fit": "oversized",
+            "accessory": "chain"
+          },
+          "archetype": 0
+        }
+      ]
+    },
+    {
+      "id": "atlanta",
+      "city": "Atlanta",
+      "region": "south",
+      "name": "Atlanta Outlaws",
+      "colors": {
+        "primary": "#B8001F",
+        "secondary": "#0D0D0D",
+        "accent": "#D4AF37"
+      },
+      "logo": "assets/logos/atlanta.png",
+      "kits": {
+        "dark": {
+          "hex": "#141414",
+          "ink": "#f4f4f6",
+          "logo": "atlanta",
+          "img": ""
+        },
+        "light": {
+          "hex": "#f3ead8",
+          "ink": "#0b0c10",
+          "logo": "atlanta-light",
+          "img": ""
+        }
+      },
+      "anthem": null,
+      "introVideo": null,
+      "musicGenre": "atlanta trap",
+      "special": {
+        "id": "trap-door",
+        "label": "TRAP DOOR"
+      },
+      "homeField": "neon-night-court",
+      "status": "story",
+      "roster": [
+        {
+          "id": "at1",
+          "nick": "Peachtree Prophet",
+          "pos": "Captain",
+          "number": 4,
+          "stats": {
+            "power": 8,
+            "speed": 7,
+            "arm": 7,
+            "glove": 6
+          },
+          "look": {
+            "skin": 5,
+            "hair": "durag",
+            "build": "tank",
+            "fit": "sleeveless",
+            "accessory": "glasses"
+          },
+          "archetype": 18
+        },
+        {
+          "id": "at2",
+          "nick": "Zone Six Zay",
+          "pos": "Leadoff",
+          "number": 6,
+          "stats": {
+            "power": 4,
+            "speed": 9,
+            "arm": 5,
+            "glove": 7
+          },
+          "look": {
+            "skin": 6,
+            "hair": "cap",
+            "build": "standard",
+            "fit": "tied-up",
+            "accessory": "none"
+          },
+          "archetype": 19
+        },
+        {
+          "id": "at3",
+          "nick": "Bankhead Bunni",
+          "pos": "Pitcher",
+          "number": 24,
+          "stats": {
+            "power": 5,
+            "speed": 8,
+            "arm": 9,
+            "glove": 6
+          },
+          "look": {
+            "skin": 4,
+            "hair": "afro",
+            "build": "lanky",
+            "fit": "standard",
+            "accessory": "wristband"
+          },
+          "archetype": 9
+        },
+        {
+          "id": "at4",
+          "nick": "Big Ponce",
+          "pos": "Big Boot",
+          "number": 55,
+          "stats": {
+            "power": 9,
+            "speed": 6,
+            "arm": 8,
+            "glove": 3
+          },
+          "look": {
+            "skin": 6,
+            "hair": "twists",
+            "build": "stocky",
+            "fit": "oversized",
+            "accessory": "headband"
+          },
+          "archetype": 8
+        },
+        {
+          "id": "at5",
+          "nick": "Old Fourth Ward",
+          "pos": "Catcher",
+          "number": 40,
+          "stats": {
+            "power": 7,
+            "speed": 4,
+            "arm": 7,
+            "glove": 8
+          },
+          "look": {
+            "skin": 4,
+            "hair": "buzz",
+            "build": "standard",
+            "fit": "standard",
+            "accessory": "none"
+          },
+          "archetype": 12
+        },
+        {
+          "id": "at6",
+          "nick": "Lemon Pepper Lia",
+          "pos": "Shortstop",
+          "number": 3,
+          "stats": {
+            "power": 4,
+            "speed": 9,
+            "arm": 5,
+            "glove": 8
+          },
+          "look": {
+            "skin": 6,
+            "hair": "locs",
+            "build": "standard",
+            "fit": "tied-up",
+            "accessory": "wristband"
+          },
+          "archetype": 7
+        },
+        {
+          "id": "at7",
+          "nick": "Perimeter Pete",
+          "pos": "Outfield",
+          "number": 11,
+          "stats": {
+            "power": 6,
+            "speed": 8,
+            "arm": 7,
+            "glove": 6
+          },
+          "look": {
+            "skin": 3,
+            "hair": "fade",
+            "build": "tank",
+            "fit": "sleeveless",
+            "accessory": "chain"
+          },
+          "archetype": 10
+        },
+        {
+          "id": "at8",
+          "nick": "Marta Marcus",
+          "pos": "Utility",
+          "number": 85,
+          "stats": {
+            "power": 6,
+            "speed": 7,
+            "arm": 6,
+            "glove": 6
+          },
+          "look": {
+            "skin": 6,
+            "hair": "braids",
+            "build": "standard",
+            "fit": "oversized",
+            "accessory": "glasses"
+          },
+          "archetype": 0
+        }
+      ]
+    },
+    {
+      "id": "neworleans",
+      "city": "New Orleans",
+      "region": "south",
+      "name": "New Orleans Gators",
+      "colors": {
+        "primary": "#2E7D32",
+        "secondary": "#6A1B9A",
+        "accent": "#F9C80E"
+      },
+      "logo": "assets/logos/neworleans.png",
+      "kits": {
+        "dark": {
+          "hex": "#1e3d22",
+          "ink": "#f4f4f6",
+          "logo": "neworleans",
+          "img": ""
+        },
+        "light": {
+          "hex": "#fbf3cf",
+          "ink": "#0b0c10",
+          "logo": "neworleans-light",
+          "img": ""
+        }
+      },
+      "anthem": null,
+      "introVideo": null,
+      "musicGenre": "bounce / brass band",
+      "special": {
+        "id": "death-roll",
+        "label": "DEATH ROLL"
+      },
+      "homeField": "block-party",
+      "status": "story",
+      "roster": [
+        {
+          "id": "no1",
+          "nick": "Big Chief Bayou",
+          "pos": "Captain",
+          "number": 5,
+          "stats": {
+            "power": 8,
+            "speed": 5,
+            "arm": 7,
+            "glove": 7
+          },
+          "look": {
+            "skin": 5,
+            "hair": "cap",
+            "build": "lanky",
+            "fit": "sleeveless",
+            "accessory": "chain"
+          },
+          "archetype": 1
+        },
+        {
+          "id": "no2",
+          "nick": "Second Line Sonny",
+          "pos": "Leadoff",
+          "number": 9,
+          "stats": {
+            "power": 5,
+            "speed": 9,
+            "arm": 5,
+            "glove": 8
+          },
+          "look": {
+            "skin": 4,
+            "hair": "afro",
+            "build": "compact",
+            "fit": "tied-up",
+            "accessory": "wristband"
+          },
+          "archetype": 18
+        },
+        {
+          "id": "no3",
+          "nick": "Gumbo Gabe",
+          "pos": "Pitcher",
+          "number": 50,
+          "stats": {
+            "power": 4,
+            "speed": 7,
+            "arm": 9,
+            "glove": 8
+          },
+          "look": {
+            "skin": 3,
+            "hair": "twists",
+            "build": "lanky",
+            "fit": "standard",
+            "accessory": "wristband"
+          },
+          "archetype": 4
+        },
+        {
+          "id": "no4",
+          "nick": "Levee Breaker",
+          "pos": "Big Boot",
+          "number": 70,
+          "stats": {
+            "power": 9,
+            "speed": 3,
+            "arm": 8,
+            "glove": 6
+          },
+          "look": {
+            "skin": 6,
+            "hair": "buzz",
+            "build": "standard",
+            "fit": "oversized",
+            "accessory": "headband"
+          },
+          "archetype": 12
+        },
+        {
+          "id": "no5",
+          "nick": "Treme Tasha",
+          "pos": "Catcher",
+          "number": 2,
+          "stats": {
+            "power": 6,
+            "speed": 4,
+            "arm": 7,
+            "glove": 9
+          },
+          "look": {
+            "skin": 5,
+            "hair": "locs",
+            "build": "standard",
+            "fit": "standard",
+            "accessory": "none"
+          },
+          "archetype": 9
+        },
+        {
+          "id": "no6",
+          "nick": "Frenchmen Flash",
+          "pos": "Shortstop",
+          "number": 7,
+          "stats": {
+            "power": 3,
+            "speed": 9,
+            "arm": 6,
+            "glove": 9
+          },
+          "look": {
+            "skin": 4,
+            "hair": "fade",
+            "build": "standard",
+            "fit": "tied-up",
+            "accessory": "headband"
+          },
+          "archetype": 6
+        },
+        {
+          "id": "no7",
+          "nick": "Ninth Ward Nico",
+          "pos": "Outfield",
+          "number": 28,
+          "stats": {
+            "power": 6,
+            "speed": 7,
+            "arm": 7,
+            "glove": 7
+          },
+          "look": {
+            "skin": 1,
+            "hair": "braids",
+            "build": "standard",
+            "fit": "sleeveless",
+            "accessory": "glasses"
+          },
+          "archetype": 16
+        },
+        {
+          "id": "no8",
+          "nick": "Po' Boy Pierre",
+          "pos": "Utility",
+          "number": 14,
+          "stats": {
+            "power": 7,
+            "speed": 6,
+            "arm": 7,
+            "glove": 6
+          },
+          "look": {
+            "skin": 6,
+            "hair": "durag",
+            "build": "compact",
+            "fit": "oversized",
+            "accessory": "glasses"
+          },
+          "archetype": 19
+        }
+      ]
+    },
+    {
+      "id": "houston",
+      "city": "Houston",
+      "region": "south",
+      "name": "Houston Rattlers",
+      "colors": {
+        "primary": "#8B5A2B",
+        "secondary": "#5B2C83",
+        "accent": "#D9B26F"
+      },
+      "logo": "assets/logos/houston.png",
+      "kits": {
+        "dark": {
+          "hex": "#2a1a3d",
+          "ink": "#f4f4f6",
+          "logo": "houston",
+          "img": ""
+        },
+        "light": {
+          "hex": "#f4ead4",
+          "ink": "#0b0c10",
+          "logo": "houston-light",
+          "img": ""
+        }
+      },
+      "anthem": null,
+      "introVideo": null,
+      "musicGenre": "chopped & screwed",
+      "special": {
+        "id": "coil-strike",
+        "label": "COIL STRIKE"
+      },
+      "homeField": "blacktop",
+      "status": "story",
+      "roster": [
+        {
+          "id": "hu1",
+          "nick": "Slab King Slim",
+          "pos": "Captain",
+          "number": 13,
+          "stats": {
+            "power": 9,
+            "speed": 7,
+            "arm": 8,
+            "glove": 5
+          },
+          "look": {
+            "skin": 4,
+            "hair": "braids",
+            "build": "tank",
+            "fit": "sleeveless",
+            "accessory": "headband"
+          },
+          "archetype": 3
+        },
+        {
+          "id": "hu2",
+          "nick": "Fifth Ward Fuego",
+          "pos": "Leadoff",
+          "number": 5,
+          "stats": {
+            "power": 5,
+            "speed": 9,
+            "arm": 5,
+            "glove": 7
+          },
+          "look": {
+            "skin": 3,
+            "hair": "durag",
+            "build": "compact",
+            "fit": "tied-up",
+            "accessory": "none"
+          },
+          "archetype": 8
+        },
+        {
+          "id": "hu3",
+          "nick": "Purple Tape Paco",
+          "pos": "Pitcher",
+          "number": 32,
+          "stats": {
+            "power": 6,
+            "speed": 7,
+            "arm": 9,
+            "glove": 7
+          },
+          "look": {
+            "skin": 5,
+            "hair": "cap",
+            "build": "lanky",
+            "fit": "standard",
+            "accessory": "glasses"
+          },
+          "archetype": 14
+        },
+        {
+          "id": "hu4",
+          "nick": "Third Coast Tank",
+          "pos": "Big Boot",
+          "number": 84,
+          "stats": {
+            "power": 9,
+            "speed": 4,
+            "arm": 7,
+            "glove": 5
+          },
+          "look": {
+            "skin": 6,
+            "hair": "afro",
+            "build": "stocky",
+            "fit": "oversized",
+            "accessory": "headband"
+          },
+          "archetype": 10
+        },
+        {
+          "id": "hu5",
+          "nick": "Bayou City Bruno",
+          "pos": "Catcher",
+          "number": 20,
+          "stats": {
+            "power": 7,
+            "speed": 4,
+            "arm": 7,
+            "glove": 9
+          },
+          "look": {
+            "skin": 3,
+            "hair": "twists",
+            "build": "standard",
+            "fit": "standard",
+            "accessory": "chain"
+          },
+          "archetype": 18
+        },
+        {
+          "id": "hu6",
+          "nick": "Candy Paint Cruz",
+          "pos": "Shortstop",
+          "number": 1,
+          "stats": {
+            "power": 6,
+            "speed": 8,
+            "arm": 6,
+            "glove": 8
+          },
+          "look": {
+            "skin": 3,
+            "hair": "buzz",
+            "build": "standard",
+            "fit": "tied-up",
+            "accessory": "none"
+          },
+          "archetype": 12
+        },
+        {
+          "id": "hu7",
+          "nick": "Southside Sol",
+          "pos": "Outfield",
+          "number": 7,
+          "stats": {
+            "power": 7,
+            "speed": 7,
+            "arm": 8,
+            "glove": 6
+          },
+          "look": {
+            "skin": 4,
+            "hair": "locs",
+            "build": "lanky",
+            "fit": "sleeveless",
+            "accessory": "none"
+          },
+          "archetype": 7
+        },
+        {
+          "id": "hu8",
+          "nick": "Swang Low Lalo",
+          "pos": "Utility",
+          "number": 71,
+          "stats": {
+            "power": 7,
+            "speed": 6,
+            "arm": 6,
+            "glove": 6
+          },
+          "look": {
+            "skin": 6,
+            "hair": "fade",
+            "build": "compact",
+            "fit": "oversized",
+            "accessory": "wristband"
+          },
+          "archetype": 1
+        }
+      ]
+    },
+    {
+      "id": "miami",
+      "city": "Miami",
+      "region": "south",
+      "name": "Miami Heatwave",
+      "colors": {
+        "primary": "#FF4F9A",
+        "secondary": "#00C2C7",
+        "accent": "#FFB000"
+      },
+      "logo": "assets/logos/miami.png",
+      "kits": {
+        "dark": {
+          "hex": "#0e2a3a",
+          "ink": "#f4f4f6",
+          "logo": "miami",
+          "img": ""
+        },
+        "light": {
+          "hex": "#e6fbfa",
+          "ink": "#0b0c10",
+          "logo": "miami-light",
+          "img": ""
+        }
+      },
+      "anthem": null,
+      "introVideo": null,
+      "musicGenre": "miami bass",
+      "special": {
+        "id": "heat-index",
+        "label": "HEAT INDEX"
+      },
+      "homeField": "boardwalk-kings",
+      "status": "story",
+      "roster": [
+        {
+          "id": "mi1",
+          "nick": "Calle Ocho Capo",
+          "pos": "Captain",
+          "number": 5,
+          "stats": {
+            "power": 8,
+            "speed": 7,
+            "arm": 8,
+            "glove": 7
+          },
+          "look": {
+            "skin": 3,
+            "hair": "buzz",
+            "build": "standard",
+            "fit": "sleeveless",
+            "accessory": "headband"
+          },
+          "archetype": 19
+        },
+        {
+          "id": "mi2",
+          "nick": "Little Havana Lexi",
+          "pos": "Leadoff",
+          "number": 3,
+          "stats": {
+            "power": 4,
+            "speed": 9,
+            "arm": 6,
+            "glove": 7
+          },
+          "look": {
+            "skin": 3,
+            "hair": "locs",
+            "build": "standard",
+            "fit": "tied-up",
+            "accessory": "wristband"
+          },
+          "archetype": 5
+        },
+        {
+          "id": "mi3",
+          "nick": "Biscayne Breeze",
+          "pos": "Pitcher",
+          "number": 19,
+          "stats": {
+            "power": 6,
+            "speed": 6,
+            "arm": 9,
+            "glove": 8
+          },
+          "look": {
+            "skin": 4,
+            "hair": "fade",
+            "build": "lanky",
+            "fit": "standard",
+            "accessory": "wristband"
+          },
+          "archetype": 3
+        },
+        {
+          "id": "mi4",
+          "nick": "Overtown Ox",
+          "pos": "Big Boot",
+          "number": 95,
+          "stats": {
+            "power": 8,
+            "speed": 6,
+            "arm": 7,
+            "glove": 5
+          },
+          "look": {
+            "skin": 6,
+            "hair": "braids",
+            "build": "stocky",
+            "fit": "oversized",
+            "accessory": "glasses"
+          },
+          "archetype": 6
+        },
+        {
+          "id": "mi5",
+          "nick": "Liberty City Lock",
+          "pos": "Catcher",
+          "number": 33,
+          "stats": {
+            "power": 6,
+            "speed": 5,
+            "arm": 7,
+            "glove": 8
+          },
+          "look": {
+            "skin": 5,
+            "hair": "durag",
+            "build": "tank",
+            "fit": "standard",
+            "accessory": "glasses"
+          },
+          "archetype": 8
+        },
+        {
+          "id": "mi6",
+          "nick": "South Beach Sabi",
+          "pos": "Shortstop",
+          "number": 8,
+          "stats": {
+            "power": 4,
+            "speed": 9,
+            "arm": 7,
+            "glove": 9
+          },
+          "look": {
+            "skin": 3,
+            "hair": "cap",
+            "build": "stocky",
+            "fit": "tied-up",
+            "accessory": "none"
+          },
+          "archetype": 2
+        },
+        {
+          "id": "mi7",
+          "nick": "Hialeah Hurricane",
+          "pos": "Outfield",
+          "number": 10,
+          "stats": {
+            "power": 6,
+            "speed": 7,
+            "arm": 7,
+            "glove": 6
+          },
+          "look": {
+            "skin": 4,
+            "hair": "afro",
+            "build": "standard",
+            "fit": "sleeveless",
+            "accessory": "glasses"
+          },
+          "archetype": 14
+        },
+        {
+          "id": "mi8",
+          "nick": "Cafecito Kid",
+          "pos": "Utility",
+          "number": 30,
+          "stats": {
+            "power": 6,
+            "speed": 7,
+            "arm": 7,
+            "glove": 7
+          },
+          "look": {
+            "skin": 2,
+            "hair": "twists",
+            "build": "compact",
+            "fit": "oversized",
+            "accessory": "none"
+          },
+          "archetype": 16
+        }
+      ]
+    },
+    {
+      "id": "dallas",
+      "city": "Dallas",
+      "region": "southwest",
+      "name": "Dallas Stampede",
+      "colors": {
+        "primary": "#0C2340",
+        "secondary": "#C4CED4",
+        "accent": "#BF5700"
+      },
+      "logo": "assets/logos/dallas.png",
+      "kits": {
+        "dark": {
+          "hex": "#0c2340",
+          "ink": "#f4f4f6",
+          "logo": "dallas",
+          "img": ""
+        },
+        "light": {
+          "hex": "#eceff1",
+          "ink": "#0b0c10",
+          "logo": "dallas-light",
+          "img": ""
+        }
+      },
+      "anthem": null,
+      "introVideo": null,
+      "musicGenre": "dallas boogie / screwed soul",
+      "special": {
+        "id": "trample",
+        "label": "TRAMPLE"
+      },
+      "homeField": "blacktop",
+      "status": "story",
+      "roster": [
+        {
+          "id": "da1",
+          "nick": "Deep Ellum Duke",
+          "pos": "Captain",
+          "number": 14,
+          "stats": {
+            "power": 9,
+            "speed": 6,
+            "arm": 7,
+            "glove": 6
+          },
+          "look": {
+            "skin": 5,
+            "hair": "braids",
+            "build": "standard",
+            "fit": "sleeveless",
+            "accessory": "none"
+          },
+          "archetype": 10
+        },
+        {
+          "id": "da2",
+          "nick": "Oak Cliff Quick",
+          "pos": "Leadoff",
+          "number": 2,
+          "stats": {
+            "power": 4,
+            "speed": 9,
+            "arm": 5,
+            "glove": 7
+          },
+          "look": {
+            "skin": 3,
+            "hair": "durag",
+            "build": "compact",
+            "fit": "tied-up",
+            "accessory": "wristband"
+          },
+          "archetype": 18
+        },
+        {
+          "id": "da3",
+          "nick": "Trinity Tex",
+          "pos": "Pitcher",
+          "number": 27,
+          "stats": {
+            "power": 7,
+            "speed": 6,
+            "arm": 9,
+            "glove": 6
+          },
+          "look": {
+            "skin": 1,
+            "hair": "cap",
+            "build": "lanky",
+            "fit": "standard",
+            "accessory": "none"
+          },
+          "archetype": 4
+        },
+        {
+          "id": "da4",
+          "nick": "Big D Brahma",
+          "pos": "Big Boot",
+          "number": 66,
+          "stats": {
+            "power": 9,
+            "speed": 5,
+            "arm": 6,
+            "glove": 5
+          },
+          "look": {
+            "skin": 4,
+            "hair": "afro",
+            "build": "standard",
+            "fit": "oversized",
+            "accessory": "chain"
+          },
+          "archetype": 0
+        },
+        {
+          "id": "da5",
+          "nick": "Fair Park Fritz",
+          "pos": "Catcher",
+          "number": 39,
+          "stats": {
+            "power": 7,
+            "speed": 4,
+            "arm": 7,
+            "glove": 8
+          },
+          "look": {
+            "skin": 1,
+            "hair": "twists",
+            "build": "standard",
+            "fit": "standard",
+            "accessory": "none"
+          },
+          "archetype": 1
+        },
+        {
+          "id": "da6",
+          "nick": "Dirty South Dash",
+          "pos": "Shortstop",
+          "number": 9,
+          "stats": {
+            "power": 5,
+            "speed": 7,
+            "arm": 7,
+            "glove": 8
+          },
+          "look": {
+            "skin": 6,
+            "hair": "buzz",
+            "build": "stocky",
+            "fit": "tied-up",
+            "accessory": "headband"
+          },
+          "archetype": 14
+        },
+        {
+          "id": "da7",
+          "nick": "Pleasant Grove Gigi",
+          "pos": "Outfield",
+          "number": 12,
+          "stats": {
+            "power": 7,
+            "speed": 7,
+            "arm": 7,
+            "glove": 6
+          },
+          "look": {
+            "skin": 3,
+            "hair": "locs",
+            "build": "standard",
+            "fit": "sleeveless",
+            "accessory": "chain"
+          },
+          "archetype": 11
+        },
+        {
+          "id": "da8",
+          "nick": "Boogie Bo",
+          "pos": "Utility",
+          "number": 42,
+          "stats": {
+            "power": 7,
+            "speed": 6,
+            "arm": 6,
+            "glove": 5
+          },
+          "look": {
+            "skin": 4,
+            "hair": "fade",
+            "build": "stocky",
+            "fit": "oversized",
+            "accessory": "wristband"
+          },
+          "archetype": 8
+        }
+      ]
+    },
+    {
+      "id": "vegas",
+      "city": "Las Vegas",
+      "region": "southwest",
+      "name": "Las Vegas Jackpots",
+      "colors": {
+        "primary": "#D4AF37",
+        "secondary": "#111111",
+        "accent": "#E4002B"
+      },
+      "logo": "assets/logos/vegas.png",
+      "kits": {
+        "dark": {
+          "hex": "#3a0a14",
+          "ink": "#f4f4f6",
+          "logo": "vegas",
+          "img": ""
+        },
+        "light": {
+          "hex": "#faf1d2",
+          "ink": "#0b0c10",
+          "logo": "vegas-light",
+          "img": ""
+        }
+      },
+      "anthem": null,
+      "introVideo": null,
+      "musicGenre": "neon club rap",
+      "special": {
+        "id": "all-in",
+        "label": "ALL IN"
+      },
+      "homeField": "neon-night-court",
+      "status": "story",
+      "roster": [
+        {
+          "id": "lv1",
+          "nick": "High Roller Hollis",
+          "pos": "Captain",
+          "number": 7,
+          "stats": {
+            "power": 8,
+            "speed": 6,
+            "arm": 8,
+            "glove": 6
+          },
+          "look": {
+            "skin": 3,
+            "hair": "braids",
+            "build": "standard",
+            "fit": "sleeveless",
+            "accessory": "none"
+          },
+          "archetype": 0
+        },
+        {
+          "id": "lv2",
+          "nick": "Snake Eyes Santi",
+          "pos": "Leadoff",
+          "number": 11,
+          "stats": {
+            "power": 4,
+            "speed": 9,
+            "arm": 6,
+            "glove": 7
+          },
+          "look": {
+            "skin": 4,
+            "hair": "durag",
+            "build": "compact",
+            "fit": "tied-up",
+            "accessory": "headband"
+          },
+          "archetype": 6
+        },
+        {
+          "id": "lv3",
+          "nick": "Lady Luck Lux",
+          "pos": "Pitcher",
+          "number": 21,
+          "stats": {
+            "power": 5,
+            "speed": 7,
+            "arm": 9,
+            "glove": 7
+          },
+          "look": {
+            "skin": 1,
+            "hair": "cap",
+            "build": "tank",
+            "fit": "standard",
+            "accessory": "wristband"
+          },
+          "archetype": 13
+        },
+        {
+          "id": "lv4",
+          "nick": "Double Down Dre",
+          "pos": "Big Boot",
+          "number": 77,
+          "stats": {
+            "power": 9,
+            "speed": 4,
+            "arm": 8,
+            "glove": 5
+          },
+          "look": {
+            "skin": 6,
+            "hair": "afro",
+            "build": "stocky",
+            "fit": "oversized",
+            "accessory": "none"
+          },
+          "archetype": 16
+        },
+        {
+          "id": "lv5",
+          "nick": "The House",
+          "pos": "Catcher",
+          "number": 0,
+          "stats": {
+            "power": 7,
+            "speed": 5,
+            "arm": 7,
+            "glove": 8
+          },
+          "look": {
+            "skin": 1,
+            "hair": "twists",
+            "build": "standard",
+            "fit": "standard",
+            "accessory": "headband"
+          },
+          "archetype": 4
+        },
+        {
+          "id": "lv6",
+          "nick": "Neon Nicky",
+          "pos": "Shortstop",
+          "number": 2,
+          "stats": {
+            "power": 4,
+            "speed": 8,
+            "arm": 7,
+            "glove": 8
+          },
+          "look": {
+            "skin": 3,
+            "hair": "buzz",
+            "build": "standard",
+            "fit": "tied-up",
+            "accessory": "glasses"
+          },
+          "archetype": 10
+        },
+        {
+          "id": "lv7",
+          "nick": "Fremont Flash",
+          "pos": "Outfield",
+          "number": 17,
+          "stats": {
+            "power": 6,
+            "speed": 8,
+            "arm": 8,
+            "glove": 6
+          },
+          "look": {
+            "skin": 5,
+            "hair": "locs",
+            "build": "tank",
+            "fit": "sleeveless",
+            "accessory": "headband"
+          },
+          "archetype": 3
+        },
+        {
+          "id": "lv8",
+          "nick": "Wildcard Vee",
+          "pos": "Utility",
+          "number": 52,
+          "stats": {
+            "power": 5,
+            "speed": 4,
+            "arm": 9,
+            "glove": 7
+          },
+          "look": {
+            "skin": 4,
+            "hair": "fade",
+            "build": "compact",
+            "fit": "oversized",
+            "accessory": "none"
+          },
+          "archetype": 15
+        }
+      ]
+    },
+    {
+      "id": "denver",
+      "city": "Denver",
+      "region": "southwest",
+      "name": "Denver Mile-Highs",
+      "colors": {
+        "primary": "#4A90C2",
+        "secondary": "#F3F6F9",
+        "accent": "#E06A1B"
+      },
+      "logo": "assets/logos/denver.png",
+      "kits": {
+        "dark": {
+          "hex": "#1d3b57",
+          "ink": "#f4f4f6",
+          "logo": "denver",
+          "img": ""
+        },
+        "light": {
+          "hex": "#eef3f8",
+          "ink": "#0b0c10",
+          "logo": "denver-light",
+          "img": ""
+        }
+      },
+      "anthem": null,
+      "introVideo": null,
+      "musicGenre": "mountain boom bap",
+      "special": {
+        "id": "thin-air",
+        "label": "THIN AIR"
+      },
+      "homeField": "winter-classic",
+      "status": "story",
+      "roster": [
+        {
+          "id": "dn1",
+          "nick": "Peak Pressure",
+          "pos": "Captain",
+          "number": 3,
+          "stats": {
+            "power": 8,
+            "speed": 7,
+            "arm": 7,
+            "glove": 6
+          },
+          "look": {
+            "skin": 3,
+            "hair": "cap",
+            "build": "tank",
+            "fit": "sleeveless",
+            "accessory": "wristband"
+          },
+          "archetype": 18
+        },
+        {
+          "id": "dn2",
+          "nick": "Thin Air Theo",
+          "pos": "Leadoff",
+          "number": 1,
+          "stats": {
+            "power": 5,
+            "speed": 9,
+            "arm": 5,
+            "glove": 7
+          },
+          "look": {
+            "skin": 2,
+            "hair": "afro",
+            "build": "compact",
+            "fit": "tied-up",
+            "accessory": "headband"
+          },
+          "archetype": 12
+        },
+        {
+          "id": "dn3",
+          "nick": "Colfax Cal",
+          "pos": "Pitcher",
+          "number": 18,
+          "stats": {
+            "power": 5,
+            "speed": 8,
+            "arm": 9,
+            "glove": 7
+          },
+          "look": {
+            "skin": 4,
+            "hair": "twists",
+            "build": "tank",
+            "fit": "standard",
+            "accessory": "glasses"
+          },
+          "archetype": 19
+        },
+        {
+          "id": "dn4",
+          "nick": "Rocky Ridge Rhett",
+          "pos": "Big Boot",
+          "number": 58,
+          "stats": {
+            "power": 9,
+            "speed": 6,
+            "arm": 8,
+            "glove": 6
+          },
+          "look": {
+            "skin": 2,
+            "hair": "buzz",
+            "build": "stocky",
+            "fit": "oversized",
+            "accessory": "chain"
+          },
+          "archetype": 6
+        },
+        {
+          "id": "dn5",
+          "nick": "Five Points Fern",
+          "pos": "Catcher",
+          "number": 25,
+          "stats": {
+            "power": 7,
+            "speed": 4,
+            "arm": 7,
+            "glove": 9
+          },
+          "look": {
+            "skin": 5,
+            "hair": "locs",
+            "build": "standard",
+            "fit": "standard",
+            "accessory": "glasses"
+          },
+          "archetype": 11
+        },
+        {
+          "id": "dn6",
+          "nick": "Altitude Ace",
+          "pos": "Shortstop",
+          "number": 8,
+          "stats": {
+            "power": 5,
+            "speed": 9,
+            "arm": 7,
+            "glove": 8
+          },
+          "look": {
+            "skin": 3,
+            "hair": "fade",
+            "build": "standard",
+            "fit": "tied-up",
+            "accessory": "none"
+          },
+          "archetype": 4
+        },
+        {
+          "id": "dn7",
+          "nick": "Snowcap Shay",
+          "pos": "Outfield",
+          "number": 13,
+          "stats": {
+            "power": 7,
+            "speed": 7,
+            "arm": 7,
+            "glove": 6
+          },
+          "look": {
+            "skin": 1,
+            "hair": "braids",
+            "build": "standard",
+            "fit": "sleeveless",
+            "accessory": "none"
+          },
+          "archetype": 10
+        },
+        {
+          "id": "dn8",
+          "nick": "Larimer Lenny",
+          "pos": "Utility",
+          "number": 36,
+          "stats": {
+            "power": 7,
+            "speed": 6,
+            "arm": 5,
+            "glove": 6
+          },
+          "look": {
+            "skin": 4,
+            "hair": "durag",
+            "build": "stocky",
+            "fit": "oversized",
+            "accessory": "wristband"
+          },
+          "archetype": 0
+        }
+      ]
+    },
+    {
+      "id": "albuquerque",
+      "city": "Albuquerque",
+      "region": "southwest",
+      "name": "Albuquerque Roadrunners",
+      "colors": {
+        "primary": "#E2725B",
+        "secondary": "#1E7F86",
+        "accent": "#F4C430"
+      },
+      "logo": "assets/logos/albuquerque.png",
+      "kits": {
+        "dark": {
+          "hex": "#1b4a4e",
+          "ink": "#f4f4f6",
+          "logo": "albuquerque",
+          "img": ""
+        },
+        "light": {
+          "hex": "#fbe9dc",
+          "ink": "#0b0c10",
+          "logo": "albuquerque-light",
+          "img": ""
+        }
+      },
+      "anthem": null,
+      "introVideo": null,
+      "musicGenre": "chicano rap / desert soul",
+      "special": {
+        "id": "dust-devil",
+        "label": "DUST DEVIL"
+      },
+      "homeField": "scorchyard",
+      "status": "story",
+      "roster": [
+        {
+          "id": "aq1",
+          "nick": "Duke City Diablo",
+          "pos": "Captain",
+          "number": 5,
+          "stats": {
+            "power": 9,
+            "speed": 7,
+            "arm": 7,
+            "glove": 7
+          },
+          "look": {
+            "skin": 3,
+            "hair": "fade",
+            "build": "standard",
+            "fit": "sleeveless",
+            "accessory": "headband"
+          },
+          "archetype": 1
+        },
+        {
+          "id": "aq2",
+          "nick": "Mesa Mariposa",
+          "pos": "Leadoff",
+          "number": 6,
+          "stats": {
+            "power": 4,
+            "speed": 9,
+            "arm": 6,
+            "glove": 7
+          },
+          "look": {
+            "skin": 3,
+            "hair": "braids",
+            "build": "standard",
+            "fit": "tied-up",
+            "accessory": "none"
+          },
+          "archetype": 7
+        },
+        {
+          "id": "aq3",
+          "nick": "Green Chile Chuy",
+          "pos": "Pitcher",
+          "number": 15,
+          "stats": {
+            "power": 6,
+            "speed": 8,
+            "arm": 9,
+            "glove": 8
+          },
+          "look": {
+            "skin": 4,
+            "hair": "durag",
+            "build": "standard",
+            "fit": "standard",
+            "accessory": "headband"
+          },
+          "archetype": 12
+        },
+        {
+          "id": "aq4",
+          "nick": "Sandia Slab",
+          "pos": "Big Boot",
+          "number": 66,
+          "stats": {
+            "power": 9,
+            "speed": 5,
+            "arm": 7,
+            "glove": 5
+          },
+          "look": {
+            "skin": 3,
+            "hair": "cap",
+            "build": "standard",
+            "fit": "oversized",
+            "accessory": "chain"
+          },
+          "archetype": 8
+        },
+        {
+          "id": "aq5",
+          "nick": "Route 66 Ruben",
+          "pos": "Catcher",
+          "number": 29,
+          "stats": {
+            "power": 7,
+            "speed": 5,
+            "arm": 6,
+            "glove": 8
+          },
+          "look": {
+            "skin": 1,
+            "hair": "afro",
+            "build": "lanky",
+            "fit": "standard",
+            "accessory": "glasses"
+          },
+          "archetype": 14
+        },
+        {
+          "id": "aq6",
+          "nick": "Dust Devil Dom",
+          "pos": "Shortstop",
+          "number": 4,
+          "stats": {
+            "power": 4,
+            "speed": 9,
+            "arm": 6,
+            "glove": 8
+          },
+          "look": {
+            "skin": 4,
+            "hair": "twists",
+            "build": "standard",
+            "fit": "tied-up",
+            "accessory": "wristband"
+          },
+          "archetype": 16
+        },
+        {
+          "id": "aq7",
+          "nick": "Fiesta Bea",
+          "pos": "Outfield",
+          "number": 23,
+          "stats": {
+            "power": 7,
+            "speed": 9,
+            "arm": 7,
+            "glove": 7
+          },
+          "look": {
+            "skin": 3,
+            "hair": "buzz",
+            "build": "lanky",
+            "fit": "sleeveless",
+            "accessory": "wristband"
+          },
+          "archetype": 5
+        },
+        {
+          "id": "aq8",
+          "nick": "Turquoise Tito",
+          "pos": "Utility",
+          "number": 50,
+          "stats": {
+            "power": 7,
+            "speed": 6,
+            "arm": 6,
+            "glove": 8
+          },
+          "look": {
+            "skin": 6,
+            "hair": "locs",
+            "build": "stocky",
+            "fit": "oversized",
+            "accessory": "none"
+          },
+          "archetype": 19
+        }
+      ]
+    },
+    {
+      "id": "oakland",
+      "city": "Oakland",
+      "region": "west",
+      "name": "Oakland Hyphy",
+      "colors": {
+        "primary": "#7B2CBF",
+        "secondary": "#FFD60A",
+        "accent": "#0B0B0B"
+      },
+      "logo": "assets/logos/oakland.png",
+      "kits": {
+        "dark": {
+          "hex": "#24103a",
+          "ink": "#f4f4f6",
+          "logo": "oakland",
+          "img": ""
+        },
+        "light": {
+          "hex": "#fdf6d0",
+          "ink": "#0b0c10",
+          "logo": "oakland-light",
+          "img": ""
+        }
+      },
+      "anthem": null,
+      "introVideo": null,
+      "musicGenre": "hyphy / bay area",
+      "special": {
+        "id": "ghost-ride",
+        "label": "GHOST RIDE"
+      },
+      "homeField": "the-underpass",
+      "status": "story",
+      "roster": [
+        {
+          "id": "ok1",
+          "nick": "Town Business",
+          "pos": "Captain",
+          "number": 10,
+          "stats": {
+            "power": 9,
+            "speed": 7,
+            "arm": 6,
+            "glove": 6
+          },
+          "look": {
+            "skin": 5,
+            "hair": "twists",
+            "build": "standard",
+            "fit": "sleeveless",
+            "accessory": "wristband"
+          },
+          "archetype": 3
+        },
+        {
+          "id": "ok2",
+          "nick": "Sideshow Sly",
+          "pos": "Leadoff",
+          "number": 4,
+          "stats": {
+            "power": 4,
+            "speed": 9,
+            "arm": 5,
+            "glove": 7
+          },
+          "look": {
+            "skin": 4,
+            "hair": "buzz",
+            "build": "compact",
+            "fit": "tied-up",
+            "accessory": "chain"
+          },
+          "archetype": 18
+        },
+        {
+          "id": "ok3",
+          "nick": "Lake Merritt Mimi",
+          "pos": "Pitcher",
+          "number": 23,
+          "stats": {
+            "power": 6,
+            "speed": 7,
+            "arm": 9,
+            "glove": 7
+          },
+          "look": {
+            "skin": 5,
+            "hair": "locs",
+            "build": "standard",
+            "fit": "standard",
+            "accessory": "none"
+          },
+          "archetype": 2
+        },
+        {
+          "id": "ok4",
+          "nick": "Big Scraper",
+          "pos": "Big Boot",
+          "number": 92,
+          "stats": {
+            "power": 9,
+            "speed": 4,
+            "arm": 7,
+            "glove": 6
+          },
+          "look": {
+            "skin": 6,
+            "hair": "fade",
+            "build": "stocky",
+            "fit": "oversized",
+            "accessory": "glasses"
+          },
+          "archetype": 0
+        },
+        {
+          "id": "ok5",
+          "nick": "East Oakland Earl",
+          "pos": "Catcher",
+          "number": 34,
+          "stats": {
+            "power": 6,
+            "speed": 5,
+            "arm": 8,
+            "glove": 8
+          },
+          "look": {
+            "skin": 3,
+            "hair": "braids",
+            "build": "standard",
+            "fit": "standard",
+            "accessory": "none"
+          },
+          "archetype": 14
+        },
+        {
+          "id": "ok6",
+          "nick": "Fruitvale Fefe",
+          "pos": "Shortstop",
+          "number": 1,
+          "stats": {
+            "power": 4,
+            "speed": 9,
+            "arm": 6,
+            "glove": 8
+          },
+          "look": {
+            "skin": 3,
+            "hair": "durag",
+            "build": "standard",
+            "fit": "tied-up",
+            "accessory": "headband"
+          },
+          "archetype": 9
+        },
+        {
+          "id": "ok7",
+          "nick": "Go Dumb Dante",
+          "pos": "Outfield",
+          "number": 16,
+          "stats": {
+            "power": 7,
+            "speed": 8,
+            "arm": 7,
+            "glove": 6
+          },
+          "look": {
+            "skin": 4,
+            "hair": "cap",
+            "build": "standard",
+            "fit": "sleeveless",
+            "accessory": "glasses"
+          },
+          "archetype": 16
+        },
+        {
+          "id": "ok8",
+          "nick": "Turf Dancer Tre",
+          "pos": "Utility",
+          "number": 51,
+          "stats": {
+            "power": 5,
+            "speed": 7,
+            "arm": 6,
+            "glove": 7
+          },
+          "look": {
+            "skin": 6,
+            "hair": "afro",
+            "build": "stocky",
+            "fit": "oversized",
+            "accessory": "chain"
+          },
+          "archetype": 1
+        }
+      ]
+    },
+    {
+      "id": "seattle",
+      "city": "Seattle",
+      "region": "west",
+      "name": "Seattle Rainmakers",
+      "colors": {
+        "primary": "#4A6FA5",
+        "secondary": "#9DB4C0",
+        "accent": "#1B998B"
+      },
+      "logo": "assets/logos/seattle.png",
+      "kits": {
+        "dark": {
+          "hex": "#1d2b3a",
+          "ink": "#f4f4f6",
+          "logo": "seattle",
+          "img": ""
+        },
+        "light": {
+          "hex": "#e8f1f6",
+          "ink": "#0b0c10",
+          "logo": "seattle-light",
+          "img": ""
+        }
+      },
+      "anthem": null,
+      "introVideo": null,
+      "musicGenre": "northwest boom bap",
+      "special": {
+        "id": "downpour",
+        "label": "DOWNPOUR"
+      },
+      "homeField": "subway-yard",
+      "status": "story",
+      "roster": [
+        {
+          "id": "se1",
+          "nick": "Captain Drizzle",
+          "pos": "Captain",
+          "number": 6,
+          "stats": {
+            "power": 8,
+            "speed": 6,
+            "arm": 7,
+            "glove": 9
+          },
+          "look": {
+            "skin": 3,
+            "hair": "afro",
+            "build": "standard",
+            "fit": "sleeveless",
+            "accessory": "glasses"
+          },
+          "archetype": 4
+        },
+        {
+          "id": "se2",
+          "nick": "Puget Quick",
+          "pos": "Leadoff",
+          "number": 2,
+          "stats": {
+            "power": 5,
+            "speed": 9,
+            "arm": 6,
+            "glove": 7
+          },
+          "look": {
+            "skin": 6,
+            "hair": "twists",
+            "build": "standard",
+            "fit": "tied-up",
+            "accessory": "wristband"
+          },
+          "archetype": 3
+        },
+        {
+          "id": "se3",
+          "nick": "Fish Toss Felix",
+          "pos": "Pitcher",
+          "number": 20,
+          "stats": {
+            "power": 7,
+            "speed": 5,
+            "arm": 9,
+            "glove": 8
+          },
+          "look": {
+            "skin": 1,
+            "hair": "buzz",
+            "build": "standard",
+            "fit": "standard",
+            "accessory": "glasses"
+          },
+          "archetype": 12
+        },
+        {
+          "id": "se4",
+          "nick": "Rainier Rex",
+          "pos": "Big Boot",
+          "number": 89,
+          "stats": {
+            "power": 9,
+            "speed": 4,
+            "arm": 8,
+            "glove": 6
+          },
+          "look": {
+            "skin": 2,
+            "hair": "locs",
+            "build": "standard",
+            "fit": "oversized",
+            "accessory": "glasses"
+          },
+          "archetype": 18
+        },
+        {
+          "id": "se5",
+          "nick": "Overcast Olu",
+          "pos": "Catcher",
+          "number": 12,
+          "stats": {
+            "power": 7,
+            "speed": 3,
+            "arm": 6,
+            "glove": 9
+          },
+          "look": {
+            "skin": 5,
+            "hair": "fade",
+            "build": "lanky",
+            "fit": "standard",
+            "accessory": "headband"
+          },
+          "archetype": 15
+        },
+        {
+          "id": "se6",
+          "nick": "Ballard Blur",
+          "pos": "Shortstop",
+          "number": 3,
+          "stats": {
+            "power": 4,
+            "speed": 9,
+            "arm": 6,
+            "glove": 9
+          },
+          "look": {
+            "skin": 3,
+            "hair": "braids",
+            "build": "standard",
+            "fit": "tied-up",
+            "accessory": "chain"
+          },
+          "archetype": 6
+        },
+        {
+          "id": "se7",
+          "nick": "Emerald Eli",
+          "pos": "Outfield",
+          "number": 25,
+          "stats": {
+            "power": 7,
+            "speed": 7,
+            "arm": 7,
+            "glove": 8
+          },
+          "look": {
+            "skin": 1,
+            "hair": "durag",
+            "build": "lanky",
+            "fit": "sleeveless",
+            "accessory": "none"
+          },
+          "archetype": 8
+        },
+        {
+          "id": "se8",
+          "nick": "Central District Dex",
+          "pos": "Utility",
+          "number": 41,
+          "stats": {
+            "power": 6,
+            "speed": 5,
+            "arm": 6,
+            "glove": 8
+          },
+          "look": {
+            "skin": 4,
+            "hair": "cap",
+            "build": "standard",
+            "fit": "oversized",
+            "accessory": "wristband"
+          },
+          "archetype": 19
+        }
+      ]
+    },
+    {
+      "id": "sandiego",
+      "city": "San Diego",
+      "region": "west",
+      "name": "San Diego Tsunami",
+      "colors": {
+        "primary": "#0077B6",
+        "secondary": "#F4E1C1",
+        "accent": "#00B4D8"
+      },
+      "logo": "assets/logos/sandiego.png",
+      "kits": {
+        "dark": {
+          "hex": "#033e60",
+          "ink": "#f4f4f6",
+          "logo": "sandiego",
+          "img": ""
+        },
+        "light": {
+          "hex": "#f8f0e0",
+          "ink": "#0b0c10",
+          "logo": "sandiego-light",
+          "img": ""
+        }
+      },
+      "anthem": null,
+      "introVideo": null,
+      "musicGenre": "socal chicano rap / reggae",
+      "special": {
+        "id": "riptide",
+        "label": "RIPTIDE"
+      },
+      "homeField": "boardwalk-kings",
+      "status": "story",
+      "roster": [
+        {
+          "id": "sd1",
+          "nick": "Big Wave Benny",
+          "pos": "Captain",
+          "number": 19,
+          "stats": {
+            "power": 9,
+            "speed": 6,
+            "arm": 8,
+            "glove": 7
+          },
+          "look": {
+            "skin": 3,
+            "hair": "fade",
+            "build": "standard",
+            "fit": "sleeveless",
+            "accessory": "none"
+          },
+          "archetype": 10
+        },
+        {
+          "id": "sd2",
+          "nick": "Ocean Beach Ola",
+          "pos": "Leadoff",
+          "number": 7,
+          "stats": {
+            "power": 5,
+            "speed": 9,
+            "arm": 6,
+            "glove": 8
+          },
+          "look": {
+            "skin": 3,
+            "hair": "braids",
+            "build": "compact",
+            "fit": "tied-up",
+            "accessory": "none"
+          },
+          "archetype": 13
+        },
+        {
+          "id": "sd3",
+          "nick": "Barrio Logan Beto",
+          "pos": "Pitcher",
+          "number": 26,
+          "stats": {
+            "power": 6,
+            "speed": 6,
+            "arm": 9,
+            "glove": 8
+          },
+          "look": {
+            "skin": 4,
+            "hair": "durag",
+            "build": "lanky",
+            "fit": "standard",
+            "accessory": "wristband"
+          },
+          "archetype": 0
+        },
+        {
+          "id": "sd4",
+          "nick": "Swell Sergio",
+          "pos": "Big Boot",
+          "number": 61,
+          "stats": {
+            "power": 9,
+            "speed": 5,
+            "arm": 9,
+            "glove": 5
+          },
+          "look": {
+            "skin": 2,
+            "hair": "cap",
+            "build": "stocky",
+            "fit": "oversized",
+            "accessory": "glasses"
+          },
+          "archetype": 3
+        },
+        {
+          "id": "sd5",
+          "nick": "Harbor Hank",
+          "pos": "Catcher",
+          "number": 38,
+          "stats": {
+            "power": 6,
+            "speed": 4,
+            "arm": 9,
+            "glove": 8
+          },
+          "look": {
+            "skin": 3,
+            "hair": "afro",
+            "build": "standard",
+            "fit": "standard",
+            "accessory": "headband"
+          },
+          "archetype": 4
+        },
+        {
+          "id": "sd6",
+          "nick": "Riptide Rafa",
+          "pos": "Shortstop",
+          "number": 5,
+          "stats": {
+            "power": 3,
+            "speed": 9,
+            "arm": 8,
+            "glove": 9
+          },
+          "look": {
+            "skin": 4,
+            "hair": "twists",
+            "build": "compact",
+            "fit": "tied-up",
+            "accessory": "chain"
+          },
+          "archetype": 8
+        },
+        {
+          "id": "sd7",
+          "nick": "Coronado Kai",
+          "pos": "Outfield",
+          "number": 11,
+          "stats": {
+            "power": 5,
+            "speed": 8,
+            "arm": 8,
+            "glove": 7
+          },
+          "look": {
+            "skin": 1,
+            "hair": "buzz",
+            "build": "standard",
+            "fit": "sleeveless",
+            "accessory": "glasses"
+          },
+          "archetype": 6
+        },
+        {
+          "id": "sd8",
+          "nick": "Fish Taco Tomas",
+          "pos": "Utility",
+          "number": 43,
+          "stats": {
+            "power": 7,
+            "speed": 6,
+            "arm": 7,
+            "glove": 6
+          },
+          "look": {
+            "skin": 6,
+            "hair": "locs",
+            "build": "standard",
+            "fit": "oversized",
+            "accessory": "none"
+          },
+          "archetype": 12
+        }
+      ]
+    },
+    {
+      "id": "portland",
+      "city": "Portland",
+      "region": "west",
+      "name": "Portland Lumberjacks",
+      "colors": {
+        "primary": "#B22222",
+        "secondary": "#1C1C1C",
+        "accent": "#3A5F0B"
+      },
+      "logo": "assets/logos/portland.png",
+      "kits": {
+        "dark": {
+          "hex": "#2b1d14",
+          "ink": "#f4f4f6",
+          "logo": "portland",
+          "img": ""
+        },
+        "light": {
+          "hex": "#f6efe3",
+          "ink": "#0b0c10",
+          "logo": "portland-light",
+          "img": ""
+        }
+      },
+      "anthem": null,
+      "introVideo": null,
+      "musicGenre": "northwest grit rap",
+      "special": {
+        "id": "timber",
+        "label": "TIMBER"
+      },
+      "homeField": "rubber-yard",
+      "status": "story",
+      "roster": [
+        {
+          "id": "pd1",
+          "nick": "Big Timber",
+          "pos": "Captain",
+          "number": 3,
+          "stats": {
+            "power": 9,
+            "speed": 7,
+            "arm": 7,
+            "glove": 7
+          },
+          "look": {
+            "skin": 1,
+            "hair": "twists",
+            "build": "tank",
+            "fit": "sleeveless",
+            "accessory": "none"
+          },
+          "archetype": 1
+        },
+        {
+          "id": "pd2",
+          "nick": "Rose City Rocket",
+          "pos": "Leadoff",
+          "number": 9,
+          "stats": {
+            "power": 6,
+            "speed": 9,
+            "arm": 5,
+            "glove": 8
+          },
+          "look": {
+            "skin": 4,
+            "hair": "buzz",
+            "build": "standard",
+            "fit": "tied-up",
+            "accessory": "chain"
+          },
+          "archetype": 14
+        },
+        {
+          "id": "pd3",
+          "nick": "Burnside Bram",
+          "pos": "Pitcher",
+          "number": 22,
+          "stats": {
+            "power": 7,
+            "speed": 8,
+            "arm": 9,
+            "glove": 7
+          },
+          "look": {
+            "skin": 1,
+            "hair": "locs",
+            "build": "standard",
+            "fit": "standard",
+            "accessory": "wristband"
+          },
+          "archetype": 18
+        },
+        {
+          "id": "pd4",
+          "nick": "Old Growth",
+          "pos": "Big Boot",
+          "number": 88,
+          "stats": {
+            "power": 9,
+            "speed": 4,
+            "arm": 8,
+            "glove": 6
+          },
+          "look": {
+            "skin": 6,
+            "hair": "fade",
+            "build": "standard",
+            "fit": "oversized",
+            "accessory": "glasses"
+          },
+          "archetype": 19
+        },
+        {
+          "id": "pd5",
+          "nick": "Axe Handle Ike",
+          "pos": "Catcher",
+          "number": 31,
+          "stats": {
+            "power": 8,
+            "speed": 5,
+            "arm": 8,
+            "glove": 8
+          },
+          "look": {
+            "skin": 1,
+            "hair": "braids",
+            "build": "standard",
+            "fit": "standard",
+            "accessory": "glasses"
+          },
+          "archetype": 10
+        },
+        {
+          "id": "pd6",
+          "nick": "Bridgetown Blitz",
+          "pos": "Shortstop",
+          "number": 1,
+          "stats": {
+            "power": 6,
+            "speed": 9,
+            "arm": 6,
+            "glove": 9
+          },
+          "look": {
+            "skin": 3,
+            "hair": "durag",
+            "build": "compact",
+            "fit": "tied-up",
+            "accessory": "chain"
+          },
+          "archetype": 16
+        },
+        {
+          "id": "pd7",
+          "nick": "Forest Park Fawn",
+          "pos": "Outfield",
+          "number": 14,
+          "stats": {
+            "power": 7,
+            "speed": 6,
+            "arm": 9,
+            "glove": 7
+          },
+          "look": {
+            "skin": 1,
+            "hair": "cap",
+            "build": "standard",
+            "fit": "sleeveless",
+            "accessory": "headband"
+          },
+          "archetype": 9
+        },
+        {
+          "id": "pd8",
+          "nick": "Flannel Phil",
+          "pos": "Utility",
+          "number": 60,
+          "stats": {
+            "power": 6,
+            "speed": 6,
+            "arm": 6,
+            "glove": 8
+          },
+          "look": {
+            "skin": 4,
+            "hair": "afro",
+            "build": "stocky",
+            "fit": "oversized",
+            "accessory": "headband"
+          },
+          "archetype": 6
+        }
+      ]
     }
   ]
 }

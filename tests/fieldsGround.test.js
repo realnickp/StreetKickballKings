@@ -108,7 +108,7 @@ describe('every field, every matchup, against its own ground', () => {
         }
       }
     }
-    expect(n).toBe(900);
+    expect(n).toBe(fields.fields.length * teams.teams.length * (teams.teams.length - 1));
     for (const [id, floor] of Object.entries(WORST)) {
       expect(worst[id], id).toBeGreaterThanOrEqual(floor - 0.15);
       expect(worst[id], id).toBeLessThanOrEqual(floor + 0.15);

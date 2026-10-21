@@ -7,6 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import casts from '../src/data/casts.json';
 import teams from '../src/data/teams.json';
+import map from '../src/data/story/regions.json';
 import { SKIN_TONES } from '../src/game/skinTint.js';
 import { ACCESSORY_KINDS } from '../src/game/accessories.js';
 
@@ -19,6 +20,11 @@ const SLOTS = 8;
 
 const ids = teams.teams.map((t) => t.id);
 const entries = Object.entries(casts.casts);
+// 25 crews and 19 usable archetypes: the league can't keep every slot unique,
+// so the twin rule holds where it is SEEN — inside a region, the five crews
+// you climb through back to back (story map, src/data/story/regions.json).
+const regionOf = Object.fromEntries(teams.teams.map((t) => [t.id, t.region]));
+const regions = map.regions.map((r) => ({ id: r.id, entries: entries.filter(([id]) => regionOf[id] === r.id) }));
 
 describe('shape', () => {
   it('casts every crew in teams.json, and nobody else', () => {
@@ -59,23 +65,35 @@ describe('nobody is anybody else', () => {
     }
   });
 
-  it('never repeats an archetype across crews in the SAME slot', () => {
-    for (let s = 0; s < SLOTS; s++) {
-      const col = entries.map(([, cast]) => cast[s].archetype);
-      expect(new Set(col).size, `slot ${s}: ${col}`).toBe(entries.length);
+  it('every crew sits in a story region, and every region is cast', () => {
+    expect(regions.reduce((n, r) => n + r.entries.length, 0)).toBe(entries.length);
+    for (const r of regions) expect(r.entries.length, r.id).toBe(5);
+  });
+
+  it('never repeats an archetype across crews in the SAME slot, inside a region', () => {
+    for (const r of regions) {
+      for (let s = 0; s < SLOTS; s++) {
+        const col = r.entries.map(([, cast]) => cast[s].archetype);
+        expect(new Set(col).size, `${r.id} slot ${s}: ${col}`).toBe(r.entries.length);
+      }
     }
   });
 
-  it('gives every crew its own captain', () => {
-    const caps = entries.map(([, cast]) => cast[0].archetype);
-    expect(new Set(caps).size).toBe(entries.length);
+  it('gives every crew in a region its own captain', () => {
+    for (const r of regions) {
+      const caps = r.entries.map(([, cast]) => cast[0].archetype);
+      expect(new Set(caps).size, r.id).toBe(r.entries.length);
+    }
   });
 
   it('spreads the pool — no archetype carries the whole league', () => {
     const seen = new Map();
     for (const [, cast] of entries) for (const c of cast) seen.set(c.archetype, (seen.get(c.archetype) ?? 0) + 1);
     expect(seen.size).toBeGreaterThanOrEqual(18); // 19 usable, 17 benched out
-    for (const [arch, n] of seen) expect(n, `archetype ${arch}`).toBeLessThanOrEqual(8);
+    // was a flat 8 for ten crews (~1.9x the fair share of 80/19); now 1.5x the
+    // fair share of however many slots the league casts
+    const cap = Math.ceil((1.5 * entries.length * SLOTS) / (POOL - 1));
+    for (const [arch, n] of seen) expect(n, `archetype ${arch}`).toBeLessThanOrEqual(cap);
   });
 });
 

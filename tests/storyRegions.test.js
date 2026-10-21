@@ -5,8 +5,8 @@ import teamsData from '../src/data/teams.json';
 const teams = Object.fromEntries(teamsData.teams.map((t) => [t.id, t]));
 const avg = (t) => t.roster.reduce((a, p) => a + p.stats.power + p.stats.speed + p.stats.arm + p.stats.glove, 0) / (t.roster.length * 4);
 const IDS = ['east', 'midwest', 'south', 'southwest', 'west'];
-// the four regions built from the new crews — their cross-checks go live with Task 12
-const BUILT = new Set(['east']);
+// all five regions are built (Task 12 landed the fifteen story crews)
+const BUILT = new Set(IDS);
 
 describe('story map (regions.json)', () => {
   it('has five regions in climb order, five crews each, no crew twice', () => {
@@ -30,4 +30,9 @@ describe('story map (regions.json)', () => {
       for (let i = 1; i < crews.length; i++) expect(avg(crews[i])).toBeGreaterThanOrEqual(avg(crews[i - 1]));
     });
   }
+
+  it("each region's top crew is stronger than the last region's top — the climb gets harder", () => {
+    const tops = map.regions.map((r) => avg(teams[r.ladder[r.ladder.length - 1]]));
+    for (let i = 1; i < tops.length; i++) expect(tops[i], map.regions[i].id).toBeGreaterThan(tops[i - 1]);
+  });
 });
