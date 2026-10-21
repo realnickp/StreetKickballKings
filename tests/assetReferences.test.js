@@ -1,4 +1,5 @@
 import { it, expect } from 'vitest';
+import crewKit from '../src/data/story/crewKit.json';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -46,6 +47,8 @@ function derivedRefs() {
   // the coin toss picks its face at runtime: `assets/branding/coin-${result}.png`
   refs.add('assets/branding/coin-heads.png');
   refs.add('assets/branding/coin-tails.png');
+  // YOUR story crew's mark: markTint.js builds `assets/logos/stock/${id}.png` from crewKit.marks
+  for (const m of crewKit.marks) refs.add(`assets/logos/stock/${m}.png`);
   return refs;
 }
 
