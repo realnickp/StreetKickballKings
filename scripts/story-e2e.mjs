@@ -29,6 +29,9 @@ async function drain(until, max = 400) {
     const skip = await page.$('.story-scene:not(.ended) .ss-skip');
     if (skip) await skip.click().catch(() => {});
     else if (await page.$('.story-scene.ended')) await page.mouse.click(195, 420);
+    else if (await page.$('.skip-hint')) await page.mouse.click(195, 420); // a crew's intro film
+    else if (await page.$('[data-call="heads"]')) await page.click('[data-call="heads"]').catch(() => {}); // the coin toss
+    else if (await page.$('[data-first]')) await page.click('[data-first]').catch(() => {});
     await page.waitForTimeout(120);
   }
   return !!(await page.$(until));
