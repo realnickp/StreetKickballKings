@@ -824,7 +824,9 @@ function kitOf(team, hex) {
 
 // `markFor` because `kitOf` can hand back a RAW teams.json kit, whose `logo`
 // still names the `<id>-light` hook. Only marks that exist reach the shirt.
-const logoUrlFor = (kit) => (kit?.logo ? `/assets/logos/${markFor(kit.logo)}.png` : '');
+// A kit may carry a ready-made `logoUrl` (YOUR story crew's mark, tinted at
+// runtime by markTint.js — there's no file on disk to name).
+const logoUrlFor = (kit) => kit?.logoUrl ?? (kit?.logo ? `/assets/logos/${markFor(kit.logo)}.png` : '');
 
 /** Build a full team of detailed GLB characters, recolored to a uniform colour
  *  (defaults to the team's primary; pass `uniformColor` for a light/dark kit so
