@@ -4,6 +4,7 @@
 // holds at a bag or keeps going, and scores at home. The engine records the
 // exact field outcome via applyOutcome().
 import * as THREE from 'three';
+import { kickPowerFor, runSpeedFor, throwArmFor, gloveFor } from './playerStats.js';
 import { MatchEngine, matchOverHold } from './matchState.js';
 import { telemetry } from '../engine/telemetry.js';
 import { judgeKick, crownJudge, launchParams, weakContactLaunch, powerFromError, isHrEligible, capSpeedForCarry, softCapCarry, flickShape, flickSteerDeg, FLICK, aiSwingStartS, safetyLaunchDelayS, footBoneRegex, clampCrownDirection } from './kickTiming.js';
@@ -93,7 +94,7 @@ export function chooseLiveShot({ phase, kickingIsPlayer, trailBall, deepBall, ru
 }
 
 export class MatchScene {
-  constructor({ engine, input, bus, teams, chars, fieldData, tuning, difficulty = 'Street', playerSide = 'away', firstKick = 'away', hudRoot, autoStart = true, gear = null, danceBag = null, noIntro = false }) {
+  constructor({ engine, input, bus, teams, chars, fieldData, tuning, difficulty = 'Street', playerSide = 'away', firstKick = 'away', hudRoot, autoStart = true, gear = null, danceBag = null, noIntro = false, useStats = false }) {
     this.engine = engine;
     // NO WALK-OUT for this scene, whatever the URL says — the drills are a
     // lesson, not a broadcast, and 17 s of starting lineups before drill one is
@@ -105,6 +106,7 @@ export class MatchScene {
     this.teams = teams;
     this.tuning = tuning;
     this.difficulty = difficulty;
+    this.useStats = useStats; // story matches: power/speed/arm/glove move play (playerStats.js)
     this.playerSide = playerSide;
     // THE LOCKER: the player's equipped gear ({kick, cleats, uniform} catalog
     // entries or nulls). Only the kick slot matters in-scene — cleats/uniform
@@ -772,7 +774,8 @@ export class MatchScene {
   /** Element+heat-aware throw speed — use instead of raw tuning at throw sites. */
   throwSpeed() {
     return this.tuning.throwing.throwSpeedMs * this.elements.throwZipScale()
-      * this.heat.throwSpeedScale(this.match.fieldingSide());
+      * this.heat.throwSpeedScale(this.match.fieldingSide())
+      * throwArmFor(this.fieldingChars(), this.useStats, this.tuning);
   }
 
   /** Feed a heat event and stage the ON FIRE moment when a bar fills. */
@@ -1384,7 +1387,7 @@ export class MatchScene {
     }
     let judged = judgeKick(Math.sign(errMs || 1) * effErr, this.tuning);
 
-    let powerMult = 1;
+    let powerMult = kickPowerFor(this.kicker, this.useStats, this.tuning);
     this.specialKickGear = null;
     if (this.kickingIsPlayer() && this.crown.armed) {
       const sp = this.crown.consume();
@@ -1891,11 +1894,11 @@ export class MatchScene {
    *  to force a specific option (e.g. `{ human: false }` for an auto-scramble)
    *  — they're spread last, so they win over the defaults but speedMult still
    *  comes from cleatSpeedMult unless explicitly overridden too. */
-  newRunnerSim(overrides = {}) {
+  newRunnerSim(overrides = {}, char = null) {
     return new RunnerSim({
       tuning: this.tuning,
       human: this.kickingIsPlayer(),
-      speedMult: this.kickingIsPlayer() ? this.cleatSpeedMult : 1,
+      speedMult: (this.kickingIsPlayer() ? this.cleatSpeedMult : 1) * runSpeedFor(char, this.useStats, this.tuning),
       ...overrides,
     });
   }
@@ -1909,7 +1912,7 @@ export class MatchScene {
       fromBase, // -1 = home plate
       originBase: fromBase, // the time-of-pitch bag — where a TAG UP must return
       targetBase: fromBase + 1,
-      sim: this.newRunnerSim(),
+      sim: this.newRunnerSim({}, char),
       trail: this.kickingIsPlayer() ? (this.trailPool.find((t) => !t.busy) ?? null) : null,
       state: 'running',
       decideT: 0,
@@ -2259,7 +2262,7 @@ export class MatchScene {
     r.fromBase = r.heldAt;
     r.targetBase = r.heldAt + 1;
     r.forced = false;
-    r.sim = this.newRunnerSim({ human: true }); // GO button = always a deliberate human send
+    r.sim = this.newRunnerSim({ human: true }, r.char); // GO button = always a deliberate human send
     r.state = 'running';
     r.char.animator.play('run');
     this.bus.emit('sfx', 'juke');
@@ -2369,7 +2372,7 @@ export class MatchScene {
               // still not back to his time-of-pitch bag — keep scrambling
               r.fromBase = r.heldAt;
               r.targetBase = r.heldAt - 1;
-              r.sim = this.newRunnerSim({ human: false }); // still scrambling — auto-runs, not tap-driven
+              r.sim = this.newRunnerSim({ human: false }, r.char); // still scrambling — auto-runs, not tap-driven
               r.state = 'running';
               r.char.animator.play('run');
             } else if (r.tagUp) {
@@ -2402,7 +2405,7 @@ export class MatchScene {
           r.fromBase = r.heldAt;
           r.targetBase = r.heldAt + 1;
           r.forced = mustVacate;
-          r.sim = this.newRunnerSim();
+          r.sim = this.newRunnerSim({}, r.char);
           r.state = 'running';
           r.char.animator.play('run');
         }
@@ -2789,8 +2792,9 @@ export class MatchScene {
   }
 
   catchRadius() {
-    if (this.playerControlled) return 2.2;
-    return { Rookie: 1.9, Street: 2.1, King: 2.4 }[this.difficulty] ?? 2.1;
+    const glove = gloveFor(this.activeFielder ?? this.chaser, this.useStats, this.tuning);
+    if (this.playerControlled) return 2.2 * glove;
+    return ({ Rookie: 1.9, Street: 2.1, King: 2.4 }[this.difficulty] ?? 2.1) * glove;
   }
 
   /** Chance the AI actually SQUEEZES a reachable fly (real fielders drop some) —
@@ -2978,7 +2982,7 @@ export class MatchScene {
     r.targetBase = r.fromBase;
     r.fromBase = newFrom;
     r.forced = false;
-    r.sim = this.newRunnerSim();
+    r.sim = this.newRunnerSim({}, r.char);
     r.sim.progressM = Math.max(0, this.tuning.running.basePathM - oldP);
     r.char.animator.play('run');
   }
@@ -4139,7 +4143,7 @@ export class MatchScene {
         // he completed an advance while the ball hung — send him scrambling back
         r.fromBase = r.heldAt;
         r.targetBase = r.heldAt - 1;
-        r.sim = this.newRunnerSim({ human: false }); // auto-scramble
+        r.sim = this.newRunnerSim({ human: false }, r.char); // auto-scramble
         r.state = 'running';
         r.forced = false;
         r.tagUp = true;
