@@ -1,0 +1,503 @@
+{
+  "scenes": {
+    "east-open": {
+      "id": "east-open",
+      "still": "east-open",
+      "music": "theme",
+      "title": { "top": "CHAPTER 1 · THE EAST", "sub": "WHERE NOBODY KNOWS YOU" },
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Tasha", "text": "Ladder's up. Snappers, Metros, Monarchs, Bullies, Philly Funk. Weakest to strongest." },
+          { "from": "Keys", "text": "so we start at the bottom. fitting" },
+          { "from": "Dre", "text": "BOTTOM?? we the BASEMENT. nowhere to go but UP 📈📈" },
+          { "from": "Keys", "text": "that's actually correct. I hate it" },
+          { "from": "Tasha", "text": "Climb all five, then the bracket. Win that and we're out the East." },
+          { "from": "Pops", "text": "The East don't care where you from, youngin. Only where you finish." },
+          { "from": "me", "text": "New York first. let's work" }
+        ] }
+      ],
+      "slam": "THE CLIMB"
+    },
+
+    "east-snappers-before": {
+      "id": "east-snappers-before",
+      "still": "east-turf",
+      "music": "city-new-york",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Yo who is {crew}? Asked the whole block. Even the bodega cat ain't heard of y'all." },
+          { "from": "{captain}", "text": "We the {rival}. Real ball. 90s ball. We kick like it's '94 forever." },
+          { "from": "me", "text": "we'll see saturday" },
+          { "from": "{captain}", "text": "Saturday's good. If the train's running. If not, Sunday. Maybe." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "THE BODEGA CAT DON'T KNOW US 😭 that's disrespectful to the whole block" },
+          { "from": "Keys", "text": "Snappers dropped 6 straight. Snapback Sam has one pitch. it's slow. on purpose." },
+          { "from": "Tasha", "text": "Car leaves 7am. Not outside at 7:01? You're riding with Pops." },
+          { "from": "Pops", "text": "I do 25 the whole way, youngin. Be outside." }
+        ] }
+      ],
+      "slam": "GAME DAY"
+    },
+    "east-snappers-win": {
+      "id": "east-snappers-win",
+      "still": "east-turf",
+      "music": "city-new-york",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "FIRST W OF THE SUMMER 🔥🔥🔥 SOMEBODY MARK THE CALENDAR" },
+          { "from": "Keys", "text": "against the bottom of the ladder. calm down" },
+          { "from": "Dre", "text": "A W IS A W KEYS. I'M FRAMING IT" },
+          { "from": "Tasha", "text": "Turnstile Ty tried to hop the fence for that catch. Fence won." },
+          { "from": "Keys", "text": "Shellz kept yelling SNAP BACK. they did not snap back" },
+          { "from": "Pops", "text": "Clean game. Now forget it. DC don't care what you did in New York." },
+          { "from": "me", "text": "one down. on to DC" }
+        ] }
+      ],
+      "slam": "ONE DOWN"
+    },
+    "east-snappers-loss": {
+      "id": "east-snappers-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "SNAP BACK 😂 Welcome to New York, {crew}. Train home's on the left." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "we lost to the team that lost 6 straight. I'm changing my name" },
+          { "from": "me", "text": "run it back" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+    "east-snappers-recruit": {
+      "id": "east-snappers-recruit",
+      "still": "recruit-handshake",
+      "music": "city-new-york",
+      "threads": [
+        { "kind": "dm", "name": "{recruit} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{recruit}", "text": "yo. good game. real talk, my crew argues about 1994 more than we practice" },
+          { "from": "{recruit}", "text": "y'all actually RUN. I wanna run." },
+          { "from": "me", "text": "what you bring?" },
+          { "from": "{recruit}", "text": "Legs. A bus card with two dollars on it. And I never missed a Saturday." },
+          { "from": "{recruit}", "text": "Got room for me on {crew}?" }
+        ] }
+      ]
+    },
+
+    "east-metros-before": {
+      "id": "east-metros-before",
+      "still": "east-turf",
+      "music": "city-washington-dc",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Good evening, {crew}. {captain} here. You are on my calendar Saturday." },
+          { "from": "{captain}", "text": "I scheduled nine minutes. That's all it takes." },
+          { "from": "{captain}", "text": "Backbeat Benny keeps the drum going all game. You'll lose to the rhythm." },
+          { "from": "me", "text": "bring the drum. we'll dance on the way home" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "Metros got RUSH HOUR. when it hits, everybody on base just GOES. like traffic but fast" },
+          { "from": "Dre", "text": "so we gotta be FASTER THAN TRAFFIC 🏎️💨" },
+          { "from": "Tasha", "text": "The Beltway at 8am? I've trained for this my whole life. I'm driving." },
+          { "from": "Pops", "text": "In DC you don't fight the beat, youngin. You find the pocket." }
+        ] }
+      ],
+      "slam": "GAME DAY"
+    },
+    "east-metros-win": {
+      "id": "east-metros-win",
+      "still": "east-turf",
+      "music": "city-washington-dc",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "MAYOR POCKET JUST GOT VOTED OUT 🗳️😂😂" },
+          { "from": "Keys", "text": "the drum stopped in the 4th. I saw Benny's face. he knew" },
+          { "from": "Tasha", "text": "Crank Sosa asked for our schedule. Told him get in line." },
+          { "from": "Dre", "text": "TWO AND OH BABY ✌️✌️" },
+          { "from": "Pops", "text": "Don't count the ones you won, youngins. Count the ones that's left." },
+          { "from": "Keys", "text": "three. there's three left Pops" },
+          { "from": "Pops", "text": "I know how to count, youngin." },
+          { "from": "me", "text": "Baltimore next" }
+        ] }
+      ],
+      "slam": "TWO DOWN"
+    },
+    "east-metros-loss": {
+      "id": "east-metros-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Motion carried. {crew} goes home. Drive safe, the Beltway's worse than us." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "we got outvoted by a drum" },
+          { "from": "me", "text": "rematch. same pocket." }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+    "east-metros-recruit": {
+      "id": "east-metros-recruit",
+      "still": "recruit-handshake",
+      "music": "city-washington-dc",
+      "threads": [
+        { "kind": "dm", "name": "{recruit} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{recruit}", "text": "Been a Metro since I could walk. They never once let me lead off." },
+          { "from": "{recruit}", "text": "Y'all play like the drum's in your chest. I want that." },
+          { "from": "me", "text": "you keep a beat?" },
+          { "from": "{recruit}", "text": "I keep a beat AND I steal a base. You got a spot for me?" }
+        ] }
+      ]
+    },
+
+    "east-monarchs-before": {
+      "id": "east-monarchs-before",
+      "still": "east-turf",
+      "music": "city-baltimore",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "The court of {captain} does not accept walk-ins." },
+          { "from": "{captain}", "text": "But I'll allow it. Somebody gotta lose at my coronation party." },
+          { "from": "me", "text": "whose coronation?" },
+          { "from": "{captain}", "text": "Hon. Look at the logo. 👑" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "HE CALLED YOU HON 😭😭" },
+          { "from": "Keys", "text": "Monarchs hit .380 at home. Duchess hasn't made an error since April. zero." },
+          { "from": "Tasha", "text": "Their court is three blocks from THE CROWN. Where Nationals ends. Just saying." },
+          { "from": "Pops", "text": "Walk past it Saturday, youngins. Don't look at it. Earn the look." }
+        ] }
+      ],
+      "slam": "GAME DAY"
+    },
+    "east-monarchs-win": {
+      "id": "east-monarchs-win",
+      "still": "east-turf",
+      "music": "city-baltimore",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "WE DETHRONED A KING ON HIS OWN COURT 👑👋" },
+          { "from": "Keys", "text": "technically he's still a king. of fourth place" },
+          { "from": "Tasha", "text": "Walked past THE CROWN after. Gate was locked. Touched the fence anyway." },
+          { "from": "Dre", "text": "TASHA WAS CRYING" },
+          { "from": "Tasha", "text": "It was pollen." },
+          { "from": "Pops", "text": "Now they know your name, youngins. That's when it gets hard." },
+          { "from": "me", "text": "good. let it" }
+        ] }
+      ],
+      "slam": "THREE DOWN"
+    },
+    "east-monarchs-loss": {
+      "id": "east-monarchs-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Bow out gracefully, {crew}. The court has spoken. 👑" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Pops", "text": "Crowns get heavy, youngin. They'll drop it. Be there when they do." },
+          { "from": "me", "text": "back saturday" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+    "east-monarchs-recruit": {
+      "id": "east-monarchs-recruit",
+      "still": "recruit-handshake",
+      "music": "city-baltimore",
+      "threads": [
+        { "kind": "dm", "name": "{recruit} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{recruit}", "text": "Reese makes us call him Your Majesty. At practice. Out loud." },
+          { "from": "{recruit}", "text": "I'm tired of bowing. I'd rather run." },
+          { "from": "me", "text": "what's your game?" },
+          { "from": "{recruit}", "text": "I don't drop balls. Ask anybody in Baltimore." },
+          { "from": "{recruit}", "text": "So. Room on {crew} for somebody who doesn't kneel?" }
+        ] }
+      ]
+    },
+
+    "east-bullies-before": {
+      "id": "east-bullies-before",
+      "still": "east-turf",
+      "music": "city-brooklyn",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "yo y'all seen what the Bullies posted?? talmbout we only beat B-More cause it rained 😂" },
+          { "from": "Keys", "text": "they wildin" },
+          { "from": "Keys", "text": "for the record it was 84 and sunny" },
+          { "from": "Tasha", "text": "I have the weather app screenshot. Posting it. Tagging all eight of them." },
+          { "from": "Pops", "text": "Don't argue with a bully, youngin. Score on one." },
+          { "from": "me", "text": "we'll see saturday" }
+        ] },
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "{city} tomorrow. Bring your whole block." },
+          { "from": "me", "text": "say less" }
+        ] }
+      ],
+      "slam": "GAME DAY"
+    },
+    "east-bullies-win": {
+      "id": "east-bullies-win",
+      "still": "east-turf",
+      "music": "city-brooklyn",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "BULLY BALL?? MORE LIKE BULLY FALL 😂😂😂" },
+          { "from": "Keys", "text": "Dre's been workshopping that since the 3rd inning" },
+          { "from": "Dre", "text": "AND IT LANDED" },
+          { "from": "Keys", "text": "Bed-Stuy Beast boomed three deep ones. we caught all three. first time ever." },
+          { "from": "Tasha", "text": "Their page just went private 👀" },
+          { "from": "Pops", "text": "One left on the ladder. Philly don't post, youngins. Philly just plays." },
+          { "from": "me", "text": "then we play" }
+        ] }
+      ],
+      "slam": "FOUR DOWN"
+    },
+    "east-bullies-loss": {
+      "id": "east-bullies-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Told you bring your whole block. Next time bring two." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "they posting the replay already 😤" },
+          { "from": "me", "text": "let 'em. run it back" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+    "east-bullies-recruit": {
+      "id": "east-bullies-recruit",
+      "still": "recruit-handshake",
+      "music": "city-brooklyn",
+      "threads": [
+        { "kind": "dm", "name": "{recruit} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{recruit}", "text": "not gonna lie. nobody ever pushed back on us before." },
+          { "from": "{recruit}", "text": "Bones says we bully. I just like winning. Clean." },
+          { "from": "me", "text": "so what you saying?" },
+          { "from": "{recruit}", "text": "I'm saying I'm done being loud. I wanna be good. Y'all got a spot?" }
+        ] }
+      ]
+    },
+
+    "east-funk-before": {
+      "id": "east-funk-before",
+      "still": "east-turf",
+      "music": "city-philadelphia",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Heard about Brooklyn." },
+          { "from": "{captain}", "text": "Everybody you beat so far was loud. We're not loud." },
+          { "from": "{captain}", "text": "When the FUNKQUAKE hits, the whole court shakes. Then it's quiet. Then you go home." },
+          { "from": "me", "text": "we didn't come this far to go home" },
+          { "from": "{captain}", "text": "Then come Saturday. Philly's been waiting on somebody worth it." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "no jokes this time. Funk is 22-1. the 1 was a forfeit. their bus broke down" },
+          { "from": "Pops", "text": "...I know that feeling." },
+          { "from": "Dre", "text": "LISTEN. we were the BASEMENT. now we're one crew from the top 🙏" },
+          { "from": "Tasha", "text": "Gas is full. Bags packed. Nobody text me before 6am unless it's an emergency." }
+        ] }
+      ],
+      "slam": "GAME DAY"
+    },
+    "east-funk-win": {
+      "id": "east-funk-win",
+      "still": "east-turf",
+      "music": "city-philadelphia",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "WE BEAT PHILLY. WE BEAT PHILLY. I TYPED IT TWICE CAUSE IT'S REAL 😭" },
+          { "from": "Keys", "text": "first Funk loss in a year that wasn't a bus. I checked three times." },
+          { "from": "Tasha", "text": "Maestro shook my hand and said \"see you in the bracket.\" Chills." },
+          { "from": "Pops", "text": "Ladder's done. The bracket's where our bus broke down. Not this time." },
+          { "from": "me", "text": "not this time" }
+        ] }
+      ],
+      "slam": "LADDER DONE"
+    },
+    "east-funk-loss": {
+      "id": "east-funk-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Felt that? That's the Funkquake. Come back when you can stand in it." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "we were close. real close. I have the numbers if anybody wants them" },
+          { "from": "me", "text": "keep the numbers. run it back" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+    "east-funk-recruit": {
+      "id": "east-funk-recruit",
+      "still": "recruit-handshake",
+      "music": "city-philadelphia",
+      "threads": [
+        { "kind": "dm", "name": "{recruit} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{recruit}", "text": "Maestro doesn't know I'm texting you." },
+          { "from": "{recruit}", "text": "Five years on the Funk. Never saw a crew stand in the quake like that." },
+          { "from": "me", "text": "you serious?" },
+          { "from": "{recruit}", "text": "Dead serious. Philly made me. {crew} could make me a champ." },
+          { "from": "{recruit}", "text": "Room for one more?" }
+        ] }
+      ]
+    },
+
+    "east-bracket": {
+      "id": "east-bracket",
+      "still": "east-bracket",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "Commissioner Lou · East Regionals", "avatar": "{crewLogo}", "messages": [
+          { "from": "Commissioner Lou", "text": "{crew}. Lou again. Twenty years I've run this bracket." },
+          { "from": "Commissioner Lou", "text": "Never had a crew come up from nowhere. You're the four seed. Seeds don't matter." },
+          { "from": "Commissioner Lou", "text": "Semi Saturday vs Brooklyn. Final Sunday. Clean shoes. I check." },
+          { "from": "me", "text": "we'll be there" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Tasha", "text": "Bracket's confirmed. Lou wants clean shoes. Keys, that means you." },
+          { "from": "Keys", "text": "these ARE clean. this is their color now" },
+          { "from": "Dre", "text": "REGIONALS Y'ALL. REGIONALS. somebody hold me 😭🔥" },
+          { "from": "Pops", "text": "'98 we got this far. Sleep tonight, youngins. Sleep is a skill." },
+          { "from": "me", "text": "see y'all at 6" }
+        ] }
+      ],
+      "slam": "REGIONALS"
+    },
+
+    "east-semi-before": {
+      "id": "east-semi-before",
+      "still": "east-bracket",
+      "music": "city-brooklyn",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Rematch. Bracket rules. No rain this time either." },
+          { "from": "{captain}", "text": "We been practicing just for {crew}. Got all y'all's names on the wall." },
+          { "from": "me", "text": "spell 'em right" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "Bullies are 5-0 since we beat them. they're mad AND good. bad combo" },
+          { "from": "Dre", "text": "we're mad AND good TOO 😤" },
+          { "from": "Keys", "text": "you're mostly loud" },
+          { "from": "Pops", "text": "Revenge makes a crew swing hard, youngin. Hard ain't the same as right." }
+        ] }
+      ],
+      "slam": "SEMIFINAL"
+    },
+    "east-semi-win": {
+      "id": "east-semi-win",
+      "still": "east-bracket",
+      "music": "city-brooklyn",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "WE IN THE FINAL 🏆🏆 THE FINAL!!!" },
+          { "from": "Keys", "text": "Bullies twice in one summer. somebody should check on Brooklyn" },
+          { "from": "Tasha", "text": "Bones took our names off their wall. I have a source." },
+          { "from": "Pops", "text": "One more, youngins. One more than '98 ever got." },
+          { "from": "me", "text": "Philly. let's go" }
+        ] }
+      ],
+      "slam": "FINAL NEXT"
+    },
+    "east-semi-loss": {
+      "id": "east-semi-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Bracket ball is Bully Ball. Back to the semi, {crew}." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Tasha", "text": "Lou says we can re-enter. Car's still running." },
+          { "from": "me", "text": "then we're still in it" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+
+    "east-final-before": {
+      "id": "east-final-before",
+      "still": "east-bracket",
+      "music": "city-philadelphia",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Told you I'd see you in the bracket." },
+          { "from": "{captain}", "text": "Nobody beats the Funk twice. So one of us is about to learn something." },
+          { "from": "me", "text": "class is sunday" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Pops", "text": "Youngins. Put the phones down after this." },
+          { "from": "Pops", "text": "Twenty-some years I told the bus story. Tomorrow y'all write a new one." },
+          { "from": "Keys", "text": "for once I'm not quoting numbers. just go win" },
+          { "from": "Keys", "text": "(it's 51-49 Funk. I'm sorry. I had to)" },
+          { "from": "Dre", "text": "I'M CRYING AND WE HAVEN'T EVEN PLAYED 😭🔥" },
+          { "from": "Tasha", "text": "Car's gassed. Cooler's packed. Pops, you're riding up front." },
+          { "from": "me", "text": "east final. let's eat" }
+        ] }
+      ],
+      "slam": "EAST FINAL"
+    },
+    "east-final-win": {
+      "id": "east-final-win",
+      "still": "east-bracket",
+      "music": "city-philadelphia",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "WE WON THE EAST!!!!! THE WHOLE EAST!!!! 🏆👑🔥" },
+          { "from": "Keys", "text": "ran the numbers three times. we really did that" },
+          { "from": "Tasha", "text": "Lou handed me the trophy. Heavier than it looks. Like Pops' stories." },
+          { "from": "Pops", "text": "...Youngins. Give me a minute." },
+          { "from": "Dre", "text": "POPS IS CRYING" },
+          { "from": "Pops", "text": "It's pollen." },
+          { "from": "me", "text": "nobody's going home yet" }
+        ] }
+      ],
+      "slam": "EAST CHAMPS"
+    },
+    "east-final-loss": {
+      "id": "east-final-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Funkquake. Twice. Philly sends its regards." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Pops", "text": "No bus broke down, youngin. Bracket's still open. We go again." },
+          { "from": "me", "text": "again" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+
+    "east-champ": {
+      "id": "east-champ",
+      "still": "east-champ",
+      "music": "theme",
+      "title": { "top": "EAST CHAMPIONS", "sub": "THEY KNOW YOUR NAME NOW" },
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Tasha", "text": "Lou emailed. Midwest ladder opens Monday. Akron, Chicago, Detroit. Cold courts." },
+          { "from": "Keys", "text": "Midwest crews hit .410 in the cold. we've never played under 60 degrees" },
+          { "from": "Dre", "text": "THEN WE BRING THE HEAT ☀️🔥 ALL OF IT" },
+          { "from": "Pops", "text": "The East knows your name now, youngins. Go teach it to the rest." },
+          { "from": "me", "text": "pack the jackets" }
+        ] },
+        { "kind": "dm", "name": "Maestro · Philadelphia Funk", "avatar": "{rivalLogo}", "messages": [
+          { "from": "Maestro", "text": "Go get the Midwest. Then come back through." },
+          { "from": "Maestro", "text": "Philly's gonna be waiting at Nationals. Don't make us wait long." }
+        ] }
+      ],
+      "slam": "NEXT: MIDWEST"
+    }
+  }
+}

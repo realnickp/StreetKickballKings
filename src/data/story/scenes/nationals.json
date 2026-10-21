@@ -1,0 +1,322 @@
+{
+  "scenes": {
+    "nationals-open": {
+      "id": "nationals-open",
+      "still": "nationals-open",
+      "music": "theme",
+      "title": { "top": "CHAPTER 6 · NATIONALS", "sub": "THE WHOLE COUNTRY IS WATCHING" },
+      "threads": [
+        { "kind": "dm", "name": "Commissioner Lou · Nationals", "avatar": "{crewLogo}", "messages": [
+          { "from": "Commissioner Lou", "text": "{crew}. Lou. I once said I never heard of y'all. Put that on the record as wrong." },
+          { "from": "Commissioner Lou", "text": "Five regions. Five finalists. All five asked for you by name. Baltimore, this weekend." },
+          { "from": "Commissioner Lou", "text": "Last game's on THE CROWN. Streaming coast to coast. Clean shoes. I check." },
+          { "from": "me", "text": "we'll be there" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Tasha", "text": "Rented a bus for Nationals. Working AC. Brand new tires. I kicked every one of them." },
+          { "from": "Keys", "text": "I kicked them too. and checked the oil. and the driver's license. twice" },
+          { "from": "Dre", "text": "THE WHOLE COUNTRY WATCHING US 📺🔥 my aunt in Ohio texted me in ALL CAPS 😭" },
+          { "from": "Pops", "text": "...Youngins. Look out the window. That sign says Baltimore." },
+          { "from": "Pops", "text": "1998, we never saw that sign. We finally got here. The bus made it." },
+          { "from": "me", "text": "now let's finish the trip" }
+        ] }
+      ],
+      "slam": "NATIONALS"
+    },
+
+    "nationals-funk-before": {
+      "id": "nationals-funk-before",
+      "still": "nationals-open",
+      "music": "city-philadelphia",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Told you. Philly's been waiting." },
+          { "from": "{captain}", "text": "Ran the Funkquake every day since the East final. Twice on Sundays." },
+          { "from": "{captain}", "text": "Nobody beats the Funk twice. You did. Nobody beats us three times." },
+          { "from": "me", "text": "first time for everything" },
+          { "from": "{captain}", "text": "Our bus got here a day early. We don't take chances anymore." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "Funk's 31-0 since the East final. they printed our score on their warmup shirts" },
+          { "from": "Dre", "text": "WE'RE ON THEIR SHIRTS?? that's basically merch 😭🔥" },
+          { "from": "Pops", "text": "Philly remembers, youngin. So do we. Stand in the quake like last time." }
+        ] }
+      ],
+      "slam": "GAME ONE"
+    },
+    "nationals-funk-win": {
+      "id": "nationals-funk-win",
+      "still": "nationals-open",
+      "music": "city-philadelphia",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "PHILLY. THREE. TIMES. I'D TYPE IT THREE TIMES BUT MY THUMBS ARE SHAKING 😭" },
+          { "from": "Keys", "text": "Funkquake hit in the 5th. nobody fell. first crew ever to stand in it three times" },
+          { "from": "Tasha", "text": "Maestro gave me his warmup shirt. Our score's on it. Framing it next to Dre's W." },
+          { "from": "Pops", "text": "Respect the ones that made you better, youngin. Philly made us." },
+          { "from": "me", "text": "one down. four to go" }
+        ] }
+      ],
+      "slam": "ONE DOWN"
+    },
+    "nationals-funk-loss": {
+      "id": "nationals-funk-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Third time's the Funk. Rest up, {crew}. Nationals ain't over." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "the shirts were a mind game. it worked. I'm mad" },
+          { "from": "me", "text": "run it back" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+
+    "nationals-cleveland-before": {
+      "id": "nationals-cleveland-before",
+      "still": "nationals-open",
+      "music": "city-akron",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Remember Cleveland? We remember you. All winter. Off the lake. In the wind." },
+          { "from": "{captain}", "text": "Whole off-season in the CRUSH ZONE. Steel Mill Sully booted one into Lake Erie." },
+          { "from": "me", "text": "hope he got it back" },
+          { "from": "{captain}", "text": "He swam for it. In March. That's Cleveland. Saturday we swim through you." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "Crush hit .420 in the Midwest playoffs. Sully alone has 9 deep boots" },
+          { "from": "Dre", "text": "WE'VE CAUGHT DEEPER 🧤🧤" },
+          { "from": "Tasha", "text": "Pierogi Paula sent us a tray of pierogies. Respect or a trap. Eating them either way." },
+          { "from": "Pops", "text": "Never turn down food, youngin. Turn down the Crush Zone." }
+        ] }
+      ],
+      "slam": "GAME TWO"
+    },
+    "nationals-cleveland-win": {
+      "id": "nationals-cleveland-win",
+      "still": "nationals-open",
+      "music": "city-akron",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "CRUSHED THE CRUSH 😂😂 been sitting on that one since the Midwest" },
+          { "from": "Keys", "text": "Sully aimed for the lake again. no lake this time. just my hands" },
+          { "from": "Tasha", "text": "Paula wants her tray back. Told her it's coming back with a trophy on it." },
+          { "from": "Pops", "text": "Two down, youngins. Halfway there." },
+          { "from": "Keys", "text": "it's 40%, Pops. two of five" },
+          { "from": "Pops", "text": "I know how to count, youngin." },
+          { "from": "me", "text": "Miami next" }
+        ] }
+      ],
+      "slam": "TWO DOWN"
+    },
+    "nationals-cleveland-loss": {
+      "id": "nationals-cleveland-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "That's the Crush Zone, {crew}. Lake wind blows all the way to Baltimore." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "outkicked by a man who swims in Lake Erie in March. honestly respect" },
+          { "from": "me", "text": "run it back" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+
+    "nationals-miami-before": {
+      "id": "nationals-miami-before",
+      "still": "nationals-open",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Oye {crew}. It's 74 in Baltimore. That's sweater weather for us." },
+          { "from": "{captain}", "text": "But the HEAT INDEX travels. You beat us in the South. We drove 17 hours on that." },
+          { "from": "me", "text": "hope you brought snacks" },
+          { "from": "{captain}", "text": "Cafecito Kid brought a thermos. Twelve shots. We don't sleep. We don't lose twice." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "Heatwave steals 3 bases a game. Little Havana Lexi is 22 for 22" },
+          { "from": "Dre", "text": "so we DON'T LET HER ON BASE 🧠💯" },
+          { "from": "Keys", "text": "groundbreaking, Dre" },
+          { "from": "Pops", "text": "Fast crews get impatient late, youngin. Be there in the seventh." }
+        ] }
+      ],
+      "slam": "GAME THREE"
+    },
+    "nationals-miami-win": {
+      "id": "nationals-miami-win",
+      "still": "nationals-open",
+      "music": "beat",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "WE COOLED OFF MIAMI ❄️❄️ HEAT INDEX?? MORE LIKE HEAT INDEX CARD. FILED 🗂️" },
+          { "from": "Keys", "text": "Lexi got caught stealing. first time in 23 tries. she asked to see the replay" },
+          { "from": "Tasha", "text": "The thermos ran dry in the 6th. You could watch it happen on their faces." },
+          { "from": "Pops", "text": "Three down. Don't look at THE CROWN yet, youngins. Two more." },
+          { "from": "me", "text": "two more" }
+        ] }
+      ],
+      "slam": "THREE DOWN"
+    },
+    "nationals-miami-loss": {
+      "id": "nationals-miami-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Too hot, {crew}? Have a cafecito. You'll need it for the rematch." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Tasha", "text": "Bus has AC. Everybody get in, cool off. We go again." },
+          { "from": "me", "text": "again" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+
+    "nationals-albuquerque-before": {
+      "id": "nationals-albuquerque-before",
+      "still": "nationals-open",
+      "music": "city-phoenix",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "We play a mile up. Baltimore's basically underwater. We're about to fly." },
+          { "from": "{captain}", "text": "And the DUST DEVIL don't need dust. But we brought some. In a jar." },
+          { "from": "me", "text": "the jar is a choice" },
+          { "from": "{captain}", "text": "Fiesta Bea's idea. She brought green chile for after too. Winners eat." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "Roadrunners steal home 1 in 4 tries. they try twice a game. that's math I hate" },
+          { "from": "Dre", "text": "THE JAR GUYS?? beat 'em in the desert, we beat 'em at sea level 🌵🔥" },
+          { "from": "Tasha", "text": "Asked the hotel for lint rollers. For the dust. They said what dust. They'll learn." },
+          { "from": "Pops", "text": "Don't chase the wind, youngin. Wait for it to stop. It always stops." }
+        ] }
+      ],
+      "slam": "GAME FOUR"
+    },
+    "nationals-albuquerque-win": {
+      "id": "nationals-albuquerque-win",
+      "still": "nationals-open",
+      "music": "city-phoenix",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "THE DUST SETTLED AND IT WAS US 🌪️😭 US!!!" },
+          { "from": "Keys", "text": "they opened the jar in the 6th. wind blew it right back at them. I have video" },
+          { "from": "Tasha", "text": "Diablo gave us the green chile anyway. Said winners eat. Then got a little teary." },
+          { "from": "Dre", "text": "HE SAID IT WAS DUST 😂" },
+          { "from": "Pops", "text": "Four down. Tomorrow's THE CROWN, youngins." },
+          { "from": "Pops", "text": "All these years I walked past that gate. Tomorrow I walk through it." },
+          { "from": "me", "text": "we walk in together" }
+        ] }
+      ],
+      "slam": "FOUR DOWN"
+    },
+    "nationals-albuquerque-loss": {
+      "id": "nationals-albuquerque-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Dust Devil, {crew}. Shake it out your shoes and come back." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "there's sand in my socks and my soul" },
+          { "from": "me", "text": "run it back" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+
+    "nationals-portland-before": {
+      "id": "nationals-portland-before",
+      "still": "nationals-crown",
+      "music": "city-baltimore",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "West Coast final, you chopped us down. So we replanted." },
+          { "from": "{captain}", "text": "Old Growth hasn't said a word since. He just kicks. Knocked over a tree. A small one." },
+          { "from": "me", "text": "bring the axe. we're bringing the whole block" },
+          { "from": "{captain}", "text": "When I yell TIMBER, something falls. Tomorrow it's {crew}. On THE CROWN." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Tasha", "text": "Lou gave me the key for warmups. I am holding a KEY. To THE CROWN." },
+          { "from": "Keys", "text": "no numbers tonight. ok one. zero. crews from our block that won Nationals. till tomorrow" },
+          { "from": "Dre", "text": "i can't even type in caps i'm too nervous. that's how you know it's real" },
+          { "from": "Pops", "text": "Youngins. Walk in. Look at it. Now you've earned the look." },
+          { "from": "me", "text": "for the block" }
+        ] }
+      ],
+      "slam": "THE CROWN"
+    },
+    "nationals-portland-win": {
+      "id": "nationals-portland-win",
+      "still": "nationals-crown",
+      "music": "city-baltimore",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "WE WON NATIONALS!!!!! ON THE CROWN!!!!! 👑👑👑👑👑" },
+          { "from": "Keys", "text": "checked the scoreboard nine times. it keeps saying the same thing" },
+          { "from": "Tasha", "text": "Lou's trying to give a speech. Nobody can hear him. The whole court is screaming." },
+          { "from": "Dre", "text": "BIG TIMBER YELLED TIMBER AND HE'S THE ONE THAT FELL 🪓😂" },
+          { "from": "Pops", "text": "..." },
+          { "from": "Dre", "text": "POPS??" },
+          { "from": "Pops", "text": "Give me a minute, youngin. I been waiting on this one since 1998." },
+          { "from": "me", "text": "take all the time you need" }
+        ] }
+      ],
+      "slam": "NATIONAL CHAMPS"
+    },
+    "nationals-portland-loss": {
+      "id": "nationals-portland-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "TIMBER. Sorry, {crew}. The Crown don't crown everybody." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Pops", "text": "Bus is still running, youngin. The court ain't going nowhere. Neither are we." },
+          { "from": "me", "text": "one more time" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+
+    "ending": {
+      "id": "ending",
+      "still": "ending-king",
+      "music": "theme",
+      "title": { "top": "KING OF THE COURT", "sub": "NOBODY FROM OUR BLOCK. UNTIL US." },
+      "threads": [
+        { "kind": "dm", "name": "Commissioner Lou · Nationals", "avatar": "{crewLogo}", "messages": [
+          { "from": "Commissioner Lou", "text": "{crew}. Lou. Twenty years of brackets. Never crowned a nobody." },
+          { "from": "Commissioner Lou", "text": "Still haven't. Y'all stopped being nobody about four regions ago." },
+          { "from": "Commissioner Lou", "text": "Your name goes on the wall at THE CROWN. Permanent paint. Spell it right." },
+          { "from": "me", "text": "you'll hear of us" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Tasha", "text": "Bus just pulled up on the block. Whole street's outside. Somebody's mom made a banner." },
+          { "from": "Keys", "text": "banner says KINGS OF THE COURT. spelled right. I checked twice" },
+          { "from": "Dre", "text": "NOBODY from our block ever made Nationals. NOBODY. and we WON it 😭👑🔥" },
+          { "from": "Pops", "text": "Youngins. '98, the bus broke down on the way. I told that story every summer since." },
+          { "from": "Pops", "text": "Got a new one now. It's short. We won." },
+          { "from": "Keys", "text": "first Pops story under eleven minutes. historic night all around" },
+          { "from": "Dre", "text": "POPS IS CRYING" },
+          { "from": "Pops", "text": "It's pollen." }
+        ] },
+        { "kind": "dm", "name": "Pops", "avatar": "{crewLogo}", "messages": [
+          { "from": "Pops", "text": "Youngin. Just you. Real talk." },
+          { "from": "Pops", "text": "It wasn't pollen." },
+          { "from": "Pops", "text": "Proud of you. Get some sleep. Kings still gotta take out the trash Tuesday." },
+          { "from": "me", "text": "say less" }
+        ] }
+      ],
+      "slam": "WE THE KINGS"
+    }
+  }
+}

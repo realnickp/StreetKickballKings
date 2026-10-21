@@ -2,6 +2,7 @@ import { it, expect } from 'vitest';
 import { SaveManager } from '../src/meta/save.js';
 import { GEAR, gearById, careerAdd, careerGet, checkUnlocks, isUnlocked, equipGear, equippedGear } from '../src/meta/unlocks.js';
 import { claimTrophy } from '../src/meta/trophies.js';
+import { newStory, loadStory } from '../src/meta/story.js';
 
 const mem = () => new SaveManager({ backend: 'memory' });
 
@@ -158,4 +159,24 @@ it('THE FLAIR and FIRE REDS are free from day one and fielded by default', () =>
     .toEqual(['cleats-fire', 'kick-flair', 'kit-team-dark', 'kit-team-light',
       'taunt-chest', 'taunt-cry', 'taunt-gesture', 'taunt-loser', 'taunt-point']);
   expect(equippedGear(s).uniform).toBe(null);
+});
+
+it('story: crews beaten on the climb count toward the turf cleats, once each', () => {
+  const save = new SaveManager({ backend: 'memory' });
+  save.set('unlocks.crews', ['funk', 'bullies']);
+  save.set('story', { ...newStory({ crew: {}, roster: [] }), beaten: ['bullies', 'snappers', 'metros'] });
+  expect(careerGet(save).crews).toBe(4);
+});
+
+it('story: an old Run-the-Map save with no story still gets its King gear', () => {
+  const save = new SaveManager({ backend: 'memory' });
+  save.set('unlocks.crews', ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i']);
+  save.set('kingOfStreets', true);
+  expect(loadStory(save)).toBeNull();
+  expect(checkUnlocks(save).map((g) => g.id)).toContain('cleats-gold');
+});
+
+it('story: the King hint names the court', () => {
+  expect(gearById('cleats-gold').hint).toBe('Become King of the Court');
+  expect(gearById('kit-gold').hint).toBe('Become King of the Court');
 });

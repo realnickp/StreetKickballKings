@@ -1,0 +1,517 @@
+{
+  "scenes": {
+    "midwest-open": {
+      "id": "midwest-open",
+      "still": "midwest-open",
+      "music": "theme",
+      "title": { "top": "CHAPTER 2 · THE MIDWEST", "sub": "COLD COURTS. COLDER CREWS." },
+      "threads": [
+        { "kind": "dm", "name": "Commissioner Lou · Midwest Ladder", "avatar": "{crewLogo}", "messages": [
+          { "from": "Commissioner Lou", "text": "{crew}. East champs. Out here that's a rumor, not a résumé." },
+          { "from": "Commissioner Lou", "text": "Midwest crews play in sleet. First rung is Akron. Saturday. Wear sleeves." },
+          { "from": "me", "text": "we'll bring the heat" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Tasha", "text": "Ladder's up. Akron, Chicago, Detroit, St. Louis, Cleveland. Lou sent it at 5am." },
+          { "from": "Keys", "text": "it's 38 degrees in Akron. I own one jacket. it's a windbreaker" },
+          { "from": "Dre", "text": "WE'RE EAST CHAMPS 👑 the page went from 40 followers to 312!!!" },
+          { "from": "Keys", "text": "38 of those are Pops' church" },
+          { "from": "Pops", "text": "Sister Ruth shares everything, youngin. That's reach." },
+          { "from": "Tasha", "text": "Also the car heater's out. Bring blankets. This is not a joke." },
+          { "from": "me", "text": "Akron first. layers on" }
+        ] }
+      ],
+      "slam": "COLD WAR"
+    },
+
+    "midwest-marauders-before": {
+      "id": "midwest-marauders-before",
+      "still": "midwest-turf",
+      "music": "city-akron",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "The Reaper's been watching {crew}. East champs. Cute." },
+          { "from": "{captain}", "text": "Akron is where tires come to die. And crews. Mostly crews." },
+          { "from": "{captain}", "text": "You'll hear the RAID ROCKET before you see it. Then you won't see anything." },
+          { "from": "me", "text": "bring a flashlight then" },
+          { "from": "{captain}", "text": "...we play at noon." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "why he text like a movie trailer 😭 IN A WORLD..." },
+          { "from": "Keys", "text": "Marauders are last on the ladder. but 5-0 when it's under 40 degrees. it's 38" },
+          { "from": "Tasha", "text": "Heater's still out. Blankets in the trunk. Pops gets the good one." },
+          { "from": "Pops", "text": "Rubber City, youngin. Everything bounces back up there. Don't let 'em." }
+        ] }
+      ],
+      "slam": "GAME DAY"
+    },
+    "midwest-marauders-win": {
+      "id": "midwest-marauders-win",
+      "still": "midwest-turf",
+      "music": "city-akron",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "THE REAPER GOT REAPED 💀😂 I'm sorry I had to" },
+          { "from": "Keys", "text": "you did not have to" },
+          { "from": "Tasha", "text": "Smokestack Slim slid into second and just kept going. Frozen dirt." },
+          { "from": "Keys", "text": "first win under 40 degrees in crew history. also our first game under 40" },
+          { "from": "Dre", "text": "312 FOLLOWERS ➡️ 480 🚀🚀" },
+          { "from": "Pops", "text": "Good. Now thaw out. Chicago's colder." },
+          { "from": "me", "text": "one down. Chicago next" }
+        ] }
+      ],
+      "slam": "ONE DOWN"
+    },
+    "midwest-marauders-loss": {
+      "id": "midwest-marauders-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "The Reaper always collects. Drive safe. Heater's out, right? 💀" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Tasha", "text": "How does HE know about the heater." },
+          { "from": "me", "text": "doesn't matter. run it back" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+    "midwest-marauders-recruit": {
+      "id": "midwest-marauders-recruit",
+      "still": "recruit-handshake",
+      "music": "city-akron",
+      "threads": [
+        { "kind": "dm", "name": "{recruit} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{recruit}", "text": "the spooky stuff is the Reaper's thing. I just wanted to play kickball" },
+          { "from": "{recruit}", "text": "he makes us practice in the dark. for the vibe. I've been hit by the ball 11 times" },
+          { "from": "me", "text": "what you bring?" },
+          { "from": "{recruit}", "text": "Rubber City legs. I bounce back. Eleven times, I bounced back." },
+          { "from": "{recruit}", "text": "{crew} got a spot for somebody who likes daylight?" }
+        ] }
+      ]
+    },
+
+    "midwest-kestrals-before": {
+      "id": "midwest-kestrals-before",
+      "still": "midwest-turf",
+      "music": "city-chicago",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Welcome to Chicago, {crew}. Wind's doing 30 off the lake." },
+          { "from": "{captain}", "text": "We call it the Hawk. The Hawk catches everything. So do we." },
+          { "from": "{captain}", "text": "Kick it high, the Hawk brings it back. TALON DIVE does the rest." },
+          { "from": "me", "text": "we kick low then" },
+          { "from": "{captain}", "text": "Then Juke King's already there. See you on the lakefront. 🦅" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "Kestrals turned 11 double plays this year. Juke King started all eleven" },
+          { "from": "Keys", "text": "also I bought a coat. it was a lot of money. I don't want to talk about it" },
+          { "from": "Dre", "text": "KEYS GOT A COAT 🧥😂 THE NUMBERS MAN IS WARM" },
+          { "from": "Tasha", "text": "Deep dish after. Table's booked. Win first or we eat at the gas station." },
+          { "from": "Pops", "text": "Wind ain't on nobody's team, youngin. Kick under it." }
+        ] }
+      ],
+      "slam": "GAME DAY"
+    },
+    "midwest-kestrals-win": {
+      "id": "midwest-kestrals-win",
+      "still": "midwest-turf",
+      "music": "city-chicago",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "WE CLIPPED THE KESTRALS 🦅✂️ BIRD DOWN" },
+          { "from": "Keys", "text": "every kick under the wind. zero fly balls. that was on purpose. I'm a genius" },
+          { "from": "Tasha", "text": "Lake Effect asked who taught us grounders like that. Told him the block." },
+          { "from": "Dre", "text": "DEEP DISH TIME 🍕🍕🍕" },
+          { "from": "Pops", "text": "Eat slow, youngins. Detroit's next. Detroit don't care that you're full." },
+          { "from": "me", "text": "two down. Motor City" }
+        ] }
+      ],
+      "slam": "TWO DOWN"
+    },
+    "midwest-kestrals-loss": {
+      "id": "midwest-kestrals-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "The Hawk says hi. Fly safe, {crew}. 🦅" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "I paid for a coat to lose in it" },
+          { "from": "me", "text": "wear it to the rematch" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+    "midwest-kestrals-recruit": {
+      "id": "midwest-kestrals-recruit",
+      "still": "recruit-handshake",
+      "music": "city-chicago",
+      "threads": [
+        { "kind": "dm", "name": "{recruit} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{recruit}", "text": "Cap makes us practice on the lakefront in January. I haven't felt my toes since." },
+          { "from": "{recruit}", "text": "y'all kicked under the wind all game. nobody does that. that's smart ball" },
+          { "from": "me", "text": "you play smart?" },
+          { "from": "{recruit}", "text": "I play cold. I juke. And I'm done kicking into the Hawk." },
+          { "from": "{recruit}", "text": "Room on {crew} for somebody who's thawing out?" }
+        ] }
+      ]
+    },
+
+    "midwest-detroit-before": {
+      "id": "midwest-detroit-before",
+      "still": "midwest-turf",
+      "music": "city-chicago",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "YO it's {captain} heard about Chicago nice work anyway we gonna wreck you" },
+          { "from": "{captain}", "text": "Detroit builds cars builds crews builds W's on the line WRECKING BALL comes standard" },
+          { "from": "{captain}", "text": "also heard your heater's out I'll fix it after we beat you free of charge no lie" },
+          { "from": "me", "text": "you ever stop typing?" },
+          { "from": "{captain}", "text": "no" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Tasha", "text": "...he's not wrong about the heater." },
+          { "from": "Keys", "text": "Wreckers lead the Midwest in home-plate collisions. it's a stat they KEEP" },
+          { "from": "Dre", "text": "WE DON'T DODGE WE DANCE 🕺 Detroit techno the whole ride up" },
+          { "from": "Pops", "text": "Detroit's built tough, youngin. Tough still got seams. Find one." }
+        ] }
+      ],
+      "slam": "GAME DAY"
+    },
+    "midwest-detroit-win": {
+      "id": "midwest-detroit-win",
+      "still": "midwest-turf",
+      "music": "city-chicago",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "WRECKED THE WRECKERS 🔨💥 THREE AND OH IN THE COLD" },
+          { "from": "Keys", "text": "Motor Mouth didn't text for 40 minutes after. a record. for him" },
+          { "from": "Tasha", "text": "He fixed the heater anyway. Said a deal's a deal. The car is WARM, y'all." },
+          { "from": "Dre", "text": "TASHA'S CAR HAS HEAT 🔥 IT'S A NEW ERA" },
+          { "from": "Pops", "text": "Respect your rivals, youngin. Some of 'em fix your heater." },
+          { "from": "me", "text": "three down. St. Louis" }
+        ] }
+      ],
+      "slam": "THREE DOWN"
+    },
+    "midwest-detroit-loss": {
+      "id": "midwest-detroit-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "WRECKED told you heater offer still stands by the way no hard feelings drive safe" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Tasha", "text": "Taking him up on the heater. Then we beat him." },
+          { "from": "me", "text": "in that order" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+    "midwest-detroit-recruit": {
+      "id": "midwest-detroit-recruit",
+      "still": "recruit-handshake",
+      "music": "city-chicago",
+      "threads": [
+        { "kind": "dm", "name": "{recruit} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{recruit}", "text": "I'm a Wrecker but I don't like crashing into people. I like scoring." },
+          { "from": "{recruit}", "text": "Mack doesn't know what quiet is. Y'all play quiet. It works." },
+          { "from": "me", "text": "what you bring?" },
+          { "from": "{recruit}", "text": "Assembly-line hands. Whatever you throw me, I catch. Every time. Like a factory." },
+          { "from": "{recruit}", "text": "Got a spot on {crew}?" }
+        ] }
+      ]
+    },
+
+    "midwest-stlouis-before": {
+      "id": "midwest-stlouis-before",
+      "still": "midwest-turf",
+      "music": "city-memphis",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Y'all came all the way hurr? 😂 Respect. Welcome to the Gateway." },
+          { "from": "{captain}", "text": "Gateway to the West. For {crew} it's the exit." },
+          { "from": "{captain}", "text": "GATEWAY BLAST goes over the Arch. Ask anybody who stood under it." },
+          { "from": "me", "text": "we'll stand under it saturday" },
+          { "from": "{captain}", "text": "Bring shades. The Arch reflects. 😎" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "Arches are 19-3. Big Muddy kicks it farther than the river is wide. I checked a map" },
+          { "from": "Dre", "text": "THREE AND OH 🔥 THE ARCH IS GONNA BE THE BACKDROP FOR OUR PICTURE 📸" },
+          { "from": "Tasha", "text": "Toasted ravioli after. Not a typo. It's a real food. I'm excited." },
+          { "from": "Pops", "text": "River town, youngin. Don't swim against it. Ride it." }
+        ] }
+      ],
+      "slam": "GAME DAY"
+    },
+    "midwest-stlouis-win": {
+      "id": "midwest-stlouis-win",
+      "still": "midwest-turf",
+      "music": "city-memphis",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "WE WALKED THROUGH THE GATEWAY 🚪💨 FOUR DOWN" },
+          { "from": "Keys", "text": "Big Muddy boomed two. we caught both. at the fence. felt like the Arch" },
+          { "from": "Tasha", "text": "Toasted ravioli confirmed real. Pops had nine." },
+          { "from": "Pops", "text": "Ten, youngin." },
+          { "from": "Dre", "text": "1,200 FOLLOWERS 😭 AND GUS FOLLOWED US BACK" },
+          { "from": "Pops", "text": "One left. Cleveland. I got something to tell y'all about Cleveland." },
+          { "from": "me", "text": "tell us on the drive" }
+        ] }
+      ],
+      "slam": "FOUR DOWN"
+    },
+    "midwest-stlouis-loss": {
+      "id": "midwest-stlouis-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Told ya. Gateway's an exit. Come back hurr anytime, {crew} 😂" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "they got us saying hurr AND they won" },
+          { "from": "me", "text": "we'll be back hurr. here. run it back" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+    "midwest-stlouis-recruit": {
+      "id": "midwest-stlouis-recruit",
+      "still": "recruit-handshake",
+      "music": "city-memphis",
+      "threads": [
+        { "kind": "dm", "name": "{recruit} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{recruit}", "text": "Gus makes everybody say hurr at practice. It's in the playbook. Page one." },
+          { "from": "{recruit}", "text": "I'm tired of being the Gateway. I wanna actually go somewhere." },
+          { "from": "me", "text": "where you trying to go?" },
+          { "from": "{recruit}", "text": "Nationals. Same as y'all. I run hard and I've never missed a base. Ever." },
+          { "from": "{recruit}", "text": "Room for a St. Louis kid on {crew}?" }
+        ] }
+      ]
+    },
+
+    "midwest-cleveland-before": {
+      "id": "midwest-cleveland-before",
+      "still": "midwest-turf",
+      "music": "city-akron",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Heard you beat the Arches. Clean. Cleveland respects clean." },
+          { "from": "{captain}", "text": "Everybody sleeps on Cleveland. We like it. You wake up in the CRUSH ZONE." },
+          { "from": "{captain}", "text": "Lakefront gets loud Saturday. Hope y'all like singing. 🎶" },
+          { "from": "me", "text": "we like winning more" },
+          { "from": "{captain}", "text": "Then it'll be a good song either way." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Pops", "text": "Youngins. About Cleveland." },
+          { "from": "Pops", "text": "'98 Nationals were in Cleveland. We never saw it. Bus quit before the final." },
+          { "from": "Keys", "text": "wait. the bus story has a LOCATION?? eleven minutes and you never said a city" },
+          { "from": "Pops", "text": "Never wanted to say it out loud, youngin." },
+          { "from": "Dre", "text": "THEN WE GO SAY IT FOR YOU 😤🙏" },
+          { "from": "Tasha", "text": "Heater works. Gas is full. We're getting to Cleveland this time." },
+          { "from": "me", "text": "for Pops" }
+        ] }
+      ],
+      "slam": "GAME DAY"
+    },
+    "midwest-cleveland-win": {
+      "id": "midwest-cleveland-win",
+      "still": "midwest-turf",
+      "music": "city-akron",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "LADDER DONE!!! FIVE FOR FIVE IN THE COLD 🥶🔥" },
+          { "from": "Keys", "text": "Rock Hall Ray threw 90 pitches. we kicked 31 of them hard. I'm proud of us" },
+          { "from": "Tasha", "text": "Lonnie sang the whole 9th. Even while losing. Respect." },
+          { "from": "Pops", "text": "Stood on the lakefront after. Twenty-some years late. Still counts." },
+          { "from": "me", "text": "it counts" }
+        ] }
+      ],
+      "slam": "LADDER DONE"
+    },
+    "midwest-cleveland-loss": {
+      "id": "midwest-cleveland-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Crush Zone. 🎶 Cleveland don't sleep, {crew}. Come back awake." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Pops", "text": "Lake ain't going nowhere, youngin. Neither are we." },
+          { "from": "me", "text": "run it back" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+    "midwest-cleveland-recruit": {
+      "id": "midwest-cleveland-recruit",
+      "still": "recruit-handshake",
+      "music": "city-akron",
+      "threads": [
+        { "kind": "dm", "name": "{recruit} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{recruit}", "text": "Lonnie's my cousin. Don't tell him about this. Thanksgiving's already tense." },
+          { "from": "{recruit}", "text": "Watched y'all stand in the Crush Zone and not blink. I want that." },
+          { "from": "me", "text": "what you bring?" },
+          { "from": "{recruit}", "text": "Lake-effect arm. Struck out Rock Hall Ray in practice. He doesn't talk about it." },
+          { "from": "{recruit}", "text": "Got room on {crew} for some Cleveland?" }
+        ] }
+      ]
+    },
+
+    "midwest-bracket": {
+      "id": "midwest-bracket",
+      "still": "midwest-bracket",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "Commissioner Lou · Midwest Regionals", "avatar": "{crewLogo}", "messages": [
+          { "from": "Commissioner Lou", "text": "{crew}. Lou. Two seed. Last month you were a four. Notice that." },
+          { "from": "Commissioner Lou", "text": "Semi Saturday vs St. Louis. Their leadoff's Lou Quick. No relation. I'm slow." },
+          { "from": "Commissioner Lou", "text": "Final Sunday on the lakefront. Wear gloves. Clean ones. I check." },
+          { "from": "me", "text": "we'll be there" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Tasha", "text": "Bracket's confirmed. Lou says clean gloves. Keys." },
+          { "from": "Keys", "text": "they're clean. they're just Chicago gray now" },
+          { "from": "Dre", "text": "REGIONALS AGAIN 🔥 TWO REGIONS. WHO ARE WE 😭" },
+          { "from": "Pops", "text": "Sleep tonight, youngins. Sleep is still a skill." },
+          { "from": "me", "text": "6am. heater on" }
+        ] }
+      ],
+      "slam": "REGIONALS"
+    },
+
+    "midwest-semi-before": {
+      "id": "midwest-semi-before",
+      "still": "midwest-bracket",
+      "music": "city-memphis",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Rematch, {crew}. We been practicing in the cold just for y'all." },
+          { "from": "{captain}", "text": "Big Muddy kicked one in the river Tuesday. On purpose. He's ready." },
+          { "from": "me", "text": "we'll fish it out" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "Arches are 6-0 since we beat them. they ran Gateway Blast 9 times last week. nine" },
+          { "from": "Dre", "text": "THEY MAD. WE MADDER. well. we're happy. but LOUD happy 😤" },
+          { "from": "Pops", "text": "Mad crews swing early, youngin. Let 'em." },
+          { "from": "Tasha", "text": "Toasted ravioli is a reward food. We earn it again." }
+        ] }
+      ],
+      "slam": "SEMIFINAL"
+    },
+    "midwest-semi-win": {
+      "id": "midwest-semi-win",
+      "still": "midwest-bracket",
+      "music": "city-memphis",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "MIDWEST FINAL BABY 🏆 GATEWAY CLOSED" },
+          { "from": "Keys", "text": "Lou Quick stole second twice. we got him at third both times. sorry Lou" },
+          { "from": "Tasha", "text": "Commissioner Lou said \"no relation\" again. Nobody asked." },
+          { "from": "Pops", "text": "Lakefront tomorrow, youngins. Bring your voice. Cleveland sings." },
+          { "from": "me", "text": "Cleveland. let's go" }
+        ] }
+      ],
+      "slam": "FINAL NEXT"
+    },
+    "midwest-semi-loss": {
+      "id": "midwest-semi-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Gateway's closed, {crew}. Come back hurr when you're ready." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Tasha", "text": "Lou says re-entry's open. Heater's still on." },
+          { "from": "me", "text": "then we're still in it" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+
+    "midwest-final-before": {
+      "id": "midwest-final-before",
+      "still": "midwest-bracket",
+      "music": "city-akron",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Told you Cleveland doesn't sleep. Two crews left. One song." },
+          { "from": "{captain}", "text": "Win or lose, I'll see you at Nationals. But I want this one. Bad." },
+          { "from": "me", "text": "so do we" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Pops", "text": "Youngins. Phones down after this." },
+          { "from": "Pops", "text": "Never made it to Cleveland in '98. Tomorrow I'm in the stands. Front row." },
+          { "from": "Keys", "text": "Crush are 24-2 at home. not saying it to scare y'all. ok a little" },
+          { "from": "Dre", "text": "I'M NOT CRYING IT'S THE LAKE WIND 😭" },
+          { "from": "Tasha", "text": "Gloves. Water. Heater. Pops' folding chair. We're ready." },
+          { "from": "me", "text": "midwest final. let's eat" }
+        ] }
+      ],
+      "slam": "MIDWEST FINAL"
+    },
+    "midwest-final-win": {
+      "id": "midwest-final-win",
+      "still": "midwest-bracket",
+      "music": "city-akron",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "MIDWEST CHAMPS!!!! TWO REGIONS!!!! TWO!!!! 🏆🏆👑" },
+          { "from": "Keys", "text": "two trophies. the car has one cupholder. we have a storage problem" },
+          { "from": "Tasha", "text": "Lonnie sang us off the court. Whole lakefront joined in. I'm fine." },
+          { "from": "Dre", "text": "TASHA IS NOT FINE" },
+          { "from": "Tasha", "text": "It's pollen." },
+          { "from": "Keys", "text": "it's 34 degrees. nothing is blooming. there is no pollen" },
+          { "from": "Pops", "text": "Cleveland pollen, youngin. Different kind. I waited a long time for it." },
+          { "from": "me", "text": "two down" }
+        ] }
+      ],
+      "slam": "MIDWEST CHAMPS"
+    },
+    "midwest-final-loss": {
+      "id": "midwest-final-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Lake took that one, {crew}. 🎶 Come get it back." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Pops", "text": "Made it to Cleveland this time, youngin. Now we finish it." },
+          { "from": "me", "text": "again" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+
+    "midwest-champ": {
+      "id": "midwest-champ",
+      "still": "midwest-champ",
+      "music": "theme",
+      "title": { "top": "MIDWEST CHAMPIONS", "sub": "THE COLD KNOWS YOUR NAME" },
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Tasha", "text": "Lou emailed. South ladder: Memphis, Atlanta, New Orleans, Houston, Miami." },
+          { "from": "Keys", "text": "it's 96 in Memphis. I own a coat now. it's very warm. I paid for it" },
+          { "from": "Dre", "text": "9,000 FOLLOWERS 😭 somebody in MEMPHIS made a fan edit of us" },
+          { "from": "Pops", "text": "Sister Ruth shared it. Twice." },
+          { "from": "Tasha", "text": "Heater works now. AC doesn't. It's the same knob. Don't ask." },
+          { "from": "Pops", "text": "The East knew your name. The Midwest learned it. The South's gonna test it." },
+          { "from": "me", "text": "pack shorts" }
+        ] },
+        { "kind": "dm", "name": "Lakefront Lonnie · Cleveland Crush", "avatar": "{rivalLogo}", "messages": [
+          { "from": "Lakefront Lonnie", "text": "Go win the South. Cleveland's coming to Nationals too. 🎶" },
+          { "from": "Lakefront Lonnie", "text": "Heard Philly called dibs on you. Tell Maestro to get in line." }
+        ] }
+      ],
+      "slam": "NEXT: THE SOUTH"
+    }
+  }
+}

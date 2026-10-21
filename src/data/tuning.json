@@ -86,5 +86,12 @@
     "aiGoReactS":  { "Rookie": 0.55, "Street": 0.36, "King": 0.24 },
     "aiSpinChance":{ "Rookie": 0.35, "Street": 0.55, "King": 0.75 },
     "watchdogStallS": 6
+  },
+  "story": {
+    "pay": { "ladderWin": 60, "loss": 15, "semiWin": 90, "finalWin": 150, "nationalsWin": 200, "regionBonus": 250 },
+    "train": { "base": 40, "perLevel": 25, "cap": 10 },
+    "statMult": { "power": 0.03, "speed": 0.025, "arm": 0.03, "glove": 0.04 },
+    "rival": { "boostStart": -2, "boostEnd": 3, "tiers": [[0.3, "Rookie"], [0.7, "Street"], [1.01, "King"]] },
+    "difficulty": { "chill": { "boost": -1, "tierShift": -1 }, "street": { "boost": 0, "tierShift": 0 }, "king": { "boost": 1, "tierShift": 1 } }
   }
 }

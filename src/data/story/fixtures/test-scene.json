@@ -1,0 +1,19 @@
+{
+  "id": "test-scene",
+  "still": "prologue-block",
+  "music": "beat",
+  "title": { "top": "CHAPTER 1 · THE BLOCK", "sub": "FRIDAY NIGHT" },
+  "threads": [
+    { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+      { "from": "Dre", "text": "yo y'all seen what the {rival} posted?? talmbout we only won cause it rained 😂😂" },
+      { "from": "Keys", "text": "they wildin" },
+      { "from": "Dre", "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+      { "from": "me", "text": "we'll see saturday" }
+    ] },
+    { "kind": "dm", "name": "{captain} ({rival})", "avatar": "{rivalLogo}", "messages": [
+      { "from": "{captain}", "text": "{city} tomorrow. Bring your whole block." },
+      { "from": "me", "text": "say less" }
+    ] }
+  ],
+  "slam": "GAME DAY"
+}

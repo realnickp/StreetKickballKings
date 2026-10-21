@@ -799,7 +799,7 @@ function archIdxFor(team, i) {
 /** This crew's cast for roster slot `i` — `{archetype, skin, height, build,
  *  accessory}` — or null for a crew nobody cast. */
 export function castSlotFor(team, i) {
-  return castsData.casts?.[team?.id ?? '']?.[i] ?? null;
+  return team?.roster?.[i]?.cast ?? castsData.casts?.[team?.id ?? '']?.[i] ?? null;
 }
 
 /** The kit a colour belongs to — the crew's own data when the hex IS one of
@@ -824,7 +824,9 @@ function kitOf(team, hex) {
 
 // `markFor` because `kitOf` can hand back a RAW teams.json kit, whose `logo`
 // still names the `<id>-light` hook. Only marks that exist reach the shirt.
-const logoUrlFor = (kit) => (kit?.logo ? `/assets/logos/${markFor(kit.logo)}.png` : '');
+// A kit may carry a ready-made `logoUrl` (YOUR story crew's mark, tinted at
+// runtime by markTint.js — there's no file on disk to name).
+const logoUrlFor = (kit) => kit?.logoUrl ?? (kit?.logo ? `/assets/logos/${markFor(kit.logo)}.png` : '');
 
 /** Build a full team of detailed GLB characters, recolored to a uniform colour
  *  (defaults to the team's primary; pass `uniformColor` for a light/dark kit so

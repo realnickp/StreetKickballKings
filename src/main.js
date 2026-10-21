@@ -23,12 +23,23 @@ import { TitleScreen, MenuScreen, TeamSelectScreen, CoinTossScreen, PostGameScre
 import { LockerScreen, GearUpScreen } from './ui/screens/lockerScreen.js';
 import * as trophies from './meta/trophies.js';
 import * as unlocks from './meta/unlocks.js';
+import * as story from './meta/story.js';
 import { TutorialScreen } from './ui/screens/tutorial.js';
+import { StoryDevScreen } from './ui/screens/storyDev.js';
+import { CreateCrewScreen } from './ui/screens/createCrew.js';
+import { StoryIntroScreen, StoryHubScreen, StoryReplayScreen } from './ui/screens/storyHub.js';
+import { CrewRoomScreen } from './ui/screens/crewRoom.js';
+import { StoryResultScreen } from './ui/screens/storyResult.js';
+import { playScenes, varsFor } from './ui/screens/storyFlow.js';
+import { crewTeam } from './meta/yourCrew.js';
+import { withTintedMarks } from './meta/markTint.js';
+import { rivalTeam } from './meta/rivals.js';
 import { TutorialDirector } from './game/tutorialDirector.js';
 import { cityTrackId } from './engine/audioTracks.js';
 import fieldsData from './data/fields.json';
 import teamsData from './data/teams.json';
 import tuning from './data/tuning.json';
+import storyMap from './data/story/regions.json';
 
 const canvas = document.getElementById('game-canvas');
 const uiRoot = document.getElementById('ui-root');
@@ -174,8 +185,8 @@ if (params.has('match')) {
 // ---------- the real flow ----------
 async function bootFlow() {
   const ctx = {
-    engine, input, bus, audio, save, trophies, unlocks,
-    data: { teams: teamsData.teams, fields: fieldsData.fields, tuning },
+    engine, input, bus, audio, save, trophies, unlocks, story,
+    data: { teams: teamsData.teams, fields: fieldsData.fields, tuning, storyMap },
     mapTarget: null, // Run the Map: crew called out (locks TeamSelect's HOME side)
     router: null,
     scene: null,
@@ -188,6 +199,8 @@ async function bootFlow() {
     rematch,
     backToMenu,
     startTutorial,
+    startStoryMatch,
+    storyStop: null, // the climb's current game while a story match runs
   };
   const router = new ScreenRouter(uiRoot, ctx);
   ctx.router = router;
@@ -200,6 +213,13 @@ async function bootFlow() {
   router.register('locker', LockerScreen);
   router.register('gearUp', GearUpScreen);
   router.register('tutorial', TutorialScreen);
+  router.register('storyDev', StoryDevScreen);
+  router.register('createCrew', CreateCrewScreen);
+  router.register('storyIntro', StoryIntroScreen);
+  router.register('storyHub', StoryHubScreen);
+  router.register('storyReplay', StoryReplayScreen);
+  router.register('crewRoom', CrewRoomScreen);
+  router.register('storyResult', StoryResultScreen);
 
   // ---------- pause button + pause/sound overlay ----------
   const pauseBtn = document.createElement('button');
@@ -264,6 +284,18 @@ async function bootFlow() {
     await playVideo('assets/video/splash-intro.mp4', { muted: true });
   }
   router.go('title');
+  // DEV (?storydev): settle the current story game without playing it — the
+  // harness walks the whole climb (scripts/story-e2e.mjs). Never in a menu.
+  if (params.has('storydev')) {
+    window.__story = {
+      save, ctx,
+      forceResult(won) {
+        const story = ctx.story.loadStory(save);
+        if (!ctx.storyStop && story) ctx.storyStop = ctx.story.currentStop(story, ctx.data.storyMap);
+        bus.emit('matchOver', { winner: won ? 'away' : 'home', score: { away: won ? 5 : 1, home: won ? 1 : 5 }, stats: {} });
+      },
+    };
+  }
   // dev: jump straight to a screen for screenshots, e.g. ?nosplash&go=teamSelect
   if (params.has('go')) router.go(params.get('go'));
   if (params.has('tut')) startTutorial(); // dev harness: straight into the drills
@@ -274,15 +306,15 @@ async function bootFlow() {
    *  with nothing listening: the black cover div stayed up forever and a
    *  home-screen PWA has no address bar to reload from. Now a failure lands on
    *  a card with RETRY (same matchup, same kits) and MAIN MENU. */
-  async function startMatchFlow(playerTeam, opponentTeam, kits) {
+  async function startMatchFlow(playerTeam, opponentTeam, kits, opts = {}) {
     try {
-      await runMatchFlow(playerTeam, opponentTeam, kits);
+      await runMatchFlow(playerTeam, opponentTeam, kits, opts);
     } catch (e) {
       console.error('[skk] match build failed:', e);
       telemetry.error(e, { where: 'startMatchFlow', home: opponentTeam?.id, away: playerTeam?.id });
       if (ctx.scene) { try { ctx.scene.destroy(); } catch { /* fine */ } ctx.scene = null; }
       audio.stopMusic();
-      showFlowError(() => startMatchFlow(playerTeam, opponentTeam, kits));
+      showFlowError(() => startMatchFlow(playerTeam, opponentTeam, kits, opts)); // a story retry stays the story game
     }
   }
 
@@ -300,7 +332,7 @@ async function bootFlow() {
     uiRoot.appendChild(card);
   }
 
-  async function runMatchFlow(playerTeam, opponentTeam, kits) {
+  async function runMatchFlow(playerTeam, opponentTeam, kits, opts = {}) {
     ctx.playerTeam = playerTeam;
     ctx.opponentTeam = opponentTeam;
 
@@ -323,7 +355,7 @@ async function bootFlow() {
     // shows. Resolved HERE, once: the dressing below needs this court's own
     // lightness (through `groundLFor`, which resolves the same field and the
     // same Blacktop fallback), and MatchScene needs the field itself.
-    const homeField = fieldsData.fields.find(f => f.id === opponentTeam.homeField) ?? blacktop;
+    const homeField = fieldsData.fields.find(f => f.id === (opts.fieldId ?? opponentTeam.homeField)) ?? blacktop;
     // DRESS THE TWO CREWS (src/game/kits.js): home dark, away light, seeded by
     // the tones you set in team select and flipped if the pair wouldn't read
     // apart on a phone. An equipped Locker kit PINS your side and the opponent
@@ -371,9 +403,10 @@ async function bootFlow() {
     // YOUR squad's video first, then the opponent's — the VS slam only AFTER both
     // teams have been shown — then the logo clash leads into the coin toss.
     audio.stopMusic();
-    await playVideo(playerTeam.introVideo);
+    // story crews (yours + the fifteen new ones) have no intro film — skip, never await a 404
+    if (playerTeam.introVideo) await playVideo(playerTeam.introVideo);
     audio.stopMusic();
-    await playVideo(opponentTeam.introVideo);
+    if (opponentTeam.introVideo) await playVideo(opponentTeam.introVideo);
     // ONE versus moment: the logo clash (it already shows the "VS" + both crests)
     bus.emit('sfx', 'bassdrop');
     await showLogoClash(playerTeam, opponentTeam);
@@ -384,11 +417,12 @@ async function bootFlow() {
       teams: { home: opponentTeam, away: playerTeam },
       fieldData: homeField,
       tuning,
-      difficulty: params.get('diff') ?? 'Street',
+      difficulty: params.get('diff') ?? opts.difficulty ?? 'Street',
       playerSide: 'away',
       hudRoot,
       autoStart: false,
       gear,
+      useStats: !!opts.useStats,
       danceBag: new DanceBag({ recent: save.get('dance.recent', []), onDraw: (r) => save.set('dance.recent', r) }),
     });
     window.__skk = ctx.scene; // dev/debug handle
@@ -428,12 +462,34 @@ async function bootFlow() {
 
   function backToMenu() {
     ctx.setMatchActive?.(false);
+    ctx.storyStop = null; // quitting a story game counts for nothing
     if (ctx.tutorialDirector) { ctx.tutorialDirector.destroy(); ctx.tutorialDirector = null; }
     ctx.tutorialActive = false;
     if (ctx.scene) { ctx.scene.destroy(); ctx.scene = null; }
     audio.ambience(false);
     audio.music('theme');
     router.go('menu');
+  }
+
+  /** STORY: the rival's DM, then the game — your crew away, on their court,
+   *  their stats scaled to how far up the climb you are. `{ replay: id }` after
+   *  the crown: any crew you beat, ladder coins, no story movement. */
+  async function startStoryMatch({ replay = null } = {}) {
+    const story = ctx.story.loadStory(save);
+    if (!story) return router.go('createCrew');
+    const map = ctx.data.storyMap;
+    const at = ctx.story.currentStop(story, map);
+    const teamId = replay ?? at.teamId;
+    const base = teamsData.teams.find((t) => t.id === teamId);
+    if (!base) return router.go('storyHub');
+    const stop = replay
+      ? { kind: 'ladder', regionId: base.region, teamId, index: 0, total: 5, progress01: 0.5, fieldId: null, replay: true } // "no pressure": Street
+      : at;
+    const mine = await withTintedMarks(crewTeam(story), story.crew);
+    if (!replay) await playScenes(ctx, [ctx.story.beforeScene(stop)], varsFor(story, { rival: base, crewLogo: mine.logo }));
+    const { team: rival, difficulty } = rivalTeam(base, stop, tuning, ctx.story.difficultyOf(story));
+    ctx.storyStop = stop;
+    await startMatchFlow(mine, rival, null, { difficulty, useStats: true, fieldId: stop.fieldId });
   }
 
   /** PLAYABLE TUTORIAL: a skill-drill gauntlet on the real engine — no intros,
@@ -510,6 +566,20 @@ async function bootFlow() {
   bus.on('matchOver', ({ winner, score, stats }) => {
     if (ctx.tutorialActive) return; // drills never end in a box score
     ctx.setMatchActive?.(false);
+    if (ctx.storyStop) {
+      const stop = ctx.storyStop;
+      ctx.storyStop = null;
+      // the story result never passes through backToMenu — tear the match down
+      // HERE so 16 GLB bodies + the crowd don't live on behind the hub (iOS budget)
+      // (next tick: matchOver is emitted from inside the scene's own frame)
+      const done = ctx.scene;
+      ctx.scene = null;
+      if (done) setTimeout(() => done.destroy(), 0);
+      if (window.__skk === done) window.__skk = null; // the debug handle would pin the dead match
+      audio.ambience(false);
+      router.go('storyResult', { winner, score, stats, playerSide: 'away', stop, replay: !!stop.replay });
+      return;
+    }
     router.go('postGame', {
       winner, score, stats,
       playerSide: 'away',

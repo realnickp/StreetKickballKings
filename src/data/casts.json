@@ -579,6 +579,876 @@
         "build": 0.98,
         "accessory": "headband"
       }
+    ],
+    "detroit": [
+      {
+        "archetype": 18,
+        "skin": "deep",
+        "height": 0.95,
+        "build": 1.04,
+        "accessory": "none"
+      },
+      {
+        "archetype": 8,
+        "skin": "deep",
+        "height": 1.01,
+        "build": 0.94,
+        "accessory": "none"
+      },
+      {
+        "archetype": 7,
+        "skin": "brown",
+        "height": 1.05,
+        "build": 0.99,
+        "accessory": "none"
+      },
+      {
+        "archetype": 19,
+        "skin": "deep",
+        "height": 0.99,
+        "build": 1.06,
+        "accessory": "wristbands"
+      },
+      {
+        "archetype": 12,
+        "skin": "light",
+        "height": 1.07,
+        "build": 1.03,
+        "accessory": "none"
+      },
+      {
+        "archetype": 14,
+        "skin": "brown",
+        "height": 1.06,
+        "build": 1.01,
+        "accessory": "none"
+      },
+      {
+        "archetype": 2,
+        "skin": "deep",
+        "height": 1.03,
+        "build": 1.08,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 16,
+        "skin": "tan",
+        "height": 1.05,
+        "build": 1.02,
+        "accessory": "none"
+      }
+    ],
+    "stlouis": [
+      {
+        "archetype": 8,
+        "skin": "deep",
+        "height": 1.03,
+        "build": 1.04,
+        "accessory": "wristbands"
+      },
+      {
+        "archetype": 18,
+        "skin": "brown",
+        "height": 1.05,
+        "build": 0.93,
+        "accessory": "wristbands"
+      },
+      {
+        "archetype": 19,
+        "skin": "light",
+        "height": 0.95,
+        "build": 0.98,
+        "accessory": "wristbands"
+      },
+      {
+        "archetype": 12,
+        "skin": "deep",
+        "height": 0.99,
+        "build": 1.09,
+        "accessory": "none"
+      },
+      {
+        "archetype": 1,
+        "skin": "light",
+        "height": 1.02,
+        "build": 1.01,
+        "accessory": "none"
+      },
+      {
+        "archetype": 15,
+        "skin": "deep",
+        "height": 1.07,
+        "build": 0.99,
+        "accessory": "none"
+      },
+      {
+        "archetype": 3,
+        "skin": "brown",
+        "height": 0.97,
+        "build": 1.05,
+        "accessory": "none"
+      },
+      {
+        "archetype": 6,
+        "skin": "tan",
+        "height": 1.06,
+        "build": 0.96,
+        "accessory": "headband"
+      }
+    ],
+    "cleveland": [
+      {
+        "archetype": 14,
+        "skin": "brown",
+        "height": 1.07,
+        "build": 1.02,
+        "accessory": "none"
+      },
+      {
+        "archetype": 11,
+        "skin": "deep",
+        "height": 0.96,
+        "build": 0.96,
+        "accessory": "none"
+      },
+      {
+        "archetype": 18,
+        "skin": "light",
+        "height": 0.94,
+        "build": 1.05,
+        "accessory": "none"
+      },
+      {
+        "archetype": 8,
+        "skin": "light",
+        "height": 0.97,
+        "build": 1.06,
+        "accessory": "wristbands"
+      },
+      {
+        "archetype": 4,
+        "skin": "deep",
+        "height": 1.01,
+        "build": 0.96,
+        "accessory": "none"
+      },
+      {
+        "archetype": 16,
+        "skin": "tan",
+        "height": 0.95,
+        "build": 1.03,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 5,
+        "skin": "brown",
+        "height": 0.95,
+        "build": 1.02,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 0,
+        "skin": "deep",
+        "height": 1.05,
+        "build": 1.06,
+        "accessory": "none"
+      }
+    ],
+    "atlanta": [
+      {
+        "archetype": 18,
+        "skin": "deep",
+        "height": 1.02,
+        "build": 1.07,
+        "accessory": "none"
+      },
+      {
+        "archetype": 19,
+        "skin": "deep",
+        "height": 0.95,
+        "build": 0.98,
+        "accessory": "none"
+      },
+      {
+        "archetype": 9,
+        "skin": "brown",
+        "height": 0.99,
+        "build": 0.96,
+        "accessory": "wristbands"
+      },
+      {
+        "archetype": 8,
+        "skin": "deep",
+        "height": 0.95,
+        "build": 1.08,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 12,
+        "skin": "brown",
+        "height": 1.04,
+        "build": 0.97,
+        "accessory": "none"
+      },
+      {
+        "archetype": 7,
+        "skin": "deep",
+        "height": 1.05,
+        "build": 1.01,
+        "accessory": "wristbands"
+      },
+      {
+        "archetype": 10,
+        "skin": "tan",
+        "height": 1.05,
+        "build": 1.07,
+        "accessory": "none"
+      },
+      {
+        "archetype": 0,
+        "skin": "deep",
+        "height": 0.95,
+        "build": 1.03,
+        "accessory": "none"
+      }
+    ],
+    "neworleans": [
+      {
+        "archetype": 1,
+        "skin": "deep",
+        "height": 0.95,
+        "build": 0.94,
+        "accessory": "none"
+      },
+      {
+        "archetype": 18,
+        "skin": "brown",
+        "height": 0.99,
+        "build": 0.96,
+        "accessory": "wristbands"
+      },
+      {
+        "archetype": 4,
+        "skin": "tan",
+        "height": 0.98,
+        "build": 0.94,
+        "accessory": "wristbands"
+      },
+      {
+        "archetype": 12,
+        "skin": "deep",
+        "height": 1,
+        "build": 1.05,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 9,
+        "skin": "deep",
+        "height": 1.05,
+        "build": 1.01,
+        "accessory": "none"
+      },
+      {
+        "archetype": 6,
+        "skin": "brown",
+        "height": 0.96,
+        "build": 0.99,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 16,
+        "skin": "light",
+        "height": 0.98,
+        "build": 1.05,
+        "accessory": "none"
+      },
+      {
+        "archetype": 19,
+        "skin": "deep",
+        "height": 0.95,
+        "build": 0.96,
+        "accessory": "none"
+      }
+    ],
+    "houston": [
+      {
+        "archetype": 3,
+        "skin": "brown",
+        "height": 1.02,
+        "build": 1.08,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 8,
+        "skin": "tan",
+        "height": 1.03,
+        "build": 0.95,
+        "accessory": "none"
+      },
+      {
+        "archetype": 14,
+        "skin": "deep",
+        "height": 0.96,
+        "build": 0.96,
+        "accessory": "none"
+      },
+      {
+        "archetype": 10,
+        "skin": "deep",
+        "height": 0.95,
+        "build": 1.08,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 18,
+        "skin": "tan",
+        "height": 1.05,
+        "build": 1.03,
+        "accessory": "none"
+      },
+      {
+        "archetype": 12,
+        "skin": "tan",
+        "height": 0.95,
+        "build": 1.01,
+        "accessory": "none"
+      },
+      {
+        "archetype": 7,
+        "skin": "brown",
+        "height": 1.02,
+        "build": 0.96,
+        "accessory": "none"
+      },
+      {
+        "archetype": 1,
+        "skin": "deep",
+        "height": 1.06,
+        "build": 0.96,
+        "accessory": "wristbands"
+      }
+    ],
+    "miami": [
+      {
+        "archetype": 19,
+        "skin": "tan",
+        "height": 1,
+        "build": 1.01,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 5,
+        "skin": "tan",
+        "height": 1.01,
+        "build": 0.97,
+        "accessory": "wristbands"
+      },
+      {
+        "archetype": 3,
+        "skin": "brown",
+        "height": 1.05,
+        "build": 0.94,
+        "accessory": "wristbands"
+      },
+      {
+        "archetype": 6,
+        "skin": "deep",
+        "height": 1.03,
+        "build": 1.06,
+        "accessory": "none"
+      },
+      {
+        "archetype": 8,
+        "skin": "deep",
+        "height": 1,
+        "build": 1.06,
+        "accessory": "none"
+      },
+      {
+        "archetype": 2,
+        "skin": "tan",
+        "height": 1.05,
+        "build": 1.07,
+        "accessory": "none"
+      },
+      {
+        "archetype": 14,
+        "skin": "brown",
+        "height": 1.05,
+        "build": 1.01,
+        "accessory": "none"
+      },
+      {
+        "archetype": 16,
+        "skin": "light",
+        "height": 0.95,
+        "build": 0.96,
+        "accessory": "none"
+      }
+    ],
+    "dallas": [
+      {
+        "archetype": 10,
+        "skin": "deep",
+        "height": 0.99,
+        "build": 1.03,
+        "accessory": "none"
+      },
+      {
+        "archetype": 18,
+        "skin": "tan",
+        "height": 1.05,
+        "build": 0.93,
+        "accessory": "wristbands"
+      },
+      {
+        "archetype": 4,
+        "skin": "light",
+        "height": 1.03,
+        "build": 0.94,
+        "accessory": "none"
+      },
+      {
+        "archetype": 0,
+        "skin": "brown",
+        "height": 1.04,
+        "build": 1.04,
+        "accessory": "none"
+      },
+      {
+        "archetype": 1,
+        "skin": "light",
+        "height": 0.95,
+        "build": 1.03,
+        "accessory": "none"
+      },
+      {
+        "archetype": 14,
+        "skin": "deep",
+        "height": 0.99,
+        "build": 1.07,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 11,
+        "skin": "tan",
+        "height": 1.06,
+        "build": 1.01,
+        "accessory": "none"
+      },
+      {
+        "archetype": 8,
+        "skin": "brown",
+        "height": 1.03,
+        "build": 1.08,
+        "accessory": "wristbands"
+      }
+    ],
+    "vegas": [
+      {
+        "archetype": 0,
+        "skin": "tan",
+        "height": 0.97,
+        "build": 1.05,
+        "accessory": "none"
+      },
+      {
+        "archetype": 6,
+        "skin": "brown",
+        "height": 1.07,
+        "build": 0.94,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 13,
+        "skin": "light",
+        "height": 0.97,
+        "build": 1.06,
+        "accessory": "wristbands"
+      },
+      {
+        "archetype": 16,
+        "skin": "deep",
+        "height": 1,
+        "build": 1.07,
+        "accessory": "none"
+      },
+      {
+        "archetype": 4,
+        "skin": "light",
+        "height": 1.05,
+        "build": 1,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 10,
+        "skin": "tan",
+        "height": 0.95,
+        "build": 0.97,
+        "accessory": "none"
+      },
+      {
+        "archetype": 3,
+        "skin": "deep",
+        "height": 1.05,
+        "build": 1.08,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 15,
+        "skin": "brown",
+        "height": 0.94,
+        "build": 0.94,
+        "accessory": "none"
+      }
+    ],
+    "denver": [
+      {
+        "archetype": 18,
+        "skin": "tan",
+        "height": 1.06,
+        "build": 1.08,
+        "accessory": "wristbands"
+      },
+      {
+        "archetype": 12,
+        "skin": "light",
+        "height": 1,
+        "build": 0.96,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 19,
+        "skin": "brown",
+        "height": 1,
+        "build": 1.06,
+        "accessory": "none"
+      },
+      {
+        "archetype": 6,
+        "skin": "light",
+        "height": 0.95,
+        "build": 1.06,
+        "accessory": "none"
+      },
+      {
+        "archetype": 11,
+        "skin": "deep",
+        "height": 0.98,
+        "build": 1.04,
+        "accessory": "none"
+      },
+      {
+        "archetype": 4,
+        "skin": "tan",
+        "height": 1.05,
+        "build": 0.97,
+        "accessory": "none"
+      },
+      {
+        "archetype": 10,
+        "skin": "light",
+        "height": 0.99,
+        "build": 1.02,
+        "accessory": "none"
+      },
+      {
+        "archetype": 0,
+        "skin": "brown",
+        "height": 0.96,
+        "build": 1.08,
+        "accessory": "wristbands"
+      }
+    ],
+    "albuquerque": [
+      {
+        "archetype": 1,
+        "skin": "tan",
+        "height": 1,
+        "build": 0.97,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 7,
+        "skin": "tan",
+        "height": 0.97,
+        "build": 0.97,
+        "accessory": "none"
+      },
+      {
+        "archetype": 12,
+        "skin": "brown",
+        "height": 0.95,
+        "build": 1.03,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 8,
+        "skin": "tan",
+        "height": 0.96,
+        "build": 1.05,
+        "accessory": "none"
+      },
+      {
+        "archetype": 14,
+        "skin": "light",
+        "height": 1.05,
+        "build": 0.95,
+        "accessory": "none"
+      },
+      {
+        "archetype": 16,
+        "skin": "brown",
+        "height": 0.98,
+        "build": 1,
+        "accessory": "wristbands"
+      },
+      {
+        "archetype": 5,
+        "skin": "tan",
+        "height": 0.96,
+        "build": 0.96,
+        "accessory": "wristbands"
+      },
+      {
+        "archetype": 19,
+        "skin": "deep",
+        "height": 0.94,
+        "build": 1.06,
+        "accessory": "none"
+      }
+    ],
+    "oakland": [
+      {
+        "archetype": 3,
+        "skin": "deep",
+        "height": 1.06,
+        "build": 1.05,
+        "accessory": "wristbands"
+      },
+      {
+        "archetype": 18,
+        "skin": "brown",
+        "height": 1.06,
+        "build": 0.93,
+        "accessory": "none"
+      },
+      {
+        "archetype": 2,
+        "skin": "deep",
+        "height": 0.95,
+        "build": 1,
+        "accessory": "none"
+      },
+      {
+        "archetype": 0,
+        "skin": "deep",
+        "height": 1.05,
+        "build": 1.09,
+        "accessory": "none"
+      },
+      {
+        "archetype": 14,
+        "skin": "tan",
+        "height": 1.05,
+        "build": 1.03,
+        "accessory": "none"
+      },
+      {
+        "archetype": 9,
+        "skin": "tan",
+        "height": 1,
+        "build": 1,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 16,
+        "skin": "brown",
+        "height": 0.97,
+        "build": 1,
+        "accessory": "none"
+      },
+      {
+        "archetype": 1,
+        "skin": "deep",
+        "height": 0.94,
+        "build": 1.07,
+        "accessory": "none"
+      }
+    ],
+    "seattle": [
+      {
+        "archetype": 4,
+        "skin": "tan",
+        "height": 0.97,
+        "build": 0.98,
+        "accessory": "none"
+      },
+      {
+        "archetype": 3,
+        "skin": "deep",
+        "height": 0.95,
+        "build": 0.97,
+        "accessory": "wristbands"
+      },
+      {
+        "archetype": 12,
+        "skin": "light",
+        "height": 1.01,
+        "build": 1,
+        "accessory": "none"
+      },
+      {
+        "archetype": 18,
+        "skin": "light",
+        "height": 0.95,
+        "build": 1.04,
+        "accessory": "none"
+      },
+      {
+        "archetype": 15,
+        "skin": "deep",
+        "height": 1,
+        "build": 0.94,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 6,
+        "skin": "tan",
+        "height": 1.07,
+        "build": 1.04,
+        "accessory": "none"
+      },
+      {
+        "archetype": 8,
+        "skin": "light",
+        "height": 1.04,
+        "build": 0.95,
+        "accessory": "none"
+      },
+      {
+        "archetype": 19,
+        "skin": "brown",
+        "height": 1.05,
+        "build": 1.04,
+        "accessory": "wristbands"
+      }
+    ],
+    "sandiego": [
+      {
+        "archetype": 10,
+        "skin": "tan",
+        "height": 0.99,
+        "build": 0.99,
+        "accessory": "none"
+      },
+      {
+        "archetype": 13,
+        "skin": "tan",
+        "height": 1.05,
+        "build": 0.96,
+        "accessory": "none"
+      },
+      {
+        "archetype": 0,
+        "skin": "brown",
+        "height": 0.99,
+        "build": 0.96,
+        "accessory": "wristbands"
+      },
+      {
+        "archetype": 3,
+        "skin": "light",
+        "height": 0.95,
+        "build": 1.07,
+        "accessory": "none"
+      },
+      {
+        "archetype": 4,
+        "skin": "tan",
+        "height": 1,
+        "build": 0.99,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 8,
+        "skin": "brown",
+        "height": 1.04,
+        "build": 0.95,
+        "accessory": "none"
+      },
+      {
+        "archetype": 6,
+        "skin": "light",
+        "height": 1.04,
+        "build": 1.02,
+        "accessory": "none"
+      },
+      {
+        "archetype": 12,
+        "skin": "deep",
+        "height": 1.04,
+        "build": 1.04,
+        "accessory": "none"
+      }
+    ],
+    "portland": [
+      {
+        "archetype": 1,
+        "skin": "light",
+        "height": 1.07,
+        "build": 1.07,
+        "accessory": "none"
+      },
+      {
+        "archetype": 14,
+        "skin": "brown",
+        "height": 0.99,
+        "build": 0.98,
+        "accessory": "none"
+      },
+      {
+        "archetype": 18,
+        "skin": "light",
+        "height": 0.95,
+        "build": 1.01,
+        "accessory": "wristbands"
+      },
+      {
+        "archetype": 19,
+        "skin": "deep",
+        "height": 1.01,
+        "build": 1.04,
+        "accessory": "none"
+      },
+      {
+        "archetype": 10,
+        "skin": "light",
+        "height": 1.03,
+        "build": 0.97,
+        "accessory": "none"
+      },
+      {
+        "archetype": 16,
+        "skin": "tan",
+        "height": 1.01,
+        "build": 0.95,
+        "accessory": "none"
+      },
+      {
+        "archetype": 9,
+        "skin": "light",
+        "height": 0.99,
+        "build": 1.04,
+        "accessory": "headband"
+      },
+      {
+        "archetype": 6,
+        "skin": "brown",
+        "height": 1.05,
+        "build": 1.08,
+        "accessory": "headband"
+      }
     ]
   }
 }

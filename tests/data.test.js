@@ -4,10 +4,37 @@ import fields from '../src/data/fields.json';
 import tuning from '../src/data/tuning.json';
 
 describe('teams.json', () => {
-  it('has 10 teams with unique ids', () => {
-    expect(teams.teams.length).toBe(10);
+  it('has 25 teams with unique ids: 10 Quick Play crews + 15 story crews', () => {
+    expect(teams.teams.length).toBe(25);
     const ids = teams.teams.map(t => t.id);
-    expect(new Set(ids).size).toBe(10);
+    expect(new Set(ids).size).toBe(25);
+    expect(teams.teams.filter(t => t.status === 'ready').length).toBe(10);
+    expect(teams.teams.filter(t => t.status === 'story').length).toBe(15);
+  });
+
+  it('every crew shares one key set and order, and lives in a story region', () => {
+    const keys = Object.keys(teams.teams.find(t => t.id === 'monarchs'));
+    for (const t of teams.teams) {
+      expect(Object.keys(t), t.id).toEqual(keys);
+      expect(['east', 'midwest', 'south', 'southwest', 'west'], t.id).toContain(t.region);
+    }
+  });
+
+  it('every crew fields 8 players with unique ids and nicks, stats 3-9', () => {
+    const pids = new Set();
+    for (const t of teams.teams) {
+      expect(t.roster.length, t.id).toBe(8);
+      expect(new Set(t.roster.map(p => p.nick)).size, t.id).toBe(8);
+      for (const p of t.roster) {
+        expect(pids.has(p.id), `${t.id} ${p.id}`).toBe(false);
+        pids.add(p.id);
+        for (const s of ['power', 'speed', 'arm', 'glove']) {
+          expect(Number.isInteger(p.stats[s]), `${p.id}.${s}`).toBe(true);
+          expect(p.stats[s]).toBeGreaterThanOrEqual(3);
+          expect(p.stats[s]).toBeLessThanOrEqual(9);
+        }
+      }
+    }
   });
 
   it('Monarchs and Snappers have full 8-player rosters', () => {

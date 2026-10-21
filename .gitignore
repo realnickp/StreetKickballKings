@@ -24,3 +24,4 @@ tools/world-src/
 
 # codex CLI scratch
 .codex/
+.superpowers/
