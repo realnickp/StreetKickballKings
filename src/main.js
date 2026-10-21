@@ -575,6 +575,7 @@ async function bootFlow() {
       const done = ctx.scene;
       ctx.scene = null;
       if (done) setTimeout(() => done.destroy(), 0);
+      if (window.__skk === done) window.__skk = null; // the debug handle would pin the dead match
       audio.ambience(false);
       router.go('storyResult', { winner, score, stats, playerSide: 'away', stop, replay: !!stop.replay });
       return;

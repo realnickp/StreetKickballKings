@@ -7,14 +7,14 @@
 //   5. WIN      — a forced win pays 60, climbs to rung 2, the recruit card puts a rival on your crew.
 //   6. QUIT     — start the real rung-2 game, pause → MAIN MENU: the climb is untouched.
 //   7. CLIMB    — force the rest (with a semi loss + a final loss): King, kingOfStreets, Gold Crowns.
-import { webkit } from 'playwright';
+import { webkit, chromium } from 'playwright';
 
 const BASE = process.env.SKK_URL ?? 'http://localhost:5173';
 const url = (q) => `${BASE}/?${q}&mute`;
 let failures = 0;
 const check = (ok, label, extra = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${extra ? ' — ' + extra : ''}`); if (!ok) failures++; };
 
-const browser = await webkit.launch();
+const browser = await (process.env.SKK_BROWSER === 'chromium' ? chromium : webkit).launch(); // SKK_BROWSER=chromium also logs heap per game
 const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
@@ -125,8 +125,13 @@ for (let r = 0; r < 5; r++) {
 }
 results.push(...Array(5).fill(true)); // nationals
 let stuck = false;
+let n = 0;
 for (const won of results) {
   await drain('.story-hub', 600);
+  if (process.env.SKK_BROWSER === 'chromium' && n++ % 5 === 0) {
+    const m = await page.evaluate(() => ({ heapMB: Math.round((performance.memory?.usedJSHeapSize ?? 0) / 1e6), nodes: document.getElementsByTagName('*').length }));
+    console.log(`  game ${n}: heap ${m.heapMB} MB, DOM ${m.nodes}`);
+  }
   await page.evaluate((w) => window.__story.forceResult(w), won);
   if (!(await page.waitForSelector('.postgame-screen', { timeout: 5000 }).catch(() => null))) { stuck = true; break; }
   await page.click('[data-act="go"]');
