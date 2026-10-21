@@ -25,6 +25,7 @@ import * as trophies from './meta/trophies.js';
 import * as unlocks from './meta/unlocks.js';
 import * as story from './meta/story.js';
 import { TutorialScreen } from './ui/screens/tutorial.js';
+import { StoryDevScreen } from './ui/screens/storyDev.js';
 import { TutorialDirector } from './game/tutorialDirector.js';
 import { cityTrackId } from './engine/audioTracks.js';
 import fieldsData from './data/fields.json';
@@ -202,6 +203,7 @@ async function bootFlow() {
   router.register('locker', LockerScreen);
   router.register('gearUp', GearUpScreen);
   router.register('tutorial', TutorialScreen);
+  router.register('storyDev', StoryDevScreen);
 
   // ---------- pause button + pause/sound overlay ----------
   const pauseBtn = document.createElement('button');
