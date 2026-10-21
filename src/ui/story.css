@@ -142,3 +142,7 @@
 .m-player.m-crest { height: auto; width: 78%; max-height: 40%; bottom: 18%; object-position: center; filter: drop-shadow(0 8px 18px rgba(0,0,0,.6)); }
 .m-player.woman.m-crest { visibility: hidden !important; }
 .m-player.man.m-crest { transform: translateX(-50%); }
+
+/* START OVER — quiet until armed, then loud */
+.crew-room .cr-reset { margin-top: 14px; background: none; border: 0; color: rgba(255,255,255,.45); font: 800 12px var(--display); letter-spacing: 2px; padding: 10px 14px; }
+.crew-room .cr-reset.armed { color: #fff; background: #c8102e; border-radius: 10px; }

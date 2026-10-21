@@ -86,6 +86,11 @@ export function saveStory(save, story) {
   save.set(STORY_KEY, story);
 }
 
+/** START OVER: the climb is gone (crew, roster, progress); the coin wallet and gear stay. */
+export function resetStory(save) {
+  save.set(STORY_KEY, null);
+}
+
 // ---- which scenes play (ids are the script contract: docs/superpowers/story-script-brief.md)
 const scenePrefix = (stop) => ({
   ladder: `${stop.regionId}-${stop.teamId}`,

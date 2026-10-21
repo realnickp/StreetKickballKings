@@ -111,3 +111,12 @@ it('Quick Play: the ten, plus every story crew you beat', () => {
   expect(quickPlayCrews(teams, null).map((t) => t.id)).toEqual(['a']);
   expect(quickPlayCrews(teams, { beaten: ['c', 'a'] }).map((t) => t.id)).toEqual(['a', 'c']);
 });
+import { resetStory } from '../src/meta/story.js';
+it('START OVER wipes the climb (crew, roster, progress) and keeps the coin wallet', () => {
+  const save = new SaveManager({ backend: 'memory' });
+  save.set('crowns', 340);
+  saveStory(save, { ...newStory({ crew, roster }), region: 3, rung: 2 });
+  resetStory(save);
+  expect(loadStory(save)).toBeNull();
+  expect(save.get('crowns', 0)).toBe(340);
+});
