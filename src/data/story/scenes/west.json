@@ -1,0 +1,520 @@
+{
+  "scenes": {
+    "west-open": {
+      "id": "west-open",
+      "still": "west-open",
+      "music": "theme",
+      "title": { "top": "CHAPTER 5 · THE WEST COAST", "sub": "LAST STOP BEFORE THE CROWN" },
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Tasha", "text": "Landed. West ladder: Threshers, Hyphy, Rainmakers, Tsunami, Lumberjacks." },
+          { "from": "Pops", "text": "First plane, youngins. Nothing broke down. Not even me." },
+          { "from": "Keys", "text": "Pops held the armrest for 5 hours. both armrests. one was mine" },
+          { "from": "Dre", "text": "WE'RE AT THE BEACH 🌊🌴 A PELICAN LOOKED AT ME. HE KNOWS WHO WE ARE" },
+          { "from": "Keys", "text": "he does not" },
+          { "from": "Tasha", "text": "Win this region and my next text is one word. Don't make me wait." },
+          { "from": "me", "text": "LA first. let's work" }
+        ] },
+        { "kind": "dm", "name": "Commissioner Lou · West Coast Ladder", "avatar": "{crewLogo}", "messages": [
+          { "from": "Commissioner Lou", "text": "{crew}. Lou. Four regions from nowhere. Never been done. I checked." },
+          { "from": "Commissioner Lou", "text": "The West has your tape on loop. They don't scare easy. Teach 'em." },
+          { "from": "me", "text": "lessons start saturday" }
+        ] }
+      ],
+      "slam": "LAST STOP"
+    },
+
+    "west-threshers-before": {
+      "id": "west-threshers-before",
+      "still": "west-turf",
+      "music": "city-los-angeles",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Mayor of the boulevard here. Saw y'all on my feed. Four regions. Cute." },
+          { "from": "{captain}", "text": "Out here we roll low and slow. Then the JAWS DROP. Then you sink." },
+          { "from": "{captain}", "text": "Saturday, 4pm. Golden hour. Look good losing, {crew}." },
+          { "from": "me", "text": "we look good either way" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "Threshers hit .350 at sunset. sun's right in the fielders' eyes. on purpose" },
+          { "from": "Dre", "text": "GOT SUNGLASSES 😎 boardwalk special. one lens is darker than the other" },
+          { "from": "Tasha", "text": "Six miles. Ninety minutes of traffic. We leave at noon. That's LA." },
+          { "from": "Pops", "text": "Smooth crews hate a rush, youngin. Speed the game up on 'em." }
+        ] }
+      ],
+      "slam": "GAME DAY"
+    },
+    "west-threshers-win": {
+      "id": "west-threshers-win",
+      "still": "west-turf",
+      "music": "city-los-angeles",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "WE BEAT LA 🌴🔥 THE JAWS DIDN'T DROP. THEY CLOSED" },
+          { "from": "Keys", "text": "Doc Hydraulics' pitch bounces twice before the plate. we waited. it worked" },
+          { "from": "Tasha", "text": "Lowrider Lou asked for a picture with Pops. Pops struck a pose." },
+          { "from": "Pops", "text": "Had a pose in '98 too. Nobody saw it. Bus." },
+          { "from": "Dre", "text": "THE BUS AGAIN 😭" },
+          { "from": "me", "text": "Oakland next" }
+        ] }
+      ],
+      "slam": "ONE DOWN"
+    },
+    "west-threshers-loss": {
+      "id": "west-threshers-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Jaws dropped. Y'all sank. Enjoy the beach on your way out, {crew}." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "first game out West, first L. statistically normal. emotionally no" },
+          { "from": "me", "text": "run it back" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+    "west-threshers-recruit": {
+      "id": "west-threshers-recruit",
+      "still": "recruit-handshake",
+      "music": "city-los-angeles",
+      "threads": [
+        { "kind": "dm", "name": "{recruit} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{recruit}", "text": "Mayor runs the Threshers like a parade. Every play gotta look pretty." },
+          { "from": "{recruit}", "text": "Sometimes I just wanna win ugly. Y'all win any way you can." },
+          { "from": "me", "text": "we win ugly a lot" },
+          { "from": "{recruit}", "text": "I noticed. That's a compliment." },
+          { "from": "{recruit}", "text": "Room on {crew} for me?" }
+        ] }
+      ]
+    },
+
+    "west-oakland-before": {
+      "id": "west-oakland-before",
+      "still": "west-turf",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "{crew}!! It's the TOWN, baby! We go dumb out here. Ask Dante. He's the expert." },
+          { "from": "{captain}", "text": "GHOST RIDE: runner takes off, nobody's driving, the bases just move." },
+          { "from": "{captain}", "text": "Saturday by the lake. Bring dancing shoes. The game IS the party." },
+          { "from": "me", "text": "we'll dance after we win" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "THE TOWN!!! been practicing my turf dance in the hotel 🕺🕺" },
+          { "from": "Keys", "text": "the front desk called. twice" },
+          { "from": "Keys", "text": "Hyphy score in bunches. 6 runs in one inning is a normal Tuesday for them" },
+          { "from": "Tasha", "text": "Train to the lake, then a bus. Pops. Don't." },
+          { "from": "Pops", "text": "I wasn't gonna say nothing, youngin." },
+          { "from": "Pops", "text": "...it was a long bus though." }
+        ] }
+      ],
+      "slam": "GAME DAY"
+    },
+    "west-oakland-win": {
+      "id": "west-oakland-win",
+      "still": "west-turf",
+      "music": "beat",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "WE WENT DUMBER THAN THE TOWN 😂🕺 AND WON" },
+          { "from": "Keys", "text": "not the flex you think it is" },
+          { "from": "Keys", "text": "Sideshow Sly ghost-rode 3 times. tagged him twice. the third he's still running" },
+          { "from": "Tasha", "text": "Turf Dancer Tre taught Dre the dance after. Dre still can't do it." },
+          { "from": "Dre", "text": "I DID IT IN MY HEART" },
+          { "from": "Pops", "text": "The Town gave you respect, youngins. Don't spend it all in one place." },
+          { "from": "me", "text": "Seattle. bring a jacket" }
+        ] }
+      ],
+      "slam": "TWO DOWN"
+    },
+    "west-oakland-loss": {
+      "id": "west-oakland-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "GHOST RIDE!! Y'all couldn't catch nothing! Go home, {crew}! Love y'all tho!" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "they're so NICE about beating us. it's worse" },
+          { "from": "me", "text": "run it back" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+    "west-oakland-recruit": {
+      "id": "west-oakland-recruit",
+      "still": "recruit-handshake",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{recruit} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{recruit}", "text": "AYY. real talk, I love the Town. The Town loves me." },
+          { "from": "{recruit}", "text": "But y'all play like you got somewhere to be. I wanna go where y'all going." },
+          { "from": "me", "text": "we're going to Baltimore" },
+          { "from": "{recruit}", "text": "Then I'm going to Baltimore! Got room on {crew}?" }
+        ] }
+      ]
+    },
+
+    "west-seattle-before": {
+      "id": "west-seattle-before",
+      "still": "west-turf",
+      "music": "city-new-york",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Hello, {crew}. It's raining. It's always raining. We prefer it." },
+          { "from": "{captain}", "text": "Wet ball skids. Wet bases slide. When the DOWNPOUR hits, you lose your feet." },
+          { "from": "{captain}", "text": "Don't bring umbrellas. We laugh at umbrellas. Quietly. But we do." },
+          { "from": "me", "text": "we'll bring towels" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "31 days of rain straight. Rainmakers went 31-0 in that stretch" },
+          { "from": "Dre", "text": "THEN WE'RE THE SUN ☀️☀️ we're bringing the sun Keys" },
+          { "from": "Keys", "text": "you can't bring the sun" },
+          { "from": "Tasha", "text": "Packed 12 towels and a hair dryer. Don't ask about the hair dryer." },
+          { "from": "Pops", "text": "Play the ball you got, youngin. Not the weather you want." }
+        ] }
+      ],
+      "slam": "GAME DAY"
+    },
+    "west-seattle-win": {
+      "id": "west-seattle-win",
+      "still": "west-turf",
+      "music": "city-new-york",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "WE BEAT THE RAIN 🌧️➡️☀️ IT STOPPED RAINING. I DID THAT" },
+          { "from": "Keys", "text": "rain stopped in the 7th. we were up 5. Dre did not do that" },
+          { "from": "Tasha", "text": "The hair dryer was for the ball. Every inning. Lou said it's legal." },
+          { "from": "Keys", "text": "Captain Drizzle shook my hand. it was wet. everything here is wet" },
+          { "from": "Pops", "text": "Two more on the ladder, youngins. Then the bracket. Then we see." },
+          { "from": "me", "text": "San Diego. let's ride" }
+        ] }
+      ],
+      "slam": "THREE DOWN"
+    },
+    "west-seattle-loss": {
+      "id": "west-seattle-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Slipped, {crew}? Happens. Come back anytime. It'll still be raining." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Tasha", "text": "Twelve towels wasn't enough. I'm buying twenty." },
+          { "from": "me", "text": "run it back" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+    "west-seattle-recruit": {
+      "id": "west-seattle-recruit",
+      "still": "recruit-handshake",
+      "music": "city-new-york",
+      "threads": [
+        { "kind": "dm", "name": "{recruit} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{recruit}", "text": "hey. I've been damp since birth. Never minded till today." },
+          { "from": "{recruit}", "text": "Y'all played like the sun was out. I want to play like that." },
+          { "from": "me", "text": "you any good when it's dry?" },
+          { "from": "{recruit}", "text": "Never tried. Bet I'm unstoppable." },
+          { "from": "{recruit}", "text": "Got room on {crew} for a rain kid?" }
+        ] }
+      ]
+    },
+
+    "west-sandiego-before": {
+      "id": "west-sandiego-before",
+      "still": "west-turf",
+      "music": "city-los-angeles",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Surf's up, {crew}. Rode one at sunrise. Riding y'all this afternoon." },
+          { "from": "{captain}", "text": "RIPTIDE pulls your outfield in. Then the kick lands where they used to be." },
+          { "from": "{captain}", "text": "Court's by the beach. Sand in your cleats is home field. Totally legal." },
+          { "from": "me", "text": "we'll shake 'em out" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "Tsunami 18-3. two Ls to Portland. the third was a sunburn forfeit" },
+          { "from": "Dre", "text": "a SUNBURN FORFEIT 😭 Tasha we need more sunscreen" },
+          { "from": "Tasha", "text": "Brought the big bottle. Pops gets two coats. Ears too, Pops." },
+          { "from": "Pops", "text": "I've had these ears since before you were born, youngin. They're fine." }
+        ] }
+      ],
+      "slam": "GAME DAY"
+    },
+    "west-sandiego-win": {
+      "id": "west-sandiego-win",
+      "still": "west-turf",
+      "music": "city-los-angeles",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "WE RODE THE TSUNAMI 🌊🏄 SURFED IT ALL THE WAY HOME" },
+          { "from": "Keys", "text": "Riptide Rafa pulled our outfield in. so we kicked it over him. simple" },
+          { "from": "Tasha", "text": "Fish Taco Tomas made us fish tacos after. The man lives his name." },
+          { "from": "Pops", "text": "One more on the ladder, youngins. Portland. Then the bracket. Then..." },
+          { "from": "Dre", "text": "SAY IT POPS" },
+          { "from": "Pops", "text": "Not yet, youngin. The bus taught me that." },
+          { "from": "me", "text": "Portland. timber" }
+        ] }
+      ],
+      "slam": "FOUR DOWN"
+    },
+    "west-sandiego-loss": {
+      "id": "west-sandiego-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Wiped out, {crew}! It's cool. Everybody wipes out. Paddle back." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "lost to a crew that surfed at 6am first. I respect it. I hate it" },
+          { "from": "me", "text": "run it back" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+    "west-sandiego-recruit": {
+      "id": "west-sandiego-recruit",
+      "still": "recruit-handshake",
+      "music": "city-los-angeles",
+      "threads": [
+        { "kind": "dm", "name": "{recruit} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{recruit}", "text": "bro. I surf. I kick. I don't do much else. Benny says that's enough." },
+          { "from": "{recruit}", "text": "Y'all play like it matters. Like Nationals is real. I want that." },
+          { "from": "me", "text": "it's real" },
+          { "from": "{recruit}", "text": "Then let me ride the wave with you. Room on {crew}?" }
+        ] }
+      ]
+    },
+
+    "west-portland-before": {
+      "id": "west-portland-before",
+      "still": "west-turf",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "{crew}. We split logs. We kick balls. Same swing." },
+          { "from": "{captain}", "text": "When I yell TIMBER, somebody falls. Usually the outfield." },
+          { "from": "{captain}", "text": "We beat everybody out here twice. We'll beat y'all twice." },
+          { "from": "me", "text": "you get one shot" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "Lumberjacks 24-0. no forfeits. no buses. nothing. it's a wall in flannel" },
+          { "from": "Dre", "text": "WALLS FALL 🪓🔥 we been knocking walls down all summer" },
+          { "from": "Tasha", "text": "Rain jacket AND sunscreen. Portland does both in one hour." },
+          { "from": "Pops", "text": "Big crews fall loud, youngin. Stay standing." },
+          { "from": "Pops", "text": "...last rung of the last ladder. '98 never saw one. Go see it for me." }
+        ] }
+      ],
+      "slam": "GAME DAY"
+    },
+    "west-portland-win": {
+      "id": "west-portland-win",
+      "still": "west-turf",
+      "music": "beat",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "WE CHOPPED THE LUMBERJACKS 🪓😭 LADDER!!! DONE!!!" },
+          { "from": "Keys", "text": "24-0 is 24-1 now. I wrote it in pen" },
+          { "from": "Tasha", "text": "Big Timber gave Pops his flannel. Pops won't take it off." },
+          { "from": "Pops", "text": "It's a good flannel, youngin." },
+          { "from": "Pops", "text": "Five ladders. Five. I'm sitting down a minute." },
+          { "from": "Dre", "text": "POPS IS CRYING" },
+          { "from": "Pops", "text": "Pine pollen. Portland's got the worst kind." },
+          { "from": "me", "text": "bracket. then Baltimore" }
+        ] }
+      ],
+      "slam": "LADDER DONE"
+    },
+    "west-portland-loss": {
+      "id": "west-portland-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "TIMBER. Told you somebody falls. Get up, {crew}. Try again." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "we got chopped. there's sawdust in my shoe. I don't know how" },
+          { "from": "me", "text": "run it back" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+    "west-portland-recruit": {
+      "id": "west-portland-recruit",
+      "still": "recruit-handshake",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{recruit} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{recruit}", "text": "Big Timber says flannel's earned. Had mine six years." },
+          { "from": "{recruit}", "text": "Never saw a crew take the TIMBER swing and stand back up like that." },
+          { "from": "me", "text": "what you swing?" },
+          { "from": "{recruit}", "text": "An axe on weekdays. A leg on Saturdays. Both hard." },
+          { "from": "{recruit}", "text": "Room on {crew} for a lumberjack?" }
+        ] }
+      ]
+    },
+
+    "west-bracket": {
+      "id": "west-bracket",
+      "still": "west-bracket",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "Commissioner Lou · West Regionals", "avatar": "{crewLogo}", "messages": [
+          { "from": "Commissioner Lou", "text": "{crew}. Lou. Last bracket. Win it and I call Baltimore myself." },
+          { "from": "Commissioner Lou", "text": "Semi Saturday vs San Diego. Final Sunday. Clean shoes. Still checking." },
+          { "from": "Commissioner Lou", "text": "Five regions from nowhere. One weekend away. Try not to think about it." },
+          { "from": "me", "text": "too late" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Tasha", "text": "Bracket's set. Win Sunday and I send one text. One word." },
+          { "from": "Dre", "text": "I KNOW THE WORD AND I'M ALREADY CRYING 😭😭😭" },
+          { "from": "Keys", "text": "every crew at Nationals is a crew we already beat. every single one" },
+          { "from": "Pops", "text": "'98 we made the bracket and the bus died. Youngins, check the plane." },
+          { "from": "Keys", "text": "Pops the semi is 20 minutes away. by car" },
+          { "from": "Pops", "text": "Check it anyway." },
+          { "from": "me", "text": "see y'all at 6" }
+        ] }
+      ],
+      "slam": "REGIONALS"
+    },
+
+    "west-semi-before": {
+      "id": "west-semi-before",
+      "still": "west-bracket",
+      "music": "city-los-angeles",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Rematch, {crew}. Surfed every sunrise since. Legs are different now." },
+          { "from": "{captain}", "text": "Biggest tide of the year Saturday. Don't get pulled out." },
+          { "from": "me", "text": "we can swim" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "Tsunami 5-0 since we beat them. Benny shaved his head. that's commitment" },
+          { "from": "Dre", "text": "I'M SHAVING MY HEAD TOO 😤" },
+          { "from": "Tasha", "text": "You're not. Team photos are Sunday." },
+          { "from": "Pops", "text": "One wave at a time, youngin. Nobody fights the ocean and wins." }
+        ] }
+      ],
+      "slam": "SEMIFINAL"
+    },
+    "west-semi-win": {
+      "id": "west-semi-win",
+      "still": "west-bracket",
+      "music": "city-los-angeles",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "WEST FINAL BABY 🌊🏆 WE SURFED IT TWICE" },
+          { "from": "Keys", "text": "Benny shaved his head for nothing. I feel bad. a little" },
+          { "from": "Tasha", "text": "Big Timber texted me one word: \"good.\" That's it. Just good." },
+          { "from": "Pops", "text": "One game, youngins. One game between this block and Nationals." },
+          { "from": "me", "text": "one game" }
+        ] }
+      ],
+      "slam": "FINAL NEXT"
+    },
+    "west-semi-loss": {
+      "id": "west-semi-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Riptide pulled you out, {crew}. Paddle back if you can." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Tasha", "text": "Lou says re-enter. I'm already in the car." },
+          { "from": "me", "text": "then we're still in it" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+
+    "west-final-before": {
+      "id": "west-final-before",
+      "still": "west-bracket",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Said we beat everybody twice. Here's twice." },
+          { "from": "{captain}", "text": "Win, you go to Baltimore. Lose, you go home. Either way you're going somewhere." },
+          { "from": "{captain}", "text": "Bring your whole block, {crew}. Let 'em see the swing up close." },
+          { "from": "me", "text": "they're watching. trust" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Pops", "text": "Youngins. Phones down after this. I'm only saying it once." },
+          { "from": "Pops", "text": "All these years I told y'all about a bus. Tomorrow ain't about a bus." },
+          { "from": "Pops", "text": "Tomorrow's about you." },
+          { "from": "Keys", "text": "50-50. first time all summer. I'm not rounding" },
+          { "from": "Dre", "text": "BEEN CRYING SINCE THE SEMI 😭 IT'S A LIFESTYLE NOW" },
+          { "from": "Tasha", "text": "Cooler's packed. Flannel's washed, Pops. You can wear it." },
+          { "from": "me", "text": "west final. let's eat" }
+        ] }
+      ],
+      "slam": "WEST FINAL"
+    },
+    "west-final-win": {
+      "id": "west-final-win",
+      "still": "west-bracket",
+      "music": "beat",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "WE WON THE WEST!!!! FIVE REGIONS!!!!! 🌊🌵🌴👑" },
+          { "from": "Keys", "text": "five. regions. I don't have a number for this. I looked" },
+          { "from": "Tasha", "text": "Big Timber handed me the trophy. Then handed Pops another flannel." },
+          { "from": "Pops", "text": "...Youngins." },
+          { "from": "Pops", "text": "Nobody from this block ever made Nationals." },
+          { "from": "Pops", "text": "Till right now." },
+          { "from": "Dre", "text": "POPS IS—" },
+          { "from": "Pops", "text": "It's pollen. Let me have it." }
+        ] }
+      ],
+      "slam": "WEST CHAMPS"
+    },
+    "west-final-loss": {
+      "id": "west-final-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "TIMBER. Twice. Told you. Get up, {crew}. I'll be right here." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Pops", "text": "We been this close before, youngin. Difference is the bus still runs." },
+          { "from": "me", "text": "again" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+
+    "west-champ": {
+      "id": "west-champ",
+      "still": "west-champ",
+      "music": "theme",
+      "title": { "top": "WEST COAST CHAMPIONS", "sub": "NEXT STOP: THE CROWN" },
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Tasha", "text": "NATIONALS. 🏆" },
+          { "from": "Dre", "text": "NATIONALS!!!!!!! 😭😭😭👑👑👑" },
+          { "from": "Keys", "text": "the field: Philly, Cleveland, Miami, Albuquerque, Portland. we beat all five" },
+          { "from": "Keys", "text": "they've all gotten better since. I checked that too" },
+          { "from": "Pops", "text": "Last game's in Baltimore, youngins. THE CROWN. Where Tasha touched the fence." },
+          { "from": "Tasha", "text": "Through a LOCKED gate. And that was pollen." },
+          { "from": "Pops", "text": "This time the gate's open." },
+          { "from": "me", "text": "then we walk in" }
+        ] },
+        { "kind": "dm", "name": "Commissioner Lou · Nationals", "avatar": "{crewLogo}", "messages": [
+          { "from": "Commissioner Lou", "text": "{crew}. Lou. Called Baltimore like I said. They know your name." },
+          { "from": "Commissioner Lou", "text": "Five regional champs. One court. Nobody from your block ever got this far." },
+          { "from": "Commissioner Lou", "text": "Clean shoes. I check." },
+          { "from": "me", "text": "we know" }
+        ] }
+      ],
+      "slam": "NATIONALS"
+    }
+  }
+}

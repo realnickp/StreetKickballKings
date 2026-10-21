@@ -284,6 +284,18 @@ async function bootFlow() {
     await playVideo('assets/video/splash-intro.mp4', { muted: true });
   }
   router.go('title');
+  // DEV (?storydev): settle the current story game without playing it — the
+  // harness walks the whole climb (scripts/story-e2e.mjs). Never in a menu.
+  if (params.has('storydev')) {
+    window.__story = {
+      save, ctx,
+      forceResult(won) {
+        const story = ctx.story.loadStory(save);
+        if (!ctx.storyStop && story) ctx.storyStop = ctx.story.currentStop(story, ctx.data.storyMap);
+        bus.emit('matchOver', { winner: won ? 'away' : 'home', score: { away: won ? 5 : 1, home: won ? 1 : 5 }, stats: {} });
+      },
+    };
+  }
   // dev: jump straight to a screen for screenshots, e.g. ?nosplash&go=teamSelect
   if (params.has('go')) router.go(params.get('go'));
   if (params.has('tut')) startTutorial(); // dev harness: straight into the drills

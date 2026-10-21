@@ -1,0 +1,521 @@
+{
+  "scenes": {
+    "southwest-open": {
+      "id": "southwest-open",
+      "still": "southwest-open",
+      "music": "theme",
+      "title": { "top": "CHAPTER 4 · THE SOUTHWEST", "sub": "DESERT BALL. NO SHADE." },
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Tasha", "text": "Three regions down. Next: Gilas, Stampede, Jackpots, Mile-Highs, Roadrunners." },
+          { "from": "Keys", "text": "Phoenix Saturday: 109 degrees. the ball goes soft at 105. I looked it up" },
+          { "from": "Dre", "text": "WE GOT A FAN PAGE NOW 📈 41 FOLLOWERS. FORTY. ONE." },
+          { "from": "Keys", "text": "38 of them are Dre's cousins" },
+          { "from": "Dre", "text": "AND THEY ARE ALL VERY SUPPORTIVE" },
+          { "from": "Pops", "text": "Desert don't read fan pages, youngin. Bring water. Then bring more." },
+          { "from": "Tasha", "text": "Car has AC now. Paid for it out the trophy fund. We have a trophy fund." },
+          { "from": "me", "text": "Phoenix first. hydrate" }
+        ] },
+        { "kind": "dm", "name": "Commissioner Lou · Southwest Ladder", "avatar": "{crewLogo}", "messages": [
+          { "from": "Commissioner Lou", "text": "{crew}. Lou. Word travels. Southwest crews been watching your tape." },
+          { "from": "Commissioner Lou", "text": "Nobody's sneaking up on anybody anymore. Least of all you." },
+          { "from": "me", "text": "good. no more sneaking" }
+        ] }
+      ],
+      "slam": "NO SHADE"
+    },
+
+    "southwest-gilas-before": {
+      "id": "southwest-gilas-before",
+      "still": "southwest-turf",
+      "music": "city-phoenix",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "So you're {crew}. Seen the clips. Ever played on blacktop at 110?" },
+          { "from": "{captain}", "text": "Our court don't get shade till 7pm. By then you'll be done." },
+          { "from": "{captain}", "text": "VENOM STRIKE hits slow. You don't feel it till the 5th inning." },
+          { "from": "me", "text": "we'll bring sunscreen" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "Gilas are 9-2 at home in July. visitors score 3 runs. then they take naps" },
+          { "from": "Dre", "text": "I bought a cooling towel 🧊 it says COOL on it. I feel cool already" },
+          { "from": "Tasha", "text": "Ball stays in the cooler till first pitch. I asked Lou. It's legal." },
+          { "from": "Pops", "text": "Heat is patient, youngin. Be more patient." }
+        ] }
+      ],
+      "slam": "GAME DAY"
+    },
+    "southwest-gilas-win": {
+      "id": "southwest-gilas-win",
+      "still": "southwest-turf",
+      "music": "city-phoenix",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "WE BEAT THE HEAT ☀️🔥 AND THE GILAS. THAT'S TWO THINGS" },
+          { "from": "Keys", "text": "Heatwave Hector threw 80 pitches. by the 6th the ball was a pancake" },
+          { "from": "Tasha", "text": "Saguaro Slam asked where we got the cooler. I said the block. He nodded." },
+          { "from": "Dre", "text": "THE COOLING TOWEL WORKED. y'all laughed" },
+          { "from": "Keys", "text": "it melted Dre" },
+          { "from": "Pops", "text": "Desert respects a crew that finishes standing. Y'all stood." },
+          { "from": "me", "text": "Dallas next" }
+        ] }
+      ],
+      "slam": "ONE DOWN"
+    },
+    "southwest-gilas-loss": {
+      "id": "southwest-gilas-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Told you. Venom's slow. Hope the ride home got AC, {crew}." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "112 by the 4th. not making excuses. making a spreadsheet" },
+          { "from": "me", "text": "run it back. earlier" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+    "southwest-gilas-recruit": {
+      "id": "southwest-gilas-recruit",
+      "still": "recruit-handshake",
+      "music": "city-phoenix",
+      "threads": [
+        { "kind": "dm", "name": "{recruit} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{recruit}", "text": "yo. never seen a crew from outside the desert last nine at 110." },
+          { "from": "{recruit}", "text": "Capi says we win cause of the heat. I wanna win cause I'm good." },
+          { "from": "me", "text": "what you bring?" },
+          { "from": "{recruit}", "text": "I don't sweat. Doctor says it's weird. Blacktop says it's a gift." },
+          { "from": "{recruit}", "text": "Got room on {crew} for somebody who stays dry?" }
+        ] }
+      ]
+    },
+
+    "southwest-dallas-before": {
+      "id": "southwest-dallas-before",
+      "still": "southwest-turf",
+      "music": "city-memphis",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Howdy, {crew}. Everything's bigger in Dallas. Including your L." },
+          { "from": "{captain}", "text": "When we TRAMPLE, we don't stop at third. We don't stop at home either." },
+          { "from": "{captain}", "text": "Fair Park, Saturday. Wear boots. It's gonna get dusty." },
+          { "from": "me", "text": "we'll bring a broom" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "Stampede score 4 a game on the bases alone. they don't slide. they arrive" },
+          { "from": "Dre", "text": "so we just gotta STOP A STAMPEDE 🐂 easy. right? RIGHT??" },
+          { "from": "Pops", "text": "You don't stop a stampede, youngin. You step aside and tag the last one." },
+          { "from": "Tasha", "text": "Hotel's booked. One room. Pops snores. Bring earplugs or bring peace." }
+        ] }
+      ],
+      "slam": "GAME DAY"
+    },
+    "southwest-dallas-win": {
+      "id": "southwest-dallas-win",
+      "still": "southwest-turf",
+      "music": "city-memphis",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "STAMPEDE?? MORE LIKE STAMPE-DONE 😂🐂" },
+          { "from": "Keys", "text": "that's worse than Bully Fall and I respect it" },
+          { "from": "Keys", "text": "Big D Brahma got tagged 3 times. kept running like the bases owed him money" },
+          { "from": "Tasha", "text": "Deep Ellum Duke tipped his hat at me. A real hat. Felt like a movie." },
+          { "from": "Pops", "text": "Next town plays with your head, youngins. Vegas." },
+          { "from": "Dre", "text": "VEGAS BABY 🎲✨" },
+          { "from": "Keys", "text": "we're going for kickball Dre" },
+          { "from": "me", "text": "Vegas. poker faces on" }
+        ] }
+      ],
+      "slam": "TWO DOWN"
+    },
+    "southwest-dallas-loss": {
+      "id": "southwest-dallas-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Y'all got trampled, partner. Don't take it personal. Everybody does." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Pops", "text": "Dust off, youngin. We been run over before. Ask my bus." },
+          { "from": "me", "text": "back saturday" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+    "southwest-dallas-recruit": {
+      "id": "southwest-dallas-recruit",
+      "still": "recruit-handshake",
+      "music": "city-memphis",
+      "threads": [
+        { "kind": "dm", "name": "{recruit} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{recruit}", "text": "Howdy. Duke says Stampede ball is run and don't think." },
+          { "from": "{recruit}", "text": "Y'all think AND run. Bases loaded and nobody on your side panicked." },
+          { "from": "me", "text": "looking for a new herd?" },
+          { "from": "{recruit}", "text": "Looking for a herd that's headed to Nationals." },
+          { "from": "{recruit}", "text": "Got a saddle open on {crew}?" }
+        ] }
+      ]
+    },
+
+    "southwest-vegas-before": {
+      "id": "southwest-vegas-before",
+      "still": "southwest-turf",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Welcome to Vegas, {crew}. Your odds tonight? 9 to 1. I set 'em myself." },
+          { "from": "{captain}", "text": "We go ALL IN every inning. And The House never folds. He's our catcher." },
+          { "from": "{captain}", "text": "Under the neon. 9pm. Dress code is shine." },
+          { "from": "me", "text": "we'll bring our own lights" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "Jackpots run hot 6 games, cold 4. they're 6 games into hot. do the math" },
+          { "from": "Dre", "text": "I did the math. it says WE'RE THE JACKPOT 💰✨" },
+          { "from": "Keys", "text": "that's not math" },
+          { "from": "Tasha", "text": "First kick's at 9pm. Pops, that's past your bedtime." },
+          { "from": "Pops", "text": "I ran this block till 2am in '98, youngin. I'll be up." }
+        ] }
+      ],
+      "slam": "GAME DAY"
+    },
+    "southwest-vegas-win": {
+      "id": "southwest-vegas-win",
+      "still": "southwest-turf",
+      "music": "beat",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "WE BROKE THE BANK 💰💰 THE HOUSE LOST. THE HOUSE NEVER LOSES" },
+          { "from": "Keys", "text": "The House is their catcher. he lost. it's literal AND great" },
+          { "from": "Tasha", "text": "Hollis asked how we read Lady Luck's pitch. I said Keys has a spreadsheet." },
+          { "from": "Keys", "text": "it's a binder now" },
+          { "from": "Pops", "text": "Luck runs out, youngins. Practice don't." },
+          { "from": "Dre", "text": "WE'RE ON A BILLBOARD ON THE STRIP 😭" },
+          { "from": "Tasha", "text": "That's a phone, Dre. You're holding a phone up to a billboard." },
+          { "from": "me", "text": "Denver. thin air" }
+        ] }
+      ],
+      "slam": "THREE DOWN"
+    },
+    "southwest-vegas-loss": {
+      "id": "southwest-vegas-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "House always wins, {crew}. Thanks for playing. Valet's out front." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "they bought us a buffet after. I'm sad but I'm FULL" },
+          { "from": "me", "text": "run it back" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+    "southwest-vegas-recruit": {
+      "id": "southwest-vegas-recruit",
+      "still": "recruit-handshake",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{recruit} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{recruit}", "text": "Real talk. Hollis bets the whole game on one kick. Every inning." },
+          { "from": "{recruit}", "text": "I'm tired of all in. I want a crew that grinds." },
+          { "from": "me", "text": "you can grind?" },
+          { "from": "{recruit}", "text": "First pitch till the Strip turns its lights off. And it never does." },
+          { "from": "{recruit}", "text": "So what are my odds on {crew}?" }
+        ] }
+      ]
+    },
+
+    "southwest-denver-before": {
+      "id": "southwest-denver-before",
+      "still": "southwest-turf",
+      "music": "city-new-york",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "{crew}. We play a mile up. Your lungs are about to file a complaint." },
+          { "from": "{captain}", "text": "Ball flies further up here. So do we. THIN AIR, baby." },
+          { "from": "{captain}", "text": "Bring a jacket. It snowed in June once. Mid-game. We kept playing." },
+          { "from": "me", "text": "we did the Midwest. we got jackets" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "kicks go 9% further in Denver. ours too. theirs too. it's a wash" },
+          { "from": "Dre", "text": "I ran ONE lap around the hotel. I SAW MY ANCESTORS 😵" },
+          { "from": "Tasha", "text": "Oxygen cans in the trunk. Two each. Pops gets three." },
+          { "from": "Pops", "text": "I don't need oxygen, youngin. I need a chair." }
+        ] }
+      ],
+      "slam": "GAME DAY"
+    },
+    "southwest-denver-win": {
+      "id": "southwest-denver-win",
+      "still": "southwest-turf",
+      "music": "city-new-york",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "WE WON A MILE UP 🏔️🏔️ STILL CAN'T BREATHE BUT WE WON" },
+          { "from": "Keys", "text": "Rocky Ridge Rhett kicked one into a parking lot. we still won by 4" },
+          { "from": "Tasha", "text": "Peak Pressure said we're the first visitors who never used the oxygen." },
+          { "from": "Pops", "text": "I used two." },
+          { "from": "Keys", "text": "Pops you sat the whole game" },
+          { "from": "Pops", "text": "Sitting a mile up is still work, youngin." },
+          { "from": "Dre", "text": "ONE LEFT ON THE LADDER 🙏🙏" },
+          { "from": "me", "text": "Albuquerque. let's run" }
+        ] }
+      ],
+      "slam": "FOUR DOWN"
+    },
+    "southwest-denver-loss": {
+      "id": "southwest-denver-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Air's thin. So was your lead. See you at sea level, {crew}." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "lost by 1. at altitude. I'm scoring it a tie at sea level" },
+          { "from": "me", "text": "run it back" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+    "southwest-denver-recruit": {
+      "id": "southwest-denver-recruit",
+      "still": "recruit-handshake",
+      "music": "city-new-york",
+      "threads": [
+        { "kind": "dm", "name": "{recruit} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{recruit}", "text": "Grew up a mile high. Never seen flatlanders play nine like that." },
+          { "from": "{recruit}", "text": "Peak says we're above everybody. I'm tired of looking down." },
+          { "from": "me", "text": "you can play at sea level?" },
+          { "from": "{recruit}", "text": "Down there? I'll have lungs for days. I'll never get tired." },
+          { "from": "{recruit}", "text": "Got room on {crew} for a mountain kid?" }
+        ] }
+      ]
+    },
+
+    "southwest-albuquerque-before": {
+      "id": "southwest-albuquerque-before",
+      "still": "southwest-turf",
+      "music": "city-phoenix",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "{crew}. {captain} here. We don't post. We don't trash talk." },
+          { "from": "{captain}", "text": "You ever see a roadrunner? No. You don't. That's the point. Beep beep." },
+          { "from": "{captain}", "text": "When DUST DEVIL hits the bases, you'll be swatting sand for an inning." },
+          { "from": "{captain}", "text": "Green chile's on us after. Win or lose. That's just manners." },
+          { "from": "me", "text": "see you saturday" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "31 steals in 6 games. Dust Devil Dom has never been thrown out. never" },
+          { "from": "Dre", "text": "so we CATCH A ROADRUNNER 🐦💨 nobody ever has. good. we'll be first" },
+          { "from": "Pops", "text": "Fast crews hate one thing, youngin. Waiting. Make 'em wait." },
+          { "from": "Tasha", "text": "Last rung. Then the bracket. Then the West. Then..." },
+          { "from": "Tasha", "text": "I'm not saying it. Y'all know." }
+        ] }
+      ],
+      "slam": "GAME DAY"
+    },
+    "southwest-albuquerque-win": {
+      "id": "southwest-albuquerque-win",
+      "still": "southwest-turf",
+      "music": "city-phoenix",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "WE CAUGHT THE ROADRUNNER 🐦🏆 LADDER DONE!!!!" },
+          { "from": "Keys", "text": "Dom got thrown out at second. first time ever. he stared at the ball like it lied" },
+          { "from": "Tasha", "text": "Fiesta Bea brought the green chile anyway. Like she promised. I'm emotional." },
+          { "from": "Dre", "text": "TASHA'S CRYING" },
+          { "from": "Tasha", "text": "It's pollen. And green chile." },
+          { "from": "Pops", "text": "Bracket's where buses break down, youngins. Check the tires." },
+          { "from": "me", "text": "tires checked" }
+        ] }
+      ],
+      "slam": "LADDER DONE"
+    },
+    "southwest-albuquerque-loss": {
+      "id": "southwest-albuquerque-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Beep beep, {crew}. Chile's still on us. Come eat." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "they stole 6 bases. I wrote every one down. took a while" },
+          { "from": "me", "text": "again" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+    "southwest-albuquerque-recruit": {
+      "id": "southwest-albuquerque-recruit",
+      "still": "recruit-handshake",
+      "music": "city-phoenix",
+      "threads": [
+        { "kind": "dm", "name": "{recruit} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{recruit}", "text": "Diablo doesn't know I'm texting. Nobody sees what I do. I'm fast." },
+          { "from": "{recruit}", "text": "Y'all stood still and let us come to you. Never saw a crew that calm." },
+          { "from": "me", "text": "you wanna learn calm?" },
+          { "from": "{recruit}", "text": "I'll learn calm. Y'all learn fast. Fair trade." },
+          { "from": "{recruit}", "text": "Spot on {crew} for a roadrunner?" }
+        ] }
+      ]
+    },
+
+    "southwest-bracket": {
+      "id": "southwest-bracket",
+      "still": "southwest-bracket",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "Commissioner Lou · Southwest Regionals", "avatar": "{crewLogo}", "messages": [
+          { "from": "Commissioner Lou", "text": "{crew}. Lou. People call me about y'all now. I don't like calls." },
+          { "from": "Commissioner Lou", "text": "Semi Saturday vs Denver. Final Sunday. Ball comes out the cooler at first pitch." },
+          { "from": "Commissioner Lou", "text": "No outsider ever won the desert final. Just so you know what you're carrying." },
+          { "from": "me", "text": "we know" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Tasha", "text": "Bracket's locked. Two games. Then the West. Then I'm saying the word." },
+          { "from": "Dre", "text": "SHE'S GONNA SAY THE WORD 😭😭" },
+          { "from": "Keys", "text": "we're 3 for 3 in brackets. I have never trusted a streak less" },
+          { "from": "Pops", "text": "Same bus, different desert, youngins. Tires are good. Sleep." },
+          { "from": "me", "text": "6am. sunscreen" }
+        ] }
+      ],
+      "slam": "REGIONALS"
+    },
+
+    "southwest-semi-before": {
+      "id": "southwest-semi-before",
+      "still": "southwest-bracket",
+      "music": "city-new-york",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Rematch. We trained at 10,000 feet since. In a ski lot. No joke." },
+          { "from": "{captain}", "text": "Desert air's thick. Down here we fly, {crew}." },
+          { "from": "me", "text": "we'll be waiting when you land" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "Mile-Highs kick 20% harder since we beat them. angry AND well-rested" },
+          { "from": "Dre", "text": "WE'RE ANGRY AND WELL-RESTED TOO 😤" },
+          { "from": "Tasha", "text": "Dre slept four hours." },
+          { "from": "Pops", "text": "Every crew you beat comes back hungrier, youngin. Feed 'em nothing." }
+        ] }
+      ],
+      "slam": "SEMIFINAL"
+    },
+    "southwest-semi-win": {
+      "id": "southwest-semi-win",
+      "still": "southwest-bracket",
+      "music": "city-new-york",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "WE IN THE SOUTHWEST FINAL 🌵🏆" },
+          { "from": "Keys", "text": "beat Denver twice. once up high, once down low. full coverage" },
+          { "from": "Tasha", "text": "Peak Pressure says they're going back up the mountain to think about it." },
+          { "from": "Pops", "text": "Roadrunner tomorrow. Don't chase it, youngins. Let it come to you." },
+          { "from": "me", "text": "let it come" }
+        ] }
+      ],
+      "slam": "FINAL NEXT"
+    },
+    "southwest-semi-loss": {
+      "id": "southwest-semi-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Thin air got you twice, {crew}. Breathe easy. Somewhere else." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Tasha", "text": "Lou says we can re-enter. Tank's already full." },
+          { "from": "me", "text": "then we're still in it" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+
+    "southwest-final-before": {
+      "id": "southwest-final-before",
+      "still": "southwest-bracket",
+      "music": "city-phoenix",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "I said we don't trash talk. I'm keeping that." },
+          { "from": "{captain}", "text": "But Albuquerque hasn't lost a home final in thirty years. Not once." },
+          { "from": "{captain}", "text": "Green chile after. Like always. Win or lose, {crew}." },
+          { "from": "me", "text": "save us a plate" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Pops", "text": "Thirty years they never lost at home. I know about thirty-year stories." },
+          { "from": "Pops", "text": "Mine's got a bus in it. Theirs got a streak. Tomorrow one of 'em ends." },
+          { "from": "Keys", "text": "52-48 Roadrunners. the 4 points is the heat. I factored the heat" },
+          { "from": "Dre", "text": "I'M HYDRATED AND I'M READY AND I'M CRYING 😭💧" },
+          { "from": "Tasha", "text": "Cooler's iced. Dre, drink the water. Don't cry it." },
+          { "from": "me", "text": "southwest final. let's eat" }
+        ] }
+      ],
+      "slam": "DESERT FINAL"
+    },
+    "southwest-final-win": {
+      "id": "southwest-final-win",
+      "still": "southwest-bracket",
+      "music": "city-phoenix",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "WE WON THE SOUTHWEST!!!! FOUR REGIONS!!!! 🌵👑🔥" },
+          { "from": "Keys", "text": "four regions. four brackets. I stopped doing spreadsheets. we're just good" },
+          { "from": "Tasha", "text": "Diablo brought the green chile. Shook every hand. Even Pops'. Twice." },
+          { "from": "Pops", "text": "Thirty-year streak. Gone. Hm." },
+          { "from": "Pops", "text": "Feels different from this side, youngins." },
+          { "from": "Dre", "text": "POPS IS CRYING AGAIN" },
+          { "from": "Pops", "text": "Desert pollen. It's worse." },
+          { "from": "me", "text": "one more region" }
+        ] }
+      ],
+      "slam": "SOUTHWEST CHAMPS"
+    },
+    "southwest-final-loss": {
+      "id": "southwest-final-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Thirty-one years. Chile's still on us, {crew}. Come eat." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Pops", "text": "Streaks end, youngin. Not tonight. Next time. Bracket's open." },
+          { "from": "me", "text": "again" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+
+    "southwest-champ": {
+      "id": "southwest-champ",
+      "still": "southwest-champ",
+      "music": "theme",
+      "title": { "top": "SOUTHWEST CHAMPIONS", "sub": "FOUR DOWN. ONE TO GO." },
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Tasha", "text": "Lou emailed. West Coast ladder opens Monday. LA, Oakland, Seattle, SD, Portland." },
+          { "from": "Keys", "text": "West crews been posting our clips since Miami. with captions. mean captions" },
+          { "from": "Dre", "text": "THEY'RE STUDYING US 👀👀 WE'RE THE TAPE NOW" },
+          { "from": "Pops", "text": "'98 we never saw the Pacific, youngins. Bus didn't make it past Ohio." },
+          { "from": "Tasha", "text": "Car can't make LA either. We're flying. First plane for Pops." },
+          { "from": "Pops", "text": "I'll pack snacks for the bus." },
+          { "from": "Keys", "text": "it's a plane Pops" },
+          { "from": "me", "text": "pack light. last stop" }
+        ] },
+        { "kind": "dm", "name": "Duke City Diablo · Albuquerque Roadrunners", "avatar": "{rivalLogo}", "messages": [
+          { "from": "Duke City Diablo", "text": "West Coast talks a lot. Let 'em. You won the desert without talking back." },
+          { "from": "Duke City Diablo", "text": "See you at Nationals. I'm bringing the chile to Baltimore." }
+        ] }
+      ],
+      "slam": "NEXT: WEST COAST"
+    }
+  }
+}
