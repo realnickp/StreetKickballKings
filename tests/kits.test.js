@@ -626,3 +626,17 @@ describe('the Locker preview dresses like the field', () => {
     }
   });
 });
+
+// YOUR story crew has no mark file — its marks are tinted at runtime and ride on
+// `team.markByInk`. A Locker uniform (BLACKOUT etc.) must still put one on the shirt.
+it('story: a Locker uniform on your own crew carries the mark tinted for its ink', () => {
+  const yours = { id: 'yours', colors: { primary: '#2f5bea' }, kits: { dark: { hex: '#16161a', ink: inkFor('#16161a'), logo: 'stock/mark-01', img: '' }, light: { hex: '#2f5bea', ink: inkFor('#2f5bea'), logo: 'stock/mark-01', img: '' } },
+    markByInk: { [inkFor('#16161a')]: 'data:on-dark', [inkFor('#f2f2f4')]: 'data:on-light' } };
+  const black = resolveGearKit({ id: 'kit-blackout', hex: '#1b1b22', name: 'BLACKOUT KIT' }, yours);
+  expect(black.logoUrl).toBe(yours.markByInk[inkFor('#1b1b22')]);
+  const white = resolveGearKit({ id: 'kit-whiteout', hex: '#f2f2f4', name: 'WHITEOUT KIT' }, yours);
+  expect(white.logoUrl).toBe('data:on-light');
+  // a crew with real mark files is untouched
+  const monarchs = { id: 'monarchs', colors: { primary: '#F5B312' }, kits: {} };
+  expect(resolveGearKit({ id: 'kit-blackout', hex: '#1b1b22' }, monarchs).logoUrl).toBeUndefined();
+});

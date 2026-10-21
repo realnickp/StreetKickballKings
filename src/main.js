@@ -308,13 +308,13 @@ async function bootFlow() {
    *  a card with RETRY (same matchup, same kits) and MAIN MENU. */
   async function startMatchFlow(playerTeam, opponentTeam, kits, opts = {}) {
     try {
-      await runMatchFlow(playerTeam, opponentTeam, kits);
+      await runMatchFlow(playerTeam, opponentTeam, kits, opts);
     } catch (e) {
       console.error('[skk] match build failed:', e);
       telemetry.error(e, { where: 'startMatchFlow', home: opponentTeam?.id, away: playerTeam?.id });
       if (ctx.scene) { try { ctx.scene.destroy(); } catch { /* fine */ } ctx.scene = null; }
       audio.stopMusic();
-      showFlowError(() => startMatchFlow(playerTeam, opponentTeam, kits));
+      showFlowError(() => startMatchFlow(playerTeam, opponentTeam, kits, opts)); // a story retry stays the story game
     }
   }
 
@@ -332,7 +332,7 @@ async function bootFlow() {
     uiRoot.appendChild(card);
   }
 
-  async function runMatchFlow(playerTeam, opponentTeam, kits) {
+  async function runMatchFlow(playerTeam, opponentTeam, kits, opts = {}) {
     ctx.playerTeam = playerTeam;
     ctx.opponentTeam = opponentTeam;
 
@@ -483,7 +483,7 @@ async function bootFlow() {
     const base = teamsData.teams.find((t) => t.id === teamId);
     if (!base) return router.go('storyHub');
     const stop = replay
-      ? { kind: 'ladder', regionId: base.region, teamId, index: 0, total: 5, progress01: 1, fieldId: null, replay: true }
+      ? { kind: 'ladder', regionId: base.region, teamId, index: 0, total: 5, progress01: 0.5, fieldId: null, replay: true } // "no pressure": Street
       : at;
     const mine = await withTintedMarks(crewTeam(story), story.crew);
     if (!replay) await playScenes(ctx, [ctx.story.beforeScene(stop)], varsFor(story, { rival: base, crewLogo: mine.logo }));
@@ -569,6 +569,13 @@ async function bootFlow() {
     if (ctx.storyStop) {
       const stop = ctx.storyStop;
       ctx.storyStop = null;
+      // the story result never passes through backToMenu — tear the match down
+      // HERE so 16 GLB bodies + the crowd don't live on behind the hub (iOS budget)
+      // (next tick: matchOver is emitted from inside the scene's own frame)
+      const done = ctx.scene;
+      ctx.scene = null;
+      if (done) setTimeout(() => done.destroy(), 0);
+      audio.ambience(false);
       router.go('storyResult', { winner, score, stats, playerSide: 'away', stop, replay: !!stop.replay });
       return;
     }

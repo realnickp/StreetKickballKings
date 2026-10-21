@@ -79,6 +79,15 @@ describe('nobody is anybody else', () => {
     }
   });
 
+  it('Quick Play: the ten ready crews (who meet each other) never repeat an archetype in the same slot', () => {
+    const ready = teams.teams.filter((t) => t.status === 'ready').map((t) => casts.casts[t.id]);
+    expect(ready.length).toBe(10);
+    for (let s = 0; s < SLOTS; s++) {
+      const col = ready.map((cast) => cast[s].archetype);
+      expect(new Set(col).size, `ready slot ${s}: ${col}`).toBe(ready.length);
+    }
+  });
+
   it('gives every crew in a region its own captain', () => {
     for (const r of regions) {
       const caps = r.entries.map(([, cast]) => cast[0].archetype);

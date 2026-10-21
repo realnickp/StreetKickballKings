@@ -117,6 +117,11 @@ const dress = (team, tone) => ({ ...kitFor(team, tone), tone });
 const PAIRINGS = [{ home: 'dark', away: 'light' }, { home: 'light', away: 'dark' }];
 const same = (a, b) => a.home === b.home && a.away === b.away;
 
+/** YOUR story crew has no mark FILE: markTint.js tints its stock mark per ink
+ *  (`team.markByInk`). A kit cut around a new hex takes the one for its ink;
+ *  crews with real mark files get nothing here (their `logo` resolves). */
+const markUrlFor = (team, hex) => (team?.markByInk ? { logoUrl: team.markByInk[inkFor(hex)] } : {});
+
 /** An equipped Locker uniform as a kit. `kit-team-light`/`kit-team-dark` are
  *  your crew's own kits (`teamKit`); BLACKOUT/WHITEOUT/GOLD are flat colours,
  *  so their ink and logo variant are derived the same way the data is. */
@@ -132,6 +137,7 @@ export function resolveGearKit(gear, team) {
     tone: toneOf(hex),
     gear: gear.id,
     name: gear.name,
+    ...markUrlFor(team, hex),
   };
 }
 
@@ -140,7 +146,7 @@ export function resolveGearKit(gear, team) {
  *  a light number and a dark-kit mark on a pale shirt. */
 const shiftKit = (kit, team, vsHex) => {
   const hex = contrastUniform(kit.hex, vsHex);
-  return { ...kit, hex, ink: inkFor(hex), logo: logoFor(team, hex) };
+  return { ...kit, hex, ink: inkFor(hex), logo: logoFor(team, hex), ...markUrlFor(team, hex) };
 };
 
 /** How far a kit stands off the ground it's played on, in L*. `groundL` is the

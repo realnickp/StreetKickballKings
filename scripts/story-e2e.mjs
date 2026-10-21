@@ -95,7 +95,7 @@ check(sv.story.roster[1].nick === recruitName && sv.story.roster[1].from === 'sn
 
 // 6. QUIT mid-match
 const story0 = JSON.stringify((await save()).story);
-await page.click('.sh-play');
+await page.click('.sh-play', { force: true }); // it bounces to the beat — never 'stable'
 const inMatch = await drain('.pause-btn[style*="flex"]', 900);
 check(inMatch, 'QUIT: the rung-2 match starts (before-scene, then the game)');
 if (inMatch) {

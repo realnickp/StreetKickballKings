@@ -127,7 +127,8 @@ export function StoryHubScreen(ctx) {
         play.textContent = 'REPLAY';
         play.addEventListener('pointerdown', () => { ctx.bus.emit('sfx', 'scratch'); ctx.router.go('storyReplay'); });
       } else {
-        play.addEventListener('pointerdown', () => { ctx.bus.emit('sfx', 'bassdrop'); ctx.startStoryMatch?.(); });
+        // { once }: a double tap must not build two matches (the second would orphan the first)
+        play.addEventListener('pointerdown', () => { play.disabled = true; ctx.bus.emit('sfx', 'bassdrop'); ctx.startStoryMatch?.(); }, { once: true });
       }
       s.querySelector('[data-act="crew"]').addEventListener('pointerdown', () => { ctx.bus.emit('sfx', 'scratch'); ctx.router.go('crewRoom'); });
       s.querySelector('[data-act="menu"]').addEventListener('pointerdown', () => { ctx.bus.emit('sfx', 'scratch'); ctx.router.go('menu'); });
@@ -152,7 +153,12 @@ export function StoryReplayScreen(ctx) {
         b.querySelector('img').src = t.logo;
         b.querySelector('b').textContent = t.name.toUpperCase();
         b.querySelector('span').textContent = t.city.toUpperCase();
-        b.addEventListener('pointerdown', () => { ctx.bus.emit('sfx', 'bassdrop'); ctx.startStoryMatch?.({ replay: id }); });
+        b.addEventListener('pointerdown', () => {
+          if (grid.dataset.going) return; // one match at a time
+          grid.dataset.going = '1';
+          ctx.bus.emit('sfx', 'bassdrop');
+          ctx.startStoryMatch?.({ replay: id });
+        });
         grid.appendChild(b);
       }
       s.querySelector('[data-act="back"]').addEventListener('pointerdown', () => ctx.router.go('storyHub'));

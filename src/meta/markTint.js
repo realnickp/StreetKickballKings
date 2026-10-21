@@ -2,6 +2,8 @@
 // glyphs on transparent; this paints one in a hex (canvas `source-in`) and
 // hands back a data URL the <img>s, the logo clash and the jersey decals can
 // all use like any crew's logo file. Cached per mark+colour.
+import { inkFor } from '../game/kits.js';
+
 const cache = new Map();
 
 export const markFileUrl = (markId) => `assets/logos/stock/${markId}.png`;
@@ -35,13 +37,17 @@ export function tintedMarkUrl(markId, hex) {
  *  kits' decals become the tinted mark (primary on the dark kit, the light
  *  kit's ink on the light one). */
 export async function withTintedMarks(team, crew) {
-  const [onDark, onLight] = await Promise.all([
+  const INKS = [inkFor('#000000'), inkFor('#ffffff')]; // the two jersey inks
+  const [onDark, onLight, ...byInk] = await Promise.all([
     tintedMarkUrl(crew.mark, crew.primary),
     tintedMarkUrl(crew.mark, team.kits.light.ink),
+    ...INKS.map((ink) => tintedMarkUrl(crew.mark, ink)),
   ]);
   return {
     ...team,
     logo: onDark,
+    // a Locker uniform / clash-shifted kit takes the mark for ITS ink (kits.js)
+    markByInk: Object.fromEntries(INKS.map((ink, i) => [ink, byInk[i]])),
     kits: { dark: { ...team.kits.dark, logoUrl: onDark }, light: { ...team.kits.light, logoUrl: onLight } },
   };
 }
