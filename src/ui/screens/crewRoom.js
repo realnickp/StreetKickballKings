@@ -118,25 +118,28 @@ export function CrewRoomScreen(ctx) {
       paintDiff();
       render();
       s.querySelector('[data-act="edit"]').addEventListener('pointerdown', () => { ctx.bus.emit('sfx', 'scratch'); ctx.router.go('createCrew', { edit: true }); });
-      // two taps: the first arms it (and says what it wipes), the second starts a new crew
-      const reset = s.querySelector('[data-act="reset"]');
-      let armed = null;
-      reset.addEventListener('pointerdown', () => {
-        if (!armed) {
-          reset.classList.add('armed');
-          reset.textContent = 'TAP AGAIN — NEW CREW, CLIMB WIPED';
-          ctx.bus.emit('sfx', 'scratch');
-          armed = setTimeout(() => { armed = null; reset.classList.remove('armed'); reset.textContent = 'START OVER'; }, 3500);
-          return;
-        }
-        clearTimeout(armed);
-        resetStory(ctx.save);
-        ctx.bus.emit('sfx', 'juke');
-        ctx.router.go('createCrew');
-      });
+      armStartOver(s.querySelector('[data-act="reset"]'), ctx);
       s.querySelector('[data-act="back"]').addEventListener('pointerdown', () => { ctx.bus.emit('sfx', 'scratch'); ctx.router.go('storyHub'); });
     },
   };
+}
+
+/** START OVER, two taps: the first arms it (and says what it wipes), the second starts a new crew. */
+export function armStartOver(btn, ctx) {
+  let armed = null;
+  btn.addEventListener('pointerdown', () => {
+    if (!armed) {
+      btn.classList.add('armed');
+      btn.textContent = 'TAP AGAIN — NEW CREW, CLIMB WIPED';
+      ctx.bus.emit('sfx', 'scratch');
+      armed = setTimeout(() => { armed = null; btn.classList.remove('armed'); btn.textContent = 'START OVER'; }, 3500);
+      return;
+    }
+    clearTimeout(armed);
+    resetStory(ctx.save);
+    ctx.bus.emit('sfx', 'juke');
+    ctx.router.go('createCrew');
+  });
 }
 
 /** SKILL UNLOCKED — the moment a stat hits SKILL_AT (8). */

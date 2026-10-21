@@ -144,5 +144,5 @@
 .m-player.man.m-crest { transform: translateX(-50%); }
 
 /* START OVER — quiet until armed, then loud */
-.crew-room .cr-reset { margin-top: 14px; background: none; border: 0; color: rgba(255,255,255,.45); font: 800 12px var(--display); letter-spacing: 2px; padding: 10px 14px; }
-.crew-room .cr-reset.armed { color: #fff; background: #c8102e; border-radius: 10px; }
+.cr-reset { margin-top: 14px; background: none; border: 0; color: rgba(255,255,255,.6); font: 800 13px var(--display); letter-spacing: 2px; padding: 10px 14px; }
+.cr-reset.armed { color: #fff; background: #c8102e; border-radius: 10px; }

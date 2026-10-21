@@ -5,6 +5,7 @@ import { loadStory, saveStory, currentStop, markSeen } from '../../meta/story.js
 import { crewTeam } from '../../meta/yourCrew.js';
 import { withTintedMarks } from '../../meta/markTint.js';
 import { playScenes, varsFor, teamById } from './storyFlow.js';
+import { armStartOver } from './crewRoom.js';
 
 function el(html) {
   const t = document.createElement('template');
@@ -72,6 +73,7 @@ export function StoryHubScreen(ctx) {
               <button data-act="crew">CREW</button>
               <button data-act="menu">MENU</button>
             </div>
+            <button class="cr-reset" data-act="reset">START OVER</button>
           </div>
         </div>`);
       root.appendChild(s);
@@ -132,6 +134,7 @@ export function StoryHubScreen(ctx) {
       }
       s.querySelector('[data-act="crew"]').addEventListener('pointerdown', () => { ctx.bus.emit('sfx', 'scratch'); ctx.router.go('crewRoom'); });
       s.querySelector('[data-act="menu"]').addEventListener('pointerdown', () => { ctx.bus.emit('sfx', 'scratch'); ctx.router.go('menu'); });
+      armStartOver(s.querySelector('[data-act="reset"]'), ctx);
     },
   };
 }
