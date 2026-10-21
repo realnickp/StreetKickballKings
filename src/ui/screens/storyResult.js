@@ -6,6 +6,7 @@ import { payout } from '../../meta/storyEconomy.js';
 import { adsAvailable, offerDoubleCoins } from '../../meta/storyHooks.js';
 import { recruitOffer, acceptRecruit, declineRecruit } from '../../meta/recruit.js';
 import { crewTeam } from '../../meta/yourCrew.js';
+import { skillsOf } from '../../meta/skills.js';
 import { withTintedMarks } from '../../meta/markTint.js';
 import { playScenes, varsFor, teamById } from './storyFlow.js';
 
@@ -116,6 +117,8 @@ function recruitCard(ctx, root, story, offer, rival) {
     s.querySelector('.rc-from').textContent = `FROM THE ${(rival?.name ?? '').toUpperCase()}`;
     s.querySelector('.rc-name').textContent = offer.nick;
     s.querySelector('.rc-pos').textContent = `#${offer.number ?? ''} ${offer.pos ?? ''}`;
+    const sks = skillsOf(offer);
+    if (sks.length) s.querySelector('.rc-pos').textContent += `  ·  ${sks.map((k) => `${k.icon} ${k.name}`).join('  ')}`;
     s.querySelector('.rc-stats').innerHTML = STATS.map((st) =>
       `<div class="stat-row"><span>${LABEL[st]}</span><div class="stat-bar"><i style="width:${offer.stats[st] * 10}%"></i></div><em>${offer.stats[st]}</em></div>`).join('');
     const bench = s.querySelector('.rc-bench');

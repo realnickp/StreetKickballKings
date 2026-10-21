@@ -122,3 +122,23 @@
 .recruit-card .rc-ask { margin: 10px 0 2px; font-size: 15px; font-weight: 700; }
 .recruit-card .rc-bench { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; max-width: 340px; }
 .recruit-card .rc-bench .cr-chip { font-size: 13px; padding: 9px 12px; }
+
+/* ---------- skills + difficulty ---------- */
+.crew-room .cr-diff { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; max-width: 420px; margin: 0 auto; font-size: 11px; letter-spacing: 3px; opacity: .95; }
+.crew-room .cr-diff-row { display: flex; gap: 6px; }
+.crew-room .cr-diff-row button { font-size: 11px; letter-spacing: 1px; padding: 6px 10px; border-radius: 14px; background: #1a1c22; border: 1px solid #333; color: #fff; }
+.crew-room .cr-diff-row button.on { border-color: var(--gold); color: #ffd45e; box-shadow: 0 0 10px rgba(245,179,18,.45); }
+.crew-room .cr-skills { display: flex; flex-wrap: wrap; gap: 5px; margin: -2px 0 5px; }
+.crew-room .cr-skills:empty { display: none; }
+.crew-room .cr-skill { font-size: 10px; font-weight: 900; letter-spacing: 1px; padding: 3px 8px; border-radius: 10px; background: rgba(245,179,18,.16); border: 1px solid rgba(245,179,18,.6); color: #ffd45e; }
+.skill-toast { position: fixed; left: 50%; top: 22%; transform: translateX(-50%) scale(.6); opacity: 0; z-index: 60; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 16px 22px; border-radius: 18px; background: rgba(10,10,14,.92); border: 2px solid var(--gold); box-shadow: 0 0 30px rgba(245,179,18,.5); animation: skill-in .35s cubic-bezier(.2,1.6,.4,1) forwards; text-align: center; pointer-events: none; }
+.skill-toast small { font-size: 11px; letter-spacing: 3px; color: var(--teal); }
+.skill-toast b { font-family: var(--display); font-size: 26px; color: #ffd45e; }
+.skill-toast span { font-size: 12px; opacity: .85; }
+.skill-toast.out { transition: opacity .4s; opacity: 0 !important; }
+@keyframes skill-in { to { transform: translateX(-50%) scale(1); opacity: 1; } }
+
+/* Quick Play: a story crew has a crest, not portraits — one crest, framed, not two giant crops */
+.m-player.m-crest { height: auto; width: 78%; max-height: 40%; bottom: 18%; object-position: center; filter: drop-shadow(0 8px 18px rgba(0,0,0,.6)); }
+.m-player.woman.m-crest { visibility: hidden !important; }
+.m-player.man.m-crest { transform: translateX(-50%); }

@@ -95,3 +95,19 @@ describe('story state machine', () => {
     expect(loadStory(new SaveManager({ backend: 'memory' }))).toBeNull();
   });
 });
+
+
+import { setDifficulty, difficultyOf, DIFFICULTIES, quickPlayCrews } from '../src/meta/story.js';
+it('a new climb is STREET; CHILL and KING can be picked any time; junk is refused', () => {
+  const s = newStory({ crew, roster });
+  expect(difficultyOf(s)).toBe('street');
+  expect(DIFFICULTIES).toEqual(['chill', 'street', 'king']);
+  expect(difficultyOf(setDifficulty(s, 'king'))).toBe('king');
+  expect(setDifficulty(s, 'nightmare')).toBe(s);
+  expect(difficultyOf({ ...s, difficulty: undefined })).toBe('street'); // saves from before the setting
+});
+it('Quick Play: the ten, plus every story crew you beat', () => {
+  const teams = [{ id: 'a', status: 'ready' }, { id: 'b', status: 'story' }, { id: 'c', status: 'story' }];
+  expect(quickPlayCrews(teams, null).map((t) => t.id)).toEqual(['a']);
+  expect(quickPlayCrews(teams, { beaten: ['c', 'a'] }).map((t) => t.id)).toEqual(['a', 'c']);
+});

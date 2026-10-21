@@ -17,7 +17,7 @@ export function newStory({ crew, roster }) {
   return {
     v: VERSION, crew, roster, bench: [],
     region: 0, rung: 0, phase: 'ladder',
-    finals: {}, beaten: [], recruited: [], seen: [], king: false,
+    finals: {}, beaten: [], recruited: [], seen: [], king: false, difficulty: 'street',
   };
 }
 
@@ -118,4 +118,15 @@ export function storyMenuLabel(story, map) {
   if (story.phase === 'semi') return `${r.name} · SEMI`;
   if (story.phase === 'final') return `${r.name} · FINAL`;
   return `${r.name} · RUNG ${story.rung + 1}/${r.ladder.length}`;
+}
+
+// ---- difficulty (dev, 2026-10-20): CHILL / STREET / KING, changeable any time
+export const DIFFICULTIES = ['chill', 'street', 'king'];
+export const difficultyOf = (story) => (DIFFICULTIES.includes(story?.difficulty) ? story.difficulty : 'street');
+export const setDifficulty = (story, d) => (DIFFICULTIES.includes(d) ? { ...story, difficulty: d } : story);
+
+/** Quick Play's crews: the ten, plus every story crew you've beaten on the climb. */
+export function quickPlayCrews(teams, story) {
+  const beaten = new Set(story?.beaten ?? []);
+  return teams.filter((t) => t.status === 'ready' || (t.status === 'story' && beaten.has(t.id)));
 }

@@ -487,7 +487,7 @@ async function bootFlow() {
       : at;
     const mine = await withTintedMarks(crewTeam(story), story.crew);
     if (!replay) await playScenes(ctx, [ctx.story.beforeScene(stop)], varsFor(story, { rival: base, crewLogo: mine.logo }));
-    const { team: rival, difficulty } = rivalTeam(base, stop, tuning);
+    const { team: rival, difficulty } = rivalTeam(base, stop, tuning, ctx.story.difficultyOf(story));
     ctx.storyStop = stop;
     await startMatchFlow(mine, rival, null, { difficulty, useStats: true, fieldId: stop.fieldId });
   }

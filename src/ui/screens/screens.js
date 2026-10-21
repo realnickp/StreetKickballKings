@@ -177,7 +177,8 @@ export function MapScreen(ctx) {
 export function TeamSelectScreen(ctx) {
   return {
     mount(root, params = {}) {
-      const ready = ctx.data.teams.filter(t => t.status === 'ready');
+      // the ten + every story crew you've beaten on the climb (dev, 2026-10-20)
+      const ready = ctx.story.quickPlayCrews(ctx.data.teams, ctx.story.loadStory(ctx.save));
       const sel = { away: 0, home: Math.min(1, ready.length - 1) }; // away = you, home = their field
       // HOME wears dark, the visitors wear light (spec §3) — the same seed the
       // match dressing uses, so the swatch here is the kit that takes the field.
@@ -250,10 +251,18 @@ export function TeamSelectScreen(ctx) {
         // a man + a woman, each shown in the SELECTED kit — REAL images, no tint.
         const setImg = (img, base) => {
           img.style.visibility = 'visible';
+          img.classList.remove('m-crest'); // the same <img> cycles through every crew
           // WebP since Phase 1 (2026-09-22): the fifty PNGs were 64 MB
           const signature = `assets/players/${base}.webp`;
           img.onerror = () => { // alt kit missing -> signature image -> generic team image
-            img.onerror = () => { img.onerror = null; img.src = `assets/players/${t.id}.webp`; };
+            img.onerror = () => {
+              img.onerror = () => { // story crews ship a crest, no portraits: show it ONCE, framed
+                img.onerror = null;
+                img.src = t.logo;
+                img.classList.add('m-crest');
+              };
+              img.src = `assets/players/${t.id}.webp`;
+            };
             img.src = signature;
           };
           img.src = `assets/players/${base}${k.img}.webp`;
@@ -296,7 +305,7 @@ export function TeamSelectScreen(ctx) {
         w.addEventListener('pointercancel', endSwipe);
       }
       s.querySelectorAll('.m-intro').forEach((b) =>
-        b.addEventListener('pointerdown', () => playVideo(ready[sel[b.dataset.side]].introVideo)));
+        b.addEventListener('pointerdown', () => { const v = ready[sel[b.dataset.side]].introVideo; if (v) playVideo(v); }));
       s.querySelector('.m-start').addEventListener('pointerdown', () => {
         ctx.bus.emit('sfx', 'bassdrop');
         // ONLY the tones ride along. A hex picked here would be a stale copy:

@@ -23,9 +23,11 @@ describe('stats that matter (story matches only)', () => {
     expect(gloveFor(big, false, tuning)).toBe(1);
   });
   it('on: kicker power, runner speed, the fielding side’s average arm, the catcher’s glove', () => {
-    expect(kickPowerFor(ch({ power: 8 }), true, tuning)).toBeCloseTo(1.09);
+    expect(kickPowerFor(ch({ power: 7 }), true, tuning)).toBeCloseTo(1.06);
+    expect(kickPowerFor(ch({ power: 8 }), true, tuning)).toBeCloseTo(1.09 * 1.08); // + MOONSHOT (skills.js)
     expect(runSpeedFor(ch({ speed: 3 }), true, tuning)).toBeCloseTo(0.95);
-    expect(throwArmFor([ch({ arm: 9 }), ch({ arm: 3 })], true, tuning)).toBeCloseTo(1.03);
+    expect(throwArmFor([ch({ arm: 7 }), ch({ arm: 5 })], true, tuning)).toBeCloseTo(1.03);
+    expect(throwArmFor([ch({ arm: 9 }), ch({ arm: 3 })], true, tuning)).toBeCloseTo(1.03 * 1.04); // half the side has CANNON
     expect(gloveFor(ch({ glove: 7 }), true, tuning)).toBeCloseTo(1.08);
   });
   it('missing chars or stats fall back to neutral', () => {

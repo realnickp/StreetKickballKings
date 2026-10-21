@@ -1,7 +1,8 @@
 // THE CREW ROOM (story spec §6): your eight, their four stats, a + on each that
 // costs coins (training), and the bench — tap a bench player, then the player
 // they replace. Recruits wear a FROM badge naming the crew you took them from.
-import { loadStory, saveStory } from '../../meta/story.js';
+import { loadStory, saveStory, DIFFICULTIES, difficultyOf, setDifficulty } from '../../meta/story.js';
+import { skillsOf, newSkills, SKILL_AT } from '../../meta/skills.js';
 import { train, trainCost, STATS } from '../../meta/storyEconomy.js';
 import { swapBench } from '../../meta/recruit.js';
 import { teamById } from './storyFlow.js';
@@ -23,6 +24,7 @@ export function CrewRoomScreen(ctx) {
       const s = el(`
         <div class="screen crew-room">
           <div class="sh-top"><h1 class="screen-title gold cr-title"></h1><div class="sh-coins">🪙 <b class="cr-coins"></b></div></div>
+          <div class="cr-diff"><span>DIFFICULTY</span><div class="cr-diff-row"></div></div>
           <p class="cr-hint">Wins pay coins. Coins make your crew better — one point at a time.</p>
           <div class="cr-list"></div>
           <div class="cr-bench-wrap"><div class="cc-label">BENCH</div><div class="cr-bench"></div></div>
@@ -44,10 +46,17 @@ export function CrewRoomScreen(ctx) {
           const from = p.from ? teamById(ctx, p.from) : null;
           const card = el(`<div class="cr-card ${benchPick ? 'swappable' : ''}">
             <div class="cr-head"><b class="cr-nick"></b><small class="cr-pos"></small><span class="cr-from"></span></div>
+            <div class="cr-skills"></div>
             <div class="cr-stats"></div></div>`);
           card.querySelector('.cr-nick').textContent = p.nick;
           card.querySelector('.cr-pos').textContent = `#${p.number ?? ''} ${p.pos ?? ''}`;
           if (from) card.querySelector('.cr-from').textContent = `FROM ${from.name.split(' ').slice(-1)[0].toUpperCase()}`;
+          for (const sk of skillsOf(p)) {
+            const chip = el('<span class="cr-skill"></span>');
+            chip.textContent = `${sk.icon} ${sk.name}`;
+            chip.title = sk.play;
+            card.querySelector('.cr-skills').appendChild(chip);
+          }
           const stats = card.querySelector('.cr-stats');
           for (const st of STATS) {
             const v = p.stats[st];
@@ -60,10 +69,12 @@ export function CrewRoomScreen(ctx) {
               e.stopPropagation();
               const r = train(story, ctx.save, p.id, st, tuning);
               if (!r.ok) { ctx.bus.emit('sfx', 'scratch'); return; }
+              const gained = newSkills(p, r.story.roster.find((x) => x.id === p.id));
               story = r.story;
               saveStory(ctx.save, story);
               ctx.bus.emit('sfx', 'unlock');
               render();
+              for (const sk of gained) skillToast(s, p.nick, sk, ctx);
             });
             stats.appendChild(row);
           }
@@ -90,9 +101,34 @@ export function CrewRoomScreen(ctx) {
           ? 'Now tap the player they replace.'
           : 'Wins pay coins. Coins make your crew better — one point at a time.';
       };
+      // CHILL / STREET / KING — shifts every rival a stat point and an AI tier
+      const diffRow = s.querySelector('.cr-diff-row');
+      const paintDiff = () => diffRow.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.d === difficultyOf(story)));
+      for (const d of DIFFICULTIES) {
+        const b = el(`<button data-d="${d}">${d.toUpperCase()}</button>`);
+        b.addEventListener('pointerdown', () => {
+          story = setDifficulty(story, d);
+          saveStory(ctx.save, story);
+          ctx.bus.emit('sfx', 'juke');
+          paintDiff();
+        });
+        diffRow.appendChild(b);
+      }
+      paintDiff();
       render();
       s.querySelector('[data-act="edit"]').addEventListener('pointerdown', () => { ctx.bus.emit('sfx', 'scratch'); ctx.router.go('createCrew', { edit: true }); });
       s.querySelector('[data-act="back"]').addEventListener('pointerdown', () => { ctx.bus.emit('sfx', 'scratch'); ctx.router.go('storyHub'); });
     },
   };
+}
+
+/** SKILL UNLOCKED — the moment a stat hits SKILL_AT (8). */
+export function skillToast(root, nick, skill, ctx) {
+  const t = el('<div class="skill-toast"><small>SKILL UNLOCKED</small><b></b><span></span></div>');
+  t.querySelector('b').textContent = `${skill.icon} ${skill.name}`;
+  t.querySelector('span').textContent = `${nick} · ${skill.play}`;
+  root.appendChild(t);
+  ctx.bus.emit('sfx', 'crowd-cheer');
+  setTimeout(() => t.classList.add('out'), 2200);
+  setTimeout(() => t.remove(), 2700);
 }
