@@ -23,8 +23,9 @@ Hook line for the whole run: *nobody from our block ever made Nationals.*
 
 ## 2. Your crew
 
-- **Create Crew screen** (first time you open Story): crew name (text, 14-char cap, profanity
-  filter), primary/secondary colors from a curated swatch set (pairs that pass the light/dark kit
+- **Create Crew screen** (first time you open Story): the player names the CREW only, one short
+  name (character cap + profanity filter). The player never names individual players — the 8 block
+  players arrive already named with street nicknames (dev, 2026-10-20). Plus primary/secondary colors from a curated swatch set (pairs that pass the light/dark kit
   rule in `kits.js`), logo from a set of ~12 stock marks tinted to your colors. One screen, one
   CONFIRM. Editable later from the Locker.
 - **Roster:** 8 block players, built by the same procedural system as every crew
