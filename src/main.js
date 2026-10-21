@@ -23,6 +23,7 @@ import { TitleScreen, MenuScreen, TeamSelectScreen, CoinTossScreen, PostGameScre
 import { LockerScreen, GearUpScreen } from './ui/screens/lockerScreen.js';
 import * as trophies from './meta/trophies.js';
 import * as unlocks from './meta/unlocks.js';
+import * as story from './meta/story.js';
 import { TutorialScreen } from './ui/screens/tutorial.js';
 import { TutorialDirector } from './game/tutorialDirector.js';
 import { cityTrackId } from './engine/audioTracks.js';
@@ -175,7 +176,7 @@ if (params.has('match')) {
 // ---------- the real flow ----------
 async function bootFlow() {
   const ctx = {
-    engine, input, bus, audio, save, trophies, unlocks,
+    engine, input, bus, audio, save, trophies, unlocks, story,
     data: { teams: teamsData.teams, fields: fieldsData.fields, tuning, storyMap },
     mapTarget: null, // Run the Map: crew called out (locks TeamSelect's HOME side)
     router: null,
