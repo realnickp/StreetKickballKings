@@ -11,3 +11,6 @@ export async function offerDoubleCoins() {
 export async function buyCoins(_pack) {
   return false;
 }
+
+/** Whether the shell can show rewarded video at all (the PWA can't). */
+export const adsAvailable = () => false;

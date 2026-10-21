@@ -85,3 +85,37 @@ export function loadStory(save) {
 export function saveStory(save, story) {
   save.set(STORY_KEY, story);
 }
+
+// ---- which scenes play (ids are the script contract: docs/superpowers/story-script-brief.md)
+const scenePrefix = (stop) => ({
+  ladder: `${stop.regionId}-${stop.teamId}`,
+  semi: `${stop.regionId}-semi`,
+  final: `${stop.regionId}-final`,
+  nationals: `nationals-${stop.teamId}`,
+}[stop.kind]);
+
+export const beforeScene = (stop) => `${scenePrefix(stop)}-before`;
+
+/** The scenes after a game, in order. The recruit DM plays when someone wants
+ *  in (the accept/decline card follows it); chapter openers play on the hub. */
+export function resultPlan(events, stop, hasOffer) {
+  const pre = scenePrefix(stop);
+  if (events.includes('loss')) return [`${pre}-loss`];
+  const ids = [`${pre}-win`];
+  if (hasOffer && stop.kind !== 'nationals') ids.push(`${stop.regionId}-${stop.teamId}-recruit`);
+  if (events.includes('bracket')) ids.push(`${stop.regionId}-bracket`);
+  if (events.includes('regionChamp')) ids.push(`${stop.regionId}-champ`);
+  if (events.includes('king')) ids.push('ending');
+  return ids;
+}
+
+/** The STORY card's small line on the main menu. */
+export function storyMenuLabel(story, map) {
+  if (!story) return 'NEW CREW';
+  if (story.king) return '👑 KING OF THE COURT';
+  if (story.phase === 'nationals') return `NATIONALS ${story.rung + 1}/${map.regions.length}`;
+  const r = map.regions[story.region];
+  if (story.phase === 'semi') return `${r.name} · SEMI`;
+  if (story.phase === 'final') return `${r.name} · FINAL`;
+  return `${r.name} · RUNG ${story.rung + 1}/${r.ladder.length}`;
+}
