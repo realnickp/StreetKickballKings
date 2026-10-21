@@ -42,9 +42,9 @@
 /* ---------- create crew ---------- */
 .create-crew { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: max(18px, env(safe-area-inset-top)) 16px max(18px, env(safe-area-inset-bottom)); overflow-y: auto; }
 .create-crew .cc-sub { margin: -4px 0 4px; font-size: 13px; opacity: .8; text-align: center; }
-.create-crew .cc-badge { display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-radius: 16px; background: var(--cc1, #e63322); color: var(--cc2, #111); box-shadow: 0 8px 24px rgba(0,0,0,.5); max-width: 100%; }
+.create-crew .cc-badge { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; max-width: 340px; box-sizing: border-box; padding: 12px 18px; border-radius: 16px; background: var(--cc1, #e63322); color: var(--cc2, #111); box-shadow: 0 8px 24px rgba(0,0,0,.5); }
 .create-crew .cc-badge .cc-mark { width: 54px; height: 54px; flex: none; background: var(--cc2, #111); -webkit-mask: var(--m) center / contain no-repeat; mask: var(--m) center / contain no-repeat; }
-.create-crew .cc-badge b { font-family: var(--display); font-size: 24px; letter-spacing: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.create-crew .cc-badge b { font-family: var(--display); font-size: 24px; letter-spacing: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .create-crew .cc-field { width: 100%; max-width: 340px; display: flex; flex-direction: column; gap: 4px; }
 .create-crew .cc-input { width: 100%; box-sizing: border-box; font: 900 20px var(--display); letter-spacing: 2px; text-transform: uppercase; text-align: center; padding: 12px; border-radius: 12px; border: 2px solid #333; background: #111318; color: #fff; }
 .create-crew .cc-input:focus { outline: none; border-color: var(--gold); }
