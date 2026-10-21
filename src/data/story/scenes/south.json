@@ -1,0 +1,519 @@
+{
+  "scenes": {
+    "south-open": {
+      "id": "south-open",
+      "still": "south-open",
+      "music": "theme",
+      "title": { "top": "CHAPTER 3 · THE SOUTH", "sub": "HEAT ON THE BLACKTOP" },
+      "threads": [
+        { "kind": "dm", "name": "Commissioner Lou · South Ladder", "avatar": "{crewLogo}", "messages": [
+          { "from": "Commissioner Lou", "text": "{crew}. Two regions. Down here that makes you a target, not a guest." },
+          { "from": "Commissioner Lou", "text": "Every crew in the South has your tape. First rung is Memphis. Saturday. Hydrate." },
+          { "from": "me", "text": "let 'em watch" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "WE GOT RECOGNIZED AT A GAS STATION IN TENNESSEE 😭😭 the cashier knew KEYS" },
+          { "from": "Keys", "text": "she said I \"look like my stats.\" I've been thinking about it for 200 miles" },
+          { "from": "Tasha", "text": "AC is still the heater knob. Windows down. That's the AC now." },
+          { "from": "Keys", "text": "wearing the Chicago coat. it's 94 degrees. I paid for it. it's getting worn" },
+          { "from": "Pops", "text": "Heat is honest, youngin. It shows who trained." },
+          { "from": "me", "text": "Memphis first. hydrate" }
+        ] }
+      ],
+      "slam": "SOUTHBOUND"
+    },
+
+    "south-hustlers-before": {
+      "id": "south-hustlers-before",
+      "still": "south-turf",
+      "music": "city-memphis",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "{crew}!!! TWO REGIONS?!?! MEMPHIS BEEN WAITING ALL SUMMER!!!" },
+          { "from": "{captain}", "text": "GRIND MODE!!! WE DON'T STOP!!! WE RUN TILL THE STREETLIGHTS QUIT!!!" },
+          { "from": "{captain}", "text": "BRING Y'ALL'S LOUDEST GUY!!! I WANNA MEET HIM!!!" },
+          { "from": "me", "text": "he's on his way" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "HE WANTS ME?? HE GOT ME 😤📢 FIRST ONE TO TYPE LOWERCASE LOSES" },
+          { "from": "Keys", "text": "Big Crunk texts louder than Dre. I didn't know that was allowed" },
+          { "from": "Keys", "text": "Hustlers are last on the ladder. but Grind Mode means they never stop running. never" },
+          { "from": "Tasha", "text": "Two coolers. One is water. The other one is also water." },
+          { "from": "Pops", "text": "Memphis grinds, youngin. Out-grind 'em. Then rest." }
+        ] }
+      ],
+      "slam": "GAME DAY"
+    },
+    "south-hustlers-win": {
+      "id": "south-hustlers-win",
+      "still": "south-turf",
+      "music": "city-memphis",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "WE OUT-CRUNKED BIG CRUNK 📢🔥🔥" },
+          { "from": "Keys", "text": "Dre lost his voice in the 6th. we scored four runs in the quiet. just saying" },
+          { "from": "Dre", "text": "I CAN STILL TYPE KEYS" },
+          { "from": "Tasha", "text": "Twinkie Toes stole three bases on us. Then hugged everybody. Memphis is nice." },
+          { "from": "Pops", "text": "Grind's over. Atlanta's next. Atlanta thinks." },
+          { "from": "me", "text": "one down. ATL" }
+        ] }
+      ],
+      "slam": "ONE DOWN"
+    },
+    "south-hustlers-loss": {
+      "id": "south-hustlers-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "GRIND MODE!!! MEMPHIS DON'T STOP!!! Y'ALL DID THO 😂" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "he out-louded me. I'm typing lowercase in shame" },
+          { "from": "me", "text": "caps back on. run it back" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+    "south-hustlers-recruit": {
+      "id": "south-hustlers-recruit",
+      "still": "recruit-handshake",
+      "music": "city-memphis",
+      "threads": [
+        { "kind": "dm", "name": "{recruit} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{recruit}", "text": "SORRY. all caps is a team rule. I'm practicing lowercase. it feels weird" },
+          { "from": "{recruit}", "text": "y'all won QUIET. didn't know you could win quiet" },
+          { "from": "me", "text": "what you bring?" },
+          { "from": "{recruit}", "text": "Grind. I'll run the last lap nobody wants. Every time." },
+          { "from": "{recruit}", "text": "Room for some Memphis on {crew}?" }
+        ] }
+      ]
+    },
+
+    "south-atlanta-before": {
+      "id": "south-atlanta-before",
+      "still": "south-turf",
+      "music": "city-memphis",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "The Prophet saw {crew} coming. Saw it last spring. Saw the ending too." },
+          { "from": "{captain}", "text": "Won't spoil it. Just know: get comfy on second, the TRAP DOOR opens." },
+          { "from": "{captain}", "text": "Atlanta don't chase you. We wait." },
+          { "from": "me", "text": "what else you see?" },
+          { "from": "{captain}", "text": "I see 285 traffic making y'all late. Leave early. 🔮" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Tasha", "text": "He's right about 285. We leave at 5." },
+          { "from": "Keys", "text": "Bankhead Bunni's pitch drops off a table. watched 40 clips. still can't see it" },
+          { "from": "Dre", "text": "LEMON PEPPER WINGS AFTER?? 🍗🍋" },
+          { "from": "Tasha", "text": "Win first. Wings are a reward food. Like the ravioli." },
+          { "from": "Pops", "text": "Prophets talk a lot about the future, youngin. Play the present." }
+        ] }
+      ],
+      "slam": "GAME DAY"
+    },
+    "south-atlanta-win": {
+      "id": "south-atlanta-win",
+      "still": "south-turf",
+      "music": "city-memphis",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "THE PROPHET DID NOT SEE THAT COMING 🔮😂" },
+          { "from": "Keys", "text": "nobody fell through the Trap Door. we just didn't stand on second. simple" },
+          { "from": "Keys", "text": "I'm calling it the Keys Doctrine" },
+          { "from": "Tasha", "text": "Lemon Pepper Lia picked the wing spot. Rival or not, she was right." },
+          { "from": "Dre", "text": "10K FOLLOWERS 🎉 WE'RE VERIFIED IN MY HEART" },
+          { "from": "Pops", "text": "Two down in the South. Next crew brings a band." },
+          { "from": "me", "text": "New Orleans" }
+        ] }
+      ],
+      "slam": "TWO DOWN"
+    },
+    "south-atlanta-loss": {
+      "id": "south-atlanta-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Told you. Saw it in the spring. 🔮 The Trap Door don't miss." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "we KNEW about second. we stood on second anyway" },
+          { "from": "me", "text": "run it back. stay off second" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+    "south-atlanta-recruit": {
+      "id": "south-atlanta-recruit",
+      "still": "recruit-handshake",
+      "music": "city-memphis",
+      "threads": [
+        { "kind": "dm", "name": "{recruit} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{recruit}", "text": "Prophet said I'd text y'all tonight. I said no way. And here I am." },
+          { "from": "{recruit}", "text": "y'all don't fall for traps. that's rare down here" },
+          { "from": "me", "text": "what's your game?" },
+          { "from": "{recruit}", "text": "Zone Six speed. I steal second and I don't sit on it." },
+          { "from": "{recruit}", "text": "Prophet says I'm wearing {crew} colors next. Should I believe him?" }
+        ] }
+      ]
+    },
+
+    "south-neworleans-before": {
+      "id": "south-neworleans-before",
+      "still": "south-turf",
+      "music": "city-baltimore",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Where y'at, {crew}! Come hungry. We feed company first." },
+          { "from": "{captain}", "text": "Then the band plays. Then the DEATH ROLL. Then we feed y'all again." },
+          { "from": "me", "text": "we'll stay for dessert" },
+          { "from": "{captain}", "text": "Baby, dessert is the second line we walk after we win. 🎺" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "THEY GOT A BRASS BAND?? AT KICKBALL?? 🎺🎺" },
+          { "from": "Keys", "text": "their catcher threw out 14 runners this year. her name is Treme Tasha" },
+          { "from": "Tasha", "text": "There's one Tasha in this game." },
+          { "from": "Keys", "text": "there are literally two" },
+          { "from": "Tasha", "text": "There's ONE Tasha in this game, Keys." },
+          { "from": "Pops", "text": "Eat what they give you, youngin. Then go to work." }
+        ] }
+      ],
+      "slam": "GAME DAY"
+    },
+    "south-neworleans-win": {
+      "id": "south-neworleans-win",
+      "still": "south-turf",
+      "music": "city-baltimore",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "WE BEAT A WHOLE BRASS BAND 🎺😂 THE TUBA GUY CLAPPED FOR US" },
+          { "from": "Tasha", "text": "One Tasha. I stole third on her twice." },
+          { "from": "Keys", "text": "she threw two of us out tho. Tasha series is tied 2-2" },
+          { "from": "Tasha", "text": "One Tasha, Keys." },
+          { "from": "Pops", "text": "They second-lined us off the court anyway. That's New Orleans, youngins." },
+          { "from": "me", "text": "three down. Houston" }
+        ] }
+      ],
+      "slam": "THREE DOWN"
+    },
+    "south-neworleans-loss": {
+      "id": "south-neworleans-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Death Roll, baby. 🐊 Stay for gumbo, {crew}. You earned the gumbo." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Tasha", "text": "Fine. There were two Tashas today." },
+          { "from": "me", "text": "rematch. one Tasha" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+    "south-neworleans-recruit": {
+      "id": "south-neworleans-recruit",
+      "still": "recruit-handshake",
+      "music": "city-baltimore",
+      "threads": [
+        { "kind": "dm", "name": "{recruit} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{recruit}", "text": "Chief says if you can't dance at the plate, you can't kick. I can't dance." },
+          { "from": "{recruit}", "text": "But I can KICK. And y'all don't dance either and you win." },
+          { "from": "me", "text": "how far you kick?" },
+          { "from": "{recruit}", "text": "Over the levee in practice. Chief made me apologize to a pelican." },
+          { "from": "{recruit}", "text": "So. Got room on {crew} for somebody who can't dance?" }
+        ] }
+      ]
+    },
+
+    "south-houston-before": {
+      "id": "south-houston-before",
+      "still": "south-turf",
+      "music": "city-memphis",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "yoooo... {crew}..." },
+          { "from": "{captain}", "text": "Houston... we take it... sloooow..." },
+          { "from": "{captain}", "text": "y'all been... moving real fast... all summer..." },
+          { "from": "{captain}", "text": "COIL STRIKE." },
+          { "from": "me", "text": "that one was fast" },
+          { "from": "{captain}", "text": "...yeah... that's the point... 🐍" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "Rattlers look slow. they are not. 21-2. both losses in the rain" },
+          { "from": "Dre", "text": "i tried texting slow back... i... CAN'T 😭😭 MY THUMBS WON'T LET ME" },
+          { "from": "Tasha", "text": "It's 101 in Houston. Windows down. The AC is still the heater knob." },
+          { "from": "Pops", "text": "Slow is smooth, youngin. Smooth is a strike. Watch for the rattle." }
+        ] }
+      ],
+      "slam": "GAME DAY"
+    },
+    "south-houston-win": {
+      "id": "south-houston-win",
+      "still": "south-turf",
+      "music": "city-memphis",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "WE SNATCHED THE RATTLE 🐍😂 FOUR DOWN" },
+          { "from": "Keys", "text": "Slab King takes 9 seconds to pitch. we stole on all of them. I timed it" },
+          { "from": "Tasha", "text": "Candy Paint Cruz said our grounders were \"too fast to be legal.\" Compliment." },
+          { "from": "Pops", "text": "Stayed cool in 101, youngins. That's the work." },
+          { "from": "Dre", "text": "MIAMI NEXT. LAST ONE ON THE LADDER 🌴🔥" },
+          { "from": "me", "text": "four down" }
+        ] }
+      ],
+      "slam": "FOUR DOWN"
+    },
+    "south-houston-loss": {
+      "id": "south-houston-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "slooow... wins... the race... {crew}... 🐍" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "we lost to a man who texts three words a minute" },
+          { "from": "me", "text": "run it back" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+    "south-houston-recruit": {
+      "id": "south-houston-recruit",
+      "still": "recruit-handshake",
+      "music": "city-memphis",
+      "threads": [
+        { "kind": "dm", "name": "{recruit} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{recruit}", "text": "yo... sorry. habit. Okay. Typing normal. That's hard for us." },
+          { "from": "{recruit}", "text": "Y'all play fast. I've played slow so long my legs forgot they could." },
+          { "from": "me", "text": "you still fast?" },
+          { "from": "{recruit}", "text": "Fastest on the Rattlers. Slim makes me walk to first. WALK." },
+          { "from": "{recruit}", "text": "Room on {crew} for somebody who wants to run?" }
+        ] }
+      ]
+    },
+
+    "south-miami-before": {
+      "id": "south-miami-before",
+      "still": "south-turf",
+      "music": "city-baltimore",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Oye, {crew}. Heard you're cold-weather champs. Cute. It's 98 in the shade." },
+          { "from": "{captain}", "text": "HEAT INDEX: the longer the game goes, the hotter we play." },
+          { "from": "{captain}", "text": "By the 7th y'all melting. Cafecito's on me after. Dale. ☀️" },
+          { "from": "me", "text": "we'll take the cafecito. after" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "Heatwave haven't lost after the 5th inning all year. all year. I checked twice" },
+          { "from": "Dre", "text": "LAST RUNG. THEN THE BRACKET. THEN THREE REGIONS 😤🌴" },
+          { "from": "Tasha", "text": "Ice in both coolers. Towels in the trunk. Keys, lose the coat." },
+          { "from": "Keys", "text": "the coat stays. I paid for it" },
+          { "from": "Pops", "text": "Heat don't care, youngin. Neither should you." }
+        ] }
+      ],
+      "slam": "GAME DAY"
+    },
+    "south-miami-win": {
+      "id": "south-miami-win",
+      "still": "south-turf",
+      "music": "city-baltimore",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "WE BEAT THE HEAT 🌴🔥 LADDER DONE!!! THREE LADDERS!!!" },
+          { "from": "Keys", "text": "won it in the 9th. after the 5th. first time all year. framing the box score" },
+          { "from": "Tasha", "text": "Cafecito Kid bought us all cafecito. It's tiny. It's strong. Dre is vibrating." },
+          { "from": "Dre", "text": "I CAN SEE SOUNDS" },
+          { "from": "Pops", "text": "Ladder's done, youngins. Bracket's where it gets hot for real." },
+          { "from": "me", "text": "ladder done" }
+        ] }
+      ],
+      "slam": "LADDER DONE"
+    },
+    "south-miami-loss": {
+      "id": "south-miami-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Heat Index, baby. 🌡️ Told you the 7th was ours. Cafecito's still on me." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Tasha", "text": "Next time twice the ice." },
+          { "from": "me", "text": "run it back" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+    "south-miami-recruit": {
+      "id": "south-miami-recruit",
+      "still": "recruit-handshake",
+      "music": "city-baltimore",
+      "threads": [
+        { "kind": "dm", "name": "{recruit} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{recruit}", "text": "Capo can't know about this. He'd talk about it in two languages. For a week." },
+          { "from": "{recruit}", "text": "Y'all didn't melt. NOBODY doesn't melt down here." },
+          { "from": "me", "text": "what you bring?" },
+          { "from": "{recruit}", "text": "Hurricane arm. Hialeah grown. I've thrown runners out from the wall." },
+          { "from": "{recruit}", "text": "Dale. Got room for me on {crew}?" }
+        ] }
+      ]
+    },
+
+    "south-bracket": {
+      "id": "south-bracket",
+      "still": "south-bracket",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "Commissioner Lou · South Regionals", "avatar": "{crewLogo}", "messages": [
+          { "from": "Commissioner Lou", "text": "{crew}. One seed. This spring y'all were a rumor." },
+          { "from": "Commissioner Lou", "text": "Semi Saturday vs Houston. Final Sunday. Nationals scouts in the stands. Both days." },
+          { "from": "Commissioner Lou", "text": "Clean shoes. It's hot. I still check." },
+          { "from": "me", "text": "we'll be there" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "NATIONALS SCOUTS?!? ARE WE GONNA BE ON TV?? 📺😭" },
+          { "from": "Keys", "text": "one seed means everybody's aiming at us. a third of one seeds lose the semi. I looked" },
+          { "from": "Tasha", "text": "Lou wants clean shoes. Keys. And lose the coat." },
+          { "from": "Keys", "text": "the coat stays" },
+          { "from": "Pops", "text": "'98 we were a four seed. Y'all already doing better than us, youngins." },
+          { "from": "me", "text": "6am. windows down" }
+        ] }
+      ],
+      "slam": "REGIONALS"
+    },
+
+    "south-semi-before": {
+      "id": "south-semi-before",
+      "still": "south-bracket",
+      "music": "city-memphis",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "yoooo... rematch... {crew}..." },
+          { "from": "{captain}", "text": "we been... practicing... FAST." },
+          { "from": "{captain}", "text": "...just playing... 🐍" },
+          { "from": "me", "text": "take your time" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Keys", "text": "Rattlers 6-0 since we beat them. Slab King pitches in 6 seconds now. six" },
+          { "from": "Dre", "text": "THAT'S STILL SLOW KEYS" },
+          { "from": "Keys", "text": "for HIM that's a sprint" },
+          { "from": "Pops", "text": "Snakes strike when you look away, youngin. Don't look away." }
+        ] }
+      ],
+      "slam": "SEMIFINAL"
+    },
+    "south-semi-win": {
+      "id": "south-semi-win",
+      "still": "south-bracket",
+      "music": "city-memphis",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "SOUTH FINAL BABY 🏆 SNAKE'S IN THE BAG" },
+          { "from": "Keys", "text": "a scout wrote something down when I caught that liner. I need to know what" },
+          { "from": "Tasha", "text": "Slim said \"good game\" at normal speed. Felt like a trophy." },
+          { "from": "Pops", "text": "Miami tomorrow, youngins. Hot crew, hot day. Stay cool." },
+          { "from": "me", "text": "Miami. let's go" }
+        ] }
+      ],
+      "slam": "FINAL NEXT"
+    },
+    "south-semi-loss": {
+      "id": "south-semi-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "slow... and steady... {crew}... 🐍" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Tasha", "text": "Lou says re-entry's open. Windows still down." },
+          { "from": "me", "text": "then we're still in it" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+
+    "south-final-before": {
+      "id": "south-final-before",
+      "still": "south-bracket",
+      "music": "city-baltimore",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Told you we'd get to the 9th together, {crew}. Now it's hot for real." },
+          { "from": "{captain}", "text": "Win, you're three regions deep. Lose, you still get cafecito. Miami's generous." },
+          { "from": "me", "text": "we'll take both" }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Pops", "text": "Youngins. Phones down after this." },
+          { "from": "Pops", "text": "'98, we never got out of one region. Y'all about to have three." },
+          { "from": "Keys", "text": "Heatwave are 26-1 at home. the 1 was us. so it's 50/50. I'm calling it 50/50" },
+          { "from": "Dre", "text": "I'M SWEATING AND IT'S NOT EVEN THE HEAT 😭🔥" },
+          { "from": "Tasha", "text": "Ice. Towels. Pops' chair. Keys' coat, apparently. Let's go." },
+          { "from": "Keys", "text": "the coat stays" },
+          { "from": "me", "text": "south final. let's eat" }
+        ] }
+      ],
+      "slam": "SOUTH FINAL"
+    },
+    "south-final-win": {
+      "id": "south-final-win",
+      "still": "south-bracket",
+      "music": "city-baltimore",
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "SOUTH CHAMPS!!!!! THREE REGIONS!!!!! THREE!!!!! 🏆🏆🏆👑" },
+          { "from": "Keys", "text": "...give me a minute." },
+          { "from": "Dre", "text": "KEYS IS CRYING 😭😭" },
+          { "from": "Keys", "text": "It's pollen." },
+          { "from": "Tasha", "text": "Keys. You said there's no pollen." },
+          { "from": "Keys", "text": "in Cleveland. this is Miami. Miami has pollen. I've updated my numbers" },
+          { "from": "Pops", "text": "Three trophies. One cupholder. Proudest storage problem I ever had." },
+          { "from": "me", "text": "two to go" }
+        ] }
+      ],
+      "slam": "SOUTH CHAMPS"
+    },
+    "south-final-loss": {
+      "id": "south-final-loss",
+      "still": "loss-night",
+      "music": "beat",
+      "threads": [
+        { "kind": "dm", "name": "{captain} · {rival}", "avatar": "{rivalLogo}", "messages": [
+          { "from": "{captain}", "text": "Heat Index. 🌡️ Cafecito's on me, {crew}. Come back hotter." }
+        ] },
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Pops", "text": "Hot one, youngin. Bracket's still open. We go again." },
+          { "from": "me", "text": "again" }
+        ] }
+      ],
+      "slam": "TOOK THE L"
+    },
+
+    "south-champ": {
+      "id": "south-champ",
+      "still": "south-champ",
+      "music": "theme",
+      "title": { "top": "SOUTH CHAMPIONS", "sub": "THREE DOWN. TWO TO GO." },
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Tasha", "text": "Lou emailed. Southwest ladder: Gilas, Dallas, Vegas, Denver, Albuquerque." },
+          { "from": "Keys", "text": "Denver's a mile up. the ball flies farther. so do our mistakes" },
+          { "from": "Dre", "text": "50K FOLLOWERS 😭 a kid in Miami got our logo SHAVED into his head" },
+          { "from": "Pops", "text": "Sister Ruth wants one." },
+          { "from": "Tasha", "text": "Car's at 211,000 miles. AC's still the heater knob. She'll make it. She has to." },
+          { "from": "Pops", "text": "Three regions, youngins. The bus never got out of one. Keep driving." },
+          { "from": "me", "text": "desert next" }
+        ] },
+        { "kind": "dm", "name": "Calle Ocho Capo · Miami Heatwave", "avatar": "{rivalLogo}", "messages": [
+          { "from": "Calle Ocho Capo", "text": "Dale. Go take the desert. Miami's coming to Nationals too. ☀️" },
+          { "from": "Calle Ocho Capo", "text": "Philly, Cleveland, now us. Y'all collecting enemies. 😎" },
+          { "from": "Calle Ocho Capo", "text": "I mean friends. Mostly enemies." }
+        ] }
+      ],
+      "slam": "NEXT: SOUTHWEST"
+    }
+  }
+}
