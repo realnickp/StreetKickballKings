@@ -1,7 +1,7 @@
 // THE CREW ROOM (story spec §6): your eight, their four stats, a + on each that
 // costs coins (training), and the bench — tap a bench player, then the player
 // they replace. Recruits wear a FROM badge naming the crew you took them from.
-import { loadStory, saveStory, DIFFICULTIES, difficultyOf, setDifficulty } from '../../meta/story.js';
+import { loadStory, saveStory, resetStory, DIFFICULTIES, difficultyOf, setDifficulty } from '../../meta/story.js';
 import { skillsOf, newSkills, SKILL_AT } from '../../meta/skills.js';
 import { train, trainCost, STATS } from '../../meta/storyEconomy.js';
 import { swapBench } from '../../meta/recruit.js';
@@ -32,6 +32,7 @@ export function CrewRoomScreen(ctx) {
             <button data-act="edit">EDIT CREW</button>
             <button data-act="back">BACK</button>
           </div>
+          <button class="cr-reset" data-act="reset">START OVER</button>
         </div>`);
       root.appendChild(s);
       s.style.setProperty('--cc1', story.crew.primary);
@@ -117,6 +118,22 @@ export function CrewRoomScreen(ctx) {
       paintDiff();
       render();
       s.querySelector('[data-act="edit"]').addEventListener('pointerdown', () => { ctx.bus.emit('sfx', 'scratch'); ctx.router.go('createCrew', { edit: true }); });
+      // two taps: the first arms it (and says what it wipes), the second starts a new crew
+      const reset = s.querySelector('[data-act="reset"]');
+      let armed = null;
+      reset.addEventListener('pointerdown', () => {
+        if (!armed) {
+          reset.classList.add('armed');
+          reset.textContent = 'TAP AGAIN — NEW CREW, CLIMB WIPED';
+          ctx.bus.emit('sfx', 'scratch');
+          armed = setTimeout(() => { armed = null; reset.classList.remove('armed'); reset.textContent = 'START OVER'; }, 3500);
+          return;
+        }
+        clearTimeout(armed);
+        resetStory(ctx.save);
+        ctx.bus.emit('sfx', 'juke');
+        ctx.router.go('createCrew');
+      });
       s.querySelector('[data-act="back"]').addEventListener('pointerdown', () => { ctx.bus.emit('sfx', 'scratch'); ctx.router.go('storyHub'); });
     },
   };
