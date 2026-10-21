@@ -45,7 +45,7 @@ export const GEAR = [
   { id: 'cleats-volt', cat: 'cleats', name: 'NEON VOLTS', hex: '#c8ff1f', speedMult: 1.08, play: '+8% speed on the bases', unlock: { stat: 'crews', n: 3 }, hint: 'Beat 3 crews on their turf' },
   { id: 'cleats-royal', cat: 'cleats', name: 'ROYALS', hex: '#8a4dff', speedMult: 1.08, play: '+8% speed on the bases', unlock: { stat: 'crews', n: 5 }, hint: 'Beat 5 crews on their turf' },
   { id: 'cleats-black', cat: 'cleats', name: 'BLACKOUTS', hex: '#15151a', speedMult: 1.10, play: '+10% speed on the bases', unlock: { stat: 'runs', n: 25 }, hint: '25 career runs' },
-  { id: 'cleats-gold', cat: 'cleats', name: 'GOLD CROWNS', hex: '#f5c518', speedMult: 1.12, play: '+12% speed on the bases', unlock: { stat: 'king', n: 1 }, hint: 'Become King of the Streets' },
+  { id: 'cleats-gold', cat: 'cleats', name: 'GOLD CROWNS', hex: '#f5c518', speedMult: 1.12, play: '+12% speed on the bases', unlock: { stat: 'king', n: 1 }, hint: 'Become King of the Court' },
   // ---- uniforms: whole-kit tint override for YOUR squad.
   //      The first two are YOUR CREW'S OWN light and dark kits (spec §3) — free,
   //      always owned, and team-dependent: `teamKit` names the tone and the real
@@ -58,7 +58,7 @@ export const GEAR = [
   { id: 'kit-team-dark', cat: 'uniform', name: 'DARK KIT', teamKit: 'dark', hex: '#1b1b22', play: "your crew's dark kit", stock: true, unlock: null, hint: "FREE · your crew's own colours" },
   { id: 'kit-blackout', cat: 'uniform', name: 'BLACKOUT KIT', hex: '#1b1b22', play: "your crew's kit", unlock: { stat: 'wins', n: 3 }, hint: '3 career wins' },
   { id: 'kit-whiteout', cat: 'uniform', name: 'WHITEOUT KIT', hex: '#f2f2f4', play: "your crew's kit", unlock: { stat: 'blowouts', n: 1 }, hint: 'Win by 5 or more' },
-  { id: 'kit-gold', cat: 'uniform', name: 'GOLD RUSH KIT', hex: '#f5c518', play: "your crew's kit", unlock: { stat: 'king', n: 1 }, hint: 'Become King of the Streets' },
+  { id: 'kit-gold', cat: 'uniform', name: 'GOLD RUSH KIT', hex: '#f5c518', play: "your crew's kit", unlock: { stat: 'king', n: 1 }, hint: 'Become King of the Court' },
 ];
 
 export const TAUNT_IDS = GEAR.filter((g) => g.cat === 'taunt').map((g) => g.id);
@@ -82,7 +82,8 @@ export function careerGet(save) {
     wins: 0, roadWins: 0, blowouts: 0, runs: 0, hr: 0,
     defOuts: 0, steals: 0, pickleEscapes: 0, games: 0, perfects: 0,
     ...save.get('career', {}),
-    crews: save.get('unlocks.crews', []).length,
+    // RUN THE MAP trophies + crews beaten on the story climb (both on their turf), once each
+    crews: new Set([...save.get('unlocks.crews', []), ...(save.get('story', null)?.beaten ?? [])]).size,
     king: save.get('kingOfStreets', false) ? 1 : 0,
   };
 }

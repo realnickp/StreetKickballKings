@@ -68,7 +68,7 @@ export function MenuScreen(ctx) {
           <img class="menu-logo" src="assets/branding/logo-square.png" alt="" />
           <button class="big-play bounce-beat">PLAY 1v1<small>VS AI · THE BLACKTOP</small></button>
           <div class="mode-cards">
-            <div class="mode-card map-card">RUN THE MAP<small>${save.get('kingOfStreets', false) ? '👑 KING OF THE STREETS' : `${save.get('unlocks.crews', []).length}/9 CROWNS CLAIMED`}</small></div>
+            <div class="mode-card map-card story-card">STORY<small></small></div>
             <div class="mode-card locker-card">THE LOCKER<small>${save.get('gear.unlocked', []).filter((id) => !ctx.unlocks.gearById(id)?.stock).length}/${ctx.unlocks.GEAR.filter((g) => !g.stock).length} EARNED</small></div>
             <div class="mode-card locked">DERBY<small>COMING SOON</small></div>
           </div>
@@ -79,6 +79,8 @@ export function MenuScreen(ctx) {
           </div>
         </div>`);
       root.appendChild(s);
+      // STORY took RUN THE MAP's seat (story spec §2) — King of the Court
+      s.querySelector('.story-card small').textContent = ctx.story.storyMenuLabel(ctx.story.loadStory(save), ctx.data.storyMap);
       s.querySelector('.big-play').addEventListener('pointerdown', () => {
         ctx.bus.emit('sfx', 'scratch');
         // first time out? run the playable drills (skippable inside), then play
@@ -88,7 +90,7 @@ export function MenuScreen(ctx) {
       s.querySelector('.map-card').addEventListener('pointerdown', () => {
         ctx.bus.emit('sfx', 'scratch');
         if (!save.get('tutorialPlayed', false)) return ctx.startTutorial?.();
-        ctx.router.go('map');
+        ctx.router.go(ctx.story.loadStory(save) ? 'storyHub' : 'createCrew');
       });
       s.querySelector('.locker-card').addEventListener('pointerdown', () => {
         ctx.bus.emit('sfx', 'scratch');
