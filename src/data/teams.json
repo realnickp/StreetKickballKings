@@ -3,6 +3,7 @@
     {
       "id": "monarchs",
       "city": "Baltimore",
+      "region": "east",
       "name": "Maryland Monarchs",
       "colors": {
         "primary": "#F5B312",
@@ -199,6 +200,7 @@
     {
       "id": "snappers",
       "city": "New York",
+      "region": "east",
       "name": "New York Snappers",
       "colors": {
         "primary": "#2E5944",
@@ -395,6 +397,7 @@
     {
       "id": "bullies",
       "city": "Brooklyn",
+      "region": "east",
       "name": "Brooklyn Bullies",
       "colors": {
         "primary": "#D7263D",
@@ -591,6 +594,7 @@
     {
       "id": "funk",
       "city": "Philadelphia",
+      "region": "east",
       "name": "Philadelphia Funk",
       "colors": {
         "primary": "#1B2553",
@@ -787,6 +791,7 @@
     {
       "id": "marauders",
       "city": "Akron",
+      "region": "midwest",
       "name": "Akron Marauders",
       "colors": {
         "primary": "#E0701A",
@@ -983,6 +988,7 @@
     {
       "id": "metros",
       "city": "Washington DC",
+      "region": "east",
       "name": "DC Metros",
       "colors": {
         "primary": "#2B2D4F",
@@ -1179,6 +1185,7 @@
     {
       "id": "kestrals",
       "city": "Chicago",
+      "region": "midwest",
       "name": "Chicago Kestrals",
       "colors": {
         "primary": "#A8D8EA",
@@ -1375,6 +1382,7 @@
     {
       "id": "gilas",
       "city": "Phoenix",
+      "region": "southwest",
       "name": "Phoenix Gilas",
       "colors": {
         "primary": "#E8772E",
@@ -1571,6 +1579,7 @@
     {
       "id": "hustlers",
       "city": "Memphis",
+      "region": "south",
       "name": "Memphis Hustlers",
       "colors": {
         "primary": "#1D8AC4",
@@ -1767,6 +1776,7 @@
     {
       "id": "threshers",
       "city": "Los Angeles",
+      "region": "west",
       "name": "Los Angeles Threshers",
       "colors": {
         "primary": "#7A2417",

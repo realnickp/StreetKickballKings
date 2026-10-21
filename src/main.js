@@ -29,6 +29,7 @@ import { cityTrackId } from './engine/audioTracks.js';
 import fieldsData from './data/fields.json';
 import teamsData from './data/teams.json';
 import tuning from './data/tuning.json';
+import storyMap from './data/story/regions.json';
 
 const canvas = document.getElementById('game-canvas');
 const uiRoot = document.getElementById('ui-root');
@@ -175,7 +176,7 @@ if (params.has('match')) {
 async function bootFlow() {
   const ctx = {
     engine, input, bus, audio, save, trophies, unlocks,
-    data: { teams: teamsData.teams, fields: fieldsData.fields, tuning },
+    data: { teams: teamsData.teams, fields: fieldsData.fields, tuning, storyMap },
     mapTarget: null, // Run the Map: crew called out (locks TeamSelect's HOME side)
     router: null,
     scene: null,

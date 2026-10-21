@@ -1,0 +1,10 @@
+{
+  "regions": [
+    { "id": "east", "name": "THE EAST", "tag": "Where it started. Where nobody knows you.", "ladder": ["snappers", "metros", "monarchs", "bullies", "funk"] },
+    { "id": "midwest", "name": "THE MIDWEST", "tag": "Cold courts. Colder crews.", "ladder": ["marauders", "kestrals", "detroit", "stlouis", "cleveland"] },
+    { "id": "south", "name": "THE SOUTH", "tag": "Heat on the blacktop. Heat in the stands.", "ladder": ["hustlers", "atlanta", "neworleans", "houston", "miami"] },
+    { "id": "southwest", "name": "THE SOUTHWEST", "tag": "Desert ball. No shade.", "ladder": ["gilas", "dallas", "vegas", "denver", "albuquerque"] },
+    { "id": "west", "name": "THE WEST COAST", "tag": "Last stop before the crown.", "ladder": ["threshers", "oakland", "seattle", "sandiego", "portland"] }
+  ],
+  "nationals": { "finalField": "the-crown" }
+}
