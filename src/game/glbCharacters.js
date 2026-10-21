@@ -799,7 +799,7 @@ function archIdxFor(team, i) {
 /** This crew's cast for roster slot `i` — `{archetype, skin, height, build,
  *  accessory}` — or null for a crew nobody cast. */
 export function castSlotFor(team, i) {
-  return castsData.casts?.[team?.id ?? '']?.[i] ?? null;
+  return team?.roster?.[i]?.cast ?? castsData.casts?.[team?.id ?? '']?.[i] ?? null;
 }
 
 /** The kit a colour belongs to — the crew's own data when the hex IS one of

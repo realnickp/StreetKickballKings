@@ -1,0 +1,22 @@
+{
+  "swatches": [
+    { "id": "fire", "primary": "#e63322", "secondary": "#111114" },
+    { "id": "royal", "primary": "#2f5bea", "secondary": "#f5c518" },
+    { "id": "money", "primary": "#1f9d55", "secondary": "#0d0d10" },
+    { "id": "grape", "primary": "#7b3fe4", "secondary": "#f2f2f4" },
+    { "id": "gold", "primary": "#f5b312", "secondary": "#16161a" },
+    { "id": "ice", "primary": "#33c3f0", "secondary": "#0b1d3a" },
+    { "id": "pink", "primary": "#ff4fa3", "secondary": "#1a1a1f" },
+    { "id": "orange", "primary": "#ff7a1a", "secondary": "#14213d" },
+    { "id": "teal", "primary": "#12b5a6", "secondary": "#2b1a3d" },
+    { "id": "silver", "primary": "#b8bcc6", "secondary": "#c8102e" }
+  ],
+  "marks": ["mark-01", "mark-02", "mark-03", "mark-04", "mark-05", "mark-06", "mark-07", "mark-08", "mark-09", "mark-10", "mark-11", "mark-12"],
+  "blockNames": [
+    "Lil Saint", "Stoop Kid", "Big Mook", "Corner Store", "Tito", "Pockets", "Dre Bucket", "Smoke",
+    "Peanut", "Nana's Boy", "Juice", "Slim Jim", "Wheels", "Hot Sauce", "Bodega Cat", "Ty Money",
+    "Little Bit", "Buttah", "Gutter", "Moose", "Sneaks", "Ice Pop", "Boogie", "Fresh Rob",
+    "Cheese", "Rello", "Biscuit", "Hydrant", "Zay", "Pudge"
+  ],
+  "positions": ["Captain", "Leadoff", "Utility", "Big Boot", "Pitcher", "Shortstop", "Outfield", "Catcher"]
+}
