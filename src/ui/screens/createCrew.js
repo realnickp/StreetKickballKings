@@ -5,7 +5,7 @@
 import crewKit from '../../data/story/crewKit.json';
 import { cleanCrewName, makeBlockRoster, NAME_MAX } from '../../meta/yourCrew.js';
 import { newStory, loadStory, saveStory } from '../../meta/story.js';
-import { markFileUrl } from '../../meta/markTint.js';
+import { markCssUrl } from '../../meta/markTint.js';
 
 function el(html) {
   const t = document.createElement('template');
@@ -50,7 +50,7 @@ export function CreateCrewScreen(ctx) {
         s.style.setProperty('--cc1', pick.swatch.primary);
         s.style.setProperty('--cc2', pick.swatch.secondary);
         s.querySelector('.cc-name').textContent = name ?? (input.value.trim().toUpperCase() || 'YOUR CREW');
-        s.querySelector('.cc-mark').style.setProperty('--m', `url(${markFileUrl(pick.mark)})`);
+        s.querySelector('.cc-mark').style.setProperty('--m', markCssUrl(pick.mark));
         s.querySelector('.cc-err').classList.toggle('on', input.value.trim() !== '' && !name);
         s.querySelector('.cc-go').disabled = !name;
         s.querySelectorAll('.cc-sw').forEach((b) => b.classList.toggle('on', b.dataset.id === pick.swatch.id));
@@ -67,7 +67,7 @@ export function CreateCrewScreen(ctx) {
       const mk = s.querySelector('.cc-marks');
       for (const id of crewKit.marks) {
         const b = el(`<button class="cc-mk" data-id="${id}" aria-label="${id}"><i></i></button>`);
-        b.querySelector('i').style.setProperty('--m', `url(${markFileUrl(id)})`);
+        b.querySelector('i').style.setProperty('--m', markCssUrl(id));
         b.addEventListener('pointerdown', () => { pick.mark = id; ctx.bus.emit('sfx', 'juke'); paint(); });
         mk.appendChild(b);
       }

@@ -640,3 +640,8 @@ it('story: a Locker uniform on your own crew carries the mark tinted for its ink
   const monarchs = { id: 'monarchs', colors: { primary: '#F5B312' }, kits: {} };
   expect(resolveGearKit({ id: 'kit-blackout', hex: '#1b1b22' }, monarchs).logoUrl).toBeUndefined();
 });
+
+import { markCssUrl } from '../src/meta/markTint.js';
+it('story: a crew mark in a CSS var is an ABSOLUTE url (relative ones 404 from the bundled stylesheet)', () => {
+  expect(markCssUrl('mark-04', 'https://skk.app/')).toBe('url("https://skk.app/assets/logos/stock/mark-04.png")');
+});

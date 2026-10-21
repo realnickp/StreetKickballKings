@@ -7,6 +7,9 @@ import { inkFor } from '../game/kits.js';
 const cache = new Map();
 
 export const markFileUrl = (markId) => `assets/logos/stock/${markId}.png`;
+// for a CSS var: a relative url() in a custom property resolves against the STYLESHEET
+// that uses it (the bundled /assets/*.css in prod → /assets/assets/… 404), so go absolute
+export const markCssUrl = (markId, base = document.baseURI) => `url("${new URL(markFileUrl(markId), base).href}")`;
 
 export function tintedMarkUrl(markId, hex) {
   const key = `${markId}|${hex}`;
