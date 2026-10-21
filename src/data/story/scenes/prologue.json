@@ -1,0 +1,28 @@
+{
+  "scenes": {
+    "prologue": {
+      "id": "prologue",
+      "still": "prologue-block",
+      "music": "theme",
+      "title": { "top": "CHAPTER 0 · THE BLOCK", "sub": "NOBODY KNOWS US YET" },
+      "threads": [
+        { "kind": "group", "name": "{crew} 👑", "avatar": "{crewLogo}", "messages": [
+          { "from": "Dre", "text": "real talk. NOBODY from this block ever made Nationals. NOBODY. why is that 🤔" },
+          { "from": "Pops", "text": "Youngin. 1998. We went 14-0. Then the bus broke down on the way." },
+          { "from": "Keys", "text": "Pops the bus story is eleven minutes long" },
+          { "from": "Pops", "text": "It was a long bus." },
+          { "from": "Keys", "text": "we're 0-0. half of us play in slides. the ball has a dent in it." },
+          { "from": "Dre", "text": "a DENT ain't stopping DESTINY 🔥🔥🔥" },
+          { "from": "Tasha", "text": "Y'all done? I signed us up. East ladder, five crews. Fee came out my gas money." },
+          { "from": "me", "text": "say less" }
+        ] },
+        { "kind": "dm", "name": "Commissioner Lou · East Ladder", "avatar": "{crewLogo}", "messages": [
+          { "from": "Commissioner Lou", "text": "Registration received: {crew}. Never heard of y'all." },
+          { "from": "Commissioner Lou", "text": "First rung is New York. The Snappers. Saturday. Don't be late." },
+          { "from": "me", "text": "you'll hear of us" }
+        ] }
+      ],
+      "slam": "WE OUTSIDE"
+    }
+  }
+}

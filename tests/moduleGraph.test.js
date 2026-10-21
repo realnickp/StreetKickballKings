@@ -23,6 +23,14 @@ function imports(file) {
   const specs = [];
   for (const m of text.matchAll(/import\s+(?:[^'"]*?\s+from\s+)?['"]([^'"]+)['"]/g)) specs.push(m[1]);
   for (const m of text.matchAll(/import\(\s*['"]([^'"]+)['"]\s*\)/g)) specs.push(m[1]);
+  // import.meta.glob('./dir/*.ext') — every file the pattern matches is reachable
+  for (const m of text.matchAll(/import\.meta\.glob\(\s*['"]([^'"]+)['"]/g)) {
+    const pat = path.resolve(path.dirname(file), m[1]);
+    const dir = path.dirname(pat);
+    const esc = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp('^' + path.basename(pat).split('*').map(esc).join('[^/]*') + '$');
+    if (fs.existsSync(dir)) for (const f of fs.readdirSync(dir)) if (re.test(f)) specs.push(path.relative(path.dirname(file), path.join(dir, f)).split(path.sep).join('/').replace(/^(?!\.)/, './'));
+  }
   return specs.filter((s) => s.startsWith('.')).map((s) => path.resolve(path.dirname(file), s));
 }
 
